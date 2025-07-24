@@ -1,0 +1,454 @@
+name: Meta Workflow Generator
+run-name: ${{ github.actor }} generates workflow for "${{ github.event.issue.title || github.event.inputs.description }}" 🤖
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      workflow_type:
+        description: 'ワークフローのタイプ'
+        required: true
+        type: choice
+        options:
+          - image-generation
+          - video-generation
+          - audio-generation
+          - news-article
+          - news-video
+          - social-integration
+          - custom
+      description:
+        description: '生成したいワークフローの説明'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Step 1: 要求の初期分析
+  analyze-request:
+    runs-on: ubuntu-latest
+    outputs:
+      workflow_type: ${{ steps.analyze.outputs.workflow_type }}
+      branch_name: ${{ steps.analyze.outputs.branch_name }}
+      request_file: ${{ steps.analyze.outputs.request_file }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Analyze Request
+        id: analyze
+        run: |
+          # 要求の分析と保存
+          mkdir -p .meta/requests
+          
+          if [ "${{ github.event_name }}" == "issues" ]; then
+            TITLE="${{ github.event.issue.title }}"
+            BODY="${{ github.event.issue.body }}"
+            REQUEST_ID="issue-${{ github.event.issue.number }}"
+          else
+            TITLE="${{ github.event.inputs.description }}"
+            BODY="${{ github.event.inputs.description }}"
+            REQUEST_ID="manual-$(date +%Y%m%d-%H%M%S)"
+          fi
+          
+          # ワークフロータイプの推定
+          if echo "$TITLE $BODY" | grep -qi "画像\|image\|バナー\|ロゴ"; then
+            WORKFLOW_TYPE="image-generation"
+          elif echo "$TITLE $BODY" | grep -qi "動画\|video\|アニメーション"; then
+            WORKFLOW_TYPE="video-generation"
+          elif echo "$TITLE $BODY" | grep -qi "音声\|audio\|ナレーション"; then
+            WORKFLOW_TYPE="audio-generation"
+          elif echo "$TITLE $BODY" | grep -qi "ニュース.*動画"; then
+            WORKFLOW_TYPE="news-video"
+          elif echo "$TITLE $BODY" | grep -qi "ニュース\|記事\|article"; then
+            WORKFLOW_TYPE="news-article"
+          else
+            WORKFLOW_TYPE="custom"
+          fi
+          
+          # ブランチ名の生成
+          SAFE_TITLE=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-50)
+          BRANCH_NAME="workflow/${WORKFLOW_TYPE}-${REQUEST_ID}"
+          
+          # 要求をファイルに保存
+          cat > .meta/requests/${REQUEST_ID}.md << EOF
+          # Workflow Generation Request
+          
+          ## Type: ${WORKFLOW_TYPE}
+          ## Title: ${TITLE}
+          
+          ## Description:
+          ${BODY}
+          
+          ## Metadata:
+          - Request ID: ${REQUEST_ID}
+          - Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          - Source: ${{ github.event_name }}
+          EOF
+          
+          echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "request_file=.meta/requests/${REQUEST_ID}.md" >> $GITHUB_OUTPUT
+          
+      - name: Upload Request Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: request-${{ github.run_number }}
+          path: .meta/requests/
+          retention-days: 30
+
+  # Step 2: タスク分解
+  decompose-tasks:
+    needs: analyze-request
+    runs-on: ubuntu-latest
+    outputs:
+      task_count: ${{ steps.decompose.outputs.task_count }}
+      complexity: ${{ steps.decompose.outputs.complexity }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Request
+        uses: actions/download-artifact@v4
+        with:
+          name: request-${{ github.run_number }}
+          path: .meta/requests/
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Decompose Tasks
+        id: decompose
+        run: |
+          # タスク分解プロンプトを読み込み
+          PROMPT_FILE="meta/prompts/task-decomposition.md"
+          
+          if [ ! -f "$PROMPT_FILE" ]; then
+            echo "Error: $PROMPT_FILE not found"
+            exit 1
+          fi
+          
+          # プロンプトに要求内容を追加
+          cat $PROMPT_FILE > .meta/decompose-prompt.md
+          echo "" >> .meta/decompose-prompt.md
+          echo "## User Request:" >> .meta/decompose-prompt.md
+          cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
+          
+          # Claude Codeでタスク分解実行
+          claude -p --continue "$(cat .meta/decompose-prompt.md)" \
+            --output-format text \
+            --mcp-config=~/.claude/mcp-kamuicode.json \
+            --allowedTools "filesystem,Bash"
+          
+          # 生成されたタスクプランの検証
+          if [ -f ".meta/tasks/task-plan.json" ]; then
+            TASK_COUNT=$(jq '.tasks | length' .meta/tasks/task-plan.json)
+            COMPLEXITY=$(jq -r '.complexity_level' .meta/tasks/task-plan.json)
+            
+            echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
+            echo "complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
+            
+            echo "✅ Task decomposition complete: $TASK_COUNT tasks, complexity level $COMPLEXITY"
+          else
+            echo "❌ Task decomposition failed"
+            exit 1
+          fi
+          
+      - name: Upload Task Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-plan-${{ github.run_number }}
+          path: .meta/tasks/
+          retention-days: 30
+
+  # Step 3: ワークフロー生成準備
+  prepare-generation:
+    needs: [analyze-request, decompose-tasks]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Create feature branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b ${{ needs.analyze-request.outputs.branch_name }}
+          
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: .meta/
+          
+      - name: Prepare Generation Context
+        run: |
+          # 生成コンテキストの準備
+          mkdir -p generated/config generated/prompts generated/scripts
+          
+          # タスクプランをconfigにコピー
+          cp .meta/task-plan-${{ github.run_number }}/task-plan.json generated/config/
+          
+          # 基本プロンプトテンプレートをコピー
+          if [ -d "meta/prompts/templates" ]; then
+            cp -r meta/prompts/templates/* generated/prompts/
+          fi
+          
+      - name: Upload Generation Context
+        uses: actions/upload-artifact@v4
+        with:
+          name: generation-context-${{ github.run_number }}
+          path: generated/
+          retention-days: 7
+
+  # Step 4: ワークフローYAML生成
+  generate-workflow-yaml:
+    needs: [analyze-request, decompose-tasks, prepare-generation]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.analyze-request.outputs.branch_name }}
+          
+      - name: Download Context
+        uses: actions/download-artifact@v4
+        with:
+          name: generation-context-${{ github.run_number }}
+          path: generated/
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Generate Workflow YAML
+        run: |
+          # ワークフロー生成プロンプトを読み込み
+          PROMPT_FILE="meta/prompts/workflow-generation.md"
+          
+          # コンテキスト情報を追加
+          cat $PROMPT_FILE > .meta/generate-workflow-prompt.md
+          echo "" >> .meta/generate-workflow-prompt.md
+          echo "## Context:" >> .meta/generate-workflow-prompt.md
+          echo "- Workflow Type: ${{ needs.analyze-request.outputs.workflow_type }}" >> .meta/generate-workflow-prompt.md
+          echo "- Task Count: ${{ needs.decompose-tasks.outputs.task_count }}" >> .meta/generate-workflow-prompt.md
+          echo "- Complexity: ${{ needs.decompose-tasks.outputs.complexity }}" >> .meta/generate-workflow-prompt.md
+          echo "" >> .meta/generate-workflow-prompt.md
+          echo "## Task Plan:" >> .meta/generate-workflow-prompt.md
+          echo '```json' >> .meta/generate-workflow-prompt.md
+          cat generated/config/task-plan.json >> .meta/generate-workflow-prompt.md
+          echo '```' >> .meta/generate-workflow-prompt.md
+          
+          # Claude Codeで生成
+          claude -p --continue "$(cat .meta/generate-workflow-prompt.md)" \
+            --output-format text \
+            --mcp-config=~/.claude/mcp-kamuicode.json \
+            --allowedTools "filesystem,Bash"
+            
+      - name: Validate Generated YAML
+        run: |
+          WORKFLOW_FILE=".github/workflows/generated-${{ needs.analyze-request.outputs.workflow_type }}.yml"
+          
+          if [ ! -f "$WORKFLOW_FILE" ]; then
+            echo "❌ Workflow file not generated"
+            exit 1
+          fi
+          
+          # YAML検証
+          if command -v yamllint &> /dev/null; then
+            yamllint "$WORKFLOW_FILE"
+          fi
+          
+          echo "✅ Workflow YAML generated successfully"
+
+  # Step 5: スクリプト生成
+  generate-scripts:
+    needs: [analyze-request, decompose-tasks, generate-workflow-yaml]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.analyze-request.outputs.branch_name }}
+          
+      - name: Download Context
+        uses: actions/download-artifact@v4
+        with:
+          name: generation-context-${{ github.run_number }}
+          path: generated/
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Generate Scripts
+        run: |
+          # スクリプト生成プロンプトを読み込み
+          PROMPT_FILE="meta/prompts/script-generation.md"
+          
+          # タスクプランに基づいてスクリプトを生成
+          cat $PROMPT_FILE > .meta/generate-scripts-prompt.md
+          echo "" >> .meta/generate-scripts-prompt.md
+          echo "## Task Plan:" >> .meta/generate-scripts-prompt.md
+          echo '```json' >> .meta/generate-scripts-prompt.md
+          cat generated/config/task-plan.json >> .meta/generate-scripts-prompt.md
+          echo '```' >> .meta/generate-scripts-prompt.md
+          
+          # Claude Codeで生成
+          claude -p --continue "$(cat .meta/generate-scripts-prompt.md)" \
+            --output-format text \
+            --mcp-config=~/.claude/mcp-kamuicode.json \
+            --allowedTools "filesystem,Bash"
+            
+      - name: Validate Generated Scripts
+        run: |
+          # 必要なスクリプトファイルの確認
+          REQUIRED_SCRIPTS=(
+            "script/generate-${{ needs.analyze-request.outputs.workflow_type }}.js"
+            "script/lib/task-executor.js"
+          )
+          
+          for script in "${REQUIRED_SCRIPTS[@]}"; do
+            if [ ! -f "$script" ]; then
+              echo "❌ Missing script: $script"
+              exit 1
+            fi
+          done
+          
+          # Node.js構文チェック
+          for script in script/*.js script/lib/*.js; do
+            if [ -f "$script" ]; then
+              node -c "$script" || exit 1
+            fi
+          done
+          
+          echo "✅ Scripts generated successfully"
+
+  # Step 6: ドキュメント生成とPR作成
+  finalize-and-create-pr:
+    needs: [analyze-request, decompose-tasks, generate-workflow-yaml, generate-scripts]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.analyze-request.outputs.branch_name }}
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Generate Documentation
+        run: |
+          # ドキュメント生成プロンプトを読み込み
+          PROMPT_FILE="meta/prompts/documentation-generation.md"
+          
+          # コンテキスト情報を追加
+          cat $PROMPT_FILE > .meta/generate-docs-prompt.md
+          echo "" >> .meta/generate-docs-prompt.md
+          echo "## Generated Workflow:" >> .meta/generate-docs-prompt.md
+          echo "- Type: ${{ needs.analyze-request.outputs.workflow_type }}" >> .meta/generate-docs-prompt.md
+          echo "- Tasks: ${{ needs.decompose-tasks.outputs.task_count }}" >> .meta/generate-docs-prompt.md
+          echo "- Complexity: ${{ needs.decompose-tasks.outputs.complexity }}" >> .meta/generate-docs-prompt.md
+          
+          # Claude Codeで生成
+          claude -p --continue "$(cat .meta/generate-docs-prompt.md)" \
+            --output-format text \
+            --mcp-config=~/.claude/mcp-kamuicode.json \
+            --allowedTools "filesystem,Bash"
+            
+      - name: Commit Generated Files
+        run: |
+          git add .
+          git commit -m "feat: Generate ${{ needs.analyze-request.outputs.workflow_type }} workflow
+          
+          Generated by Meta Workflow Generator
+          - Task Count: ${{ needs.decompose-tasks.outputs.task_count }}
+          - Complexity Level: ${{ needs.decompose-tasks.outputs.complexity }}
+          - Source: ${{ github.event_name }}"
+          
+          git push origin ${{ needs.analyze-request.outputs.branch_name }}
+          
+      - name: Create Pull Request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🤖 Generate ${context.payload.inputs?.workflow_type || '${{ needs.analyze-request.outputs.workflow_type }}'} workflow`,
+              head: '${{ needs.analyze-request.outputs.branch_name }}',
+              base: 'main',
+              body: `## 🎯 Generated Workflow
+              
+              This PR was automatically generated by the Meta Workflow Generator.
+              
+              ### 📋 Details
+              - **Type**: ${{ needs.analyze-request.outputs.workflow_type }}
+              - **Task Count**: ${{ needs.decompose-tasks.outputs.task_count }}
+              - **Complexity Level**: ${{ needs.decompose-tasks.outputs.complexity }}
+              - **Source**: ${{ github.event_name }}
+              ${context.payload.issue ? `- **Issue**: #${context.payload.issue.number}` : ''}
+              
+              ### 📁 Generated Files
+              - \`.github/workflows/generated-${{ needs.analyze-request.outputs.workflow_type }}.yml\`
+              - \`script/generate-${{ needs.analyze-request.outputs.workflow_type }}.js\`
+              - \`script/lib/task-executor.js\`
+              - \`config/\` - Configuration files
+              - \`prompts/\` - Prompt templates
+              - \`README.md\` - Setup documentation
+              
+              ### 🔍 Validation Results
+              - ✅ YAML syntax validated
+              - ✅ JavaScript syntax validated
+              - ✅ All required files generated
+              
+              ### ✅ Next Steps
+              1. Review the generated files
+              2. Check the task decomposition
+              3. Test the workflow in a test environment
+              4. Merge if everything looks good
+              
+              ${context.payload.issue ? `Closes #${context.payload.issue.number}` : ''}
+              `
+            });
+            
+            // Issueにコメントを追加
+            if (context.payload.issue) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.issue.number,
+                body: `🎉 ワークフローが生成されました！\n\nPR: #${pr.data.number}\n\n### 📊 生成結果\n- タスク数: ${{ needs.decompose-tasks.outputs.task_count }}\n- 複雑度: ${{ needs.decompose-tasks.outputs.complexity }}\n\n生成されたワークフローをレビューしてください。`
+              });
+            }
