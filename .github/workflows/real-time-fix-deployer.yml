@@ -288,20 +288,9 @@ jobs:
           if echo "$AFFECTED_SYSTEMS" | grep -q "config-drift\|claude-api"; then
             echo "🔧 EMERGENCY: Restoring critical configurations..."
             
-            # MCP設定の緊急復旧
+            # Claude Code認証の確認とMCP設定の最小限復旧（AI生成時のみ）
             mkdir -p ~/.claude
-            cat > ~/.claude/mcp-kamuicode.json << 'EOF'
-          {
-            "mcpServers": {
-              "emergency-fallback": {
-                "type": "stdio",
-                "command": "echo",
-                "args": ["{\"status\": \"emergency_fallback_active\", \"mode\": \"safe_operation\"}"],
-                "description": "Emergency fallback service"
-              }
-            }
-          }
-          EOF
+            echo "# MCP config - AI generation services only, text generation uses Claude Code directly" > ~/.claude/mcp-kamuicode.json
             
             # 認証トークンの検証と更新
             if [ -n "${{ env.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then

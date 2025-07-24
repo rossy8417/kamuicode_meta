@@ -69,10 +69,15 @@ jobs:
           
           FIXES_APPLIED=""
           
-          # Fix 1: MCP設定ファイルの自動作成
-          echo "🔧 Creating MCP configuration..."
+          # Fix 1: MCP設定ファイルの自動作成（AI生成サービス用のみ）
+          echo "🔧 Creating MCP configuration for AI generation services..."
           mkdir -p ~/.claude
-          cat > ~/.claude/mcp-kamuicode.json << 'EOF'
+          
+          # ワークフロータイプを確認してMCPが必要かチェック
+          WORKFLOW_TYPE="${{ github.event.inputs.workflow_type || 'unknown' }}"
+          
+          if [[ "$WORKFLOW_TYPE" =~ ^(image-generation|video-generation|audio-generation|news-video)$ ]]; then
+            cat > ~/.claude/mcp-kamuicode.json << 'EOF'
           {
             "mcpServers": {
               "t2i-google-imagen3": {
@@ -80,63 +85,24 @@ jobs:
                 "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/google/imagen",
                 "description": "Google Imagen 3 Text-to-Image Generation"
               },
-              "t2m-google-lyria": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2m/google/lyria",
-                "description": "Google Lyria Text-to-Music Generation P+"
-              },
-              "t2i-fal-imagen4-ultra": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/fal/imagen4/ultra",
-                "description": "Fal.ai Imagen4 Ultra Text-to-Image (High Quality) P+"
-              },
-              "t2i-fal-imagen4-fast": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/fal/imagen4/fast",
-                "description": "Fal.ai Imagen4 Fast Text-to-Image (Speed Optimized) P+"
-              },
               "t2v-fal-veo3-fast": {
                 "type": "http",
                 "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2v/fal/veo3/fast",
                 "description": "Fal.ai Veo3 Fast Text-to-Video Generation P+"
               },
-              "i2v-fal-hailuo-02-pro": {
+              "t2m-google-lyria": {
                 "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/i2v/fal/minimax/hailuo-02/pro",
-                "description": "Fal.ai Hailuo-02 Pro Image-to-Video Generation P+"
-              },
-              "i2i-fal-flux-kontext-max": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/i2i/fal/flux/kontext/max",
-                "description": "Fal.ai Flux Kontext Max Image-to-Image Enhancement P+"
-              },
-              "i2i3d-fal-hunyuan3d-v21": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/i2i3d/fal/hunyuan/3d-v21",
-                "description": "Fal.ai Hunyuan3D v2.1 Image-to-3D Model Generation P+"
-              },
-              "v2a-fal-thinksound": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/v2a/fal/thinksound",
-                "description": "Fal.ai ThinkSound Video-to-Audio Generation P+"
-              },
-              "v2v-fal-luma-ray2-modify": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/v2v/fal/luma/dream-machine/ray-2/modify",
-                "description": "Fal.ai Luma Dream Machine Ray-2 Video-to-Video Modification P+"
-              },
-              "r2v-fal-vidu-q1": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/r2v/fal/vidu/q1",
-                "description": "Fal.ai Vidu Q1 Reference-to-Video Generation P+"
+                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2m/google/lyria",
+                "description": "Google Lyria Text-to-Music Generation P+"
               }
             }
           }
           EOF
-          
-          if [ -f ~/.claude/mcp-kamuicode.json ]; then
-            FIXES_APPLIED="${FIXES_APPLIED}mcp-config-created;"
-            echo "✅ MCP configuration created"
+            FIXES_APPLIED="${FIXES_APPLIED}mcp-config-created-for-ai-generation;"
+            echo "✅ MCP configuration created for AI generation services"
+          else
+            echo "ℹ️ MCP not needed for text-only workflow type: $WORKFLOW_TYPE"
+            FIXES_APPLIED="${FIXES_APPLIED}mcp-not-required;"
           fi
           
           # Fix 2: 必要なディレクトリ構造の確認・作成
@@ -295,23 +261,10 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
         
-      - name: Recreate MCP Configuration
+      - name: Setup Claude Code Environment
         run: |
-          # MCP設定ファイルを再作成（自己修復）
-          mkdir -p ~/.claude
-          cat > ~/.claude/mcp-kamuicode.json << 'EOF'
-          {
-            "mcpServers": {
-              "basic": {
-                "type": "stdio",
-                "command": "echo",
-                "args": ["{\"available_tools\": [\"text_generation\", \"task_decomposition\"]}"]
-              }
-            }
-          }
-          EOF
-          
-          echo "✅ MCP configuration recreated for task decomposition"
+          echo "🔧 Setting up Claude Code for direct text generation..."
+          # MCPは不要 - Claude Code GitHub Actionsで直接テキスト生成を実行
           
       - name: Decompose Tasks with Fallback
         id: decompose
@@ -354,11 +307,9 @@ jobs:
           echo "## User Request:" >> .meta/decompose-prompt.md
           cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
           
-          # タスク分解の実行（エラーハンドリング付き）
-          if ! claude -p --continue "$(cat .meta/decompose-prompt.md)" \
-            --output-format text \
-            --mcp-config=~/.claude/mcp-kamuicode.json \
-            --allowedTools "filesystem,Bash"; then
+          # タスク分解の実行（Claude Code直接実行）
+          if ! claude --continue "$(cat .meta/decompose-prompt.md)" \
+            --output-format text; then
             
             echo "⚠️ Claude Code failed, using fallback decomposition..."
             

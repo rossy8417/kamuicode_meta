@@ -195,32 +195,26 @@ jobs:
           FIXES_APPLIED=""
           FIX_SUCCESS=true
           
-          # Fix 1: MCP設定の修正・最適化
+          # Fix 1: MCP設定の修正・最適化（AI生成サービス用のみ）
           if echo "$ISSUE_TYPES" | grep -q "mcp-config-issues"; then
             echo "🔧 Fixing MCP configuration issues..."
             
             mkdir -p ~/.claude
+            # テキスト生成はClaude Code直接実行、画像/動画/音声生成のみMCP使用
             cat > ~/.claude/mcp-kamuicode.json << 'EOF'
           {
             "mcpServers": {
-              "primary-generator": {
-                "type": "stdio",
-                "command": "node",
-                "args": ["-e", "console.log(JSON.stringify({available_tools: ['text_generation', 'task_analysis']}))"],
-                "description": "Primary content generation service"
-              },
-              "fallback-basic": {
-                "type": "stdio", 
-                "command": "echo",
-                "args": ["{\"status\": \"fallback_active\"}"],
-                "description": "Fallback service for basic operations"
+              "ai-generation-service": {
+                "type": "http",
+                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app",
+                "description": "AI generation services for media content only"
               }
             }
           }
           EOF
             
-            FIXES_APPLIED="${FIXES_APPLIED}mcp-config-optimized;"
-            echo "✅ MCP configuration optimized"
+            FIXES_APPLIED="${FIXES_APPLIED}mcp-config-optimized-for-ai-only;"
+            echo "✅ MCP configuration optimized for AI generation services only"
           fi
           
           # Fix 2: 失敗率対応の改善
