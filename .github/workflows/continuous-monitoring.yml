@@ -3,8 +3,8 @@ run-name: 🔍 Monitoring GitHub Actions continuously
 
 on:
   schedule:
-    # 5分おきに実行
-    - cron: '*/5 * * * *'
+    # 20分おきに実行（負荷軽減）
+    - cron: '*/20 * * * *'
   workflow_dispatch:
     inputs:
       monitoring_duration:
@@ -125,9 +125,9 @@ jobs:
               FAILED_CHECKS=$((FAILED_CHECKS + 1))
             fi
             
-            # 30秒待機
-            echo "⏰ Waiting 30 seconds for next check..."
-            sleep 30
+            # 10秒待機（高速化）
+            echo "⏰ Waiting 10 seconds for next check..."
+            sleep 10
           done
           
           # 最終レポート

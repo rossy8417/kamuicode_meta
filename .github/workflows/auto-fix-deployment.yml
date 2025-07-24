@@ -3,8 +3,8 @@ run-name: 🔧 Auto-fixing detected issues and deploying improvements
 
 on:
   schedule:
-    # 10分おきに実行して異常を監視・修正
-    - cron: '*/10 * * * *'
+    # 30分おきに実行して異常を監視・修正（負荷軽減）
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       force_analysis:
@@ -411,9 +411,9 @@ jobs:
           
           mkdir -p .meta/auto-fix/validation
           
-          # 15分待機してから効果を検証
-          echo "⏰ Waiting 15 minutes for fixes to take effect..."
-          sleep 900
+          # 30秒待機してから効果を検証（高速化）
+          echo "⏰ Waiting 30 seconds for fixes to take effect..."
+          sleep 30
           
           # 改善効果の測定
           VALIDATION_RESULTS="unknown"
