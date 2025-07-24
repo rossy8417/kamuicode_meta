@@ -2,9 +2,11 @@ name: Auto-Fix & Deployment System
 run-name: 🔧 Auto-fixing detected issues and deploying improvements
 
 on:
-  schedule:
-    # 30分おきに実行して異常を監視・修正（負荷軽減）
-    - cron: '*/30 * * * *'
+  workflow_run:
+    workflows: ["Kamuicode Meta Generator (Self-Healing)"]
+    types:
+      - completed
+      - failed
   workflow_dispatch:
     inputs:
       force_analysis:

@@ -1,0 +1,1075 @@
+# SEO最適化ブログ記事作成 - 超詳細タスク分解
+name: "seo-blog-article-creation"
+description: "キーワードからSEO最適化されたブログ記事を作成"
+category: "content-creation"
+complexity_level: 4
+estimated_duration_minutes: 60
+
+# 人間の無意識思考プロセス
+human_process:
+  - phase: "information_gathering"
+    description: "情報収集段階（キーワード理解・競合分析）"
+  - phase: "strategy_planning" 
+    description: "戦略立案段階（SEO戦略・構成設計）"
+  - phase: "content_creation"
+    description: "コンテンツ作成段階（執筆・最適化）"
+  - phase: "quality_assurance"
+    description: "品質保証段階（検証・改善）"
+  - phase: "publication_preparation"
+    description: "公開準備段階（最終調整・配信準備）"
+
+# GitHub Actions ノード設計
+github_actions_config:
+  workflow_name: "SEO Blog Article Creation"
+  on_triggers: ["workflow_dispatch", "issues"]
+  permissions:
+    contents: "write"
+    issues: "write"
+    actions: "read"
+  artifacts_retention_days: 30
+  max_parallel_jobs: 5
+
+# 超詳細タスク分解
+tasks:
+  # === 事前テスト段階 ===
+  - id: "mcp-api-connectivity-test"
+    name: "MCP・API接続テスト"
+    phase: "pre_validation"
+    github_job: "connectivity-test"
+    type: "validation"
+    implementation: "mcp"
+    duration_minutes: 2
+    dependencies: []
+    parallel_group: null
+    
+    github_steps:
+      - name: "Test MCP and API connections"
+        shell: "bash"
+        script: |
+          echo "🔌 Testing required external services for blog article creation..."
+          
+          mkdir -p .logs/connectivity-tests
+          
+          # Web検索API テスト（競合分析・検索意図分析で必要）
+          echo "Testing web search capabilities..."
+          if [ -n "${{ secrets.GOOGLE_SEARCH_API_KEY }}" ] && [ -n "${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}" ]; then
+            # Google Custom Search API テスト
+            if timeout 30 curl -s "https://www.googleapis.com/customsearch/v1?key=${{ secrets.GOOGLE_SEARCH_API_KEY }}&cx=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}&q=test" > .logs/connectivity-tests/google-search-test.log 2>&1; then
+              WEB_SEARCH_STATUS="success"
+              WEB_SEARCH_METHOD="google_api"
+              echo "✅ Google Search API: Available"
+            else
+              WEB_SEARCH_STATUS="failed"
+              WEB_SEARCH_METHOD="none"
+              echo "❌ Google Search API: Failed"
+            fi
+          else
+            WEB_SEARCH_STATUS="fallback"
+            WEB_SEARCH_METHOD="claude_built_in"
+            echo "ℹ️ External Search API: Not configured - will use Claude built-in capabilities"
+          fi
+          
+          # 注意：kamuicodeはmcp-kamuicode.json内のMCPサーバー群を指すが、
+          # ブログ記事作成では画像・動画・音楽生成MCPは使用しないため、
+          # カスタム機能は必要時のみテスト
+          echo "Testing custom MCP functions (if needed)..."
+          KAMUICODE_STATUS="not_required"
+          echo "ℹ️ MCP Kamuicode: Not required for blog article creation"
+          
+          # 外部SEOツールAPI テスト（利用可能な場合）
+          echo "Testing external SEO APIs..."
+          if [ -n "${{ secrets.SEO_API_KEY }}" ]; then
+            if timeout 15 curl -s -H "Authorization: Bearer ${{ secrets.SEO_API_KEY }}" https://api.example-seo-tool.com/health > .logs/connectivity-tests/seo-api-test.log 2>&1; then
+              SEO_API_STATUS="success"
+              echo "✅ SEO API: Available"
+            else
+              SEO_API_STATUS="failed"
+              echo "⚠️ SEO API: Failed - will use built-in analysis"
+            fi
+          else
+            SEO_API_STATUS="not_configured"
+            echo "ℹ️ SEO API: Not configured - will use built-in analysis"
+          fi
+          
+          # テスト結果をJSON保存
+          cat > .logs/connectivity-tests/test-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "required_for_workflow": {
+              "web_search_capability": "$WEB_SEARCH_STATUS",
+              "web_search_method": "$WEB_SEARCH_METHOD",
+              "kamuicode_mcp": "$KAMUICODE_STATUS",
+              "seo_api": "$SEO_API_STATUS"
+            },
+            "overall_status": "$([ "$WEB_SEARCH_STATUS" != "failed" ] && echo "ready" || echo "degraded")",
+            "critical_services_available": $([ "$WEB_SEARCH_STATUS" != "failed" ] && echo "true" || echo "false"),
+            "workflow_can_proceed": true,
+            "fallback_methods_needed": $([ "$WEB_SEARCH_STATUS" = "fallback" ] && echo "true" || echo "false")
+          }
+          EOF
+          
+          # 環境変数に結果を設定
+          echo "CONNECTIVITY_STATUS=$([ "$WEB_SEARCH_STATUS" != "failed" ] && echo "ready" || echo "degraded")" >> $GITHUB_ENV
+          echo "WEB_SEARCH_METHOD=$WEB_SEARCH_METHOD" >> $GITHUB_ENV
+          echo "FALLBACK_MODE=$([ "$WEB_SEARCH_STATUS" = "fallback" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          
+          echo "🔌 Connectivity tests completed"
+          
+    validation:
+      criteria:
+        - "必要な外部サービスの接続状況を確認済み"
+        - "Web Search MCPまたはフォールバック方法が利用可能"
+        - "テスト結果がJSON形式で保存されている"
+      validation_script: |
+        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
+          echo "❌ VALIDATION FAILED: Test results missing"
+          exit 1
+        fi
+        
+        WORKFLOW_CAN_PROCEED=$(jq -r '.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
+        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
+          echo "✅ Validation passed: Workflow can proceed with available services"
+        else
+          echo "❌ VALIDATION FAILED: Critical services unavailable"
+          exit 1
+        fi
+        
+    error_handling:
+      retry_count: 2
+      retry_delay_seconds: 10
+      fallback_strategy: "continue_with_limitations"
+      fallback_script: |
+        echo "⚠️ Using fallback: All external services failed, using manual methods"
+        cat > .logs/connectivity-tests/test-results.json << EOF
+        {
+          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "required_for_workflow": {
+            "web_search_mcp": "failed",
+            "kamuicode_mcp": "failed",
+            "seo_api": "failed"
+          },
+          "overall_status": "fallback_mode",
+          "critical_services_available": false,
+          "workflow_can_proceed": true,
+          "fallback_methods_needed": true
+        }
+        EOF
+        echo "CONNECTIVITY_STATUS=fallback_mode" >> $GITHUB_ENV
+        echo "FALLBACK_MODE=true" >> $GITHUB_ENV
+        
+    progress_links:
+      log_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      test_results: ".logs/connectivity-tests/test-results.json"
+
+  # === 情報収集段階 ===
+  - id: "keyword-input-processing"
+    name: "キーワード入力の正規化"
+    phase: "information_gathering"
+    github_job: "keyword-processing"
+    type: "processing"
+    implementation: "script"
+    duration_minutes: 1
+    dependencies: ["mcp-api-connectivity-test"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Extract and normalize keywords"
+        shell: "bash"
+        script: |
+          echo "🔍 Processing input keywords..."
+          KEYWORDS="${{ github.event.inputs.keywords || github.event.issue.title }}"
+          echo "Raw input: $KEYWORDS"
+          
+          # キーワードの正規化
+          NORMALIZED=$(echo "$KEYWORDS" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-zA-Z0-9 ]//g' | tr -s ' ')
+          echo "Normalized: $NORMALIZED"
+          
+          # ログディレクトリ作成
+          mkdir -p .logs/keyword-processing
+          
+          # 処理結果をログ保存
+          cat > .logs/keyword-processing/result.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "raw_input": "$KEYWORDS",
+            "normalized_keywords": "$NORMALIZED",
+            "keyword_count": $(echo "$NORMALIZED" | wc -w),
+            "processing_status": "success"
+          }
+          EOF
+          
+          # GitHub環境変数に出力
+          echo "NORMALIZED_KEYWORDS=$NORMALIZED" >> $GITHUB_ENV
+          echo "✅ Keywords processed successfully"
+          
+    validation:
+      criteria:
+        - "正規化されたキーワードが存在する"
+        - "特殊文字が適切に除去されている"
+        - "ログファイルが生成されている"
+      validation_script: |
+        if [ -z "$NORMALIZED_KEYWORDS" ]; then
+          echo "❌ VALIDATION FAILED: No normalized keywords"
+          exit 1
+        fi
+        if [ ! -f ".logs/keyword-processing/result.json" ]; then
+          echo "❌ VALIDATION FAILED: Log file missing"
+          exit 1
+        fi
+        echo "✅ Validation passed: Keywords processed correctly"
+        
+    error_handling:
+      retry_count: 2
+      retry_delay_seconds: 5
+      fallback_strategy: "use_default_keywords"
+      fallback_script: |
+        echo "⚠️ Using fallback: default keywords"
+        echo "NORMALIZED_KEYWORDS=default blog topic" >> $GITHUB_ENV
+        
+    progress_links:
+      log_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      artifact_path: ".logs/keyword-processing/"
+
+  - id: "search-intent-analysis"
+    name: "検索意図の分析"
+    phase: "information_gathering"
+    github_job: "search-intent-analysis"
+    type: "analysis"
+    implementation: "mcp"
+    tool: "web-search"
+    duration_minutes: 3
+    dependencies: ["keyword-input-processing"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Analyze search intent"
+        shell: "bash"
+        script: |
+          echo "🔍 Analyzing search intent for: $NORMALIZED_KEYWORDS"
+          
+          mkdir -p .logs/search-intent
+          
+          # Web検索を使用して検索結果分析
+          if [ "$WEB_SEARCH_METHOD" = "google_api" ]; then
+            # Google Custom Search API使用
+            curl -s "https://www.googleapis.com/customsearch/v1?key=${{ secrets.GOOGLE_SEARCH_API_KEY }}&cx=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}&q=${NORMALIZED_KEYWORDS}&num=10" > .logs/search-intent/search-results.json
+          else
+            # Claude内蔵機能使用（検索結果のシミュレーション）
+            echo '{"items": [], "note": "Using Claude built-in knowledge for search intent analysis"}' > .logs/search-intent/search-results.json
+          fi
+          
+          # Claude Code で検索意図を分析
+          claude-code --prompt "以下の検索結果から検索意図を分析してください：
+          
+          キーワード: $NORMALIZED_KEYWORDS
+          検索結果: $(cat .logs/search-intent/search-results.json)
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"primary_intent\": \"情報収集|購入検討|比較検討|問題解決\",
+            \"user_motivation\": \"ユーザーの動機説明\",
+            \"content_type_preference\": \"記事タイプの推奨\",
+            \"target_audience\": \"想定読者層\",
+            \"search_volume_estimate\": \"高|中|低\",
+            \"competition_level\": \"高|中|低\"
+          }" > .logs/search-intent/analysis.json
+          
+          # 分析結果をログに保存
+          INTENT_RESULT=$(cat .logs/search-intent/analysis.json)
+          echo "SEARCH_INTENT=$INTENT_RESULT" >> $GITHUB_ENV
+          
+          echo "✅ Search intent analysis completed"
+          
+    validation:
+      criteria:
+        - "検索意図分析結果がJSON形式で存在する"
+        - "必須フィールドが全て含まれている"
+        - "検索結果データが取得できている"
+      validation_script: |
+        if [ ! -f ".logs/search-intent/analysis.json" ]; then
+          echo "❌ VALIDATION FAILED: Analysis file missing"
+          exit 1
+        fi
+        if ! jq -e '.primary_intent' .logs/search-intent/analysis.json > /dev/null; then
+          echo "❌ VALIDATION FAILED: Invalid JSON structure"
+          exit 1
+        fi
+        echo "✅ Validation passed: Search intent analysis complete"
+        
+    error_handling:
+      retry_count: 3
+      retry_delay_seconds: 10
+      fallback_strategy: "manual_intent_estimation"
+      fallback_script: |
+        echo "⚠️ Using fallback: manual intent estimation"
+        cat > .logs/search-intent/analysis.json << EOF
+        {
+          "primary_intent": "情報収集",
+          "user_motivation": "トピックについて基本的な情報を求めている",
+          "content_type_preference": "説明記事",
+          "target_audience": "一般ユーザー",
+          "search_volume_estimate": "中",
+          "competition_level": "中"
+        }
+        EOF
+
+  - id: "competitor-content-research"
+    name: "競合コンテンツの調査"
+    phase: "information_gathering"
+    github_job: "competitor-research"
+    type: "research"
+    implementation: "mcp"
+    tool: "web-search"
+    duration_minutes: 4
+    dependencies: ["search-intent-analysis"]
+    parallel_group: "research_parallel"
+    
+    github_steps:
+      - name: "Research competitor content"
+        shell: "bash"
+        script: |
+          echo "🔍 Researching competitor content for: $NORMALIZED_KEYWORDS"
+          
+          mkdir -p .logs/competitor-research
+          
+          # 上位サイトの分析
+          if [ "$WEB_SEARCH_METHOD" = "google_api" ]; then
+            # Google Custom Search API使用
+            curl -s "https://www.googleapis.com/customsearch/v1?key=${{ secrets.GOOGLE_SEARCH_API_KEY }}&cx=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}&q=${NORMALIZED_KEYWORDS}&num=10" > .logs/competitor-research/top-results.json
+          else
+            # Claude内蔵知識使用
+            echo '{"items": [], "note": "Using Claude built-in knowledge for competitor analysis"}' > .logs/competitor-research/top-results.json
+          fi
+          
+          # 競合分析をClaude Codeで実行
+          claude-code --prompt "以下の検索上位サイトを分析して、競合コンテンツの特徴をまとめてください：
+          
+          検索結果: $(cat .logs/competitor-research/top-results.json)
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"common_topics\": [\"共通して扱われているトピック\"],
+            \"content_gaps\": [\"競合が扱っていない内容\"],
+            \"average_word_count\": \"推定文字数\",
+            \"common_structure\": [\"よく使われる構成\"],
+            \"unique_angles\": [\"差別化のアイデア\"],
+            \"seo_patterns\": [\"SEO的な特徴\"]
+          }" > .logs/competitor-research/analysis.json
+          
+          COMPETITOR_ANALYSIS=$(cat .logs/competitor-research/analysis.json)
+          echo "COMPETITOR_ANALYSIS=$COMPETITOR_ANALYSIS" >> $GITHUB_ENV
+          
+          echo "✅ Competitor research completed"
+          
+    validation:
+      criteria:
+        - "競合分析結果がJSON形式で存在する"
+        - "コンテンツギャップが特定されている"
+        - "差別化ポイントが明確になっている"
+      validation_script: |
+        if [ ! -f ".logs/competitor-research/analysis.json" ]; then
+          echo "❌ VALIDATION FAILED: Competitor analysis missing"
+          exit 1
+        fi
+        if ! jq -e '.content_gaps' .logs/competitor-research/analysis.json > /dev/null; then
+          echo "❌ VALIDATION FAILED: Content gaps not identified"
+          exit 1
+        fi
+        echo "✅ Validation passed: Competitor research complete"
+
+  - id: "user-questions-extraction"
+    name: "ユーザーの疑問・質問の抽出"
+    phase: "information_gathering"
+    github_job: "user-questions"
+    type: "analysis"
+    implementation: "mcp"
+    tool: "web-search"
+    duration_minutes: 3
+    dependencies: ["search-intent-analysis"]
+    parallel_group: "research_parallel"
+    
+    github_steps:
+      - name: "Extract user questions"
+        shell: "bash"
+        script: |
+          echo "❓ Extracting user questions for: $NORMALIZED_KEYWORDS"
+          
+          mkdir -p .logs/user-questions
+          
+          # 関連する質問サイトを検索
+          claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp web-search --query "site:yahoo.co.jp $NORMALIZED_KEYWORDS 質問" --limit 5 > .logs/user-questions/yahoo-questions.json
+          claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp web-search --query "$NORMALIZED_KEYWORDS よくある質問 FAQ" --limit 5 > .logs/user-questions/faq-results.json
+          
+          # ユーザーの質問を分析・抽出
+          claude-code --prompt "以下の検索結果から、ユーザーがよく持つ疑問や質問を抽出してください：
+          
+          Yahoo知恵袋等の結果: $(cat .logs/user-questions/yahoo-questions.json)
+          FAQ関連の結果: $(cat .logs/user-questions/faq-results.json)
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"frequent_questions\": [\"よくある質問のリスト\"],
+            \"beginner_questions\": [\"初心者向けの質問\"],
+            \"advanced_questions\": [\"上級者向けの質問\"],
+            \"practical_questions\": [\"実践的な質問\"],
+            \"concern_points\": [\"ユーザーの不安・懸念点\"]
+          }" > .logs/user-questions/extracted.json
+          
+          USER_QUESTIONS=$(cat .logs/user-questions/extracted.json)
+          echo "USER_QUESTIONS=$USER_QUESTIONS" >> $GITHUB_ENV
+          
+          echo "✅ User questions extraction completed"
+
+  # === 戦略立案段階 ===
+  - id: "content-gap-identification"
+    name: "コンテンツギャップの特定"
+    phase: "strategy_planning"
+    github_job: "content-gap-analysis"
+    type: "analysis"
+    implementation: "ai"
+    duration_minutes: 2
+    dependencies: ["competitor-content-research", "user-questions-extraction"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Identify content gaps"
+        shell: "bash"
+        script: |
+          echo "🎯 Identifying content gaps..."
+          
+          mkdir -p .logs/content-gaps
+          
+          # 競合分析とユーザー質問を統合してギャップを特定
+          claude-code --prompt "競合分析結果とユーザーの質問を基に、コンテンツギャップを特定してください：
+          
+          競合分析: $COMPETITOR_ANALYSIS
+          ユーザー質問: $USER_QUESTIONS
+          検索意図: $SEARCH_INTENT
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"critical_gaps\": [\"重要だが競合が扱っていない内容\"],
+            \"opportunity_areas\": [\"差別化できる領域\"],
+            \"user_pain_points\": [\"ユーザーの解決されていない課題\"],
+            \"content_depth_opportunities\": [\"より深く掘り下げるべき内容\"],
+            \"unique_value_proposition\": \"この記事独自の価値提案\"
+          }" > .logs/content-gaps/gaps.json
+          
+          CONTENT_GAPS=$(cat .logs/content-gaps/gaps.json)
+          echo "CONTENT_GAPS=$CONTENT_GAPS" >> $GITHUB_ENV
+          
+          echo "✅ Content gap identification completed"
+
+  - id: "seo-strategy-design"
+    name: "SEO戦略・キーワード配置計画"
+    phase: "strategy_planning"
+    github_job: "seo-strategy"
+    type: "planning"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["content-gap-identification"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Design SEO strategy"
+        shell: "bash"
+        script: |
+          echo "📊 Designing SEO strategy..."
+          
+          mkdir -p .logs/seo-strategy
+          
+          # SEO戦略の設計
+          claude-code --prompt "以下の情報を基に、包括的なSEO戦略を設計してください：
+          
+          メインキーワード: $NORMALIZED_KEYWORDS
+          検索意図: $SEARCH_INTENT
+          競合分析: $COMPETITOR_ANALYSIS
+          コンテンツギャップ: $CONTENT_GAPS
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"primary_keyword\": \"メインキーワード\",
+            \"secondary_keywords\": [\"関連キーワードリスト\"],
+            \"long_tail_keywords\": [\"ロングテールキーワード\"],
+            \"keyword_density_targets\": {
+              \"primary\": \"1-3%\",
+              \"secondary\": \"0.5-1%\"
+            },
+            \"heading_structure\": {
+              \"h1\": \"記事タイトル案\",
+              \"h2_sections\": [\"大見出し案のリスト\"],
+              \"h3_subsections\": [\"小見出し案のリスト\"]
+            },
+            \"meta_description\": \"メタディスクリプション案\",
+            \"internal_linking_strategy\": [\"内部リンク戦略\"],
+            \"target_word_count\": \"推奨文字数\"
+          }" > .logs/seo-strategy/strategy.json
+          
+          SEO_STRATEGY=$(cat .logs/seo-strategy/strategy.json)
+          echo "SEO_STRATEGY=$SEO_STRATEGY" >> $GITHUB_ENV
+          
+          echo "✅ SEO strategy design completed"
+
+  - id: "article-outline-generation"
+    name: "記事の章立て・見出し構成"
+    phase: "strategy_planning"
+    github_job: "article-outline"
+    type: "generation"
+    implementation: "ai"
+    duration_minutes: 3
+    dependencies: ["seo-strategy-design"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Generate article outline"
+        shell: "bash"
+        script: |
+          echo "📝 Generating article outline..."
+          
+          mkdir -p .logs/article-outline
+          
+          # 記事の詳細構成を生成
+          claude-code --prompt "以下の情報を基に、詳細な記事構成を作成してください：
+          
+          SEO戦略: $SEO_STRATEGY
+          コンテンツギャップ: $CONTENT_GAPS
+          ユーザー質問: $USER_QUESTIONS
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"article_title\": \"SEO最適化されたタイトル\",
+            \"introduction\": {
+              \"hook\": \"読者を引きつける導入\",
+              \"problem_statement\": \"読者の課題提示\",
+              \"article_promise\": \"記事で得られる価値\"
+            },
+            \"main_sections\": [
+              {
+                \"section_number\": 1,
+                \"h2_title\": \"大見出し\",
+                \"content_points\": [\"含めるべき内容ポイント\"],
+                \"h3_subsections\": [\"小見出しリスト\"],
+                \"estimated_words\": \"推定文字数\",
+                \"keywords_to_include\": [\"含めるキーワード\"]
+              }
+            ],
+            \"conclusion\": {
+              \"summary_points\": [\"まとめのポイント\"],
+              \"call_to_action\": \"読者への行動呼びかけ\"
+            },
+            \"estimated_total_words\": \"総推定文字数\"
+          }" > .logs/article-outline/outline.json
+          
+          ARTICLE_OUTLINE=$(cat .logs/article-outline/outline.json)
+          echo "ARTICLE_OUTLINE=$ARTICLE_OUTLINE" >> $GITHUB_ENV
+          
+          echo "✅ Article outline generation completed"
+
+  # === コンテンツ作成段階 ===
+  - id: "introduction-writing"
+    name: "導入文の執筆"
+    phase: "content_creation"
+    github_job: "write-introduction"
+    type: "generation"
+    implementation: "ai"
+    duration_minutes: 3
+    dependencies: ["article-outline-generation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Write introduction"
+        shell: "bash"
+        script: |
+          echo "✍️ Writing article introduction..."
+          
+          mkdir -p .logs/content-creation
+          
+          # 導入文の執筆
+          claude-code --prompt "以下の構成に基づいて、魅力的な導入文を執筆してください：
+          
+          記事構成: $ARTICLE_OUTLINE
+          検索意図: $SEARCH_INTENT
+          
+          要件:
+          - 読者の興味を引く最初の一文
+          - 読者の課題・悩みに共感
+          - 記事で得られる価値を明確に提示
+          - 自然にメインキーワードを含める
+          - 300-500文字程度
+          
+          マークダウン形式で出力してください。" > .logs/content-creation/introduction.md
+          
+          echo "✅ Introduction writing completed"
+          
+    validation:
+      criteria:
+        - "導入文がマークダウン形式で作成されている"
+        - "文字数が適切な範囲内"
+        - "メインキーワードが含まれている"
+      validation_script: |
+        if [ ! -f ".logs/content-creation/introduction.md" ]; then
+          echo "❌ VALIDATION FAILED: Introduction file missing"
+          exit 1
+        fi
+        WORD_COUNT=$(wc -c < .logs/content-creation/introduction.md)
+        if [ $WORD_COUNT -lt 200 ] || [ $WORD_COUNT -gt 800 ]; then
+          echo "❌ VALIDATION FAILED: Word count out of range ($WORD_COUNT)"
+          exit 1
+        fi
+        echo "✅ Validation passed: Introduction written successfully"
+
+  - id: "main-content-section-1"
+    name: "第1章の詳細執筆"
+    phase: "content_creation"
+    github_job: "write-section-1"
+    type: "generation"
+    implementation: "ai"
+    duration_minutes: 5
+    dependencies: ["introduction-writing"]
+    parallel_group: "main_content_parallel"
+    
+    github_steps:
+      - name: "Write main section 1"
+        shell: "bash"
+        script: |
+          echo "✍️ Writing main section 1..."
+          
+          mkdir -p .logs/content-creation
+          
+          # 第1章の執筆
+          SECTION_1=$(echo "$ARTICLE_OUTLINE" | jq -r '.main_sections[0]')
+          
+          claude-code --prompt "以下の構成に基づいて、第1章を詳細に執筆してください：
+          
+          章の情報: $SECTION_1
+          全体構成: $ARTICLE_OUTLINE
+          SEO戦略: $SEO_STRATEGY
+          
+          要件:
+          - 見出し構造を適切に使用（H2, H3）
+          - 自然にキーワードを配置
+          - 読みやすい段落構成
+          - 具体例や実例を含める
+          - ユーザーの疑問に答える内容
+          
+          マークダウン形式で出力してください。" > .logs/content-creation/section-1.md
+          
+          echo "✅ Main section 1 writing completed"
+
+  - id: "main-content-section-2"
+    name: "第2章の詳細執筆"
+    phase: "content_creation"
+    github_job: "write-section-2"
+    type: "generation"
+    implementation: "ai"
+    duration_minutes: 5
+    dependencies: ["introduction-writing"]
+    parallel_group: "main_content_parallel"
+    
+    github_steps:
+      - name: "Write main section 2"
+        shell: "bash"
+        script: |
+          echo "✍️ Writing main section 2..."
+          
+          SECTION_2=$(echo "$ARTICLE_OUTLINE" | jq -r '.main_sections[1]')
+          
+          claude-code --prompt "以下の構成に基づいて、第2章を詳細に執筆してください：
+          
+          章の情報: $SECTION_2
+          全体構成: $ARTICLE_OUTLINE
+          SEO戦略: $SEO_STRATEGY
+          
+          要件:
+          - 見出し構造を適切に使用（H2, H3）
+          - 自然にキーワードを配置
+          - 前章との論理的なつながり
+          - 実践的な内容を含める
+          
+          マークダウン形式で出力してください。" > .logs/content-creation/section-2.md
+          
+          echo "✅ Main section 2 writing completed"
+
+  - id: "conclusion-writing"
+    name: "まとめ・結論部分の執筆"
+    phase: "content_creation"  
+    github_job: "write-conclusion"
+    type: "generation"
+    implementation: "ai"
+    duration_minutes: 3
+    dependencies: ["main-content-section-1", "main-content-section-2"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Write conclusion"
+        shell: "bash"
+        script: |
+          echo "✍️ Writing article conclusion..."
+          
+          claude-code --prompt "以下の内容を基に、効果的な結論部分を執筆してください：
+          
+          記事構成: $ARTICLE_OUTLINE
+          導入文: $(cat .logs/content-creation/introduction.md)
+          第1章: $(cat .logs/content-creation/section-1.md)
+          第2章: $(cat .logs/content-creation/section-2.md)
+          
+          要件:
+          - 記事の要点を簡潔にまとめ
+          - 読者への具体的な行動提案
+          - 自然にキーワードを含める
+          - 読者のモチベーション向上
+          
+          マークダウン形式で出力してください。" > .logs/content-creation/conclusion.md
+          
+          echo "✅ Conclusion writing completed"
+
+  - id: "article-assembly"
+    name: "記事全体の組み立て"
+    phase: "content_creation"
+    github_job: "assemble-article"
+    type: "integration"
+    implementation: "script"
+    duration_minutes: 2
+    dependencies: ["conclusion-writing"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Assemble complete article"
+        shell: "bash"
+        script: |
+          echo "🔗 Assembling complete article..."
+          
+          mkdir -p .outputs
+          
+          # 記事全体を組み立て
+          cat > .outputs/complete-article.md << EOF
+          # $(echo "$ARTICLE_OUTLINE" | jq -r '.article_title')
+          
+          $(cat .logs/content-creation/introduction.md)
+          
+          $(cat .logs/content-creation/section-1.md)
+          
+          $(cat .logs/content-creation/section-2.md)
+          
+          $(cat .logs/content-creation/conclusion.md)
+          EOF
+          
+          # 文字数カウント
+          TOTAL_WORDS=$(wc -c < .outputs/complete-article.md)
+          echo "Total article length: $TOTAL_WORDS characters"
+          
+          # アセンブリ結果をログ保存
+          cat > .logs/content-creation/assembly-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "total_characters": $TOTAL_WORDS,
+            "sections_included": ["introduction", "section-1", "section-2", "conclusion"],
+            "assembly_status": "success"
+          }
+          EOF
+          
+          echo "✅ Article assembly completed"
+
+  # === 品質保証段階 ===
+  - id: "keyword-density-check"
+    name: "キーワード密度の最適化"
+    phase: "quality_assurance"
+    github_job: "keyword-optimization"
+    type: "validation"
+    implementation: "script"
+    duration_minutes: 3
+    dependencies: ["article-assembly"]
+    parallel_group: "quality_checks"
+    
+    github_steps:
+      - name: "Check and optimize keyword density"
+        shell: "bash"
+        script: |
+          echo "📊 Checking keyword density..."
+          
+          mkdir -p .logs/quality-checks
+          
+          # キーワード密度をチェック
+          PRIMARY_KEYWORD=$(echo "$SEO_STRATEGY" | jq -r '.primary_keyword')
+          ARTICLE_CONTENT=$(cat .outputs/complete-article.md)
+          
+          # 文字数と出現回数をカウント
+          TOTAL_CHARS=$(echo "$ARTICLE_CONTENT" | wc -c)
+          KEYWORD_COUNT=$(echo "$ARTICLE_CONTENT" | grep -io "$PRIMARY_KEYWORD" | wc -l)
+          DENSITY=$(echo "scale=2; $KEYWORD_COUNT * 100 / ($TOTAL_CHARS / 100)" | bc -l)
+          
+          # 結果をログ保存
+          cat > .logs/quality-checks/keyword-density.json << EOF
+          {
+            "primary_keyword": "$PRIMARY_KEYWORD",
+            "total_characters": $TOTAL_CHARS,
+            "keyword_occurrences": $KEYWORD_COUNT,
+            "density_percentage": $DENSITY,
+            "recommended_range": "1-3%",
+            "status": "$([ $(echo "$DENSITY < 1" | bc -l) -eq 1 ] && echo "too_low" || [ $(echo "$DENSITY > 3" | bc -l) -eq 1 ] && echo "too_high" || echo "optimal")"
+          }
+          EOF
+          
+          echo "Keyword density: $DENSITY%"
+          echo "✅ Keyword density check completed"
+          
+    validation:
+      criteria:
+        - "キーワード密度が1-3%の範囲内"
+        - "メインキーワードが適切に配置されている"
+      validation_script: |
+        DENSITY=$(jq -r '.density_percentage' .logs/quality-checks/keyword-density.json)
+        if (( $(echo "$DENSITY < 1" | bc -l) )); then
+          echo "⚠️ WARNING: Keyword density too low ($DENSITY%)"
+        elif (( $(echo "$DENSITY > 3" | bc -l) )); then
+          echo "⚠️ WARNING: Keyword density too high ($DENSITY%)"
+        else
+          echo "✅ Validation passed: Keyword density optimal ($DENSITY%)"
+        fi
+
+  - id: "readability-analysis"
+    name: "読みやすさの改善"
+    phase: "quality_assurance"
+    github_job: "readability-check"
+    type: "validation"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["article-assembly"]
+    parallel_group: "quality_checks"
+    
+    github_steps:
+      - name: "Analyze and improve readability"
+        shell: "bash"
+        script: |
+          echo "📖 Analyzing readability..."
+          
+          ARTICLE_CONTENT=$(cat .outputs/complete-article.md)
+          
+          # Claude Code で読みやすさを分析・改善
+          claude-code --prompt "以下の記事の読みやすさを分析し、改善案を提示してください：
+          
+          記事内容: $ARTICLE_CONTENT
+          
+          分析項目:
+          - 文章の長さと複雑さ
+          - 段落の構成
+          - 専門用語の使用
+          - 論理的な流れ
+          - 視覚的な読みやすさ
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"readability_score\": \"1-10点で評価\",
+            \"strengths\": [\"良い点のリスト\"],
+            \"improvement_areas\": [\"改善すべき箇所\"],
+            \"specific_suggestions\": [\"具体的な改善案\"],
+            \"revised_sections\": {\"セクション名\": \"改善されたテキスト\"}
+          }" > .logs/quality-checks/readability-analysis.json
+          
+          echo "✅ Readability analysis completed"
+
+  - id: "final-seo-optimization"
+    name: "最終SEO最適化"
+    phase: "quality_assurance"
+    github_job: "final-seo-check"
+    type: "optimization"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["keyword-density-check", "readability-analysis"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Final SEO optimization"
+        shell: "bash"
+        script: |
+          echo "🔍 Final SEO optimization..."
+          
+          ARTICLE_CONTENT=$(cat .outputs/complete-article.md)
+          KEYWORD_ANALYSIS=$(cat .logs/quality-checks/keyword-density.json)
+          READABILITY_ANALYSIS=$(cat .logs/quality-checks/readability-analysis.json)
+          
+          # 最終的なSEO最適化
+          claude-code --prompt "以下の情報を基に、記事を最終的にSEO最適化してください：
+          
+          現在の記事: $ARTICLE_CONTENT
+          キーワード分析: $KEYWORD_ANALYSIS
+          読みやすさ分析: $READABILITY_ANALYSIS
+          SEO戦略: $SEO_STRATEGY
+          
+          最適化項目:
+          - タイトルの最適化
+          - メタディスクリプション
+          - 見出し構造の調整
+          - キーワード配置の改善
+          - 内部リンク提案
+          
+          最適化された完全な記事をマークダウン形式で出力してください。" > .outputs/seo-optimized-article.md
+          
+          echo "✅ Final SEO optimization completed"
+
+  # === 公開準備段階 ===
+  - id: "meta-data-generation"
+    name: "メタデータ・SNS用データ生成"
+    phase: "publication_preparation"
+    github_job: "generate-metadata"
+    type: "generation"
+    implementation: "ai"
+    duration_minutes: 2
+    dependencies: ["final-seo-optimization"]
+    parallel_group: "publication_parallel"
+    
+    github_steps:
+      - name: "Generate metadata"
+        shell: "bash"
+        script: |
+          echo "📋 Generating metadata..."
+          
+          OPTIMIZED_ARTICLE=$(cat .outputs/seo-optimized-article.md)
+          
+          claude-code --prompt "以下の記事用のメタデータを生成してください：
+          
+          記事内容: $OPTIMIZED_ARTICLE
+          SEO戦略: $SEO_STRATEGY
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"meta_title\": \"SEO最適化されたタイトル（60文字以内）\",
+            \"meta_description\": \"説明文（160文字以内）\",
+            \"og_title\": \"SNS用タイトル\",
+            \"og_description\": \"SNS用説明文\",
+            \"twitter_title\": \"Twitter用タイトル\",
+            \"twitter_description\": \"Twitter用説明文\",
+            \"tags\": [\"タグのリスト\"],
+            \"categories\": [\"カテゴリのリスト\"],
+            \"estimated_read_time\": \"読了時間（分）\"
+          }" > .outputs/metadata.json
+          
+          echo "✅ Metadata generation completed"
+
+  - id: "publication-package"
+    name: "公開用パッケージ作成"
+    phase: "publication_preparation"
+    github_job: "create-publication-package"
+    type: "integration"
+    implementation: "script"
+    duration_minutes: 2
+    dependencies: ["meta-data-generation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create publication package"
+        shell: "bash"
+        script: |
+          echo "📦 Creating publication package..."
+          
+          mkdir -p .final-output
+          
+          # 最終パッケージの作成
+          cp .outputs/seo-optimized-article.md .final-output/
+          cp .outputs/metadata.json .final-output/
+          
+          # プロジェクト情報ファイル作成
+          cat > .final-output/project-info.json << EOF
+          {
+            "project_name": "SEO Blog Article Creation",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "github_run_id": "${{ github.run_id }}",
+            "keywords": "$NORMALIZED_KEYWORDS",
+            "total_duration_minutes": 60,
+            "quality_scores": {
+              "keyword_density": $(jq -r '.density_percentage' .logs/quality-checks/keyword-density.json || echo "null"),
+              "readability_score": $(jq -r '.readability_score' .logs/quality-checks/readability-analysis.json || echo "null")
+            },
+            "files": [
+              "seo-optimized-article.md",
+              "metadata.json",
+              "project-info.json"
+            ]
+          }
+          EOF
+          
+          # ZIPパッケージ作成
+          cd .final-output && zip -r ../blog-article-package.zip . && cd ..
+          
+          echo "✅ Publication package created"
+          
+    success_links:
+      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+      article_preview: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/seo-optimized-article.md"
+      metadata_view: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/metadata.json"
+
+# 実行フロー設計
+execution_flow:
+  - stage: 0
+    name: "事前テスト"
+    parallel: false
+    jobs: ["connectivity-test"]
+    
+  - stage: 1
+    name: "情報収集"
+    parallel: false
+    jobs: ["keyword-processing", "search-intent-analysis"]
+    
+  - stage: 2  
+    name: "並列リサーチ"
+    parallel: true
+    jobs: ["competitor-research", "user-questions"]
+    
+  - stage: 3
+    name: "戦略立案" 
+    parallel: false
+    jobs: ["content-gap-analysis", "seo-strategy", "article-outline"]
+    
+  - stage: 4
+    name: "コンテンツ作成"
+    parallel: true
+    jobs: ["write-introduction"]
+    then:
+      parallel: true
+      jobs: ["write-section-1", "write-section-2"]
+    then:
+      parallel: false
+      jobs: ["write-conclusion", "assemble-article"]
+      
+  - stage: 5
+    name: "品質保証"
+    parallel: true
+    jobs: ["keyword-optimization", "readability-check"]
+    then:
+      parallel: false  
+      jobs: ["final-seo-check"]
+      
+  - stage: 6
+    name: "公開準備"
+    parallel: true
+    jobs: ["generate-metadata"]
+    then:
+      parallel: false
+      jobs: ["create-publication-package"]
+
+# 全体的なエラーハンドリング
+global_error_handling:
+  max_retries: 3
+  retry_delay_seconds: 30
+  critical_failure_notification: true
+  fallback_mode: "simplified_article"
+  
+# 成功基準
+success_criteria:
+  - "SEO最適化された完全な記事が生成されている"
+  - "キーワード密度が適切な範囲内"
+  - "メタデータが完全に生成されている"
+  - "すべての品質チェックがパスしている"
+  - "公開用パッケージが作成されている"
+
+# アーティファクト保持
+artifacts:
+  - name: "blog-article-logs"
+    path: ".logs/"
+    retention_days: 7
+  - name: "blog-article-outputs"  
+    path: ".outputs/"
+    retention_days: 30
+  - name: "final-publication-package"
+    path: ".final-output/"
+    retention_days: 90

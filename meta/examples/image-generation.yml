@@ -1,0 +1,1059 @@
+# AI画像生成 - 超詳細タスク分解
+name: "ai-image-generation"
+description: "テキストプロンプトからAI画像を生成"
+category: "visual-content-creation"
+complexity_level: 3
+estimated_duration_minutes: 25
+
+# 人間の無意識思考プロセス
+human_process:
+  - phase: "concept_development"
+    description: "コンセプト開発段階（アイデア→具体的なビジョン）"
+  - phase: "prompt_engineering" 
+    description: "プロンプト設計段階（詳細な指示作成）"
+  - phase: "generation_execution"
+    description: "生成実行段階（AI生成・調整）"
+  - phase: "quality_refinement"
+    description: "品質改善段階（検証・修正・向上）"
+  - phase: "output_preparation"
+    description: "出力準備段階（形式最適化・配信準備）"
+
+# GitHub Actions ノード設計
+github_actions_config:
+  workflow_name: "AI Image Generation"
+  on_triggers: ["workflow_dispatch", "issues"]
+  permissions:
+    contents: "write"
+    issues: "write"
+    actions: "read"
+  artifacts_retention_days: 14
+  max_parallel_jobs: 3
+
+# 超詳細タスク分解
+tasks:
+  # === 事前テスト段階 ===
+  - id: "mcp-api-connectivity-test"
+    name: "画像生成用MCP・API接続テスト"
+    phase: "pre_validation"
+    github_job: "connectivity-test"
+    type: "validation"
+    implementation: "mcp"
+    duration_minutes: 2
+    dependencies: []
+    parallel_group: null
+    
+    github_steps:
+      - name: "Test image generation services"
+        shell: "bash"
+        script: |
+          echo "🎨 Testing image generation services..."
+          
+          mkdir -p .logs/connectivity-tests
+          
+          # MCP Kamuicode設定テスト
+          echo "Testing MCP Kamuicode configuration..."
+          if [ -f "~/.claude/mcp-kamuicode.json" ]; then
+            echo "✅ MCP Configuration file found"
+            MCP_CONFIG_STATUS="success"
+          else
+            echo "⚠️ MCP Configuration file not found, using default"
+            MCP_CONFIG_STATUS="default"
+          fi
+          
+          # 高品質画像生成テスト（Imagen4 Ultra）
+          echo "Testing high-quality image generation (Imagen4 Ultra)..."
+          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "test high quality image" > .logs/connectivity-tests/imagen4-ultra-test.log 2>&1; then
+            IMAGEN4_ULTRA_STATUS="success"
+            echo "✅ Imagen4 Ultra: Available"
+          else
+            IMAGEN4_ULTRA_STATUS="failed"
+            echo "⚠️ Imagen4 Ultra: Not available"
+          fi
+          
+          # 高速画像生成テスト（Imagen4 Fast）
+          echo "Testing fast image generation (Imagen4 Fast)..."
+          if timeout 30 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "test fast image" > .logs/connectivity-tests/imagen4-fast-test.log 2>&1; then
+            IMAGEN4_FAST_STATUS="success"
+            echo "✅ Imagen4 Fast: Available"
+          else
+            IMAGEN4_FAST_STATUS="failed"
+            echo "⚠️ Imagen4 Fast: Not available"
+          fi
+          
+          # Google Imagen3 テスト（代替案）
+          echo "Testing Google Imagen3..."
+          if timeout 45 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 --prompt "test google imagen" > .logs/connectivity-tests/google-imagen3-test.log 2>&1; then
+            GOOGLE_IMAGEN3_STATUS="success"
+            echo "✅ Google Imagen3: Available"
+          else
+            GOOGLE_IMAGEN3_STATUS="failed"
+            echo "⚠️ Google Imagen3: Not available"
+          fi
+          
+          # 最低1つの画像生成サービスが利用可能かチェック
+          if [ "$IMAGEN4_ULTRA_STATUS" = "success" ] || [ "$IMAGEN4_FAST_STATUS" = "success" ] || [ "$GOOGLE_IMAGEN3_STATUS" = "success" ]; then
+            IMAGE_GEN_STATUS="success"
+            echo "✅ At least one image generation service available"
+          else
+            IMAGE_GEN_STATUS="failed"
+            echo "❌ No image generation services available - Cannot proceed"
+          fi
+          
+          # MCP Kamuicode テスト（カスタム画像処理）
+          echo "Testing MCP kamuicode (image processing functions)..."
+          if timeout 20 claude-code --mcp kamuicode --function test-image-processing > .logs/connectivity-tests/kamuicode-test.log 2>&1; then
+            KAMUICODE_STATUS="success"
+            echo "✅ MCP Kamuicode: Available"
+          else
+            KAMUICODE_STATUS="failed"
+            echo "⚠️ MCP Kamuicode: Not available - will use standard processing"
+          fi
+          
+          # 外部画像API テスト（Stable Diffusion, DALL-E等）
+          echo "Testing external image APIs..."
+          if [ -n "${{ secrets.EXTERNAL_IMAGE_API_KEY }}" ]; then
+            if timeout 30 curl -s -H "Authorization: Bearer ${{ secrets.EXTERNAL_IMAGE_API_KEY }}" https://api.example-image-service.com/health > .logs/connectivity-tests/external-api-test.log 2>&1; then
+              EXTERNAL_API_STATUS="success"
+              echo "✅ External Image API: Available"
+            else
+              EXTERNAL_API_STATUS="failed"
+              echo "⚠️ External Image API: Failed - will use MCP generation only"
+            fi
+          else
+            EXTERNAL_API_STATUS="not_configured"
+            echo "ℹ️ External Image API: Not configured - using MCP generation"
+          fi
+          
+          # テスト結果をJSON保存
+          cat > .logs/connectivity-tests/test-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "mcp_config_status": "$MCP_CONFIG_STATUS",
+            "available_image_services": {
+              "imagen4_ultra": "$IMAGEN4_ULTRA_STATUS",
+              "imagen4_fast": "$IMAGEN4_FAST_STATUS", 
+              "google_imagen3": "$GOOGLE_IMAGEN3_STATUS",
+              "kamuicode_processing": "$KAMUICODE_STATUS",
+              "external_api": "$EXTERNAL_API_STATUS"
+            },
+            "service_priorities": [
+              "$([ "$IMAGEN4_ULTRA_STATUS" = "success" ] && echo "t2i-fal-imagen4-ultra" || echo "")",
+              "$([ "$IMAGEN4_FAST_STATUS" = "success" ] && echo "t2i-fal-imagen4-fast" || echo "")",
+              "$([ "$GOOGLE_IMAGEN3_STATUS" = "success" ] && echo "t2i-google-imagen3" || echo "")"
+            ],
+            "overall_status": "$([ "$IMAGE_GEN_STATUS" = "success" ] && echo "ready" || echo "failed")",
+            "critical_services_available": $([ "$IMAGE_GEN_STATUS" = "success" ] && echo "true" || echo "false"),
+            "workflow_can_proceed": $([ "$IMAGE_GEN_STATUS" = "success" ] && echo "true" || echo "false"),
+            "recommended_service": "$([ "$IMAGEN4_ULTRA_STATUS" = "success" ] && echo "t2i-fal-imagen4-ultra" || [ "$IMAGEN4_FAST_STATUS" = "success" ] && echo "t2i-fal-imagen4-fast" || [ "$GOOGLE_IMAGEN3_STATUS" = "success" ] && echo "t2i-google-imagen3" || echo "none")"
+          }
+          EOF
+          
+          # 環境変数に結果を設定
+          echo "CONNECTIVITY_STATUS=$([ "$IMAGE_GEN_STATUS" = "success" ] && echo "ready" || echo "failed")" >> $GITHUB_ENV
+          echo "RECOMMENDED_IMAGE_SERVICE=$([ "$IMAGEN4_ULTRA_STATUS" = "success" ] && echo "t2i-fal-imagen4-ultra" || [ "$IMAGEN4_FAST_STATUS" = "success" ] && echo "t2i-fal-imagen4-fast" || [ "$GOOGLE_IMAGEN3_STATUS" = "success" ] && echo "t2i-google-imagen3" || echo "none")" >> $GITHUB_ENV
+          echo "HIGH_QUALITY_AVAILABLE=$([ "$IMAGEN4_ULTRA_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          echo "FAST_GENERATION_AVAILABLE=$([ "$IMAGEN4_FAST_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          
+          echo "🎨 Image generation service tests completed"
+          
+    validation:
+      criteria:
+        - "画像生成MCPが利用可能"
+        - "必要なサービスの接続状況を確認済み"
+        - "テスト結果がJSON形式で保存されている"
+      validation_script: |
+        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
+          echo "❌ VALIDATION FAILED: Test results missing"
+          exit 1
+        fi
+        
+        WORKFLOW_CAN_PROCEED=$(jq -r '.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
+        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
+          echo "✅ Validation passed: Image generation services ready"
+        else
+          echo "❌ VALIDATION FAILED: Image generation services unavailable"
+          exit 1
+        fi
+        
+    error_handling:
+      retry_count: 2
+      retry_delay_seconds: 15
+      fallback_strategy: "abort_workflow"
+      fallback_script: |
+        echo "❌ CRITICAL: Image generation services unavailable - workflow cannot proceed"
+        exit 1
+        
+    progress_links:
+      log_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      test_results: ".logs/connectivity-tests/test-results.json"
+
+  # === コンセプト開発段階 ===
+  - id: "input-prompt-analysis"
+    name: "入力プロンプトの分析・理解"
+    phase: "concept_development"
+    github_job: "prompt-analysis"
+    type: "analysis"
+    implementation: "ai"
+    duration_minutes: 2
+    dependencies: ["mcp-api-connectivity-test"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Analyze input prompt"
+        shell: "bash"
+        script: |
+          echo "🔍 Analyzing input prompt for image generation..."
+          
+          mkdir -p .logs/concept-development
+          
+          # 入力プロンプトを取得
+          INPUT_PROMPT="${{ github.event.inputs.image_prompt || github.event.issue.body }}"
+          echo "Input prompt: $INPUT_PROMPT"
+          
+          # Claude Code でプロンプト分析
+          claude-code --prompt "以下の画像生成要求を詳細に分析してください：
+          
+          入力プロンプト: $INPUT_PROMPT
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"image_type\": \"portrait|landscape|illustration|photo|abstract|logo|icon|concept_art\",
+            \"style_category\": \"photorealistic|artistic|cartoon|anime|vintage|modern|minimalist|detailed\",
+            \"subject_matter\": \"主要な被写体・テーマ\",
+            \"mood_tone\": \"明るい|暗い|神秘的|活気のある|静寂な|ドラマチック\",
+            \"color_palette\": [\"推奨される色彩のリスト\"],
+            \"technical_requirements\": {
+              \"aspect_ratio\": \"1:1|16:9|9:16|4:3|3:4\",
+              \"resolution\": \"recommended resolution\",
+              \"style_strength\": \"high|medium|low\"
+            },
+            \"creative_direction\": \"創作の方向性説明\",
+            \"potential_challenges\": [\"生成時に注意すべき点\"],
+            \"enhancement_suggestions\": [\"より良い結果のための提案\"]
+          }" > .logs/concept-development/prompt-analysis.json
+          
+          PROMPT_ANALYSIS=$(cat .logs/concept-development/prompt-analysis.json)
+          echo "PROMPT_ANALYSIS=$PROMPT_ANALYSIS" >> $GITHUB_ENV
+          
+          echo "✅ Prompt analysis completed"
+          
+    validation:
+      criteria:
+        - "プロンプト分析結果がJSON形式で存在する"
+        - "必須フィールドが全て含まれている"
+        - "実行可能な技術要件が特定されている"
+      validation_script: |
+        if [ ! -f ".logs/concept-development/prompt-analysis.json" ]; then
+          echo "❌ VALIDATION FAILED: Prompt analysis missing"
+          exit 1
+        fi
+        if ! jq -e '.image_type' .logs/concept-development/prompt-analysis.json > /dev/null; then
+          echo "❌ VALIDATION FAILED: Invalid analysis structure"
+          exit 1
+        fi
+        echo "✅ Validation passed: Prompt analysis complete"
+
+  - id: "visual-concept-planning"
+    name: "ビジュアルコンセプトの計画"
+    phase: "concept_development"
+    github_job: "concept-planning"
+    type: "planning"
+    implementation: "ai"
+    duration_minutes: 3
+    dependencies: ["input-prompt-analysis"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Plan visual concept"
+        shell: "bash"
+        script: |
+          echo "🎯 Planning visual concept..."
+          
+          # ビジュアルコンセプトの詳細計画
+          claude-code --prompt "以下の分析結果を基に、具体的なビジュアルコンセプトを計画してください：
+          
+          プロンプト分析: $PROMPT_ANALYSIS
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"composition_plan\": {
+              \"main_focus\": \"メインの焦点要素\",
+              \"background\": \"背景の描写\",
+              \"foreground\": \"前景の要素\",
+              \"depth_layers\": [\"奥行きを構成する層のリスト\"]
+            },
+            \"lighting_plan\": {
+              \"light_source\": \"光源の種類と位置\",
+              \"shadow_direction\": \"影の方向\",
+              \"ambient_lighting\": \"環境光の特徴\",
+              \"mood_lighting\": \"ムードを作る照明効果\"
+            },
+            \"color_scheme\": {
+              \"primary_colors\": [\"主要色のリスト\"],
+              \"accent_colors\": [\"アクセント色のリスト\"],
+              \"color_temperature\": \"warm|cool|neutral\",
+              \"contrast_level\": \"high|medium|low\"
+            },
+            \"detail_specifications\": {
+              \"texture_details\": [\"テクスチャの詳細\"],
+              \"material_properties\": [\"素材の特性\"],
+              \"fine_details\": [\"細かなディテール\"]
+            },
+            \"generation_strategy\": {
+              \"primary_approach\": \"生成の主要アプローチ\",
+              \"fallback_options\": [\"代替案のリスト\"],
+              \"iteration_plan\": \"反復改善の計画\"
+            }
+          }" > .logs/concept-development/visual-concept.json
+          
+          VISUAL_CONCEPT=$(cat .logs/concept-development/visual-concept.json)
+          echo "VISUAL_CONCEPT=$VISUAL_CONCEPT" >> $GITHUB_ENV
+          
+          echo "✅ Visual concept planning completed"
+
+  # === プロンプト設計段階 ===
+  - id: "detailed-prompt-engineering"
+    name: "詳細プロンプトエンジニアリング"
+    phase: "prompt_engineering"
+    github_job: "prompt-engineering"
+    type: "generation"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["visual-concept-planning"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Engineer detailed prompts"
+        shell: "bash"
+        script: |
+          echo "⚙️ Engineering detailed generation prompts..."
+          
+          mkdir -p .logs/prompt-engineering
+          
+          # 詳細なプロンプト設計
+          claude-code --prompt "以下の情報を基に、AI画像生成用の最適化されたプロンプトを作成してください：
+          
+          元のプロンプト分析: $PROMPT_ANALYSIS
+          ビジュアルコンセプト: $VISUAL_CONCEPT
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"primary_prompt\": \"メインの生成プロンプト（詳細で具体的）\",
+            \"negative_prompt\": \"除外したい要素のプロンプト\",
+            \"style_prompts\": {
+              \"photorealistic\": \"写実的スタイル用プロンプト\",
+              \"artistic\": \"芸術的スタイル用プロンプト\",
+              \"alternative\": \"代替スタイル用プロンプト\"
+            },
+            \"technical_parameters\": {
+              \"recommended_steps\": \"推奨ステップ数\",
+              \"cfg_scale\": \"推奨CFGスケール\",
+              \"seed_strategy\": \"シード値の戦略\",
+              \"batch_settings\": \"バッチ生成設定\"
+            },
+            \"quality_enhancers\": [\"品質向上のためのプロンプト要素\"],
+            \"variation_prompts\": [\"バリエーション生成用のプロンプト案\"],
+            \"prompt_weights\": {\"重要度に応じたプロンプト要素の重み付け\": \"値\"}
+          }" > .logs/prompt-engineering/engineered-prompts.json
+          
+          ENGINEERED_PROMPTS=$(cat .logs/prompt-engineering/engineered-prompts.json)
+          echo "ENGINEERED_PROMPTS=$ENGINEERED_PROMPTS" >> $GITHUB_ENV
+          
+          echo "✅ Prompt engineering completed"
+
+  - id: "prompt-optimization"
+    name: "プロンプト最適化・検証"
+    phase: "prompt_engineering"
+    github_job: "prompt-optimization"
+    type: "optimization"
+    implementation: "ai"
+    duration_minutes: 2
+    dependencies: ["detailed-prompt-engineering"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Optimize and validate prompts"
+        shell: "bash"
+        script: |
+          echo "🔧 Optimizing and validating prompts..."
+          
+          # プロンプトの最適化と検証
+          claude-code --prompt "以下のエンジニアリングされたプロンプトを最適化し、検証してください：
+          
+          エンジニアリングプロンプト: $ENGINEERED_PROMPTS
+          
+          最適化のポイント:
+          - プロンプトの長さと効率性
+          - 矛盾する指示の削除
+          - キーワードの優先順位付け
+          - AI生成モデルとの互換性
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"optimized_primary_prompt\": \"最適化されたメインプロンプト\",
+            \"optimized_negative_prompt\": \"最適化されたネガティブプロンプト\",
+            \"prompt_validation\": {
+              \"clarity_score\": \"1-10点での明確性評価\",
+              \"specificity_score\": \"1-10点での具体性評価\",
+              \"compatibility_score\": \"1-10点でのAI互換性評価\",
+              \"potential_issues\": [\"潜在的な問題点\"],
+              \"improvement_notes\": [\"改善ポイント\"]
+            },
+            \"final_generation_config\": {
+              \"prompt\": \"最終的な生成用プロンプト\",
+              \"negative_prompt\": \"最終的なネガティブプロンプト\",
+              \"parameters\": {\"技術パラメータ\": \"値\"}
+            }
+          }" > .logs/prompt-engineering/optimized-prompts.json
+          
+          OPTIMIZED_PROMPTS=$(cat .logs/prompt-engineering/optimized-prompts.json)
+          echo "OPTIMIZED_PROMPTS=$OPTIMIZED_PROMPTS" >> $GITHUB_ENV
+          
+          echo "✅ Prompt optimization completed"
+
+  # === 生成実行段階 ===
+  - id: "initial-image-generation"
+    name: "初回画像生成"
+    phase: "generation_execution"
+    github_job: "initial-generation"
+    type: "generation"
+    implementation: "mcp"
+    tool: "image-generation"
+    duration_minutes: 5
+    dependencies: ["prompt-optimization"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Generate initial images"
+        shell: "bash"
+        script: |
+          echo "🎨 Generating initial images..."
+          
+          mkdir -p .logs/generation .outputs/images
+          
+          # 最適化されたプロンプトを取得
+          FINAL_PROMPT=$(echo "$OPTIMIZED_PROMPTS" | jq -r '.final_generation_config.prompt')
+          NEGATIVE_PROMPT=$(echo "$OPTIMIZED_PROMPTS" | jq -r '.final_generation_config.negative_prompt')
+          
+          echo "Final prompt: $FINAL_PROMPT"
+          echo "Negative prompt: $NEGATIVE_PROMPT"
+          
+          # 推奨サービスを使用した画像生成
+          RECOMMENDED_SERVICE="$RECOMMENDED_IMAGE_SERVICE"
+          echo "Using recommended service: $RECOMMENDED_SERVICE"
+          
+          # メイン画像生成
+          echo "Generating primary image with $RECOMMENDED_SERVICE..."
+          if [ "$RECOMMENDED_SERVICE" = "t2i-fal-imagen4-ultra" ]; then
+            # 高品質生成（Imagen4 Ultra）
+            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra \
+              --prompt "$FINAL_PROMPT" \
+              --negative-prompt "$NEGATIVE_PROMPT" \
+              --output ".outputs/images/primary_image.png" \
+              --config '{"quality": "ultra", "aspect_ratio": "1:1", "safety_level": "standard"}' \
+              > .logs/generation/primary-generation.log 2>&1; then
+              PRIMARY_STATUS="success"
+              echo "✅ Primary image generated with Imagen4 Ultra"
+            else
+              PRIMARY_STATUS="failed"
+              echo "❌ Imagen4 Ultra generation failed"
+            fi
+            
+          elif [ "$RECOMMENDED_SERVICE" = "t2i-fal-imagen4-fast" ]; then
+            # 高速生成（Imagen4 Fast）
+            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
+              --prompt "$FINAL_PROMPT" \
+              --negative-prompt "$NEGATIVE_PROMPT" \
+              --output ".outputs/images/primary_image.png" \
+              --config '{"speed": "fast", "aspect_ratio": "1:1"}' \
+              > .logs/generation/primary-generation.log 2>&1; then
+              PRIMARY_STATUS="success"
+              echo "✅ Primary image generated with Imagen4 Fast"
+            else
+              PRIMARY_STATUS="failed"
+              echo "❌ Imagen4 Fast generation failed"
+            fi
+            
+          elif [ "$RECOMMENDED_SERVICE" = "t2i-google-imagen3" ]; then
+            # Google Imagen3 生成
+            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 \
+              --prompt "$FINAL_PROMPT" \
+              --negative-prompt "$NEGATIVE_PROMPT" \
+              --output ".outputs/images/primary_image.png" \
+              > .logs/generation/primary-generation.log 2>&1; then
+              PRIMARY_STATUS="success"
+              echo "✅ Primary image generated with Google Imagen3"
+            else
+              PRIMARY_STATUS="failed"
+              echo "❌ Google Imagen3 generation failed"
+            fi
+          else
+            PRIMARY_STATUS="failed"
+            echo "❌ No available image generation service"
+          fi
+          
+          # バリエーション生成（高速サービス使用）
+          echo "Generating variation with fast service..."
+          if [ "$FAST_GENERATION_AVAILABLE" = "true" ]; then
+            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
+              --prompt "$FINAL_PROMPT, artistic variation, creative interpretation" \
+              --negative-prompt "$NEGATIVE_PROMPT" \
+              --output ".outputs/images/variant_1.png" \
+              --config '{"speed": "fast", "variation": "high"}' \
+              > .logs/generation/variant1-generation.log 2>&1; then
+              VARIANT1_STATUS="success"
+              echo "✅ Variant 1 generated with fast service"
+            else
+              VARIANT1_STATUS="failed"
+              echo "⚠️ Variant 1 generation failed"
+            fi
+          else
+            VARIANT1_STATUS="skipped"
+            echo "⚠️ Fast generation not available, skipping variant"
+          fi
+          
+          # 生成結果をログ保存
+          cat > .logs/generation/generation-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "primary_image": {
+              "status": "$PRIMARY_STATUS",
+              "path": ".outputs/images/primary_image.png",
+              "prompt_used": "$FINAL_PROMPT",
+              "generation_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            },
+            "variant_1": {
+              "status": "$VARIANT1_STATUS",
+              "path": ".outputs/images/variant_1.png"
+            },
+            "overall_success": $([ "$PRIMARY_STATUS" = "success" ] && echo "true" || echo "false")
+          }
+          EOF
+          
+          echo "GENERATION_RESULTS=$(cat .logs/generation/generation-results.json)" >> $GITHUB_ENV
+          
+          echo "🎨 Initial image generation completed"
+          
+    validation:
+      criteria:
+        - "少なくとも1つの画像が正常に生成されている"
+        - "生成された画像ファイルが存在する"
+        - "生成結果がログに記録されている"
+      validation_script: |
+        if [ ! -f ".logs/generation/generation-results.json" ]; then
+          echo "❌ VALIDATION FAILED: Generation results missing"
+          exit 1
+        fi
+        
+        OVERALL_SUCCESS=$(jq -r '.overall_success' .logs/generation/generation-results.json)
+        if [ "$OVERALL_SUCCESS" = "true" ]; then
+          echo "✅ Validation passed: At least one image generated successfully"
+        else
+          echo "❌ VALIDATION FAILED: No images generated successfully"
+          exit 1
+        fi
+        
+    error_handling:
+      retry_count: 3
+      retry_delay_seconds: 30
+      fallback_strategy: "simplified_generation"
+      fallback_script: |
+        echo "⚠️ Using fallback: Trying alternative image generation services"
+        SIMPLE_PROMPT=$(echo "$PROMPT_ANALYSIS" | jq -r '.subject_matter')
+        
+        # Google Imagen3 フォールバック
+        if [ "$GOOGLE_IMAGEN3_STATUS" = "success" ]; then
+          claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 \
+            --prompt "$SIMPLE_PROMPT, high quality" \
+            --output ".outputs/images/fallback_image.png" \
+            > .logs/generation/fallback-generation.log 2>&1 || echo "Google Imagen3 fallback failed"
+        # Imagen4 Fast フォールバック  
+        elif [ "$IMAGEN4_FAST_STATUS" = "success" ]; then
+          claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
+            --prompt "$SIMPLE_PROMPT, high quality" \
+            --output ".outputs/images/fallback_image.png" \
+            > .logs/generation/fallback-generation.log 2>&1 || echo "Imagen4 Fast fallback failed"
+        else
+          echo "No fallback services available"
+        fi
+
+  - id: "image-quality-analysis"
+    name: "画像品質分析"
+    phase: "generation_execution"
+    github_job: "quality-analysis"
+    type: "analysis"
+    implementation: "ai"
+    duration_minutes: 3
+    dependencies: ["initial-image-generation"]
+    parallel_group: "quality_parallel"
+    
+    github_steps:
+      - name: "Analyze image quality"
+        shell: "bash"
+        script: |
+          echo "🔍 Analyzing generated image quality..."
+          
+          mkdir -p .logs/quality-analysis
+          
+          # 生成された画像の品質分析
+          claude-code --prompt "生成された画像を分析して品質評価を行ってください：
+          
+          生成結果: $GENERATION_RESULTS
+          元の要求: $PROMPT_ANALYSIS
+          
+          以下の画像ファイルを参照して分析してください：
+          - .outputs/images/primary_image.png
+          - .outputs/images/variant_1.png（存在する場合）
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"primary_image_analysis\": {
+              \"technical_quality\": \"1-10点での技術品質評価\",
+              \"prompt_adherence\": \"1-10点でのプロンプト忠実度\",
+              \"artistic_merit\": \"1-10点での芸術的価値\",
+              \"composition_quality\": \"1-10点での構図品質\",
+              \"color_harmony\": \"1-10点での色彩調和\",
+              \"detail_level\": \"1-10点での詳細度\",
+              \"overall_rating\": \"1-10点での総合評価\"
+            },
+            \"strengths\": [\"画像の優れている点\"],
+            \"weaknesses\": [\"改善が必要な点\"],
+            \"improvement_suggestions\": [\"具体的な改善提案\"],
+            \"regeneration_needed\": $([ "$OVERALL_SUCCESS" = "true" ] && echo "false" || echo "true"),
+            \"refinement_areas\": [\"重点的に改善すべき領域\"]
+          }" > .logs/quality-analysis/quality-assessment.json
+          
+          QUALITY_ANALYSIS=$(cat .logs/quality-analysis/quality-assessment.json)
+          echo "QUALITY_ANALYSIS=$QUALITY_ANALYSIS" >> $GITHUB_ENV
+          
+          echo "✅ Image quality analysis completed"
+
+  - id: "metadata-extraction"
+    name: "画像メタデータ抽出"
+    phase: "generation_execution"
+    github_job: "metadata-extraction"
+    type: "processing"
+    implementation: "script"
+    duration_minutes: 1
+    dependencies: ["initial-image-generation"]
+    parallel_group: "quality_parallel"
+    
+    github_steps:
+      - name: "Extract image metadata"
+        shell: "bash"
+        script: |
+          echo "📊 Extracting image metadata..."
+          
+          mkdir -p .logs/metadata
+          
+          # 画像ファイルのメタデータ抽出
+          if [ -f ".outputs/images/primary_image.png" ]; then
+            # ファイルサイズと基本情報
+            FILE_SIZE=$(stat -f%z ".outputs/images/primary_image.png" 2>/dev/null || stat -c%s ".outputs/images/primary_image.png" 2>/dev/null || echo "unknown")
+            
+            # 画像の基本情報（可能な場合）
+            if command -v identify >/dev/null 2>&1; then
+              IMAGE_INFO=$(identify ".outputs/images/primary_image.png" 2>/dev/null || echo "ImageMagick not available")
+            else
+              IMAGE_INFO="Image analysis tools not available"
+            fi
+            
+            # メタデータJSON作成
+            cat > .logs/metadata/image-metadata.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "primary_image": {
+              "filename": "primary_image.png",
+              "file_size_bytes": $FILE_SIZE,
+              "generation_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "image_info": "$IMAGE_INFO"
+            },
+            "generation_parameters": {
+              "prompt_used": $(echo "$OPTIMIZED_PROMPTS" | jq '.final_generation_config.prompt'),
+              "negative_prompt": $(echo "$OPTIMIZED_PROMPTS" | jq '.final_generation_config.negative_prompt'),
+              "technical_config": $(echo "$OPTIMIZED_PROMPTS" | jq '.final_generation_config.parameters')
+            }
+          }
+          EOF
+            
+            echo "✅ Metadata extracted for primary image"
+          else
+            echo "⚠️ No primary image found for metadata extraction"
+          fi
+          
+          IMAGE_METADATA=$(cat .logs/metadata/image-metadata.json)
+          echo "IMAGE_METADATA=$IMAGE_METADATA" >> $GITHUB_ENV
+
+  # === 品質改善段階 ===
+  - id: "image-refinement"
+    name: "画像の精細化・改善"
+    phase: "quality_refinement"
+    github_job: "image-refinement"
+    type: "optimization"
+    implementation: "mcp"
+    tool: "image-processing"
+    duration_minutes: 4
+    dependencies: ["image-quality-analysis", "metadata-extraction"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Refine and improve images"
+        shell: "bash"
+        script: |
+          echo "✨ Refining and improving images..."
+          
+          mkdir -p .outputs/refined
+          
+          # 品質分析結果を確認
+          REGENERATION_NEEDED=$(echo "$QUALITY_ANALYSIS" | jq -r '.regeneration_needed')
+          OVERALL_RATING=$(echo "$QUALITY_ANALYSIS" | jq -r '.primary_image_analysis.overall_rating // 0')
+          
+          if [ "$REGENERATION_NEEDED" = "true" ] || [ "$OVERALL_RATING" -lt 7 ]; then
+            echo "🔄 Regenerating image with improvements..."
+            
+            # 改善提案を取得
+            IMPROVEMENT_SUGGESTIONS=$(echo "$QUALITY_ANALYSIS" | jq -r '.improvement_suggestions[]' | head -3 | tr '\n' ', ')
+            
+            # 改善されたプロンプトで再生成
+            IMPROVED_PROMPT=$(echo "$OPTIMIZED_PROMPTS" | jq -r '.final_generation_config.prompt')", $IMPROVEMENT_SUGGESTIONS, enhanced quality, masterpiece"
+            
+            if claude-code --mcp image-generation \
+              --prompt "$IMPROVED_PROMPT" \
+              --negative-prompt "$(echo "$OPTIMIZED_PROMPTS" | jq -r '.final_generation_config.negative_prompt'), low quality, blurry, artifacts" \
+              --output ".outputs/refined/improved_primary.png" \
+              --config '{"steps": 40, "cfg_scale": 8.5, "width": 1024, "height": 1024}' \
+              > .logs/generation/refinement-generation.log 2>&1; then
+              echo "✅ Improved image generated"
+              REFINEMENT_STATUS="success"
+            else
+              echo "⚠️ Image refinement failed, using original"
+              cp ".outputs/images/primary_image.png" ".outputs/refined/improved_primary.png" 2>/dev/null || true
+              REFINEMENT_STATUS="fallback_to_original"
+            fi
+          else
+            echo "✅ Original image quality is good, copying to refined folder"
+            cp ".outputs/images/primary_image.png" ".outputs/refined/improved_primary.png"
+            REFINEMENT_STATUS="no_refinement_needed"
+          fi
+          
+          # カスタム画像処理（利用可能な場合）
+          if [ "$KAMUICODE_STATUS" = "success" ]; then
+            echo "🎨 Applying custom image processing..."
+            claude-code --mcp kamuicode \
+              --function enhance-image \
+              --input ".outputs/refined/improved_primary.png" \
+              --output ".outputs/refined/enhanced_primary.png" \
+              > .logs/generation/enhancement.log 2>&1 || echo "Custom enhancement failed"
+          fi
+          
+          # 精細化結果をログ保存
+          cat > .logs/generation/refinement-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "refinement_status": "$REFINEMENT_STATUS",
+            "regeneration_performed": $([ "$REGENERATION_NEEDED" = "true" ] && echo "true" || echo "false"),
+            "original_rating": $OVERALL_RATING,
+            "refinement_approach": "$IMPROVEMENT_SUGGESTIONS",
+            "output_files": [
+              ".outputs/refined/improved_primary.png"
+            ]
+          }
+          EOF
+          
+          echo "✨ Image refinement completed"
+
+  - id: "final-quality-validation"
+    name: "最終品質検証"
+    phase: "quality_refinement"
+    github_job: "final-validation"
+    type: "validation"
+    implementation: "ai"
+    duration_minutes: 2
+    dependencies: ["image-refinement"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Validate final image quality"
+        shell: "bash"
+        script: |
+          echo "🏁 Performing final quality validation..."
+          
+          mkdir -p .logs/final-validation
+          
+          # 最終画像の品質検証
+          claude-code --prompt "最終的に生成された画像の品質を検証してください：
+          
+          元の要求: $PROMPT_ANALYSIS
+          生成プロセス: $GENERATION_RESULTS
+          精細化結果: $(cat .logs/generation/refinement-results.json)
+          
+          最終画像を確認してください: .outputs/refined/improved_primary.png
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"final_quality_assessment\": {
+              \"meets_requirements\": \"true|false\",
+              \"quality_score\": \"1-10点での最終品質評価\",
+              \"prompt_fulfillment\": \"1-10点での要求達成度\",
+              \"technical_excellence\": \"1-10点での技術的完成度\",
+              \"ready_for_delivery\": \"true|false\"
+            },
+            \"final_strengths\": [\"最終画像の優れた点\"],
+            \"remaining_issues\": [\"残存する問題点（あれば）\"],
+            \"delivery_recommendation\": \"配信に関する推奨事項\",
+            \"success_summary\": \"成功ポイントの要約\"
+          }" > .logs/final-validation/final-assessment.json
+          
+          FINAL_ASSESSMENT=$(cat .logs/final-validation/final-assessment.json)
+          echo "FINAL_ASSESSMENT=$FINAL_ASSESSMENT" >> $GITHUB_ENV
+          
+          # 配信可否判定
+          READY_FOR_DELIVERY=$(echo "$FINAL_ASSESSMENT" | jq -r '.final_quality_assessment.ready_for_delivery')
+          echo "READY_FOR_DELIVERY=$READY_FOR_DELIVERY" >> $GITHUB_ENV
+          
+          echo "🏁 Final quality validation completed"
+          
+    validation:
+      criteria:
+        - "最終品質評価が完了している"
+        - "配信可否が判定されている"
+        - "品質スコアが6点以上"
+      validation_script: |
+        if [ ! -f ".logs/final-validation/final-assessment.json" ]; then
+          echo "❌ VALIDATION FAILED: Final assessment missing"
+          exit 1
+        fi
+        
+        QUALITY_SCORE=$(jq -r '.final_quality_assessment.quality_score // 0' .logs/final-validation/final-assessment.json)
+        if [ "$QUALITY_SCORE" -ge 6 ]; then
+          echo "✅ Validation passed: Quality meets minimum standards ($QUALITY_SCORE/10)"
+        else
+          echo "⚠️ WARNING: Quality below recommended threshold ($QUALITY_SCORE/10)"
+        fi
+
+  # === 出力準備段階 ===
+  - id: "format-optimization"
+    name: "形式最適化・変換"
+    phase: "output_preparation"
+    github_job: "format-optimization"
+    type: "processing"
+    implementation: "script"
+    duration_minutes: 2
+    dependencies: ["final-quality-validation"]
+    parallel_group: "output_parallel"
+    
+    github_steps:
+      - name: "Optimize image formats"
+        shell: "bash"
+        script: |
+          echo "🔧 Optimizing image formats..."
+          
+          mkdir -p .final-output/{web,print,social}
+          
+          # Web用最適化（JPEG, WebP）
+          if [ -f ".outputs/refined/improved_primary.png" ]; then
+            echo "Creating web-optimized versions..."
+            
+            # JPEG版（品質85%）
+            if command -v convert >/dev/null 2>&1; then
+              convert ".outputs/refined/improved_primary.png" -quality 85 ".final-output/web/image.jpg" 2>/dev/null || echo "JPEG conversion failed"
+              
+              # WebP版（品質80%）
+              convert ".outputs/refined/improved_primary.png" -quality 80 ".final-output/web/image.webp" 2>/dev/null || echo "WebP conversion failed"
+              
+              # サムネイル版（500x500）
+              convert ".outputs/refined/improved_primary.png" -resize 500x500 ".final-output/web/thumbnail.png" 2>/dev/null || echo "Thumbnail creation failed"
+            else
+              echo "ImageMagick not available, copying original"
+              cp ".outputs/refined/improved_primary.png" ".final-output/web/image.png"
+            fi
+            
+            # 印刷用高品質版
+            cp ".outputs/refined/improved_primary.png" ".final-output/print/high_quality.png"
+            
+            # SNS用正方形版（1080x1080）
+            if command -v convert >/dev/null 2>&1; then
+              convert ".outputs/refined/improved_primary.png" -resize 1080x1080^ -gravity center -extent 1080x1080 ".final-output/social/square.png" 2>/dev/null || \
+              cp ".outputs/refined/improved_primary.png" ".final-output/social/square.png"
+            else
+              cp ".outputs/refined/improved_primary.png" ".final-output/social/square.png"
+            fi
+            
+            echo "✅ Format optimization completed"
+          else
+            echo "❌ No refined image found for optimization"
+          fi
+
+  - id: "metadata-compilation"
+    name: "メタデータ・情報コンパイル"
+    phase: "output_preparation"
+    github_job: "metadata-compilation"
+    type: "integration"
+    implementation: "script"
+    duration_minutes: 2
+    dependencies: ["final-quality-validation"]
+    parallel_group: "output_parallel"
+    
+    github_steps:
+      - name: "Compile comprehensive metadata"
+        shell: "bash"
+        script: |
+          echo "📋 Compiling comprehensive metadata..."
+          
+          mkdir -p .final-output
+          
+          # 包括的なメタデータファイル作成
+          cat > .final-output/image-info.json << EOF
+          {
+            "project_info": {
+              "creation_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "workflow_run_id": "${{ github.run_id }}",
+              "generated_by": "AI Image Generation Workflow"
+            },
+            "original_request": $PROMPT_ANALYSIS,
+            "generation_process": {
+              "visual_concept": $VISUAL_CONCEPT,
+              "engineered_prompts": $OPTIMIZED_PROMPTS,
+              "generation_results": $GENERATION_RESULTS,
+              "quality_analysis": $QUALITY_ANALYSIS,
+              "final_assessment": $FINAL_ASSESSMENT
+            },
+            "output_files": {
+              "primary_png": ".final-output/print/high_quality.png",
+              "web_jpg": ".final-output/web/image.jpg",
+              "web_webp": ".final-output/web/image.webp",
+              "thumbnail": ".final-output/web/thumbnail.png",
+              "social_square": ".final-output/social/square.png"
+            },
+            "usage_recommendations": {
+              "web_display": "Use image.webp for modern browsers, image.jpg as fallback",
+              "print_usage": "Use high_quality.png for print applications",
+              "social_media": "Use square.png for social media platforms",
+              "thumbnail": "Use thumbnail.png for gallery views"
+            },
+            "technical_specs": $IMAGE_METADATA,
+            "quality_metrics": {
+              "final_quality_score": $(echo "$FINAL_ASSESSMENT" | jq '.final_quality_assessment.quality_score // 0'),
+              "prompt_fulfillment": $(echo "$FINAL_ASSESSMENT" | jq '.final_quality_assessment.prompt_fulfillment // 0'),
+              "ready_for_delivery": $(echo "$FINAL_ASSESSMENT" | jq '.final_quality_assessment.ready_for_delivery // false')
+            }
+          }
+          EOF
+          
+          echo "✅ Metadata compilation completed"
+
+  - id: "final-package-creation"
+    name: "最終パッケージ作成"
+    phase: "output_preparation"
+    github_job: "package-creation"
+    type: "integration"
+    implementation: "script"
+    duration_minutes: 1
+    dependencies: ["format-optimization", "metadata-compilation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create final delivery package"
+        shell: "bash"
+        script: |
+          echo "📦 Creating final delivery package..."
+          
+          # ZIPパッケージ作成
+          cd .final-output && zip -r ../ai-generated-images.zip . && cd ..
+          
+          # パッケージ情報
+          PACKAGE_SIZE=$(stat -f%z "ai-generated-images.zip" 2>/dev/null || stat -c%s "ai-generated-images.zip" 2>/dev/null || echo "unknown")
+          
+          # 配信パッケージ情報
+          cat > .final-output/package-info.json << EOF
+          {
+            "package_created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "package_size_bytes": $PACKAGE_SIZE,
+            "package_contents": [
+              "print/high_quality.png",
+              "web/image.jpg",
+              "web/image.webp", 
+              "web/thumbnail.png",
+              "social/square.png",
+              "image-info.json"
+            ],
+            "delivery_status": "ready",
+            "quality_approved": $READY_FOR_DELIVERY
+          }
+          EOF
+          
+          echo "📦 Final package created successfully"
+          
+    success_links:
+      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+      primary_image: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/print/high_quality.png"
+      web_version: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/web/image.jpg"
+      metadata: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/image-info.json"
+
+# 実行フロー設計
+execution_flow:
+  - stage: 0
+    name: "事前テスト"
+    parallel: false
+    jobs: ["connectivity-test"]
+    
+  - stage: 1
+    name: "コンセプト開発"
+    parallel: false
+    jobs: ["prompt-analysis", "concept-planning"]
+    
+  - stage: 2
+    name: "プロンプト設計"
+    parallel: false
+    jobs: ["prompt-engineering", "prompt-optimization"]
+    
+  - stage: 3
+    name: "画像生成"
+    parallel: false
+    jobs: ["initial-generation"]
+    then:
+      parallel: true
+      jobs: ["quality-analysis", "metadata-extraction"]
+      
+  - stage: 4
+    name: "品質改善"
+    parallel: false
+    jobs: ["image-refinement", "final-validation"]
+    
+  - stage: 5
+    name: "出力準備"
+    parallel: true
+    jobs: ["format-optimization", "metadata-compilation"]
+    then:
+      parallel: false
+      jobs: ["package-creation"]
+
+# 全体的なエラーハンドリング
+global_error_handling:
+  max_retries: 2
+  retry_delay_seconds: 20
+  critical_failure_notification: true
+  fallback_mode: "basic_generation"
+  
+# 成功基準
+success_criteria:
+  - "少なくとも1つの画像が正常に生成されている"
+  - "最終品質スコアが6点以上"
+  - "複数の形式で出力ファイルが作成されている"
+  - "包括的なメタデータが生成されている"
+  - "配信用パッケージが作成されている"
+
+# アーティファクト保持
+artifacts:
+  - name: "image-generation-logs"
+    path: ".logs/"
+    retention_days: 7
+  - name: "generated-images"  
+    path: ".outputs/"
+    retention_days: 30
+  - name: "final-delivery-package"
+    path: ".final-output/"
+    retention_days: 90
+  - name: "image-package-zip"
+    path: "ai-generated-images.zip"
+    retention_days: 90
