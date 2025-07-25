@@ -850,57 +850,6 @@ jobs:
           echo "🎞️ Composing final video with BGM and narration"
           echo "Story: ${{ github.event.inputs.story_prompt }}"
           echo "✅ Final composite video created"
-FALLBACK_TEMPLATE
-                echo "✅ Created fallback template: $TEMPLATE_PATH"
-              fi
-              echo "✅ Template ready: $TEMPLATE_PATH"
-            done
-            
-            # 複合ワークフロー生成（新しいスクリプトを呼び出し）
-            echo "🎯 Generating composite workflow..."
-            
-            # 一時的な複合ワークフロー生成（基本バージョン）
-            PRIMARY_TEMPLATE="meta/examples/${TEMPLATE_ARRAY[0]}"
-            
-            # プライマリテンプレートをベースとしてコピー
-            cp "$PRIMARY_TEMPLATE" "$GENERATED_FILE"
-            
-            # ワークフロー名を複合版に更新
-            sed -i "1s/.*/name: \"Generated Composite ${COMPOSITE_DETECTED} - ${REQUEST_ID}\"/" "$GENERATED_FILE"
-            
-            # 複合テンプレート情報をコメントとして追加
-            echo "# Generated Composite Workflow" > temp_header.txt
-            echo "# Templates combined: ${TEMPLATES}" >> temp_header.txt
-            echo "# Composite type: ${COMPOSITE_DETECTED}" >> temp_header.txt
-            echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> temp_header.txt
-            echo "" >> temp_header.txt
-            cat temp_header.txt "$GENERATED_FILE" > temp_combined.yml
-            mv temp_combined.yml "$GENERATED_FILE"
-            rm temp_header.txt
-            
-            echo "✅ Composite workflow created: $GENERATED_FILE"
-            echo "   - Primary template: ${TEMPLATE_ARRAY[0]}"
-            echo "   - Additional templates: ${TEMPLATE_ARRAY[@]:1}"
-            echo "   - Composite type: $COMPOSITE_DETECTED"
-            
-          else
-            # 単一テンプレート処理（既存ロジック）
-            TEMPLATE="meta/examples/$TEMPLATES"
-            
-            if [ ! -f "$TEMPLATE" ]; then
-              echo "❌ Template not found: $TEMPLATE"
-              exit 1
-            fi
-          
-          fi
-          
-          # 動的inputs仕様の確認（複合テンプレート対応）
-          echo "🔍 Checking for dynamic inputs specification..."
-          
-          # 複合テンプレートの場合はプライマリテンプレートから判定
-          if [[ "$TEMPLATES" == *","* ]]; then
-            CHECK_TEMPLATE="meta/examples/${TEMPLATE_ARRAY[0]}"
-          else
             CHECK_TEMPLATE="$TEMPLATE"
           fi
           
