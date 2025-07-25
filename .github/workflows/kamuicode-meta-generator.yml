@@ -118,52 +118,25 @@ jobs:
               echo "🔧 Auto-creating missing script: $script"
               mkdir -p "$(dirname "$script")"
               
+              # 簡略化されたスクリプト自動生成（YAML構文安全）
               case "$script" in
                 "script/generate-dynamic-inputs.py")
-                  cat > "$script" << 'EOF'
-#!/usr/bin/env python3
-# Auto-generated fallback script
-import sys
-import argparse
-import yaml
-import json
-
-def main():
-    parser = argparse.ArgumentParser(description='Generate dynamic inputs for workflows')
-    parser.add_argument('--template', required=True, help='Template file path')
-    parser.add_argument('--output', required=True, help='Output file path')
-    parser.add_argument('--composite-templates', help='Composite templates (comma-separated)')
-    parser.add_argument('--composite-type', help='Composite workflow type')
-    
-    args = parser.parse_args()
-    
-    # Fallback: just copy template to output
-    import shutil
-    shutil.copy2(args.template, args.output)
-    print(f"✅ Fallback: Copied {args.template} to {args.output}")
-
-if __name__ == "__main__":
-    main()
-EOF
+                  echo '#!/usr/bin/env python3' > "$script"
+                  echo 'import sys, shutil' >> "$script"
+                  echo 'if len(sys.argv) >= 5: shutil.copy2(sys.argv[2], sys.argv[4])' >> "$script"
+                  echo 'print("✅ Fallback script executed")' >> "$script"
                   chmod +x "$script"
                   ;;
                 "script/content-download-manager.sh")
-                  cat > "$script" << 'EOF'
-#!/bin/bash
-# Auto-generated fallback script for content download management
-echo "🔄 Content Download Manager (Fallback Mode)"
-echo "✅ Content download simulation completed"
-EOF
+                  echo '#!/bin/bash' > "$script"
+                  echo 'echo "🔄 Content Download Manager (Fallback)"' >> "$script"
+                  echo 'echo "✅ Completed"' >> "$script"
                   chmod +x "$script"
                   ;;
                 "script/enhance-content-quality.py")
-                  cat > "$script" << 'EOF'
-#!/usr/bin/env python3
-# Auto-generated fallback script for content quality enhancement
-import sys
-print("🔄 Content Quality Enhancement (Fallback Mode)")
-print("✅ Quality enhancement simulation completed")
-EOF
+                  echo '#!/usr/bin/env python3' > "$script"
+                  echo 'print("🔄 Content Quality Enhancement (Fallback)")' >> "$script"
+                  echo 'print("✅ Completed")' >> "$script"
                   chmod +x "$script"
                   ;;
               esac
@@ -199,15 +172,13 @@ EOF
             else
               echo "⚠️ MCP configuration missing - creating fallback"
               mkdir -p .claude
-              cat > .claude/mcp-kamuicode.json << 'EOF'
-{
-  "mcpServers": {
-    "t2i-google-imagen3": {"command": "echo", "args": ["fallback-mcp"]},
-    "t2v-fal-veo3-fast": {"command": "echo", "args": ["fallback-mcp"]},
-    "t2m-google-lyria": {"command": "echo", "args": ["fallback-mcp"]}
-  }
-}
-EOF
+              echo '{' > .claude/mcp-kamuicode.json
+              echo '  "mcpServers": {' >> .claude/mcp-kamuicode.json
+              echo '    "t2i-google-imagen3": {"command": "echo", "args": ["fallback-mcp"]},' >> .claude/mcp-kamuicode.json
+              echo '    "t2v-fal-veo3-fast": {"command": "echo", "args": ["fallback-mcp"]},' >> .claude/mcp-kamuicode.json
+              echo '    "t2m-google-lyria": {"command": "echo", "args": ["fallback-mcp"]}' >> .claude/mcp-kamuicode.json
+              echo '  }' >> .claude/mcp-kamuicode.json
+              echo '}' >> .claude/mcp-kamuicode.json
               FIXES_APPLIED="${FIXES_APPLIED}mcp-config-auto-created;"
             fi
           fi
@@ -253,31 +224,15 @@ EOF
           
           echo "📊 === PHASE 5: 診断結果とレポート生成 ==="
           
-          # 診断結果の保存
-          cat > .meta/diagnostics/diagnostic-$(date +%Y%m%d-%H%M%S).json << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "retry_count": $((RETRY_COUNT + 1)),
-            "fixes_applied": "$FIXES_APPLIED",
-            "critical_issues": "$CRITICAL_ISSUES",
-            "environment": {
-              "runner_os": "$RUNNER_OS",
-              "github_event": "${{ github.event_name }}",
-              "claude_token_present": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}",
-              "workflow_type": "$WORKFLOW_TYPE"
-            },
-            "template_validation": {
-              "missing_templates": "$MISSING_TEMPLATES",
-              "templates_checked": 9
-            },
-            "auto_fixes": {
-              "scripts_created": true,
-              "permissions_fixed": true,
-              "directories_created": true,
-              "mcp_config_validated": true
-            }
-          }
-          EOF
+          # 診断結果の保存（YAML構文安全）
+          DIAGNOSTIC_FILE=".meta/diagnostics/diagnostic-$(date +%Y%m%d-%H%M%S).json"
+          echo "{" > "$DIAGNOSTIC_FILE"
+          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> "$DIAGNOSTIC_FILE"
+          echo "  \"retry_count\": $((RETRY_COUNT + 1))," >> "$DIAGNOSTIC_FILE"
+          echo "  \"fixes_applied\": \"$FIXES_APPLIED\"," >> "$DIAGNOSTIC_FILE"
+          echo "  \"critical_issues\": \"$CRITICAL_ISSUES\"," >> "$DIAGNOSTIC_FILE"
+          echo "  \"diagnostic_summary\": \"$FIXES_COUNT fixes applied, $ISSUES_COUNT issues found\"" >> "$DIAGNOSTIC_FILE"
+          echo "}" >> "$DIAGNOSTIC_FILE"
           
           # 重要な問題がある場合の警告
           if [ -n "$CRITICAL_ISSUES" ]; then
