@@ -6,9 +6,7 @@ on:
     workflows: ["Kamuicode Meta Generator (Self-Healing)"]
     types:
       - completed
-      - requested
-      - in_progress
-  # メインワークフロー実行時のみ監視（不要なスケジュール実行を削除）
+    # 成功時のみ監視実行（失敗時はauto-fixが対応）
   workflow_dispatch:
     inputs:
       emergency_mode:
@@ -27,9 +25,10 @@ env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 jobs:
-  # 継続的システム監視（リアルタイム）
+  # 継続的システム監視（メインワークフロー成功時のみ）
   continuous-monitoring:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
     outputs:
       critical_issue: ${{ steps.detect.outputs.critical_issue }}
       immediate_fix_needed: ${{ steps.detect.outputs.immediate_fix_needed }}
@@ -178,9 +177,9 @@ jobs:
 
   # 即座の修正適用
   immediate-fix:
-    needs: real-time-detection
+    needs: continuous-monitoring
     runs-on: ubuntu-latest
-    if: needs.real-time-detection.outputs.immediate_fix_needed == 'true'
+    if: needs.continuous-monitoring.outputs.immediate_fix_needed == 'true'
     outputs:
       emergency_fixes: ${{ steps.fix.outputs.emergency_fixes }}
       fix_deployment_ready: ${{ steps.fix.outputs.fix_deployment_ready }}
@@ -194,7 +193,7 @@ jobs:
         run: |
           echo "⚡ Applying emergency fixes for critical issues..."
           
-          AFFECTED_SYSTEMS="${{ needs.real-time-detection.outputs.affected_systems }}"
+          AFFECTED_SYSTEMS="${{ needs.continuous-monitoring.outputs.affected_systems }}"
           EMERGENCY_FIXES=""
           FIX_DEPLOYMENT_READY=true
           
@@ -308,7 +307,7 @@ jobs:
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "emergency_trigger": "$AFFECTED_SYSTEMS",
-            "severity": "${{ needs.real-time-detection.outputs.issue_severity }}",
+            "severity": "${{ needs.continuous-monitoring.outputs.issue_severity }}",
             "emergency_fixes": "$EMERGENCY_FIXES",
             "fix_deployment_ready": $FIX_DEPLOYMENT_READY,
             "estimated_recovery_time": "5-10 minutes",
@@ -323,7 +322,7 @@ jobs:
 
   # リアルタイムデプロイメント
   real-time-deployment:
-    needs: [real-time-detection, immediate-fix]
+    needs: [continuous-monitoring, immediate-fix]
     runs-on: ubuntu-latest
     if: needs.immediate-fix.outputs.fix_deployment_ready == 'true'
     
@@ -344,8 +343,8 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "🚨 EMERGENCY: Real-time fix deployment
 
-          Critical Issue Detected: ${{ needs.real-time-detection.outputs.issue_severity }}
-          Affected Systems: ${{ needs.real-time-detection.outputs.affected_systems }}
+          Critical Issue Detected: ${{ needs.continuous-monitoring.outputs.issue_severity }}
+          Affected Systems: ${{ needs.continuous-monitoring.outputs.affected_systems }}
           Emergency Fixes Applied: ${{ needs.immediate-fix.outputs.emergency_fixes }}
           
           Immediate Actions Taken:
@@ -384,7 +383,7 @@ jobs:
 
   # 即座の効果検証
   immediate-validation:
-    needs: [real-time-detection, immediate-fix, real-time-deployment]
+    needs: [continuous-monitoring, immediate-fix, real-time-deployment]
     runs-on: ubuntu-latest
     if: always()
     
@@ -432,7 +431,7 @@ jobs:
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "validation_type": "immediate",
             "emergency_session": "${{ github.run_number }}",
-            "original_issue": "${{ needs.real-time-detection.outputs.affected_systems }}",
+            "original_issue": "${{ needs.continuous-monitoring.outputs.affected_systems }}",
             "fixes_applied": "${{ needs.immediate-fix.outputs.emergency_fixes }}",
             "validation_status": "$VALIDATION_STATUS",
             "recovery_progress": "$RECOVERY_PROGRESS",
@@ -455,8 +454,8 @@ jobs:
           **CRITICAL ISSUE DETECTED & RESOLVED**
 
           **Detected Issues:**
-          - Severity: ${{ needs.real-time-detection.outputs.issue_severity }}
-          - Affected Systems: ${{ needs.real-time-detection.outputs.affected_systems }}
+          - Severity: ${{ needs.continuous-monitoring.outputs.issue_severity }}
+          - Affected Systems: ${{ needs.continuous-monitoring.outputs.affected_systems }}
           - Detection Time: $(date -u +%Y-%m-%d\ %H:%M:%S\ UTC)
 
           **Emergency Response:**
