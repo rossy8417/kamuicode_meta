@@ -31,6 +31,7 @@ permissions:
   pull-requests: write
   actions: write
   issues: write
+  workflows: write
 
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -378,23 +379,32 @@ jobs:
         run: |
           echo "🚀 Deploying improved workflow configurations..."
           
-          # 現在のメタワークフローを改善版で更新
-          if [ -f ".github/workflows/kamuicode-meta-generator.yml" ]; then
-            echo "📝 Updating meta workflow with improvements..."
-            
-            # バックアップの作成
-            cp .github/workflows/kamuicode-meta-generator.yml .github/workflows/kamuicode-meta-generator.yml.backup-$(date +%Y%m%d-%H%M%S)
-            
-            # タイムアウトの追加・更新（パフォーマンス改善）
-            sed -i '/runs-on: ubuntu-latest/a\    timeout-minutes: 30' .github/workflows/kamuicode-meta-generator.yml
-            
-            # リトライ機能の強化
-            if ! grep -q "retry-limit" .github/workflows/kamuicode-meta-generator.yml; then
-              sed -i '/uses: actions\/checkout@v4/i\        uses: nick-fields/retry@v2\n        with:\n          timeout_minutes: 10\n          max_attempts: 3\n          retry_on: error' .github/workflows/kamuicode-meta-generator.yml
-            fi
-            
-            echo "✅ Meta workflow updated with improvements"
-          fi
+          # 設定ファイルによる改善提案の保存（ワークフローファイル直接変更を回避）
+          echo "📝 Creating improvement recommendations..."
+          
+          mkdir -p .meta/auto-fix/recommendations
+          cat > .meta/auto-fix/recommendations/workflow-improvements-$(date +%Y%m%d-%H%M%S).json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "recommendations": [
+              {
+                "type": "timeout_enhancement",
+                "description": "Add timeout-minutes: 30 to jobs for performance improvement",
+                "target_files": [".github/workflows/kamuicode-meta-generator.yml"],
+                "priority": "medium"
+              },
+              {
+                "type": "retry_enhancement", 
+                "description": "Add retry mechanism with nick-fields/retry@v2",
+                "target_files": [".github/workflows/kamuicode-meta-generator.yml"],
+                "priority": "low"
+              }
+            ],
+            "implementation_notes": "Recommendations saved to avoid direct workflow file modification"
+          }
+          EOF
+          
+          echo "✅ Improvement recommendations saved to .meta/auto-fix/recommendations/"
           
           # 監視システムの更新
           if [ -f ".monitoring/enhanced/monitoring-config.json" ]; then
@@ -431,7 +441,7 @@ jobs:
           - Enhanced error recovery mechanisms
           - Optimized performance configurations  
           - Improved monitoring coverage
-          - Updated timeout and retry settings
+          - Saved improvement recommendations (no direct workflow changes)
           
           🤖 Auto-deployed by CICD Auto-Fix System
           Generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
