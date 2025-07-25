@@ -1,12 +1,12 @@
-name: Auto-Fix & Deployment System
-run-name: 🔧 Auto-fixing detected issues and deploying improvements
+name: Emergency Auto-Fix System
+run-name: 🚨 Emergency response - Auto-fixing critical workflow failures
 
 on:
   workflow_run:
     workflows: ["Kamuicode Meta Generator (Self-Healing)"]
     types:
       - completed
-      - failed
+    # 失敗時のみ動作するよう条件追加
   workflow_dispatch:
     inputs:
       force_analysis:
@@ -34,9 +34,10 @@ env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 jobs:
-  # Step 1: 異常検知と分析
-  detect-anomalies:
+  # Step 1: 緊急事態検知・即座に対応（失敗時のみ）
+  emergency-response:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure' || github.event_name == 'workflow_dispatch'
     outputs:
       has_issues: ${{ steps.detect.outputs.has_issues }}
       issue_types: ${{ steps.detect.outputs.issue_types }}

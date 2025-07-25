@@ -1,12 +1,14 @@
-name: Real-Time Fix Deployer
-run-name: ⚡ Real-time detection and immediate deployment of fixes
+name: Real-Time System Monitor
+run-name: 👀 Continuous system monitoring and health check
 
 on:
   workflow_run:
     workflows: ["Kamuicode Meta Generator (Self-Healing)"]
     types:
       - completed
-  # schedule removed - now only triggers on workflow completion or manual dispatch
+      - requested
+      - in_progress
+  # メインワークフロー実行時のみ監視（不要なスケジュール実行を削除）
   workflow_dispatch:
     inputs:
       emergency_mode:
@@ -25,8 +27,8 @@ env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 jobs:
-  # リアルタイム異常検知
-  real-time-detection:
+  # 継続的システム監視（リアルタイム）
+  continuous-monitoring:
     runs-on: ubuntu-latest
     outputs:
       critical_issue: ${{ steps.detect.outputs.critical_issue }}
