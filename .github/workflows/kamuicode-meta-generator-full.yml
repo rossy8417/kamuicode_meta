@@ -294,7 +294,26 @@ jobs:
           cat $PROMPT_FILE > .meta/decompose-prompt.md
           echo "" >> .meta/decompose-prompt.md
           echo "## User Request:" >> .meta/decompose-prompt.md
-          cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
+          
+          # Request file path from previous job
+          REQUEST_FILE="${{ needs.analyze-request.outputs.request_file }}"
+          if [ -f "$REQUEST_FILE" ]; then
+            cat "$REQUEST_FILE" >> .meta/decompose-prompt.md
+          else
+            echo "⚠️ Request file not found: $REQUEST_FILE"
+            echo "🔍 Looking for any request files..."
+            ls -la .meta/requests/ || echo "No requests directory found"
+            
+            # Fallback: find any request file and use it
+            FOUND_FILE=$(find .meta/requests/ -name "*.md" -type f | head -1 2>/dev/null || echo "")
+            if [ -n "$FOUND_FILE" ] && [ -f "$FOUND_FILE" ]; then
+              echo "📁 Using found request file: $FOUND_FILE"
+              cat "$FOUND_FILE" >> .meta/decompose-prompt.md
+            else
+              echo "❌ No request files found, creating minimal prompt"
+              echo "Custom workflow generation request" >> .meta/decompose-prompt.md
+            fi
+          fi
           
           # Claude Code タスク分解の実行（ファイル保存指示付き）
           echo "🔄 Executing Claude Code task decomposition with file save instruction..."
@@ -969,7 +988,7 @@ jobs:
   auto-recovery:
     needs: [analyze-request, decompose-tasks]
     runs-on: ubuntu-latest  
-    if: needs.decompose-tasks.result == 'failure'
+    if: always() && needs.decompose-tasks.result == 'failure'
     
     steps:
       - name: Checkout repository
