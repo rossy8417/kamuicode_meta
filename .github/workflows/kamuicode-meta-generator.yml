@@ -1029,9 +1029,38 @@ jobs:
             
             git commit -m "feat: 自動生成ワークフロー保存 🤖 Generated with Claude Code"
             
-            git push origin main
-            echo "✅ Generated workflow committed and pushed to repository"
-            echo "🎯 Available at: generated/workflows/staging/$GENERATED_FILE"
+            # Git push with retry and conflict resolution
+            PUSH_RETRIES=3
+            PUSH_SUCCESS=false
+            
+            for i in $(seq 1 $PUSH_RETRIES); do
+              echo "🔄 Push attempt $i/$PUSH_RETRIES..."
+              
+              if git push origin main; then
+                echo "✅ Generated workflow committed and pushed to repository"
+                PUSH_SUCCESS=true
+                break
+              else
+                echo "⚠️ Push failed (attempt $i/$PUSH_RETRIES)"
+                
+                if [ $i -lt $PUSH_RETRIES ]; then
+                  echo "🔄 Pulling latest changes and retrying..."
+                  git pull --rebase origin main || {
+                    echo "❌ Rebase failed, trying merge strategy..."
+                    git pull origin main --no-rebase || echo "Pull also failed"
+                  }
+                  
+                  # Wait before retry to avoid race conditions
+                  sleep $((i * 10))
+                fi
+              fi
+            done
+            
+            if [ "$PUSH_SUCCESS" = "false" ]; then
+              echo "❌ All push attempts failed - saving locally only"
+            fi
+            
+            echo "🎯 Generated workflow available at: generated/workflows/staging/$GENERATED_FILE"
           else
             echo "ℹ️ No new generated workflow to commit"
           fi
