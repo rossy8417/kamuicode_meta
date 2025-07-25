@@ -342,12 +342,15 @@ jobs:
             WORKFLOW_TYPE="${{ github.event.inputs.workflow_type }}"
             echo "✅ Using manually specified workflow type: $WORKFLOW_TYPE"
           else
-            # Issues作成の場合はテキスト解析で推定
+            # Issues作成の場合はテキスト解析で推定（複合パターン優先）
             echo "🔍 Analyzing text to determine workflow type..."
-            if echo "$TITLE $BODY" | grep -qi "画像\|image\|バナー\|ロゴ\|illustration"; then
-              WORKFLOW_TYPE="image-generation"
+            if echo "$TITLE $BODY" | grep -qi "動画.*音楽\|video.*music\|I2V.*T2M\|複合.*動画\|story.*video.*audio\|ストーリー.*動画"; then
+              WORKFLOW_TYPE="video-generation"
+              echo "🎬 Composite video workflow detected"
             elif echo "$TITLE $BODY" | grep -qi "動画\|video\|アニメーション\|movie\|clip"; then
               WORKFLOW_TYPE="video-generation"
+            elif echo "$TITLE $BODY" | grep -qi "画像\|image\|バナー\|ロゴ\|illustration"; then
+              WORKFLOW_TYPE="image-generation"
             elif echo "$TITLE $BODY" | grep -qi "音声\|audio\|ナレーション\|music\|sound"; then
               WORKFLOW_TYPE="audio-generation"
             elif echo "$TITLE $BODY" | grep -qi "ニュース.*動画\|news.*video"; then
