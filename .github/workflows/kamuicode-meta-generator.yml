@@ -480,50 +480,151 @@ jobs:
           # 段階的格納用ディレクトリ作成
           mkdir -p generated/workflows/staging generated/workflows/validated .meta/validation
           
-          # テンプレート選択とカスタマイズ
+          # 複合テンプレート選択とカスタマイズ（Enhanced Multi-Template System）
           WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
           REQUEST_ID="$(echo '${{ needs.analyze-request.outputs.request_file }}' | sed 's/.*\///' | sed 's/\.md$//')"
           GENERATED_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
           
-          case "$WORKFLOW_TYPE" in
-            "video-generation"|"video-content")
-              TEMPLATE="meta/examples/video-content-creation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "image-generation"|"image")
-              TEMPLATE="meta/examples/image-generation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "3d-model"|"3d")
-              TEMPLATE="meta/examples/3d-model-creation.yml" 
-              VALIDATION_REQUIRED="true"
-              ;;
-            "audio-generation"|"music")
-              TEMPLATE="meta/examples/audio-music-creation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "presentation"|"slides")
-              TEMPLATE="meta/examples/presentation-slide-creation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "news-article"|"news")
-              TEMPLATE="meta/examples/news-summarization.yml"
-              VALIDATION_REQUIRED="false"
-              ;;
-            *)
-              TEMPLATE="meta/examples/multimedia-ad-campaign.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-          esac
+          # 要求内容分析による複合テンプレート検出
+          REQUEST_CONTENT="${{ github.event.issue.body || github.event.inputs.description }}"
           
-          if [ ! -f "$TEMPLATE" ]; then
-            echo "❌ Template not found: $TEMPLATE"
-            exit 1
+          echo "🔍 Analyzing request for composite template needs..."
+          echo "Request content (first 200 chars): ${REQUEST_CONTENT:0:200}..."
+          
+          # 複合ワークフロー検出ロジック
+          COMPOSITE_DETECTED=""
+          TEMPLATES=""
+          
+          # パターン1: ストーリー+動画+音楽 (今回のケース)
+          if echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
+            echo "✅ Detected: Story-based Video+Audio composite workflow"
+            TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+            COMPOSITE_DETECTED="story-video-audio"
+            
+          # パターン2: 画像+動画+音楽
+          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*動画.*音楽\|image.*video.*music\|T2I.*I2V.*BGM"; then
+            echo "✅ Detected: Image-to-Video-Audio composite workflow"
+            TEMPLATES="image-generation.yml,video-content-creation.yml,audio-music-creation.yml"
+            COMPOSITE_DETECTED="image-video-audio"
+            
+          # パターン3: 動画+音楽のみ
+          elif echo "$REQUEST_CONTENT" | grep -qi "動画.*音楽\|video.*music\|動画.*BGM"; then
+            echo "✅ Detected: Video+Audio composite workflow"
+            TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+            COMPOSITE_DETECTED="video-audio"
+            
+          # パターン4: 画像+3D
+          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*3D\|image.*3d\|3D.*モデル"; then
+            echo "✅ Detected: Image+3D composite workflow"
+            TEMPLATES="image-generation.yml,3d-model-creation.yml"
+            COMPOSITE_DETECTED="image-3d"
+            
+          # パターン5: プレゼン+データ分析
+          elif echo "$REQUEST_CONTENT" | grep -qi "プレゼン.*データ\|presentation.*data\|スライド.*分析"; then
+            echo "✅ Detected: Presentation+Data Analysis composite workflow"
+            TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
+            COMPOSITE_DETECTED="presentation-data"
+            
+          # 単一テンプレートフォールバック
+          else
+            echo "ℹ️ Using single template selection logic"
+            case "$WORKFLOW_TYPE" in
+              "video-generation"|"video-content"|"video")
+                TEMPLATES="video-content-creation.yml"
+                ;;
+              "image-generation"|"image")
+                TEMPLATES="image-generation.yml"
+                ;;
+              "3d-model"|"3d")
+                TEMPLATES="3d-model-creation.yml"
+                ;;
+              "audio-generation"|"music")
+                TEMPLATES="audio-music-creation.yml"
+                ;;
+              "presentation"|"slides")
+                TEMPLATES="presentation-slide-creation.yml"
+                ;;
+              "news-article"|"news")
+                TEMPLATES="news-summarization.yml"
+                ;;
+              *)
+                TEMPLATES="multimedia-ad-campaign.yml"
+                ;;
+            esac
           fi
           
-          # 動的inputs仕様の確認
+          VALIDATION_REQUIRED="true"
+          
+          # 複数テンプレート組み合わせ処理
+          if [[ "$TEMPLATES" == *","* ]]; then
+            echo "🔧 Processing composite workflow with multiple templates..."
+            
+            # テンプレートを配列に分割
+            IFS=',' read -ra TEMPLATE_ARRAY <<< "$TEMPLATES"
+            
+            echo "📋 Templates to combine: ${TEMPLATE_ARRAY[@]}"
+            
+            # 各テンプレートの存在確認
+            for template in "${TEMPLATE_ARRAY[@]}"; do
+              TEMPLATE_PATH="meta/examples/$template"
+              if [ ! -f "$TEMPLATE_PATH" ]; then
+                echo "❌ Template not found: $TEMPLATE_PATH"
+                exit 1
+              fi
+              echo "✅ Found template: $TEMPLATE_PATH"
+            done
+            
+            # 複合ワークフロー生成（新しいスクリプトを呼び出し）
+            echo "🎯 Generating composite workflow..."
+            
+            # 一時的な複合ワークフロー生成（基本バージョン）
+            PRIMARY_TEMPLATE="meta/examples/${TEMPLATE_ARRAY[0]}"
+            
+            # プライマリテンプレートをベースとしてコピー
+            cp "$PRIMARY_TEMPLATE" "$GENERATED_FILE"
+            
+            # ワークフロー名を複合版に更新
+            sed -i "1s/.*/name: \"Generated Composite ${COMPOSITE_DETECTED} - ${REQUEST_ID}\"/" "$GENERATED_FILE"
+            
+            # 複合テンプレート情報をコメントとして追加
+            cat > temp_header.txt << EOF
+# Generated Composite Workflow
+# Templates combined: ${TEMPLATES}
+# Composite type: ${COMPOSITE_DETECTED}
+# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+EOF
+            cat temp_header.txt "$GENERATED_FILE" > temp_combined.yml
+            mv temp_combined.yml "$GENERATED_FILE"
+            rm temp_header.txt
+            
+            echo "✅ Composite workflow created: $GENERATED_FILE"
+            echo "   - Primary template: ${TEMPLATE_ARRAY[0]}"
+            echo "   - Additional templates: ${TEMPLATE_ARRAY[@]:1}"
+            echo "   - Composite type: $COMPOSITE_DETECTED"
+            
+          else
+            # 単一テンプレート処理（既存ロジック）
+            TEMPLATE="meta/examples/$TEMPLATES"
+            
+            if [ ! -f "$TEMPLATE" ]; then
+              echo "❌ Template not found: $TEMPLATE"
+              exit 1
+            fi
+          
+          fi
+          
+          # 動的inputs仕様の確認（複合テンプレート対応）
           echo "🔍 Checking for dynamic inputs specification..."
-          if grep -q "dynamic_inputs_spec:" "$TEMPLATE"; then
+          
+          # 複合テンプレートの場合はプライマリテンプレートから判定
+          if [[ "$TEMPLATES" == *","* ]]; then
+            CHECK_TEMPLATE="meta/examples/${TEMPLATE_ARRAY[0]}"
+          else
+            CHECK_TEMPLATE="$TEMPLATE"
+          fi
+          
+          if grep -q "dynamic_inputs_spec:" "$CHECK_TEMPLATE"; then
             echo "✅ Dynamic inputs found, generating enhanced workflow..."
             
             # スクリプトパス確認・権限設定
@@ -560,30 +661,54 @@ jobs:
             else
               echo "✅ All required scripts found and executable"
               
-              # Pythonスクリプトで動的inputsを生成（相対パス使用）
+              # Pythonスクリプトで動的inputsを生成（複合テンプレート対応）
               echo "🐍 Generating dynamic inputs with Python..."
               if command -v python3 &> /dev/null; then
-                python3 ./script/generate-dynamic-inputs.py \
-                  --template "$TEMPLATE" \
-                  --output "$GENERATED_FILE"
+                # 複合テンプレートの場合は追加パラメータを渡す
+                if [[ "$TEMPLATES" == *","* ]]; then
+                  python3 ./script/generate-dynamic-inputs.py \
+                    --template "$CHECK_TEMPLATE" \
+                    --composite-templates "$TEMPLATES" \
+                    --composite-type "$COMPOSITE_DETECTED" \
+                    --output "$GENERATED_FILE"
+                else
+                  python3 ./script/generate-dynamic-inputs.py \
+                    --template "$CHECK_TEMPLATE" \
+                    --output "$GENERATED_FILE"
+                fi
                 
                 if [ $? -eq 0 ]; then
                   echo "✅ Dynamic inputs workflow generated successfully"
                   DYNAMIC_INPUTS_ENABLED="true"
                 else
                   echo "⚠️ Dynamic inputs generation failed, falling back to basic template"
-                  cp "$TEMPLATE" "$GENERATED_FILE"
+                  # 複合テンプレートフォールバック（既に作成済みなのでそのまま使用）
+                  if [[ "$TEMPLATES" == *","* ]]; then
+                    echo "ℹ️ Using already created composite template"
+                  else
+                    cp "$CHECK_TEMPLATE" "$GENERATED_FILE"
+                  fi
                   DYNAMIC_INPUTS_ENABLED="false"
                 fi
               else
                 echo "⚠️ Python3 not available, falling back to basic template"
-                cp "$TEMPLATE" "$GENERATED_FILE"
+                # 複合テンプレートフォールバック
+                if [[ "$TEMPLATES" == *","* ]]; then
+                  echo "ℹ️ Using already created composite template"
+                else
+                  cp "$CHECK_TEMPLATE" "$GENERATED_FILE"
+                fi
                 DYNAMIC_INPUTS_ENABLED="false"
               fi
             fi
           else
             echo "ℹ️ No dynamic inputs specification, using basic template"
-            cp "$TEMPLATE" "$GENERATED_FILE"
+            # 複合テンプレートの場合は既に作成済み
+            if [[ "$TEMPLATES" == *","* ]]; then
+              echo "ℹ️ Using already created composite template"
+            else
+              cp "$CHECK_TEMPLATE" "$GENERATED_FILE"
+            fi
             DYNAMIC_INPUTS_ENABLED="false"
           fi
           
@@ -599,15 +724,28 @@ jobs:
             fi
           fi
           
-          # 出力パラメータ設定
+          # 出力パラメータ設定（複合テンプレート対応）
           echo "workflow_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
           echo "validation_required=$VALIDATION_REQUIRED" >> $GITHUB_OUTPUT
           echo "dynamic_inputs_enabled=$DYNAMIC_INPUTS_ENABLED" >> $GITHUB_OUTPUT
-          echo "template_used=$TEMPLATE" >> $GITHUB_OUTPUT
+          
+          # 複合テンプレートの場合は全テンプレートを記録
+          if [[ "$TEMPLATES" == *","* ]]; then
+            echo "template_used=COMPOSITE:$TEMPLATES" >> $GITHUB_OUTPUT
+            echo "composite_type=$COMPOSITE_DETECTED" >> $GITHUB_OUTPUT
+          else
+            echo "template_used=$CHECK_TEMPLATE" >> $GITHUB_OUTPUT
+            echo "composite_type=single" >> $GITHUB_OUTPUT
+          fi
           
           echo "✅ Workflow generation completed: $GENERATED_FILE"
           echo "   - Dynamic inputs: $DYNAMIC_INPUTS_ENABLED"
-          echo "   - Template: $TEMPLATE"
+          if [[ "$TEMPLATES" == *","* ]]; then
+            echo "   - Templates (Composite): $TEMPLATES"
+            echo "   - Composite type: $COMPOSITE_DETECTED"
+          else
+            echo "   - Template (Single): $CHECK_TEMPLATE"
+          fi
           
       - name: Upload Staging Workflow
         uses: actions/upload-artifact@v4
