@@ -569,19 +569,20 @@ jobs:
                 python3 ./script/generate-dynamic-inputs.py \
                   --template "$TEMPLATE" \
                   --output "$GENERATED_FILE"
-              
-              if [ $? -eq 0 ]; then
-                echo "✅ Dynamic inputs workflow generated successfully"
-                DYNAMIC_INPUTS_ENABLED="true"
+                
+                if [ $? -eq 0 ]; then
+                  echo "✅ Dynamic inputs workflow generated successfully"
+                  DYNAMIC_INPUTS_ENABLED="true"
+                else
+                  echo "⚠️ Dynamic inputs generation failed, falling back to basic template"
+                  cp "$TEMPLATE" "$GENERATED_FILE"
+                  DYNAMIC_INPUTS_ENABLED="false"
+                fi
               else
-                echo "⚠️ Dynamic inputs generation failed, falling back to basic template"
+                echo "⚠️ Python3 not available, falling back to basic template"
                 cp "$TEMPLATE" "$GENERATED_FILE"
                 DYNAMIC_INPUTS_ENABLED="false"
               fi
-            else
-              echo "⚠️ Python3 not available, falling back to basic template"
-              cp "$TEMPLATE" "$GENERATED_FILE"
-              DYNAMIC_INPUTS_ENABLED="false"
             fi
           else
             echo "ℹ️ No dynamic inputs specification, using basic template"
