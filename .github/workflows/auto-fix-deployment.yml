@@ -48,14 +48,19 @@ jobs:
       - name: Check if Auto-Fix is Needed
         id: check
         run: |
+          echo "🔍 Checking workflow status..."
+          echo "Event: ${{ github.event_name }}"
+          echo "Conclusion: ${{ github.event.workflow_run.conclusion || 'N/A' }}"
+          
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "🔧 Manual trigger - proceeding with auto-fix"
             echo "should_proceed=true" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.workflow_run.conclusion }}" == "failure" ]; then
+          elif [ "${{ github.event_name }}" == "workflow_run" ] && [ "${{ github.event.workflow_run.conclusion }}" == "failure" ]; then
             echo "❌ Workflow failure detected - proceeding with auto-fix"
             echo "should_proceed=true" >> $GITHUB_OUTPUT
           else
-            echo "✅ Workflow completed successfully - no auto-fix needed"
+            echo "✅ Workflow completed successfully or no failure - no auto-fix needed"
+            echo "Conclusion: ${{ github.event.workflow_run.conclusion || 'N/A' }}"
             echo "should_proceed=false" >> $GITHUB_OUTPUT
           fi
 

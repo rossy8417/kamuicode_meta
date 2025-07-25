@@ -1078,3 +1078,9 @@ jobs:
           echo "🔄 Run ID: ${{ github.run_number }}"
           echo "⏰ Completed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "================================"
+          
+          # Claude Code実行時の自動ローカル更新トリガー
+          if [ "${{ github.actor }}" = "rossy8417" ] && [ -n "${{ env.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "🔄 Triggering Claude Code local repository update..."
+            echo "::notice title=Local Update Required::Claude Code should run 'git pull origin main' to sync latest changes"
+          fi
