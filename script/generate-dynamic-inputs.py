@@ -203,7 +203,7 @@ echo "✅ Execution plan created with services: $MCP_SERVICES"
                         'name': 'Setup MCP configuration and scripts',
                         'run': '''
 echo "🔧 Setting up MCP configuration and script dependencies..."
-mkdir -p ~/.claude
+mkdir -p .claude
 
 # スクリプトの実行権限確認・設定
 if [ -f "script/content-download-manager.sh" ]; then
@@ -226,14 +226,14 @@ if [ -f "requirements.txt" ]; then
 fi
 
 # MCP設定をセットアップ（既存ファイル参照）
-if [ -f "${HOME}/.claude/mcp-kamuicode.json" ]; then
-  echo "✅ Using existing MCP configuration at ~/.claude/mcp-kamuicode.json"
+if [ -f ".claude/mcp-kamuicode.json" ]; then
+  echo "✅ Using existing MCP configuration at .claude/mcp-kamuicode.json"
 elif [ -f "mcp-kamuicode.json" ]; then
   echo "📋 Copying MCP config from repository"
-  cp mcp-kamuicode.json ~/.claude/mcp-kamuicode.json
+  cp mcp-kamuicode.json .claude/mcp-kamuicode.json
 else
   echo "⚠️ MCP configuration not found"
-  echo "Please ensure mcp-kamuicode.json exists in repository or ~/.claude/"
+  echo "Please ensure mcp-kamuicode.json exists in repository or .claude/"
   echo "AI generation services may not work without proper MCP configuration"
 fi
                         '''
@@ -261,7 +261,7 @@ SUCCESS=false
 for service in "${SERVICES[@]}"; do
   echo "🔄 Trying MCP service: $service"
   
-  if timeout 180 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp "$service" --prompt "$OPTIMIZED_PROMPT" > ".logs/image-generation/${service}-result.json" 2>&1; then
+  if timeout 180 claude --mcp-config .claude/mcp-kamuicode.json --mcp "$service" --prompt "$OPTIMIZED_PROMPT" > ".logs/image-generation/${service}-result.json" 2>&1; then
     echo "✅ Success with $service"
     SUCCESS=true
     

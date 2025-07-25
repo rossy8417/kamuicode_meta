@@ -43,7 +43,7 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 ```
 
 ### MCP Integration Rules
-**Available MCP Services** (from `~/.claude/mcp-kamuicode.json`):
+**Available MCP Services** (from `.claude/mcp-kamuicode.json`):
 - **T2I**: `t2i-google-imagen3`, `t2i-fal-imagen4-ultra`, `t2i-fal-imagen4-fast`
 - **T2V**: `t2v-fal-veo3-fast`
 - **I2V**: `i2v-fal-hailuo-02-pro`
@@ -102,7 +102,7 @@ The main workflow now uses:
 
 ### Required Secrets & Configuration
 - **`CLAUDE_CODE_OAUTH_TOKEN`**: Claude Code authentication token
-- **`~/.claude/mcp-kamuicode.json`**: MCP configuration (AI generation services only)
+- **`.claude/mcp-kamuicode.json`**: MCP configuration (AI generation services only)
 
 ### Execution Methods
 1. **Issue-driven**: Create issues using workflow-request.yml template

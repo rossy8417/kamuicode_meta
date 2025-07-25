@@ -225,7 +225,7 @@ tasks:
           
           # 音楽生成サービステスト（T2M）
           echo "Testing music generation service..."
-          if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "test background music, 10 seconds" --duration "10" > .logs/connectivity-tests/music-test.log 2>&1; then
+          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "test background music, 10 seconds" --duration "10" > .logs/connectivity-tests/music-test.log 2>&1; then
             MUSIC_GEN_STATUS="success"
             echo "✅ Music Generation (Lyria): Available"
           else
@@ -235,7 +235,7 @@ tasks:
           
           # Video-to-Audio サービステスト（V2A）
           echo "Testing video-to-audio service..."
-          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "/tmp/test.mp4" --audio-style "test audio" > .logs/connectivity-tests/v2a-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "/tmp/test.mp4" --audio-style "test audio" > .logs/connectivity-tests/v2a-test.log 2>&1; then
             V2A_STATUS="success"
             echo "✅ Video-to-Audio (ThinkSound): Available"
           else
@@ -724,7 +724,7 @@ tasks:
             echo "Using prompt: $MAIN_PROMPT"
             echo "Duration: $DURATION_SECONDS seconds"
             
-            if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MAIN_PROMPT" --duration "$DURATION_SECONDS" > .logs/audio-production/music/main-composition.json 2>&1; then
+            if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MAIN_PROMPT" --duration "$DURATION_SECONDS" > .logs/audio-production/music/main-composition.json 2>&1; then
               echo "✅ Main composition generated successfully"
               MAIN_GENERATION_STATUS="success"
             else
@@ -747,7 +747,7 @@ tasks:
               # セクション時間を算出（簡易）
               SECTION_DURATION=$((TARGET_DURATION_SECONDS / COMPOSITION_SECTIONS))
               
-              if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$SECTION_PROMPT" --duration "$SECTION_DURATION" > .logs/audio-production/music/section-${SECTION_INDEX}-${SECTION_NAME}.json 2>&1; then
+              if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$SECTION_PROMPT" --duration "$SECTION_DURATION" > .logs/audio-production/music/section-${SECTION_INDEX}-${SECTION_NAME}.json 2>&1; then
                 echo "✅ Section $SECTION_NAME generated"
               else
                 echo "⚠️ Section $SECTION_NAME generation failed"
@@ -771,7 +771,7 @@ tasks:
               
               LAYER_PROMPT="$INSTRUMENTS layer for $DYNAMIC_ROLE, ${TARGET_DURATION_SECONDS} seconds, fits the main composition style"
               
-              if timeout 100 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$LAYER_PROMPT" --duration "$TARGET_DURATION_SECONDS" > .logs/audio-production/music/layer-${LAYER_INDEX}-${LAYER_NAME}.json 2>&1; then
+              if timeout 100 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$LAYER_PROMPT" --duration "$TARGET_DURATION_SECONDS" > .logs/audio-production/music/layer-${LAYER_INDEX}-${LAYER_NAME}.json 2>&1; then
                 echo "✅ Layer $LAYER_NAME generated"
               else
                 echo "⚠️ Layer $LAYER_NAME generation failed"
@@ -866,7 +866,7 @@ tasks:
                 
                 AMBIENT_STYLE="subtle ambient textures and environmental sounds that complement the musical composition, professional audio quality"
                 
-                if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "$MUSIC_PATH" --audio-style "$AMBIENT_STYLE" > .logs/audio-production/ambient/complementary-ambient.json 2>&1; then
+                if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "$MUSIC_PATH" --audio-style "$AMBIENT_STYLE" > .logs/audio-production/ambient/complementary-ambient.json 2>&1; then
                   echo "✅ Complementary ambient audio generated"
                 fi
               fi

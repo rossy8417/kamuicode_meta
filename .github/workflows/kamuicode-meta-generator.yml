@@ -71,23 +71,18 @@ jobs:
           
           # Fix 1: MCP設定ファイルの参照・確認（AI生成サービス用のみ）
           echo "🔧 Checking MCP configuration for AI generation services..."
-          mkdir -p ~/.claude
           
           # ワークフロータイプを確認してMCPが必要かチェック
           WORKFLOW_TYPE="${{ github.event.inputs.workflow_type || 'unknown' }}"
           
           if [[ "$WORKFLOW_TYPE" =~ ^(image-generation|video-generation|audio-generation|news-video)$ ]]; then
-            # 既存のMCP設定ファイルを参照
-            if [ -f "${HOME}/.claude/mcp-kamuicode.json" ]; then
-              echo "✅ Using existing MCP configuration at ~/.claude/mcp-kamuicode.json"
+            # プロジェクト内のMCP設定ファイルを確認
+            if [ -f ".claude/mcp-kamuicode.json" ]; then
+              echo "✅ Using project MCP configuration at .claude/mcp-kamuicode.json"
               FIXES_APPLIED="${FIXES_APPLIED}mcp-config-found;"
-            elif [ -f "mcp-kamuicode.json" ]; then
-              echo "📋 Copying MCP config from repository"
-              cp mcp-kamuicode.json ~/.claude/mcp-kamuicode.json
-              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-copied-from-repo;"
             else
-              echo "⚠️ MCP configuration not found - AI generation may not work"
-              echo "Please ensure mcp-kamuicode.json exists in repository or ~/.claude/"
+              echo "⚠️ MCP configuration not found at .claude/mcp-kamuicode.json"
+              echo "Please ensure .claude/mcp-kamuicode.json exists in project root"
               FIXES_APPLIED="${FIXES_APPLIED}mcp-config-missing;"
             fi
             echo "✅ MCP configuration setup completed"

@@ -275,7 +275,7 @@ tasks:
           
           # 画像生成サービステスト（スライド背景・アイコン用）
           echo "Testing image generation for slide graphics..."
-          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "business presentation slide background, professional clean design" > .logs/connectivity-tests/image-test.log 2>&1; then
+          if timeout 60 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "business presentation slide background, professional clean design" > .logs/connectivity-tests/image-test.log 2>&1; then
             IMAGE_GEN_STATUS="success"
             echo "✅ Image Generation (Slide Graphics): Available"
           else
@@ -285,7 +285,7 @@ tasks:
           
           # 画像強化サービステスト（品質向上用）
           echo "Testing image enhancement services..."
-          if timeout 45 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "/tmp/test.jpg" --enhancement "professional presentation quality" > .logs/connectivity-tests/enhancement-test.log 2>&1; then
+          if timeout 45 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "/tmp/test.jpg" --enhancement "professional presentation quality" > .logs/connectivity-tests/enhancement-test.log 2>&1; then
             IMAGE_ENHANCEMENT_STATUS="success"
             echo "✅ Image Enhancement: Available"
           else
@@ -678,7 +678,7 @@ tasks:
                 
                 FULL_PROMPT="$IMAGE_PROMPT, professional presentation background, clean design, subtle, high resolution, business appropriate"
                 
-                if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FULL_PROMPT" > .logs/visual-planning/backgrounds/${SLIDE_TYPE}-background.json 2>&1; then
+                if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FULL_PROMPT" > .logs/visual-planning/backgrounds/${SLIDE_TYPE}-background.json 2>&1; then
                   echo "✅ Background generated for $SLIDE_TYPE"
                 else
                   echo "⚠️ Background generation failed for $SLIDE_TYPE"
@@ -691,13 +691,13 @@ tasks:
             
             # アイコンセット生成
             ICONS_STYLE=$(echo "$DESIGN_PLAN" | jq -r '.graphic_elements.icons_style')
-            if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "business presentation icons set, $ICONS_STYLE style, clean vector design, transparent background" > .logs/visual-planning/backgrounds/icons-set.json 2>&1; then
+            if timeout 60 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "business presentation icons set, $ICONS_STYLE style, clean vector design, transparent background" > .logs/visual-planning/backgrounds/icons-set.json 2>&1; then
               echo "✅ Icon set generated"
             fi
             
             # 装飾要素生成
             DECORATIVE_ELEMENTS=$(echo "$DESIGN_PLAN" | jq -r '.graphic_elements.decorative_elements[0] // "geometric patterns"')
-            if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "presentation decorative elements, $DECORATIVE_ELEMENTS, professional, subtle, vector style" > .logs/visual-planning/backgrounds/decorative-elements.json 2>&1; then
+            if timeout 60 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "presentation decorative elements, $DECORATIVE_ELEMENTS, professional, subtle, vector style" > .logs/visual-planning/backgrounds/decorative-elements.json 2>&1; then
               echo "✅ Decorative elements generated"
             fi
             

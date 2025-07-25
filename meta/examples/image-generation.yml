@@ -199,7 +199,7 @@ tasks:
           
           # MCP Kamuicode設定テスト
           echo "Testing MCP Kamuicode configuration..."
-          if [ -f "~/.claude/mcp-kamuicode.json" ]; then
+          if [ -f ".claude/mcp-kamuicode.json" ]; then
             echo "✅ MCP Configuration file found"
             MCP_CONFIG_STATUS="success"
           else
@@ -209,7 +209,7 @@ tasks:
           
           # 高品質画像生成テスト（Imagen4 Ultra）
           echo "Testing high-quality image generation (Imagen4 Ultra)..."
-          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "test high quality image" > .logs/connectivity-tests/imagen4-ultra-test.log 2>&1; then
+          if timeout 60 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "test high quality image" > .logs/connectivity-tests/imagen4-ultra-test.log 2>&1; then
             IMAGEN4_ULTRA_STATUS="success"
             echo "✅ Imagen4 Ultra: Available"
           else
@@ -219,7 +219,7 @@ tasks:
           
           # 高速画像生成テスト（Imagen4 Fast）
           echo "Testing fast image generation (Imagen4 Fast)..."
-          if timeout 30 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "test fast image" > .logs/connectivity-tests/imagen4-fast-test.log 2>&1; then
+          if timeout 30 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "test fast image" > .logs/connectivity-tests/imagen4-fast-test.log 2>&1; then
             IMAGEN4_FAST_STATUS="success"
             echo "✅ Imagen4 Fast: Available"
           else
@@ -229,7 +229,7 @@ tasks:
           
           # Google Imagen3 テスト（代替案）
           echo "Testing Google Imagen3..."
-          if timeout 45 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 --prompt "test google imagen" > .logs/connectivity-tests/google-imagen3-test.log 2>&1; then
+          if timeout 45 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 --prompt "test google imagen" > .logs/connectivity-tests/google-imagen3-test.log 2>&1; then
             GOOGLE_IMAGEN3_STATUS="success"
             echo "✅ Google Imagen3: Available"
           else
@@ -593,7 +593,7 @@ tasks:
           echo "Generating primary image with $RECOMMENDED_SERVICE..."
           if [ "$RECOMMENDED_SERVICE" = "t2i-fal-imagen4-ultra" ]; then
             # 高品質生成（Imagen4 Ultra）
-            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra \
+            if claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra \
               --prompt "$FINAL_PROMPT" \
               --negative-prompt "$NEGATIVE_PROMPT" \
               --output ".outputs/images/primary_image.png" \
@@ -608,7 +608,7 @@ tasks:
             
           elif [ "$RECOMMENDED_SERVICE" = "t2i-fal-imagen4-fast" ]; then
             # 高速生成（Imagen4 Fast）
-            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
+            if claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
               --prompt "$FINAL_PROMPT" \
               --negative-prompt "$NEGATIVE_PROMPT" \
               --output ".outputs/images/primary_image.png" \
@@ -623,7 +623,7 @@ tasks:
             
           elif [ "$RECOMMENDED_SERVICE" = "t2i-google-imagen3" ]; then
             # Google Imagen3 生成
-            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 \
+            if claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 \
               --prompt "$FINAL_PROMPT" \
               --negative-prompt "$NEGATIVE_PROMPT" \
               --output ".outputs/images/primary_image.png" \
@@ -642,7 +642,7 @@ tasks:
           # バリエーション生成（高速サービス使用）
           echo "Generating variation with fast service..."
           if [ "$FAST_GENERATION_AVAILABLE" = "true" ]; then
-            if claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
+            if claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
               --prompt "$FINAL_PROMPT, artistic variation, creative interpretation" \
               --negative-prompt "$NEGATIVE_PROMPT" \
               --output ".outputs/images/variant_1.png" \
@@ -710,13 +710,13 @@ tasks:
         
         # Google Imagen3 フォールバック
         if [ "$GOOGLE_IMAGEN3_STATUS" = "success" ]; then
-          claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 \
+          claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 \
             --prompt "$SIMPLE_PROMPT, high quality" \
             --output ".outputs/images/fallback_image.png" \
             > .logs/generation/fallback-generation.log 2>&1 || echo "Google Imagen3 fallback failed"
         # Imagen4 Fast フォールバック  
         elif [ "$IMAGEN4_FAST_STATUS" = "success" ]; then
-          claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
+          claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
             --prompt "$SIMPLE_PROMPT, high quality" \
             --output ".outputs/images/fallback_image.png" \
             > .logs/generation/fallback-generation.log 2>&1 || echo "Imagen4 Fast fallback failed"

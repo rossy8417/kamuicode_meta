@@ -78,7 +78,7 @@ docs/                               # プロジェクトドキュメント
 2. **手動実行**: `workflow_dispatch`トリガーで直接実行
 
 ### **MCP設定**
-- `~/.claude/mcp-kamuicode.json`設定ファイルが必要
+- `.claude/mcp-kamuicode.json`設定ファイルが必要
 - AI生成サービス (T2I, T2V, I2V, T2M, V2A, I2I3D) へのアクセス
 
 ### **実行例**
@@ -136,7 +136,7 @@ CLAUDE_CODE_OAUTH_TOKEN=your-claude-code-token
 ### **MCPサービス設定**
 ```bash
 # MCP設定ファイルの配置
-~/.claude/mcp-kamuicode.json
+.claude/mcp-kamuicode.json
 ```
 
 ### **利用可能なMCPサービス**

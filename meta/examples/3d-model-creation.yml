@@ -182,7 +182,7 @@ tasks:
           
           # 3Dモデル生成サービステスト（I2I3D）
           echo "Testing 3D model generation service..."
-          if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "/tmp/test.jpg" > .logs/connectivity-tests/3d-gen-test.log 2>&1; then
+          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "/tmp/test.jpg" > .logs/connectivity-tests/3d-gen-test.log 2>&1; then
             THREED_GEN_STATUS="success"
             echo "✅ 3D Model Generation (Hunyuan3D): Available"
           else
@@ -192,7 +192,7 @@ tasks:
           
           # 画像生成サービステスト（参照画像作成用）
           echo "Testing image generation for reference creation..."
-          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "3d reference object test" > .logs/connectivity-tests/ref-image-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "3d reference object test" > .logs/connectivity-tests/ref-image-test.log 2>&1; then
             REF_IMAGE_STATUS="success"
             echo "✅ Reference Image Generation: Available"
           else
@@ -202,7 +202,7 @@ tasks:
           
           # 画像強化サービステスト（3D生成前の前処理用）
           echo "Testing image enhancement for preprocessing..."
-          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "/tmp/test.jpg" --enhancement "3d reference optimization" > .logs/connectivity-tests/enhancement-test.log 2>&1; then
+          if timeout 60 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "/tmp/test.jpg" --enhancement "3d reference optimization" > .logs/connectivity-tests/enhancement-test.log 2>&1; then
             IMAGE_ENHANCEMENT_STATUS="success" 
             echo "✅ Image Enhancement: Available"
           else
@@ -472,7 +472,7 @@ tasks:
             echo "Generating primary reference image..."
             PRIMARY_PROMPT="$PRIMARY_SUBJECT in $VISUAL_STYLE style, perfect for 3D modeling reference, clear details, neutral background, professional product photography lighting, high resolution, multiple angles visible"
             
-            if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PRIMARY_PROMPT" > .logs/reference-preparation/primary-reference.json 2>&1; then
+            if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PRIMARY_PROMPT" > .logs/reference-preparation/primary-reference.json 2>&1; then
               echo "✅ Primary reference image generated"
               PRIMARY_REF_STATUS="success"
             else
@@ -489,7 +489,7 @@ tasks:
                 echo "Generating reference for $angle view..."
                 ANGLE_PROMPT="$PRIMARY_SUBJECT from $angle view, $VISUAL_STYLE style, 3D modeling reference, clear geometry, neutral background, professional lighting"
                 
-                if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ANGLE_PROMPT" > .logs/reference-preparation/angle-${ANGLE_INDEX}-reference.json 2>&1; then
+                if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ANGLE_PROMPT" > .logs/reference-preparation/angle-${ANGLE_INDEX}-reference.json 2>&1; then
                   echo "✅ $angle reference generated"
                 else
                   echo "⚠️ $angle reference generation failed"
@@ -508,7 +508,7 @@ tasks:
                 echo "Generating detail reference for: $feature"
                 FEATURE_PROMPT="close-up detail of $feature on $PRIMARY_SUBJECT, $VISUAL_STYLE style, high detail for 3D modeling, clear texture and geometry"
                 
-                if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FEATURE_PROMPT" > .logs/reference-preparation/feature-${FEATURE_INDEX}-detail.json 2>&1; then
+                if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FEATURE_PROMPT" > .logs/reference-preparation/feature-${FEATURE_INDEX}-detail.json 2>&1; then
                   echo "✅ $feature detail reference generated"
                 else
                   echo "⚠️ $feature detail reference failed"
@@ -536,7 +536,7 @@ tasks:
                   echo "Enhancing $REF_NAME for 3D generation..."
                   ENHANCEMENT_PROMPT="optimize for 3D model generation, enhance edge definition, improve contrast, clarify geometric details, maintain color accuracy"
                   
-                  if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "$IMAGE_PATH" --enhancement "$ENHANCEMENT_PROMPT" > .logs/reference-preparation/${REF_NAME}-enhanced.json 2>&1; then
+                  if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "$IMAGE_PATH" --enhancement "$ENHANCEMENT_PROMPT" > .logs/reference-preparation/${REF_NAME}-enhanced.json 2>&1; then
                     echo "✅ $REF_NAME enhanced successfully"
                   else
                     echo "⚠️ $REF_NAME enhancement failed"
@@ -611,7 +611,7 @@ tasks:
               if [ "$PRIMARY_IMAGE_PATH" != "none" ]; then
                 echo "Generating 3D model from primary reference..."
                 
-                if timeout 240 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$PRIMARY_IMAGE_PATH" > .logs/3d-generation/primary-3d-model.json 2>&1; then
+                if timeout 240 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$PRIMARY_IMAGE_PATH" > .logs/3d-generation/primary-3d-model.json 2>&1; then
                   echo "✅ Primary 3D model generated successfully"
                   PRIMARY_3D_STATUS="success"
                 else
@@ -636,7 +636,7 @@ tasks:
               if [ "$ENHANCED_IMAGE_PATH" != "none" ]; then
                 echo "Generating enhanced 3D model from optimized reference..."
                 
-                if timeout 240 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$ENHANCED_IMAGE_PATH" > .logs/3d-generation/enhanced-3d-model.json 2>&1; then
+                if timeout 240 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$ENHANCED_IMAGE_PATH" > .logs/3d-generation/enhanced-3d-model.json 2>&1; then
                   echo "✅ Enhanced 3D model generated successfully"
                   ENHANCED_3D_STATUS="success"
                 else
@@ -660,7 +660,7 @@ tasks:
                 if [ "$ANGLE_IMAGE_PATH" != "none" ]; then
                   echo "Generating 3D model from $ANGLE_NAME..."
                   
-                  if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$ANGLE_IMAGE_PATH" > .logs/3d-generation/${ANGLE_NAME}-3d-model.json 2>&1; then
+                  if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$ANGLE_IMAGE_PATH" > .logs/3d-generation/${ANGLE_NAME}-3d-model.json 2>&1; then
                     echo "✅ $ANGLE_NAME 3D model generated"
                     ANGLE_3D_COUNT=$((ANGLE_3D_COUNT + 1))
                   else
@@ -682,7 +682,7 @@ tasks:
                 if [ "$DETAIL_IMAGE_PATH" != "none" ]; then
                   echo "Generating detail 3D model from $DETAIL_NAME..."
                   
-                  if timeout 150 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$DETAIL_IMAGE_PATH" > .logs/3d-generation/${DETAIL_NAME}-3d-model.json 2>&1; then
+                  if timeout 150 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$DETAIL_IMAGE_PATH" > .logs/3d-generation/${DETAIL_NAME}-3d-model.json 2>&1; then
                     echo "✅ $DETAIL_NAME detail 3D model generated"
                     DETAIL_3D_COUNT=$((DETAIL_3D_COUNT + 1))
                   else

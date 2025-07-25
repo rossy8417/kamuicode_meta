@@ -147,8 +147,8 @@ jobs:
         # Python依存関係インストール\nif [ -f \"requirements.txt\" ]; then\n  echo \"\U0001F4E6\
         \ Installing Python dependencies...\"\n  pip3 install -r requirements.txt\
         \ --quiet || echo \"⚠️ Some dependencies may not be available\"\nfi\n\n# MCP設定をセットアップ（環境に応じて）\n\
-        if [ ! -f ~/.claude/mcp-kamuicode.json ]; then\n  echo \"⚠️ MCP config not\
-        \ found, creating basic config...\"\n  cat > ~/.claude/mcp-kamuicode.json\
+        if [ ! -f .claude/mcp-kamuicode.json ]; then\n  echo \"⚠️ MCP config not\
+        \ found, creating basic config...\"\n  cat > .claude/mcp-kamuicode.json\
         \ << 'EOF'\n{\n  \"mcpServers\": {\n    \"t2i-google-imagen3\": {\n      \"\
         type\": \"http\",\n      \"url\": \"https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/google/imagen\"\
         ,\n      \"description\": \"Google Imagen 3 Text-to-Image Generation\"\n \
@@ -169,7 +169,7 @@ jobs:
         \ \"MCP services: $MCP_SERVICES\"\necho \"Content category: $CONTENT_CATEGORY\"\
         \n\n# MCPサービスを順番に試行\nIFS=',' read -ra SERVICES <<< \"$MCP_SERVICES\"\nSUCCESS=false\n\
         \nfor service in \"${SERVICES[@]}\"; do\n  echo \"\U0001F504 Trying MCP service:\
-        \ $service\"\n  \n  if timeout 180 claude --mcp-config=~/.claude/mcp-kamuicode.json\
+        \ $service\"\n  \n  if timeout 180 claude --mcp-config=.claude/mcp-kamuicode.json\
         \ --mcp \"$service\" --prompt \"$OPTIMIZED_PROMPT\" > \".logs/image-generation/${service}-result.json\"\
         \ 2>&1; then\n    echo \"✅ Success with $service\"\n    SUCCESS=true\n   \
         \ \n    # 結果からフルURLを抽出（省略・短縮しない）\n    FULL_URL=$(jq -r '.image_url // .url\

@@ -43,7 +43,7 @@
 - name: Generate Media Content
   run: |
     claude --continue "Generate video advertisement" \
-      --mcp-config ~/.claude/mcp-kamuicode.json \
+      --mcp-config .claude/mcp-kamuicode.json \
       --allowedTools "t2v-fal-veo3-fast,t2i-google-imagen3"
 ```
 
@@ -55,8 +55,8 @@
 - name: Setup MCP Config (if needed)
   run: |
     if [[ "${{ inputs.workflow_type }}" =~ ^(image|video|audio)-generation$ ]]; then
-      mkdir -p ~/.claude
-      cat > ~/.claude/mcp-kamuicode.json << 'EOF'
+      mkdir -p .claude
+      cat > .claude/mcp-kamuicode.json << 'EOF'
     {
       "mcpServers": {
         "ai-generation": {
