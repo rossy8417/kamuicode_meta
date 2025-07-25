@@ -503,7 +503,47 @@ jobs:
           COMPOSITE_DETECTED=""
           TEMPLATES=""
           
-          # パターン1: ストーリー+動画+音楽 (今回のケース)
+          # 最優先: 明示的なcomposite_templatesパラメータをチェック
+          EXPLICIT_COMPOSITE="${{ github.event.inputs.composite_templates }}"
+          if [ -n "$EXPLICIT_COMPOSITE" ]; then
+            echo "🎯 Using explicitly specified composite templates: $EXPLICIT_COMPOSITE"
+            case "$EXPLICIT_COMPOSITE" in
+              "story-video-audio")
+                echo "✅ Explicit: Story-based Video+Audio composite workflow"
+                TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+                COMPOSITE_DETECTED="story-video-audio"
+                ;;
+              "image-video-audio")  
+                echo "✅ Explicit: Image-to-Video-Audio composite workflow"
+                TEMPLATES="image-generation.yml,video-content-creation.yml,audio-music-creation.yml"
+                COMPOSITE_DETECTED="image-video-audio"
+                ;;
+              "video-audio")
+                echo "✅ Explicit: Video+Audio composite workflow"
+                TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+                COMPOSITE_DETECTED="video-audio"
+                ;;
+              "image-3d")
+                echo "✅ Explicit: Image+3D composite workflow"
+                TEMPLATES="image-generation.yml,3d-model-creation.yml"
+                COMPOSITE_DETECTED="image-3d"
+                ;;
+              "presentation-data")
+                echo "✅ Explicit: Presentation+Data Analysis composite workflow"
+                TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
+                COMPOSITE_DETECTED="presentation-data"
+                ;;
+              *)
+                echo "⚠️ Unknown composite type: $EXPLICIT_COMPOSITE, falling back to content analysis"
+                ;;
+            esac
+          fi
+          
+          # フォールバック: コンテンツ分析による検出
+          if [ -z "$COMPOSITE_DETECTED" ]; then
+            echo "🔍 Falling back to content-based composite detection..."
+            
+            # パターン1: ストーリー+動画+音楽 (今回のケース)
           if echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
             echo "✅ Detected: Story-based Video+Audio composite workflow"
             TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
@@ -533,8 +573,8 @@ jobs:
             TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
             COMPOSITE_DETECTED="presentation-data"
             
-          # 単一テンプレートフォールバック
-          else
+            # 単一テンプレートフォールバック
+            else
             echo "ℹ️ Using single template selection logic"
             case "$WORKFLOW_TYPE" in
               "video-generation"|"video-content"|"video")
@@ -559,6 +599,7 @@ jobs:
                 TEMPLATES="multimedia-ad-campaign.yml"
                 ;;
             esac
+            fi
           fi
           
           VALIDATION_REQUIRED="true"
