@@ -1158,60 +1158,31 @@ jobs:
           mkdir -p generated/workflows/
           EMERGENCY_FILE="generated/workflows/${REQUEST_ID}-${WORKFLOW_TYPE}-emergency.yml"
           
-          cat > "$EMERGENCY_FILE" << 'EOF'
-name: "Emergency Generated Workflow - Auto-Recovery"
-run-name: "${{ github.actor }} executes emergency workflow 🚨"
-
-on:
-  workflow_dispatch:
-    inputs:
-      prompt:
-        description: 'Generation prompt'
-        required: true
-        type: string
-      quality:
-        description: 'Quality setting'
-        required: false
-        type: choice
-        options: ['standard', 'high', 'ultra']
-        default: 'high'
-
-jobs:
-  emergency-generation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Emergency Content Generation
-        run: |
-          echo "🚨 Emergency workflow execution"
-          echo "Prompt: ${{ github.event.inputs.prompt }}"
-          echo "Quality: ${{ github.event.inputs.quality }}"
-          
-          # Basic generation process
-          mkdir -p outputs/
-          echo "Generated content for: ${{ github.event.inputs.prompt }}" > outputs/result.txt
-          echo "✅ Emergency generation completed"
-          
-      - name: Upload Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: emergency-results
-          path: outputs/
-          EOF
+          echo 'name: "Emergency Generated Workflow - Auto-Recovery"' > "$EMERGENCY_FILE"
+          echo 'run-name: "${{ github.actor }} executes emergency workflow 🚨"' >> "$EMERGENCY_FILE"
+          echo '' >> "$EMERGENCY_FILE"
+          echo 'on:' >> "$EMERGENCY_FILE"
+          echo '  workflow_dispatch:' >> "$EMERGENCY_FILE"
+          echo '    inputs:' >> "$EMERGENCY_FILE"
+          echo '      prompt:' >> "$EMERGENCY_FILE"
+          echo '        description: "Generation prompt"' >> "$EMERGENCY_FILE"
+          echo '        required: true' >> "$EMERGENCY_FILE"
+          echo '        type: string' >> "$EMERGENCY_FILE"
+          echo '' >> "$EMERGENCY_FILE"
+          echo 'jobs:' >> "$EMERGENCY_FILE"
+          echo '  emergency-generation:' >> "$EMERGENCY_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$EMERGENCY_FILE"
+          echo '    steps:' >> "$EMERGENCY_FILE"
+          echo '      - uses: actions/checkout@v4' >> "$EMERGENCY_FILE"
+          echo '      - name: Emergency Generation' >> "$EMERGENCY_FILE"
+          echo '        run: echo "🚨 Emergency workflow completed"' >> "$EMERGENCY_FILE"
           
           echo "✅ Emergency workflow created: $EMERGENCY_FILE" | tee -a "$RECOVERY_LOG"
           FIXES_APPLIED="${FIXES_APPLIED}emergency-workflow;"
           
           # Commit emergency workflow
           git add generated/workflows/
-          git commit -m "🚨 Emergency auto-recovery workflow
-
-Failed workflow recovery: ${REQUEST_ID}-${WORKFLOW_TYPE}
-Fixes applied: ${FIXES_APPLIED}
-Recovery timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-🤖 Auto-Recovery System"
+          git commit -m "🚨 Emergency auto-recovery workflow - ${REQUEST_ID}-${WORKFLOW_TYPE}"
           
           git push origin main
           
