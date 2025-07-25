@@ -5,6 +5,153 @@ category: "visual-content-creation"
 complexity_level: 3
 estimated_duration_minutes: 25
 
+# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
+dynamic_inputs_spec:
+  modal_title: "AI画像生成設定"
+  modal_description: "生成したい画像の詳細な設定を入力してください"
+  form_sections:
+    - section_name: "基本設定"
+      section_description: "画像生成の基本パラメータ"
+      inputs:
+        - name: "main_prompt"
+          label: "メインプロンプト"
+          type: "textarea"
+          required: true
+          placeholder: "例: 美しい夕日の風景、アニメスタイル、高画質、詳細な背景"
+          description: "生成したい画像の詳細な説明を入力してください"
+          validation:
+            min_length: 10
+            max_length: 500
+            pattern: "^[^<>\"'&]*$"  # HTMLタグ等を除外
+          
+        - name: "negative_prompt"
+          label: "ネガティブプロンプト (除外したい要素)"
+          type: "textarea"
+          required: false
+          placeholder: "例: 低画質、不自然な手、ぼやけた画像"
+          description: "生成から除外したい要素を指定"
+          validation:
+            max_length: 200
+    
+    - section_name: "スタイル設定"
+      section_description: "画像のアートスタイルと品質設定"
+      inputs:
+        - name: "art_style"
+          label: "アートスタイル"
+          type: "select"
+          required: true
+          description: "画像のアートスタイルを選択"
+          options:
+            - value: "photorealistic"
+              label: "📸 フォトリアリスティック"
+              description: "写真のようなリアルな画像"
+            - value: "anime"
+              label: "🎌 アニメ・イラスト"
+              description: "日本のアニメ・マンガ風イラスト"
+            - value: "oil_painting"
+              label: "🎨 油絵調"
+              description: "クラシックな油絵のタッチ"
+            - value: "digital_art"
+              label: "💻 デジタルアート"
+              description: "現代的なデジタルアート"
+            - value: "watercolor"
+              label: "🌈 水彩画"
+              description: "柔らかな水彩画調"
+          default: "photorealistic"
+        
+        - name: "quality_level"
+          label: "品質レベル"
+          type: "range"
+          required: true
+          min: 1
+          max: 10
+          default: 8
+          step: 1
+          description: "画像品質 (1=最低品質・高速, 10=最高品質・低速)"
+          
+        - name: "creativity_level"
+          label: "創造性レベル"
+          type: "range"
+          required: true
+          min: 1
+          max: 10
+          default: 5
+          step: 1
+          description: "創造性 (1=プロンプト厳守, 10=創造的解釈)"
+    
+    - section_name: "画像設定"
+      section_description: "画像サイズと技術的パラメータ"
+      inputs:
+        - name: "aspect_ratio"
+          label: "縦横比"
+          type: "select"
+          required: true
+          description: "画像の縦横比を選択"
+          options:
+            - value: "1:1"
+              label: "1:1 (正方形) - SNS投稿に最適"
+            - value: "16:9"
+              label: "16:9 (横長) - バナー・ヘッダーに最適"
+            - value: "4:3"
+              label: "4:3 (横長) - プレゼン・印刷に最適"
+            - value: "3:4"
+              label: "3:4 (縦長) - ポスター・スマホ画面に最適"
+            - value: "9:16"
+              label: "9:16 (縦長) - ストーリー・縦動画に最適"
+          default: "1:1"
+        
+        - name: "image_count"
+          label: "生成枚数"
+          type: "number"
+          required: true
+          min: 1
+          max: 8
+          default: 4
+          description: "同時に生成する画像の枚数 (多いほど選択肢が増えるが時間がかかる)"
+        
+        - name: "mcp_service_priority"
+          label: "使用MCPサービス優先度"
+          type: "select"
+          required: true
+          description: "画像生成に使用するMCPサービスの優先順位"
+          options:
+            - value: "ultra_quality"
+              label: "🔥 Ultra品質優先 (imagen4-ultra → imagen4-fast → imagen3)"
+            - value: "balanced"
+              label: "⚡ バランス重視 (imagen4-fast → imagen4-ultra → imagen3)"
+            - value: "speed_priority"
+              label: "🚀 速度優先 (imagen4-fast → imagen3 → imagen4-ultra)"
+            - value: "google_only"
+              label: "🟢 Google専用 (imagen3のみ)"
+          default: "balanced"
+
+# 動的inputs生成用のマッピング設定
+github_actions_inputs_mapping:
+  # 上記の動的inputs仕様をGitHub Actions workflow inputsに変換する際の設定
+  inputs_conversion:
+    textarea: "string"
+    select: "choice" 
+    number: "number"
+    range: "number"
+  
+  # 生成されるGitHub Actions inputsの例
+  generated_inputs_preview:
+    main_prompt:
+      description: "メインプロンプト - 生成したい画像の詳細な説明"
+      required: true
+      type: string
+    art_style:
+      description: "アートスタイル"
+      required: true
+      type: choice
+      options: ["photorealistic", "anime", "oil_painting", "digital_art", "watercolor"]
+      default: "photorealistic"
+    quality_level:
+      description: "品質レベル (1-10)"
+      required: true
+      type: number
+      default: 8
+
 # 人間の無意識思考プロセス
 human_process:
   - phase: "concept_development"
