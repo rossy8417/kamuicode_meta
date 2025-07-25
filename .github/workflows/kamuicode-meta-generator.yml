@@ -771,7 +771,31 @@ jobs:
           PRODUCTION_FILE=".github/workflows/generated-${WORKFLOW_TYPE}-$(date +%Y%m%d-%H%M%S).yml"
           cp "$WORKFLOW_FILE" "$PRODUCTION_FILE"
           
+          # 生成されたワークフロー名を取得
+          WORKFLOW_NAME=$(grep '^name:' "$PRODUCTION_FILE" | sed 's/name: *//' | tr -d '"')
+          
+          echo "🔧 Auto-configuring system integrations for: $WORKFLOW_NAME"
+          
+          # AutoFix システムに新しいワークフローを自動登録
+          if grep -q 'workflows: \["Kamuicode Meta Generator (Self-Healing)"\]' .github/workflows/auto-fix-deployment.yml; then
+            sed -i 's/workflows: \["Kamuicode Meta Generator (Self-Healing)"\]/workflows: ["Kamuicode Meta Generator (Self-Healing)", "'"$WORKFLOW_NAME"'"]/' .github/workflows/auto-fix-deployment.yml
+            echo "✅ AutoFix system updated"
+          elif ! grep -q "$WORKFLOW_NAME" .github/workflows/auto-fix-deployment.yml; then
+            sed -i 's/workflows: \[\([^]]*\)\]/workflows: [\1, "'"$WORKFLOW_NAME"'"]/' .github/workflows/auto-fix-deployment.yml
+            echo "✅ AutoFix system updated with new workflow"
+          fi
+          
+          # Monitor システムに新しいワークフローを自動登録  
+          if grep -q 'workflows: \["Kamuicode Meta Generator (Self-Healing)"\]' .github/workflows/continuous-system-monitor.yml; then
+            sed -i 's/workflows: \["Kamuicode Meta Generator (Self-Healing)"\]/workflows: ["Kamuicode Meta Generator (Self-Healing)", "'"$WORKFLOW_NAME"'"]/' .github/workflows/continuous-system-monitor.yml
+            echo "✅ Monitor system updated"
+          elif ! grep -q "$WORKFLOW_NAME" .github/workflows/continuous-system-monitor.yml; then
+            sed -i 's/workflows: \[\([^]]*\)\]/workflows: [\1, "'"$WORKFLOW_NAME"'"]/' .github/workflows/continuous-system-monitor.yml
+            echo "✅ Monitor system updated with new workflow"
+          fi
+          
           echo "✅ Workflow deployed to: $PRODUCTION_FILE"
+          echo "🔗 System integrations auto-configured"
           
           # デプロイ記録
           cat > .meta/deployment-record.json << EOF
