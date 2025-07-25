@@ -1,5 +1,30 @@
+name: "Integrated Multimedia Pipeline"
+run-name: "${{ github.actor }} creates multimedia content: ${{ github.event.inputs.content_topic }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      content_topic:
+        description: 'コンテンツのテーマ・内容'
+        required: true
+        type: string
+      quality_level:
+        description: '品質設定'
+        required: false
+        type: choice
+        options:
+          - standard
+          - high
+          - ultra
+        default: high
+
+permissions:
+  contents: write
+  actions: write
+
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
 jobs:
   3d-content-creation:
     needs: hero_image_creation
