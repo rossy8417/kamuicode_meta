@@ -1,134 +1,227 @@
-# メタワークフロー生成システム（モジュール型）
+# Meta Workflow Generator System (Kamui Rossy)
 
-このシステムは、Kamuicodeワークフローを小さなノード単位で確実に生成するメタワークフローです。
+🤖 **Claude Code GitHub Actions統合**によるメタワークフロージェネレーターシステム
 
-## 🎯 特徴
+## 概要
 
-### モジュール型アーキテクチャ
-- **プロンプト分離**: すべてのプロンプトは外部ファイルとして管理
-- **小さなノード**: 各ジョブは単一の責任を持つ
-- **確実な実行**: 各ステップの成功を確認してから次へ進む
-- **再実行可能**: 失敗したジョブのみを再実行可能
+このシステムは、ユーザーのリクエストに基づいて完全なワークフローを自動生成するメタワークフロージェネレーターです。**テンプレートベース生成**と**段階的格納システム**により、高品質で実行可能なGitHub Actionsワークフローを効率的に生成します。
 
-### 自動タスク分解
-- ユーザーの抽象的な要求を具体的なタスクに分解
-- 依存関係の自動解析
-- 並列実行可能なタスクの識別
+## 🏗️ **アーキテクチャ**
 
-## 📁 ディレクトリ構成
+### **モジュラー・メタワークフローシステム**
+- **プロンプト分離**: すべてのプロンプトは`meta/prompts/`で外部管理
+- **小さなノード**: 各ジョブが単一責任を持つ
+- **確実な実行**: 各ステップの検証を経てから次に進む
+- **再実行可能**: 失敗したジョブの独立した再実行が可能
+
+### **核心コンポーネント**
+- **`meta/prompts/`**: タスク分解、ワークフロー生成、スクリプト生成、ドキュメント用プロンプト
+- **`.github/workflows/kamuicode-meta-generator.yml`**: メインメタワークフロー
+- **`.github/ISSUE_TEMPLATE/`**: ワークフロー要求用Issueテンプレート
+- **`meta/examples/`**: 9種類の詳細参考ワークフロー
+- **生成出力**: 完全なワークフロー、スクリプト、ドキュメント
+
+## 📁 **ディレクトリ構成**
 
 ```
 .github/
 ├── workflows/
-│   └── meta-workflow-generator.yml    # メタワークフロー
+│   ├── kamuicode-meta-generator.yml     # メインメタワークフロー
+│   ├── continuous-monitoring.yml        # システム監視ワークフロー
+│   ├── real-time-fix-deployer.yml      # 自動修復デプロイ
+│   └── auto-fix-deployment.yml         # 自動修正デプロイ
 ├── ISSUE_TEMPLATE/
-│   └── workflow-request.yml           # リクエストテンプレート
+│   └── workflow-request.yml            # ワークフロー要求テンプレート
+
 meta/
+├── examples/                           # 参考ワークフローテンプレート (9種類)
+│   ├── README.md                       # 各ワークフローの詳細説明 + Mermaid図式
+│   ├── video-content-creation.yml      # 動画コンテンツ制作 (14タスク・45分)
+│   ├── multimedia-ad-campaign.yml      # マルチメディア広告 (16タスク・60分)
+│   ├── 3d-model-creation.yml          # 3Dモデル生成 (10タスク・30分)
+│   ├── image-generation.yml           # 画像生成 (8タスク・20分)
+│   ├── audio-music-creation.yml       # 音楽制作 (11タスク・35分) 
+│   ├── presentation-slide-creation.yml # プレゼン作成 (12タスク・40分)
+│   ├── data-analysis-visualization.yml # データ分析 (8タスク・45分)
+│   ├── news-summarization.yml         # ニュース要約 (6タスク・25分)
+│   └── blog-article-creation.yml      # ブログ記事 (9タスク・35分)
 ├── prompts/                           # プロンプトファイル
-│   ├── task-decomposition.md         # タスク分解用
-│   ├── workflow-generation.md        # ワークフロー生成用
-│   ├── script-generation.md          # スクリプト生成用
-│   ├── documentation-generation.md   # ドキュメント生成用
+│   ├── task-decomposition.md         # タスク分解
+│   ├── workflow-generation.md        # ワークフロー生成 
+│   ├── script-generation.md          # スクリプト生成
+│   ├── documentation-generation.md   # ドキュメント生成
 │   └── templates/                    # プロンプトテンプレート
 │       └── task-prompt-template.md
-config/                               # 設定ファイル
+├── docs/                             # システムドキュメント
+│   └── claude-code-vs-mcp-guidelines.md
+
 generated/                            # 生成されたファイル
+├── workflows/
+│   ├── staging/                     # 段階的格納: ステージング
+│   └── validated/                   # 段階的格納: 検証済み
 ├── config/
 ├── prompts/
 └── scripts/
+
 script/                              # 実行スクリプト
-└── lib/
-docs/                                # ドキュメント
+├── lib/
+└── monitor-workflows.sh            # ワークフロー監視スクリプト
+
+config/                             # 設定ファイル
+docs/                               # プロジェクトドキュメント
 ```
 
-## 🚀 使い方
+## 🚀 **使用方法**
 
-### 方法1: Issueから生成
-1. 新しいIssueを作成（テンプレート使用推奨）
-2. 要求を具体的に記載
-3. 自動的にワークフローが生成されPRが作成されます
+### **実行方法**
+1. **Issue駆動**: 専用テンプレートでIssueを作成
+2. **手動実行**: `workflow_dispatch`トリガーで直接実行
 
-### 方法2: 手動実行
-1. Actions → "Meta Workflow Generator"
-2. "Run workflow"をクリック
-3. 必要な情報を入力して実行
+### **MCP設定**
+- `~/.claude/mcp-kamuicode.json`設定ファイルが必要
+- AI生成サービス (T2I, T2V, I2V, T2M, V2A, I2I3D) へのアクセス
 
-## 🔧 セットアップ
-
-### 1. 必須シークレット
+### **実行例**
 ```bash
-# GitHub Secretsに設定
-CLAUDE_CODE_OAUTH_TOKEN=your-token-here
+# Issues経由
+gh issue create --template workflow-request.yml --title "商品紹介動画作成"
+
+# 手動実行  
+gh workflow run kamuicode-meta-generator.yml -f workflow_type=video-generation -f description="商品紹介動画を作成"
 ```
 
-### 2. Kamuicode MCP設定
-```bash
-# 開発者提供のMCP設定ファイルを配置
-cp /path/to/mcp-kamuicode.json ~/.claude/mcp-kamuicode.json
-```
+## 🎯 **段階的格納システム (v3)**
 
-### 3. プロンプトファイルの準備
-すべてのプロンプトファイルが `meta/prompts/` に配置されていることを確認
-
-## 🏗️ ワークフローの実行フロー
+### **3段階品質保証プロセス**
 
 ```mermaid
 graph TD
-    A[Issue/Manual Trigger] --> B[要求分析]
-    B --> C[タスク分解]
-    C --> D[生成準備]
-    D --> E[YAML生成]
-    E --> F[スクリプト生成]
-    F --> G[ドキュメント生成]
-    G --> H[PR作成]
+    A[テンプレート選択・生成] --> B[generated/workflows/staging/]
+    B --> C{ワークフロー検証}
+    C -->|合格| D[generated/workflows/validated/]
+    C -->|不合格| E[エラーレポート・修正]
+    D --> F[.github/workflows/ 本番配置]
     
-    B --> B1[要求をファイルに保存]
-    C --> C1[タスクプラン作成]
-    D --> D1[ブランチ作成]
-    E --> E1[ワークフローYAML検証]
-    F --> F1[スクリプト構文チェック]
-    G --> G1[README生成]
+    %% 検証内容
+    C1[YAML構文チェック] --> C
+    C2[GitHub Actions構造検証] --> C  
+    C3[MCPサービス参照チェック] --> C
+    C4[依存関係検証] --> C
+    
+    %% スタイリング
+    classDef stageNode fill:#e8f5e8
+    classDef validateNode fill:#fff8e1
+    classDef prodNode fill:#e1f5fe
+    
+    class A,B stageNode
+    class C,C1,C2,C3,C4 validateNode
+    class D,F prodNode
 ```
 
-## 📊 生成されるワークフローの特徴
+### **検証項目**
+- ✅ **YAML構文チェック** (yamllint + Python fallback)
+- ✅ **GitHub Actions構造検証** (name/on/jobs必須)
+- ✅ **MCPサービス参照検証** (実際の設定と照合)
+- ✅ **依存関係チェック** (循環参照防止)
+- ✅ **総合スコア判定** (75点以上で合格)
 
-### タスクベース実行
-- 各タスクは独立したジョブまたはステップ
-- 依存関係に基づく実行順序
-- 並列実行による高速化
+## 🔧 **セットアップ**
 
-### エラーハンドリング
-- 各タスクにリトライロジック
-- フォールバック戦略
-- 詳細なエラーログ
+### **必須シークレット**
+```bash
+# GitHub Repository Secrets に設定
+CLAUDE_CODE_OAUTH_TOKEN=your-claude-code-token
+```
 
-### モニタリング
-- 実行状況のリアルタイム追跡
-- 詳細な実行レポート
-- アーティファクトによる出力保存
+### **MCPサービス設定**
+```bash
+# MCP設定ファイルの配置
+~/.claude/mcp-kamuicode.json
+```
 
-## 🐛 トラブルシューティング
+### **利用可能なMCPサービス**
+- **T2I**: `t2i-google-imagen3`, `t2i-fal-imagen4-ultra`, `t2i-fal-imagen4-fast`
+- **T2V**: `t2v-fal-veo3-fast`
+- **I2V**: `i2v-fal-hailuo-02-pro`
+- **T2M**: `t2m-google-lyria`
+- **V2A**: `v2a-fal-metavoice-v1`
+- **V2V**: `v2v-fal-cogvideo-1_5`
+- **I2I3D**: `i2i3d-fal-hunyuan3d-v21`
 
-### ワークフロー生成が失敗する
-1. Claude Code認証トークンを確認
-2. MCP設定ファイルの存在を確認
-3. プロンプトファイルの存在を確認
+## 🎨 **ワークフロー例**
 
-### タスク分解が不適切
-1. Issueの説明をより具体的に記載
-2. 要件を箇条書きで明確に
+### **動画制作系**
+- **動画コンテンツ制作**: T2V, I2V, V2A統合 (14タスク・45分)
+- **マルチメディア広告**: 全MCP統合キャンペーン (16タスク・60分)
 
-### 生成されたワークフローが動作しない
-1. 生成されたREADMEを確認
-2. タスクプランを確認
-3. ログを詳細に確認
+### **画像・3D制作系**  
+- **3Dモデル生成**: I2I3D HunYuan3D (10タスク・30分)
+- **画像生成**: T2I Imagen3/4 (8タスク・20分)
 
-## 🤝 貢献方法
+### **音声・プレゼン系**
+- **音楽制作**: T2M Lyria (11タスク・35分)
+- **プレゼン作成**: T2I + Google Slides (12タスク・40分)
 
-1. プロンプトの改善はPRで提案
-2. 新しいワークフロータイプの追加はIssueで議論
-3. バグ報告は再現手順と共に
+### **データ・コンテンツ系**
+- **データ分析**: GitHub API + T2I可視化 (8タスク・45分)
+- **ニュース要約**: 外部API (6タスク・25分)
+- **ブログ記事**: T2I アイキャッチ (9タスク・35分)
 
-## 📝 ライセンス
+## 🔍 **システム監視**
 
-このプロジェクトはMITライセンスの下で公開されています。
+### **自動監視機能**
+- **continuous-monitoring.yml**: システム稼働状況監視
+- **real-time-fix-deployer.yml**: リアルタイム修復デプロイ
+- **monitor-workflows.sh**: スクリプトベース監視
+
+### **品質メトリクス**
+- ワークフロー生成成功率追跡
+- 検証スコア分析
+- エラーパターン学習
+
+## 🐛 **トラブルシューティング**
+
+### **よくある問題**
+1. **ワークフロー生成失敗**
+   - Claude Code認証トークン確認
+   - MCP設定ファイル存在確認
+
+2. **検証不合格**
+   - YAML構文エラー修正
+   - 存在しないMCPサービス参照の修正
+
+3. **実行時エラー**  
+   - 生成されたREADMEとログ確認
+   - 依存関係の見直し
+
+## 📊 **パフォーマンス**
+
+### **効率性**
+- **従来のタスク分解処理**: 複雑なAI呼び出し (2-5分)
+- **テンプレートベース生成**: 高速テンプレート選択 (30秒以内)
+- **段階的格納**: 品質保証付き自動配置
+
+### **スケーラビリティ**
+- 9種類の参考ワークフローテンプレート
+- 並列実行対応 (最大3ジョブ同時)
+- アーティファクト30日保持
+
+## 🤝 **開発・貢献**
+
+### **拡張方法**
+1. **新ワークフロー追加**: `meta/examples/`に超詳細タスク分解を適用
+2. **プロンプト改善**: `meta/prompts/`のプロンプトファイル更新
+3. **検証強化**: 段階的格納システムの検証項目追加
+
+### **コードスタイル**
+- 超詳細タスク分解方式
+- ファイルパス参照パターン (`jq -r '.url // .file_path // "none"'`)
+- MCP統合とexternal API フォールバック
+
+---
+
+**Generated by Meta Workflow Generator v3 (Staged Deployment)** 🤖🔄✅
+
+**開発者**: Kamui Rossy System  
+**最終更新**: 2025-07-25  
+**ライセンス**: MIT License
