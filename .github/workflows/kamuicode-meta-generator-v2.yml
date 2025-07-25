@@ -1,0 +1,451 @@
+name: Kamuicode Meta Generator v2 (Composite Workflow Optimized)
+run-name: ${{ github.actor }} generates workflow for "${{ github.event.issue.title || github.event.inputs.description }}" 🤖✨
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      workflow_type:
+        description: 'ワークフローのタイプ'
+        required: true
+        type: choice
+        options:
+          - image-generation
+          - video-generation
+          - audio-generation  
+          - news-article
+          - news-video
+          - social-integration
+          - custom
+      description:
+        description: '生成したいワークフローの説明'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Step 1: 要求分析
+  analyze-request:
+    runs-on: ubuntu-latest
+    outputs:
+      workflow_type: ${{ steps.analyze.outputs.workflow_type }}
+      request_file: ${{ steps.analyze.outputs.request_file }}
+      composite_detected: ${{ steps.analyze.outputs.composite_detected }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Analyze Request with Composite Detection
+        id: analyze
+        run: |
+          echo "📋 Starting enhanced request analysis..."
+          
+          mkdir -p .meta/requests
+          
+          if [ "${{ github.event_name }}" == "issues" ]; then
+            TITLE="${{ github.event.issue.title }}"
+            BODY="${{ github.event.issue.body }}"
+            REQUEST_ID="issue-${{ github.event.issue.number }}"
+          else
+            TITLE="${{ github.event.inputs.description }}"
+            BODY="${{ github.event.inputs.description }}"
+            REQUEST_ID="manual-$(date +%Y%m%d-%H%M%S)"
+          fi
+          
+          # 複合ワークフロー検出
+          COMPOSITE_DETECTED="false"
+          COMPOSITE_TYPE="single"
+          
+          if echo "$TITLE $BODY" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画\|テキスト.*画像.*動画.*音楽"; then
+            COMPOSITE_DETECTED="true"
+            COMPOSITE_TYPE="story-video-audio"
+            WORKFLOW_TYPE="video-generation"
+            echo "✅ Detected composite workflow: Story → Image → Video → Audio"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.workflow_type }}" ]; then
+            WORKFLOW_TYPE="${{ github.event.inputs.workflow_type }}"
+            echo "✅ Using manually specified workflow type: $WORKFLOW_TYPE"
+          else
+            # 基本的なテキスト解析
+            if echo "$TITLE $BODY" | grep -qi "画像\|image"; then
+              WORKFLOW_TYPE="image-generation"
+            elif echo "$TITLE $BODY" | grep -qi "動画\|video"; then
+              WORKFLOW_TYPE="video-generation"
+            elif echo "$TITLE $BODY" | grep -qi "音声\|audio"; then
+              WORKFLOW_TYPE="audio-generation"
+            else
+              WORKFLOW_TYPE="custom"
+            fi
+            echo "📊 Text analysis result: $WORKFLOW_TYPE"
+          fi
+          
+          # 要求をファイルに保存
+          cat > .meta/requests/${REQUEST_ID}.md << EOF
+          # Workflow Generation Request
+          
+          ## Type: ${WORKFLOW_TYPE}
+          ## Composite: ${COMPOSITE_TYPE}
+          ## Title: ${TITLE}
+          
+          ## Description:
+          ${BODY}
+          
+          ## Metadata:
+          - Request ID: ${REQUEST_ID}
+          - Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          - Source: ${{ github.event_name }}
+          - Composite Detected: ${COMPOSITE_DETECTED}
+          EOF
+          
+          echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+          echo "request_file=.meta/requests/${REQUEST_ID}.md" >> $GITHUB_OUTPUT
+          echo "composite_detected=$COMPOSITE_DETECTED" >> $GITHUB_OUTPUT
+          
+          echo "✅ Request analysis completed: Type=$WORKFLOW_TYPE, Composite=$COMPOSITE_DETECTED"
+
+  # Step 2: 複合ワークフロー対応タスク分解
+  decompose-tasks:
+    needs: [analyze-request]
+    runs-on: ubuntu-latest
+    outputs:
+      task_count: ${{ steps.decompose.outputs.task_count }}
+      complexity: ${{ steps.decompose.outputs.complexity }}
+      composite_type: ${{ steps.decompose.outputs.composite_type }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Enhanced Composite Task Decomposition
+        id: decompose
+        run: |
+          echo "🎯 Starting enhanced task decomposition..."
+          
+          WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
+          REQUEST_FILE="${{ needs.analyze-request.outputs.request_file }}"
+          COMPOSITE_DETECTED="${{ needs.analyze-request.outputs.composite_detected }}"
+          
+          mkdir -p .meta/tasks
+          
+          echo "📋 Processing: Type=$WORKFLOW_TYPE, Composite=$COMPOSITE_DETECTED"
+          
+          # 要求内容の読み込み
+          if [ -f "$REQUEST_FILE" ]; then
+            REQUEST_CONTENT=$(cat "$REQUEST_FILE")
+            echo "✅ Request content loaded"
+          else
+            echo "❌ Request file not found: $REQUEST_FILE"
+            exit 1
+          fi
+          
+          # 複合ワークフロー判定とタスク分解
+          if [ "$COMPOSITE_DETECTED" = "true" ] && echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
+            # ストーリー → 画像 → 動画 → 音楽 → ナレーションの統合ワークフロー
+            COMPOSITE_TYPE="story-video-audio"
+            cat > .meta/tasks/task-plan.json << EOF
+          {
+            "workflow_type": "composite-story-video-audio",
+            "complexity_level": 4,
+            "estimated_duration_minutes": 60,
+            "composite_type": "$COMPOSITE_TYPE",
+            "tasks": [
+              {
+                "id": "task-001", 
+                "name": "Story Text Processing",
+                "description": "Process and optimize story text for image generation",
+                "type": "text_processing",
+                "dependencies": [],
+                "mcp_service": "none",
+                "stage": 1
+              },
+              {
+                "id": "task-002",
+                "name": "Text-to-Image Generation", 
+                "description": "Generate high-quality images from story text using T2I MCP services",
+                "type": "ai_generation",
+                "dependencies": ["task-001"],
+                "mcp_service": "t2i-fal-imagen4-ultra",
+                "fallback_services": ["t2i-fal-imagen4-fast", "t2i-google-imagen3"],
+                "stage": 2
+              },
+              {
+                "id": "task-003",
+                "name": "Image-to-Video Generation",
+                "description": "Convert generated images to video using I2V MCP services", 
+                "type": "ai_generation",
+                "dependencies": ["task-002"],
+                "mcp_service": "i2v-fal-hailuo-02-pro",
+                "stage": 3
+              },
+              {
+                "id": "task-004", 
+                "name": "Background Music Generation",
+                "description": "Generate BGM that matches the video mood using T2M services",
+                "type": "ai_generation", 
+                "dependencies": ["task-001"],
+                "mcp_service": "t2m-google-lyria",
+                "stage": 3
+              },
+              {
+                "id": "task-005",
+                "name": "Narration Audio Generation", 
+                "description": "Generate narration voice from story text using V2A services",
+                "type": "ai_generation",
+                "dependencies": ["task-001", "task-003"], 
+                "mcp_service": "v2a-fal-metavoice-v1",
+                "stage": 4
+              },
+              {
+                "id": "task-006",
+                "name": "Final Video Composition",
+                "description": "Combine video, BGM, and narration into final output",
+                "type": "media_processing",
+                "dependencies": ["task-003", "task-004", "task-005"],
+                "stage": 5
+              }
+            ],
+            "execution_flow": [
+              {"stage": 1, "parallel": false, "tasks": ["task-001"]},
+              {"stage": 2, "parallel": false, "tasks": ["task-002"]}, 
+              {"stage": 3, "parallel": true, "tasks": ["task-003", "task-004"]},
+              {"stage": 4, "parallel": false, "tasks": ["task-005"]},
+              {"stage": 5, "parallel": false, "tasks": ["task-006"]}
+            ],
+            "templates_required": ["video-content-creation.yml", "audio-music-creation.yml"],
+            "composite_mode": true
+          }
+          EOF
+            
+            TASK_COUNT=6
+            COMPLEXITY=4
+            
+          else
+            # 単一ワークフローの場合
+            COMPOSITE_TYPE="single"
+            cat > .meta/tasks/task-plan.json << EOF
+          {
+            "workflow_type": "$WORKFLOW_TYPE",
+            "complexity_level": 2,
+            "estimated_duration_minutes": 30,
+            "composite_type": "single",
+            "tasks": [
+              {
+                "id": "task-001",
+                "name": "Template-Based Workflow Generation",
+                "description": "Generate $WORKFLOW_TYPE workflow from existing template",
+                "type": "template_generation",
+                "dependencies": [],
+                "stage": 1
+              }
+            ],
+            "execution_flow": [
+              {"stage": 1, "parallel": false, "tasks": ["task-001"]}
+            ],
+            "templates_required": ["$WORKFLOW_TYPE.yml"],
+            "composite_mode": false
+          }
+          EOF
+            
+            TASK_COUNT=1
+            COMPLEXITY=2
+          fi
+          
+          echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
+          echo "complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
+          echo "composite_type=$COMPOSITE_TYPE" >> $GITHUB_OUTPUT
+          
+          echo "✅ Enhanced task decomposition complete: $TASK_COUNT tasks, complexity level $COMPLEXITY, type: $COMPOSITE_TYPE"
+
+  # Step 3: 複合テンプレート対応ワークフロー生成
+  generate-workflow:
+    needs: [analyze-request, decompose-tasks]
+    runs-on: ubuntu-latest
+    outputs:
+      workflow_file: ${{ steps.generate.outputs.workflow_file }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Generate Composite Workflow
+        id: generate
+        run: |
+          echo "🚀 Generating composite-aware workflow..."
+          
+          WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
+          COMPOSITE_TYPE="${{ needs.decompose-tasks.outputs.composite_type }}"
+          REQUEST_FILE="${{ needs.analyze-request.outputs.request_file }}"
+          
+          mkdir -p generated/workflows/staging
+          
+          REQUEST_ID="$(echo '$REQUEST_FILE' | sed 's/.*\///' | sed 's/\.md$//')"
+          GENERATED_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
+          
+          if [ "$COMPOSITE_TYPE" = "story-video-audio" ]; then
+            echo "🎬 Creating composite story-video-audio workflow..."
+            
+            # 複合ワークフローテンプレートの作成
+            cat > "$GENERATED_FILE" << 'EOF'
+          name: Generated Composite Story-to-Video-Audio Workflow
+          on:
+            workflow_dispatch:
+              inputs:
+                story_text:
+                  description: 'ストーリーテキスト'
+                  required: true
+                  type: string
+                style:
+                  description: 'アートスタイル'
+                  required: true
+                  type: choice
+                  options:
+                    - photorealistic
+                    - anime
+                    - digital_art
+                  default: photorealistic
+                music_mood:
+                  description: '音楽のムード'
+                  required: true
+                  type: choice
+                  options:
+                    - upbeat
+                    - calm
+                    - dramatic
+                    - mysterious
+                  default: calm
+                
+          permissions:
+            contents: write
+            
+          jobs:
+            story-to-image:
+              runs-on: ubuntu-latest
+              outputs:
+                image_path: $${{ steps.generate.outputs.image_path }}
+              steps:
+                - uses: actions/checkout@v4
+                - name: Generate Image from Story
+                  id: generate
+                  run: |
+                    echo "🎨 Generating image from story text..."
+                    # T2I MCP service integration here
+                    echo "image_path=generated_image.png" >> $$GITHUB_OUTPUT
+                    
+            image-to-video:
+              needs: story-to-image
+              runs-on: ubuntu-latest
+              outputs:
+                video_path: $${{ steps.convert.outputs.video_path }}
+              steps:
+                - uses: actions/checkout@v4
+                - name: Convert Image to Video
+                  id: convert
+                  run: |
+                    echo "🎬 Converting image to video..."
+                    # I2V MCP service integration here
+                    echo "video_path=generated_video.mp4" >> $$GITHUB_OUTPUT
+                    
+            generate-bgm:
+              runs-on: ubuntu-latest
+              outputs:
+                bgm_path: $${{ steps.music.outputs.bgm_path }}
+              steps:
+                - uses: actions/checkout@v4
+                - name: Generate Background Music
+                  id: music
+                  run: |
+                    echo "🎵 Generating background music..."
+                    # T2M MCP service integration here  
+                    echo "bgm_path=generated_bgm.mp3" >> $$GITHUB_OUTPUT
+                    
+            generate-narration:
+              needs: [story-to-image, image-to-video]
+              runs-on: ubuntu-latest
+              outputs:
+                narration_path: $${{ steps.voice.outputs.narration_path }}
+              steps:
+                - uses: actions/checkout@v4
+                - name: Generate Narration
+                  id: voice
+                  run: |
+                    echo "🗣️ Generating narration audio..."
+                    # V2A MCP service integration here
+                    echo "narration_path=generated_narration.mp3" >> $$GITHUB_OUTPUT
+                    
+            compose-final-video:
+              needs: [image-to-video, generate-bgm, generate-narration]
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - name: Compose Final Video
+                  run: |
+                    echo "🎞️ Composing final video with audio..."
+                    echo "Video: $${{ needs.image-to-video.outputs.video_path }}"
+                    echo "BGM: $${{ needs.generate-bgm.outputs.bgm_path }}"
+                    echo "Narration: $${{ needs.generate-narration.outputs.narration_path }}"
+                    # Final composition logic here
+                    
+                - name: Upload Final Video
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: final-story-video
+                    path: final_video.mp4
+          EOF
+            
+          else
+            echo "📝 Creating single workflow..."
+            # 基本的な単一ワークフローの作成
+            PRIMARY_TEMPLATE="meta/examples/${WORKFLOW_TYPE}.yml"
+            if [ -f "$PRIMARY_TEMPLATE" ]; then
+              cp "$PRIMARY_TEMPLATE" "$GENERATED_FILE"
+            else
+              echo "⚠️ Template not found, creating basic workflow"
+              cat > "$GENERATED_FILE" << EOF
+          name: Generated $WORKFLOW_TYPE Workflow  
+          on:
+            workflow_dispatch:
+              inputs:
+                input_text:
+                  description: 'Input for generation'
+                  required: true
+                  type: string
+          jobs:
+            generate:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+                - name: Generate Content
+                  run: echo "Generating $WORKFLOW_TYPE content..."
+          EOF
+            fi
+          fi
+          
+          echo "workflow_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Workflow generated: $GENERATED_FILE"
+          
+      - name: Commit Generated Workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          git commit -m "feat: Generate composite workflow for ${{ needs.analyze-request.outputs.workflow_type }}
+
+          Composite type: ${{ needs.decompose-tasks.outputs.composite_type }}
+          Task count: ${{ needs.decompose-tasks.outputs.task_count }}
+          Complexity: ${{ needs.decompose-tasks.outputs.complexity }}
+          
+          🤖 Generated with [Claude Code](https://claude.ai/code)
+          Co-Authored-By: Claude <noreply@anthropic.com>" || echo "No changes to commit"
+          
+          git pull --rebase origin main || echo "Rebase failed"
+          git push origin main || echo "Push failed"
