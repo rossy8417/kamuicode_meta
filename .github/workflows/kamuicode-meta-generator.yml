@@ -123,11 +123,7 @@ jobs:
           
           echo "🎯 Self-diagnostic completed. Fixes applied: $FIXES_APPLIED"
           
-      - name: Upload Diagnostic Data
-        uses: actions/upload-artifact@v4
-        with:
-          name: diagnostic-${{ github.run_number }}
-          path: .meta/diagnostics/
+      # Diagnostic Data は .meta/diagnostics/ で永続保存されるためArtifact不要
           retention-days: 30
 
   # Step 1: 要求の初期分析（エラーハンドリング強化）
@@ -223,11 +219,7 @@ jobs:
           
           echo "✅ Request analysis completed: Type=$WORKFLOW_TYPE"
           
-      - name: Upload Request Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: request-${{ github.run_number }}
-          path: .meta/requests/
+      # Request Data は .meta/requests/ で永続保存されるためArtifact不要
           retention-days: 30
 
   # Step 2: タスク分解（自己修復機能付き）
@@ -409,12 +401,7 @@ jobs:
             exit 1
           fi
           
-      - name: Upload Task Plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: task-plan-${{ github.run_number }}
-          path: .meta/tasks/
-          retention-days: 30
+      # Task Plan は .meta/tasks/ で永続保存されるためArtifact不要
 
   # Step 3: エラー監視・学習システム
   error-monitoring:
@@ -745,12 +732,7 @@ jobs:
             echo "   - Template (Single): $CHECK_TEMPLATE"
           fi
           
-      - name: Upload Staging Workflow
-        uses: actions/upload-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: generated/workflows/staging/
-          retention-days: 7
+      # Staging Workflowは generated/workflows/staging/ で永続保存されるためArtifact不要
 
   # Step 5: ワークフロー検証（段階的格納の核心）
   validate-workflow:
@@ -765,11 +747,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Download Staging Workflow
-        uses: actions/download-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: generated/workflows/staging/
+      # Staging Workflow は既に generated/workflows/staging/ にあるためDownload不要
           
       - name: Validate Workflow Syntax and Logic
         id: validate
@@ -864,12 +842,7 @@ jobs:
           echo "result=$VALIDATION_RESULT" >> $GITHUB_OUTPUT
           echo "errors=$VALIDATION_ERRORS" >> $GITHUB_OUTPUT
           
-      - name: Upload Validation Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: validation-report-${{ github.run_number }}
-          path: .meta/validation/
-          retention-days: 30
+      # Validation Report は .meta/validation/ で永続保存されるためArtifact不要
 
   # Step 6: 承認済みワークフローの最終配置
   deploy-validated-workflow:
@@ -881,11 +854,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Download Staging Workflow  
-        uses: actions/download-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: generated/workflows/staging/
+      # Staging Workflow は既に generated/workflows/staging/ にあるためDownload不要
           
       - name: Deploy to Production Workflows Directory
         run: |
@@ -1095,18 +1064,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Download Generated Workflow Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: ./artifacts/staging/
+      # Generated Workflow は既に generated/workflows/staging/ に永続保存済み
           
-      - name: Download Validation Report (if available)
-        uses: actions/download-artifact@v4
-        with:
-          name: validation-report-${{ github.run_number }}
-          path: ./artifacts/validation/
-        continue-on-error: true
+      # Validation Report は既に .meta/validation/ に永続保存済み
         
       - name: Save Generated Workflow to Repository
         run: |
@@ -1115,17 +1075,22 @@ jobs:
           # ディレクトリ構造の確保
           mkdir -p generated/workflows/staging generated/workflows/validated .meta/generated-history
           
-          # Artifactからファイルをコピー
-          if [ -d "./artifacts/staging" ]; then
-            echo "📁 Copying staging files..."
-            cp -r ./artifacts/staging/* generated/workflows/staging/ 2>/dev/null || echo "No staging files to copy"
+          # ファイルはGit内に既に永続保存されているため、コピー不要
+          echo "📁 Files already persisted in Git repository:"
+          
+          if [ -d "generated/workflows/staging" ]; then
+            echo "📂 Staging workflows:"
             ls -la generated/workflows/staging/
           fi
           
-          if [ -d "./artifacts/validation" ]; then
-            echo "📁 Copying validation files..."
-            cp -r ./artifacts/validation/* generated/workflows/validated/ 2>/dev/null || echo "No validation files to copy"
+          if [ -d "generated/workflows/validated" ]; then
+            echo "📂 Validated workflows:"
             ls -la generated/workflows/validated/
+          fi
+          
+          if [ -d ".meta/validation" ]; then
+            echo "📂 Validation reports:"
+            ls -la .meta/validation/
           fi
           
           # 生成履歴の記録
