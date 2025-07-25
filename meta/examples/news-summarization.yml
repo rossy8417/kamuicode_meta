@@ -5,6 +5,251 @@ category: "content-analysis-reporting"
 complexity_level: 4
 estimated_duration_minutes: 35
 
+# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
+dynamic_inputs_spec:
+  modal_title: "AIニュース要約・分析設定"
+  modal_description: "ニュース収集・分析・要約の詳細設定を入力してください"
+  form_sections:
+    - section_name: "ニュース収集設定"
+      section_description: "収集するニュースの範囲と対象を設定"
+      inputs:
+        - name: "news_topic"
+          label: "分析対象トピック・キーワード"
+          type: "textarea"
+          required: true
+          placeholder: "例: AI技術の進展、暗号通貨市場動向、気候変動対策、経済政策"
+          description: "分析したいニュースのテーマやキーワードを入力してください"
+          validation:
+            min_length: 5
+            max_length: 200
+            
+        - name: "news_sources"
+          label: "ニュースソース"
+          type: "select"
+          required: true
+          description: "優先的に収集するニュースソースの種類"
+          options:
+            - value: "major_media"
+              label: "📺 主要メディア"
+              description: "大手新聞社、テレビ局、通信社"
+            - value: "tech_media"
+              label: "💻 テック系メディア"
+              description: "技術専門誌、IT系ニュースサイト"
+            - value: "business_media"
+              label: "💼 ビジネス系メディア"
+              description: "経済紙、ビジネス専門メディア"
+            - value: "international"
+              label: "🌍 国際メディア"
+              description: "海外の主要ニュースソース"
+            - value: "comprehensive"
+              label: "🔍 包括的収集"
+              description: "幅広いソースから収集"
+            - value: "specialized"
+              label: "🎯 専門メディア"
+              description: "特定分野の専門メディア"
+              
+        - name: "geographic_focus"
+          label: "地域的焦点"
+          type: "select"
+          required: true
+          description: "ニュース収集の地域的な重点を選択"
+          options:
+            - value: "global"
+              label: "🌎 グローバル"
+              description: "世界全体のニュース"
+            - value: "japan"
+              label: "🇯🇵 日本"
+              description: "日本国内のニュース中心"
+            - value: "asia_pacific"
+              label: "🌏 アジア太平洋"
+              description: "アジア太平洋地域"
+            - value: "north_america"
+              label: "🇺🇸 北米"
+              description: "米国・カナダ中心"
+            - value: "europe"
+              label: "🇪🇺 ヨーロッパ"
+              description: "ヨーロッパ地域"
+
+    - section_name: "分析・要約設定"
+      section_description: "ニュース分析と要約の詳細設定"
+      inputs:
+        - name: "analysis_period"
+          label: "分析対象期間"
+          type: "select"
+          required: true
+          description: "ニュース収集・分析の対象期間"
+          options:
+            - value: "24hours"
+              label: "📅 過去24時間"
+              description: "最新の24時間"
+            - value: "3days"
+              label: "📅 過去3日間"
+              description: "直近3日間のニュース"
+            - value: "1week"
+              label: "📅 過去1週間"
+              description: "1週間分のニュース"
+            - value: "2weeks"
+              label: "📅 過去2週間"
+              description: "2週間分のトレンド分析"
+            - value: "1month"
+              label: "📅 過去1ヶ月"
+              description: "月次トレンド分析"
+              
+        - name: "summary_length"
+          label: "要約の詳細度"
+          type: "select"
+          required: true
+          description: "生成する要約レポートの長さ・詳細度"
+          options:
+            - value: "brief"
+              label: "📋 簡潔版 (5-10要点)"
+              description: "要点のみの短い要約"
+            - value: "standard"
+              label: "📄 標準版 (10-20要点)"
+              description: "バランスの取れた要約"
+            - value: "detailed"
+              label: "📚 詳細版 (20-40要点)"
+              description: "包括的で詳細な分析"
+            - value: "comprehensive"
+              label: "📖 包括版 (40+要点)"
+              description: "網羅的な分析レポート"
+              
+        - name: "analysis_focus"
+          label: "分析の焦点"
+          type: "select"
+          required: true
+          description: "特に重点を置く分析の観点"
+          options:
+            - value: "trend_analysis"
+              label: "📈 トレンド分析"
+              description: "時系列での変化とトレンド"
+            - value: "sentiment_analysis"
+              label: "😊 感情・論調分析"
+              description: "世論や感情の傾向分析"
+            - value: "impact_analysis"
+              label: "💥 影響度分析"
+              description: "社会・経済への影響評価"
+            - value: "stakeholder_analysis"
+              label: "👥 関係者分析"
+              description: "関係者・組織の動向分析"
+            - value: "comparative_analysis"
+              label: "⚖️ 比較分析"
+              description: "異なる視点・意見の対比"
+
+    - section_name: "出力・配信設定"
+      section_description: "レポート出力形式と配信に関する設定"
+      inputs:
+        - name: "output_format"
+          label: "メイン出力形式"
+          type: "select"
+          required: true
+          description: "要約レポートの主要な出力形式"
+          options:
+            - value: "executive_summary"
+              label: "📊 エグゼクティブサマリー"
+              description: "経営層向けの簡潔な要約"
+            - value: "detailed_report"
+              label: "📄 詳細レポート"
+              description: "包括的な分析レポート"
+            - value: "newsletter"
+              label: "📰 ニュースレター"
+              description: "読みやすいニュースレター形式"
+            - value: "bullet_points"
+              label: "🔸 箇条書き要約"
+              description: "要点を箇条書きで整理"
+            - value: "timeline"
+              label: "⏰ タイムライン形式"
+              description: "時系列での出来事整理"
+              
+        - name: "urgency_level"
+          label: "緊急度・重要度フィルタ"
+          type: "range"
+          required: true
+          description: "含めるニュースの最低重要度レベル"
+          min: 1
+          max: 5
+          default: 3
+          step: 1
+          labels:
+            1: "全ニュース"
+            3: "中重要度以上"
+            5: "最重要のみ"
+            
+        - name: "include_sources"
+          label: "情報源の表示"
+          type: "select"
+          required: false
+          description: "要約に情報源を含めるかどうか"
+          options:
+            - value: "full_citations"
+              label: "📚 完全な引用"
+              description: "記事タイトル、メディア名、URL"
+            - value: "source_names"
+              label: "📝 ソース名のみ"
+              description: "メディア名のみ表示"
+            - value: "minimal"
+              label: "📋 最小限"
+              description: "主要ソースのみ"
+            - value: "none"
+              label: "❌ 表示しない"
+              description: "情報源を非表示"
+
+  # GitHub Actions 入力マッピングプレビュー
+  github_inputs_mapping:
+    news_topic:
+      input_name: "news_topic"  
+      description: "分析対象トピック・キーワード"
+      required: true
+      type: "string"
+    news_sources:
+      input_name: "news_sources"
+      description: "ニュースソース"
+      required: true
+      type: "choice"
+      options: ["major_media", "tech_media", "business_media", "international", "comprehensive", "specialized"]
+    geographic_focus:
+      input_name: "geographic_focus"
+      description: "地域的焦点"
+      required: true
+      type: "choice"
+      options: ["global", "japan", "asia_pacific", "north_america", "europe"]
+    analysis_period:
+      input_name: "analysis_period"
+      description: "分析対象期間"
+      required: true
+      type: "choice"
+      options: ["24hours", "3days", "1week", "2weeks", "1month"]
+    summary_length:
+      input_name: "summary_length"
+      description: "要約の詳細度"
+      required: true
+      type: "choice"
+      options: ["brief", "standard", "detailed", "comprehensive"]
+    analysis_focus:
+      input_name: "analysis_focus"
+      description: "分析の焦点"
+      required: true
+      type: "choice"
+      options: ["trend_analysis", "sentiment_analysis", "impact_analysis", "stakeholder_analysis", "comparative_analysis"]
+    output_format:
+      input_name: "output_format"
+      description: "メイン出力形式"
+      required: true
+      type: "choice"
+      options: ["executive_summary", "detailed_report", "newsletter", "bullet_points", "timeline"]
+    urgency_level:
+      input_name: "urgency_level"
+      description: "緊急度・重要度フィルタ（1-5）"
+      required: true
+      type: "string"
+      default: "3"
+    include_sources:
+      input_name: "include_sources"
+      description: "情報源の表示"
+      required: false
+      type: "choice"
+      options: ["full_citations", "source_names", "minimal", "none"]
+
 # 人間の無意識思考プロセス
 human_process:
   - phase: "information_gathering"

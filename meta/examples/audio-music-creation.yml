@@ -5,6 +5,177 @@ category: "audio-content-production"
 complexity_level: 4
 estimated_duration_minutes: 35
 
+# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
+dynamic_inputs_spec:
+  modal_title: "音楽・オーディオ制作設定"
+  modal_description: "AI音楽生成・音声コンテンツ制作の詳細パラメータ設定"
+  form_sections:
+    - section_name: "音楽コンセプト"
+      section_description: "楽曲の基本的なコンセプトとジャンル"
+      inputs:
+        - name: "music_concept"
+          label: "音楽コンセプト・用途"
+          type: "textarea"
+          required: true
+          placeholder: "例: リラックスできるカフェBGM、アップテンポなワークアウト用音楽"
+          description: "作成したい音楽の目的・用途・イメージを詳細に記載"
+          validation:
+            min_length: 15
+            max_length: 600
+        
+        - name: "music_genre"
+          label: "音楽ジャンル"
+          type: "select"
+          required: true
+          options:
+            - value: "ambient"
+              label: "🌊 アンビエント (環境音楽・癒し系)"
+            - value: "electronic"
+              label: "🎛️ エレクトロニック (シンセサイザー中心)"
+            - value: "classical"
+              label: "🎼 クラシック (オーケストラ・器楽)"
+            - value: "jazz"
+              label: "🎺 ジャズ (即興・スウィング)"
+            - value: "rock"
+              label: "🎸 ロック (バンドサウンド)"
+            - value: "pop"
+              label: "🎤 ポップス (キャッチー・親しみやすい)"
+            - value: "world"
+              label: "🌍 ワールドミュージック (民族音楽)"
+            - value: "experimental"
+              label: "🔬 実験音楽 (前衛・創造的)"
+          default: "ambient"
+        
+        - name: "mood_energy"
+          label: "ムード・エネルギー"
+          type: "select"
+          required: true
+          options:
+            - value: "very_calm"
+              label: "😌 とても穏やか (瞑想・睡眠用)"
+            - value: "relaxing"
+              label: "🍃 リラックス (読書・作業用)"
+            - value: "neutral"
+              label: "😐 中立 (日常・汎用)"
+            - value: "uplifting"
+              label: "😊 明るい (前向き・楽しい)"
+            - value: "energetic"
+              label: "⚡ エネルギッシュ (運動・活動的)"
+            - value: "intense"
+              label: "🔥 激しい (スポーツ・集中)"
+          default: "relaxing"
+
+    - section_name: "楽曲構成"
+      section_description: "楽曲の構造と技術的パラメータ"
+      inputs:
+        - name: "track_duration"
+          label: "楽曲の長さ (秒)"
+          type: "range"
+          required: true
+          min: 30
+          max: 300
+          default: 120
+          step: 30
+          description: "生成する楽曲の長さ (30秒-5分)"
+        
+        - name: "tempo_bpm"
+          label: "テンポ (BPM)"
+          type: "range"
+          required: true
+          min: 60
+          max: 180
+          default: 120
+          step: 10
+          description: "楽曲のテンポ・速度 (60=ゆっくり, 180=速い)"
+        
+        - name: "musical_key"
+          label: "調性・キー"
+          type: "select"
+          required: true
+          options:
+            - value: "c_major"
+              label: "C Major (明るい・基本的)"
+            - value: "g_major"
+              label: "G Major (親しみやすい)"
+            - value: "d_major"
+              label: "D Major (華やか)"
+            - value: "a_minor"
+              label: "A Minor (少し暗い・情緒的)"
+            - value: "e_minor"
+              label: "E Minor (メランコリック)"
+            - value: "f_major"
+              label: "F Major (柔らか)"
+            - value: "auto"
+              label: "🎲 自動選択 (AIが最適判断)"
+          default: "auto"
+
+    - section_name: "音響設定"
+      section_description: "音質と楽器編成の設定"
+      inputs:
+        - name: "instrumentation"
+          label: "楽器編成"
+          type: "select"
+          required: true
+          options:
+            - value: "solo_piano"
+              label: "🎹 ソロピアノ"
+            - value: "string_ensemble"
+              label: "🎻 弦楽アンサンブル"
+            - value: "full_orchestra"
+              label: "🎼 フルオーケストラ"
+            - value: "electronic_synth"
+              label: "🎛️ エレクトロニック・シンセ"
+            - value: "acoustic_guitar"
+              label: "🎸 アコースティックギター"
+            - value: "mixed_ensemble"
+              label: "🎪 ミックス・アンサンブル"
+          default: "mixed_ensemble"
+        
+        - name: "audio_quality"
+          label: "音響品質"
+          type: "select"
+          required: true
+          options:
+            - value: "studio_master"
+              label: "🎚️ スタジオマスター (最高品質)"
+            - value: "high_fidelity"
+              label: "🔊 ハイファイ (高品質)"
+            - value: "standard"
+              label: "📻 標準品質"
+          default: "high_fidelity"
+        
+        - name: "stereo_width"
+          label: "ステレオ幅"
+          type: "select"
+          required: true
+          options:
+            - value: "wide_stereo"
+              label: "🔊 ワイドステレオ (空間的)"
+            - value: "standard_stereo"
+              label: "🎧 標準ステレオ"
+            - value: "mono_focused"
+              label: "📻 モノラル寄り (中央集中)"
+          default: "standard_stereo"
+
+# GitHub Actions inputs変換マッピング
+github_actions_inputs_mapping:
+  inputs_conversion:
+    textarea: "string"
+    select: "choice"
+    range: "number"
+  
+  generated_inputs_preview:
+    music_concept:
+      description: "音楽コンセプト・用途"
+      required: true
+      type: string
+    music_genre:
+      description: "音楽ジャンル"
+      required: true
+      type: choice
+      options: ["ambient", "electronic", "classical", "jazz", "rock", "pop", "world", "experimental"]
+      default: "ambient"
+
 # 人間の無意識思考プロセス
 human_process:
   - phase: "audio_concept_planning"

@@ -5,6 +5,134 @@ category: "3d-content-generation"
 complexity_level: 5
 estimated_duration_minutes: 30
 
+# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
+dynamic_inputs_spec:
+  modal_title: "3Dモデル制作設定"
+  modal_description: "2D画像から3Dモデル生成・最適化の詳細パラメータ"
+  form_sections:
+    - section_name: "3Dモデルコンセプト"
+      section_description: "制作する3Dモデルの基本設計"
+      inputs:
+        - name: "model_concept"
+          label: "3Dモデルコンセプト"
+          type: "textarea"
+          required: true
+          placeholder: "例: 商品パッケージの3D表示、建築物の立体モデル、キャラクターフィギュア"
+          description: "制作したい3Dモデルの用途・目的・特徴を詳細に記載"
+          validation:
+            min_length: 20
+            max_length: 500
+        
+        - name: "model_type"
+          label: "モデルタイプ"
+          type: "select"
+          required: true
+          options:
+            - value: "product"
+              label: "📦 製品・商品 (パッケージ・アイテム)"
+            - value: "architectural"
+              label: "🏗️ 建築・構造物 (建物・インテリア)"
+            - value: "character"
+              label: "👤 キャラクター・人物 (フィギュア・アバター)"
+            - value: "mechanical"
+              label: "⚙️ 機械・器具 (ツール・装置)"
+            - value: "organic"
+              label: "🌿 有機物・自然 (植物・動物・地形)"
+            - value: "abstract"
+              label: "🎨 抽象・アート (デザインオブジェクト)"
+          default: "product"
+        
+        - name: "detail_level"
+          label: "詳細レベル"
+          type: "select"
+          required: true
+          options:
+            - value: "low_poly"
+              label: "📐 ローポリ (シンプル・高速処理)"
+            - value: "medium_detail"
+              label: "🎯 中詳細 (バランス重視)"
+            - value: "high_detail"
+              label: "🔍 高詳細 (リアル・高品質)"
+            - value: "ultra_detail"
+              label: "💎 超高詳細 (最高品質・重い)"
+          default: "medium_detail"
+
+    - section_name: "生成パラメータ"
+      section_description: "3D生成の技術的設定"
+      inputs:
+        - name: "reference_angles"
+          label: "参照アングル数"
+          type: "range"
+          required: true
+          min: 1
+          max: 8
+          default: 4
+          step: 1
+          description: "3D生成に使用する参照画像の角度数 (多いほど精密)"
+        
+        - name: "model_scale"
+          label: "モデルスケール"
+          type: "select"
+          required: true
+          options:
+            - value: "miniature"
+              label: "🔬 ミニチュア (小物・精密)"
+            - value: "standard"
+              label: "📏 標準 (一般的なサイズ)"
+            - value: "large_scale"
+              label: "📐 大型 (建築・景観)"
+          default: "standard"
+        
+        - name: "surface_quality"
+          label: "表面品質"
+          type: "select"
+          required: true
+          options:
+            - value: "smooth"
+              label: "✨ スムース (滑らか・ツヤあり)"
+            - value: "textured"
+              label: "🔲 テクスチャ (質感・模様あり)"
+            - value: "rough"
+              label: "⚡ ラフ (粗い・マット)"
+            - value: "mixed"
+              label: "🎨 ミックス (部分的に異なる質感)"
+          default: "textured"
+
+    - section_name: "出力設定"
+      section_description: "3Dモデルの出力形式と用途"
+      inputs:
+        - name: "output_format"
+          label: "出力フォーマット"
+          type: "select"
+          required: true
+          options:
+            - value: "obj_mtl"
+              label: "📄 OBJ+MTL (汎用・軽量)"
+            - value: "fbx"
+              label: "🎮 FBX (ゲーム・アニメーション)"
+            - value: "gltf"
+              label: "🌐 glTF (Web・AR/VR)"
+            - value: "stl"
+              label: "🖨️ STL (3Dプリント)"
+            - value: "all_formats"
+              label: "📦 全形式 (複数形式出力)"
+          default: "obj_mtl"
+        
+        - name: "optimization_level"
+          label: "最適化レベル"
+          type: "select"
+          required: true
+          options:
+            - value: "none"
+              label: "⚪ 最適化なし (オリジナル品質)"
+            - value: "light"
+              label: "🪶 軽量最適化 (ファイルサイズ重視)"
+            - value: "balanced"
+              label: "⚖️ バランス最適化 (品質とサイズ両立)"
+            - value: "aggressive"
+              label: "🚀 積極的最適化 (最小サイズ)"
+          default: "balanced"
+
 # 人間の無意識思考プロセス
 human_process:
   - phase: "concept_visualization"

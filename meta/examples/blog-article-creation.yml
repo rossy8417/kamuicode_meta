@@ -5,6 +5,281 @@ category: "content-creation"
 complexity_level: 4
 estimated_duration_minutes: 60
 
+# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
+dynamic_inputs_spec:
+  modal_title: "SEO最適化ブログ記事作成設定"
+  modal_description: "SEO最適化されたブログ記事作成の詳細設定を入力してください"
+  form_sections:
+    - section_name: "記事の基本設定"
+      section_description: "ブログ記事の基本的な情報と目的を設定"
+      inputs:
+        - name: "keywords"
+          label: "メインキーワード・テーマ"
+          type: "textarea"
+          required: true
+          placeholder: "例: WordPress SEO対策、リモートワーク生産性向上、Python初心者学習"
+          description: "記事の主要なキーワードやテーマを入力してください（SEO対策の基本となります）"
+          validation:
+            min_length: 5
+            max_length: 200
+            
+        - name: "article_type"
+          label: "記事の種類・スタイル"
+          type: "select"
+          required: true
+          description: "作成する記事のタイプとスタイルを選択"
+          options:
+            - value: "how_to_guide"
+              label: "📚 ハウツーガイド"
+              description: "手順や方法を説明する実践的な記事"
+            - value: "list_article"
+              label: "📋 リスト記事"
+              description: "「○選」「まとめ」形式の記事"
+            - value: "case_study"
+              label: "📊 事例・ケーススタディ"
+              description: "具体的な事例や成功例の分析"
+            - value: "opinion_editorial"
+              label: "💭 意見・コラム"
+              description: "著者の見解や意見を述べる記事"
+            - value: "news_analysis"
+              label: "📰 ニュース解説"
+              description: "最新情報の分析・解説記事"
+            - value: "review_comparison"
+              label: "⚖️ レビュー・比較"
+              description: "商品・サービスの比較レビュー"
+              
+        - name: "target_audience"
+          label: "ターゲット読者"
+          type: "select"
+          required: true
+          description: "主要な読者層を選択してください"
+          options:
+            - value: "beginners"
+              label: "🔰 初心者"
+              description: "その分野の基礎知識がない読者"
+            - value: "intermediate"
+              label: "📈 中級者"
+              description: "基本は理解している読者"
+            - value: "advanced"
+              label: "🎓 上級者・専門家"
+              description: "専門知識を持つ読者"
+            - value: "business_professionals"
+              label: "💼 ビジネスパーソン"
+              description: "仕事で活用したい読者"
+            - value: "general_public"
+              label: "🌐 一般読者"
+              description: "幅広い一般読者"
+
+    - section_name: "SEO・コンテンツ設定"
+      section_description: "SEO最適化とコンテンツの詳細設定"
+      inputs:
+        - name: "content_length"
+          label: "記事の長さ"
+          type: "select"
+          required: true
+          description: "目標とする記事の文字数・ボリューム"
+          options:
+            - value: "short"
+              label: "📝 短文 (1,000-2,000文字)"
+              description: "簡潔でポイントを絞った記事"
+            - value: "medium"
+              label: "📄 中文 (2,000-4,000文字)"
+              description: "バランスの取れた標準的な記事"
+            - value: "long"
+              label: "📚 長文 (4,000-6,000文字)"
+              description: "詳細で包括的な記事"
+            - value: "comprehensive"
+              label: "📖 包括的 (6,000文字以上)"
+              description: "完全ガイド形式の大型記事"
+              
+        - name: "seo_focus"
+          label: "SEO最適化レベル"
+          type: "range"
+          required: true
+          description: "SEO対策の重点度を設定"
+          min: 1
+          max: 5
+          default: 4
+          step: 1
+          labels:
+            1: "軽微"
+            3: "バランス"
+            5: "最重要"
+            
+        - name: "content_tone"
+          label: "記事のトーン・文体"
+          type: "select"
+          required: true
+          description: "記事全体の文体と雰囲気を選択"
+          options:
+            - value: "professional"
+              label: "🏢 プロフェッショナル"
+              description: "フォーマルで専門的な文体"
+            - value: "friendly"
+              label: "😊 親しみやすい"
+              description: "カジュアルで親近感のある文体"
+            - value: "authoritative"
+              label: "🎓 権威的"
+              description: "専門家として信頼性重視"
+            - value: "conversational"
+              label: "💬 会話調"
+              description: "読者との対話を意識した文体"
+            - value: "educational"
+              label: "📚 教育的"
+              description: "教える・伝える意識の文体"
+              
+        - name: "include_images"
+          label: "画像・図表の必要性"
+          type: "select"
+          required: false
+          description: "記事に含める視覚的要素の方針"
+          options:
+            - value: "essential"
+              label: "🖼️ 必須"
+              description: "多数の画像・図表で視覚的に"
+            - value: "moderate"
+              label: "📊 適度"
+              description: "重要なポイントに画像を配置"
+            - value: "minimal"
+              label: "📝 最小限"
+              description: "テキスト中心、最小限の画像"
+            - value: "text_only"
+              label: "📄 テキストのみ"
+              description: "文章のみの記事"
+
+    - section_name: "品質・配信設定"
+      section_description: "記事の品質基準と配信に関する設定"
+      inputs:
+        - name: "research_depth"
+          label: "リサーチの深度"
+          type: "select"
+          required: true
+          description: "記事作成前の調査・研究のレベル"
+          options:
+            - value: "basic"
+              label: "📋 基本調査"
+              description: "基本的な情報収集"
+            - value: "thorough"
+              label: "🔍 徹底調査"
+              description: "競合分析・詳細リサーチ"
+            - value: "expert"
+              label: "🎓 専門調査"
+              description: "専門的・学術的な調査"
+              
+        - name: "publication_urgency"
+          label: "公開の緊急度"
+          type: "select"
+          required: false
+          description: "記事公開のタイミング要求"
+          options:
+            - value: "asap"
+              label: "🚀 至急"
+              description: "できるだけ早く公開したい"
+            - value: "scheduled"
+              label: "📅 スケジュール"
+              description: "特定の日時に公開予定"
+            - value: "flexible"
+              label: "🌊 柔軟"
+              description: "品質重視、タイミング柔軟"
+              
+        - name: "brand_voice"
+          label: "ブランドボイス"
+          type: "textarea"
+          required: false
+          placeholder: "例: 革新的で親しみやすく、専門性を保ちながらも理解しやすい表現を心がける"
+          description: "ブランドや組織の特徴的な表現方法があれば記述してください（任意）"
+          validation:
+            max_length: 300
+            
+        - name: "call_to_action"
+          label: "読者への行動喚起"
+          type: "select"
+          required: false
+          description: "記事を読んだ読者に期待する行動"
+          options:
+            - value: "none"
+              label: "❌ 特になし"
+              description: "情報提供のみ"
+            - value: "newsletter"
+              label: "📧 メール登録"
+              description: "ニュースレター購読促進"
+            - value: "social_share"
+              label: "📱 SNSシェア"
+              description: "記事の拡散を促進"
+            - value: "product_trial"
+              label: "🔍 商品・サービス試用"
+              description: "商品やサービスの試用促進"
+            - value: "contact"
+              label: "📞 お問い合わせ"
+              description: "コンタクト・相談促進"
+
+  # GitHub Actions 入力マッピングプレビュー
+  github_inputs_mapping:
+    keywords:
+      input_name: "keywords"
+      description: "メインキーワード・テーマ"
+      required: true
+      type: "string"
+    article_type:
+      input_name: "article_type"
+      description: "記事の種類・スタイル"
+      required: true
+      type: "choice"
+      options: ["how_to_guide", "list_article", "case_study", "opinion_editorial", "news_analysis", "review_comparison"]
+    target_audience:
+      input_name: "target_audience"
+      description: "ターゲット読者"
+      required: true
+      type: "choice"
+      options: ["beginners", "intermediate", "advanced", "business_professionals", "general_public"]
+    content_length:
+      input_name: "content_length"
+      description: "記事の長さ"
+      required: true
+      type: "choice"
+      options: ["short", "medium", "long", "comprehensive"]
+    seo_focus:
+      input_name: "seo_focus"
+      description: "SEO最適化レベル（1-5）"
+      required: true
+      type: "string"
+      default: "4"
+    content_tone:
+      input_name: "content_tone"
+      description: "記事のトーン・文体"
+      required: true
+      type: "choice"
+      options: ["professional", "friendly", "authoritative", "conversational", "educational"]
+    include_images:
+      input_name: "include_images"
+      description: "画像・図表の必要性"
+      required: false
+      type: "choice"
+      options: ["essential", "moderate", "minimal", "text_only"]
+    research_depth:
+      input_name: "research_depth"
+      description: "リサーチの深度"
+      required: true
+      type: "choice"
+      options: ["basic", "thorough", "expert"]
+    publication_urgency:
+      input_name: "publication_urgency"
+      description: "公開の緊急度"
+      required: false
+      type: "choice"
+      options: ["asap", "scheduled", "flexible"]
+    brand_voice:
+      input_name: "brand_voice"
+      description: "ブランドボイス（任意）"
+      required: false
+      type: "string"
+    call_to_action:
+      input_name: "call_to_action"
+      description: "読者への行動喚起"
+      required: false
+      type: "choice"
+      options: ["none", "newsletter", "social_share", "product_trial", "contact"]
+
 # 人間の無意識思考プロセス
 human_process:
   - phase: "information_gathering"

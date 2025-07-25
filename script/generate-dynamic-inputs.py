@@ -200,10 +200,30 @@ echo "✅ Execution plan created with services: $MCP_SERVICES"
                         'uses': 'actions/checkout@v4'
                     },
                     {
-                        'name': 'Setup MCP configuration',
+                        'name': 'Setup MCP configuration and scripts',
                         'run': '''
-echo "🔧 Setting up MCP configuration..."
+echo "🔧 Setting up MCP configuration and script dependencies..."
 mkdir -p ~/.claude
+
+# スクリプトの実行権限確認・設定
+if [ -f "script/content-download-manager.sh" ]; then
+  chmod +x script/content-download-manager.sh
+  echo "✅ content-download-manager.sh executable"
+else
+  echo "⚠️ content-download-manager.sh not found"
+fi
+
+if [ -f "script/enhance-content-quality.py" ]; then
+  echo "✅ enhance-content-quality.py found"
+else
+  echo "⚠️ enhance-content-quality.py not found"
+fi
+
+# Python依存関係インストール
+if [ -f "requirements.txt" ]; then
+  echo "📦 Installing Python dependencies..."
+  pip3 install -r requirements.txt --quiet || echo "⚠️ Some dependencies may not be available"
+fi
 
 # MCP設定をセットアップ（環境に応じて）
 if [ ! -f ~/.claude/mcp-kamuicode.json ]; then
@@ -233,18 +253,20 @@ fi
                         '''
                     },
                     {
-                        'name': 'Generate images with dynamic inputs',
+                        'name': 'Generate and enhance content with 3-iteration quality process',
                         'run': '''
-echo "🎨 Starting image generation with optimized settings..."
+echo "🎨 Starting AI content generation with 3-iteration quality enhancement..."
 
 OPTIMIZED_PROMPT="${{ needs.setup-dynamic-execution.outputs.optimized-prompt }}"
 MCP_SERVICES="${{ needs.setup-dynamic-execution.outputs.execution-plan }}"
 IMAGE_COUNT="${{ github.event.inputs.image_count || '4' }}"
+CONTENT_CATEGORY="${{ github.event.inputs.art_style || 'general' }}"
 
-mkdir -p .logs/image-generation
+mkdir -p .logs/image-generation .logs/content-processing
 
 echo "Using prompt: $OPTIMIZED_PROMPT"
 echo "MCP services: $MCP_SERVICES"
+echo "Content category: $CONTENT_CATEGORY"
 
 # MCPサービスを順番に試行
 IFS=',' read -ra SERVICES <<< "$MCP_SERVICES"
@@ -257,12 +279,12 @@ for service in "${SERVICES[@]}"; do
     echo "✅ Success with $service"
     SUCCESS=true
     
-    # 結果からファイルパスを抽出
-    IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' ".logs/image-generation/${service}-result.json" 2>/dev/null || echo "none")
+    # 結果からフルURLを抽出（省略・短縮しない）
+    FULL_URL=$(jq -r '.image_url // .url // .file_path // "none"' ".logs/image-generation/${service}-result.json" 2>/dev/null || echo "none")
     
-    if [ "$IMAGE_PATH" != "none" ]; then
-      echo "📁 Generated image path: $IMAGE_PATH"
-      echo "IMAGE_PATH=$IMAGE_PATH" >> $GITHUB_ENV
+    if [ "$FULL_URL" != "none" ]; then
+      echo "🔗 Generated content URL: ${FULL_URL:0:100}..."
+      echo "CONTENT_URL=$FULL_URL" >> $GITHUB_ENV
       echo "USED_SERVICE=$service" >> $GITHUB_ENV
       break
     fi
@@ -277,7 +299,79 @@ if [ "$SUCCESS" = false ]; then
   exit 1
 fi
 
-echo "🎉 Image generation completed successfully!"
+# 3イテレーション品質向上プロセス開始
+echo ""
+echo "🚀 Starting 3-iteration quality enhancement process..."
+
+for ITERATION in 1 2 3; do
+  echo ""
+  echo "═══════════════════════════════════════"
+  echo "🔄 ITERATION $ITERATION/3"
+  echo "═══════════════════════════════════════"
+  
+  # 統合ダウンロード・品質向上処理
+  if ./script/content-download-manager.sh \\
+    --url "$CONTENT_URL" \\
+    --type image \\
+    --iteration "$ITERATION" \\
+    --category "$CONTENT_CATEGORY" \\
+    --working-dir "$(pwd)"; then
+    
+    echo "✅ Iteration $ITERATION completed successfully"
+    
+    # 品質チェック結果を確認
+    if [ -f "quality_enhancement_iter${ITERATION}.json" ]; then
+      QUALITY_SCORE=$(python3 -c "
+import json
+try:
+    with open('quality_enhancement_iter${ITERATION}.json', 'r') as f:
+        data = json.load(f)
+    print(f\\"{data['quality_check']['score']:.1f}\\")
+except:
+    print('0')
+")
+      
+      echo "📊 Quality Score: $QUALITY_SCORE/100"
+      
+      # 品質閾値チェック (70点以上で完了)
+      if (( $(echo "$QUALITY_SCORE >= 70" | bc -l) )); then
+        echo "🎉 Quality threshold met! Process completed at iteration $ITERATION"
+        
+        # 最終ファイルパスを記録
+        ENHANCED_FILE=$(ls *_enhanced_iter${ITERATION}.* 2>/dev/null | head -1 || echo "")
+        if [ -n "$ENHANCED_FILE" ]; then
+          FINAL_PATH="$(pwd)/$ENHANCED_FILE"
+          FINAL_HOME_PATH="${FINAL_PATH/#$HOME/~}"
+          echo "FINAL_IMAGE_PATH=$FINAL_HOME_PATH" >> $GITHUB_ENV
+          echo "QUALITY_SCORE=$QUALITY_SCORE" >> $GITHUB_ENV
+          echo "ITERATIONS_COMPLETED=$ITERATION" >> $GITHUB_ENV
+        fi
+        break
+      else
+        echo "⚠️ Quality score below threshold (70). Continuing to next iteration..."
+      fi
+    else
+      echo "⚠️ Quality check file not found, continuing..."
+    fi
+  else
+    echo "❌ Iteration $ITERATION failed"
+    if [ "$ITERATION" -eq 3 ]; then
+      echo "❌ All 3 iterations failed"
+      exit 1
+    fi
+  fi
+done
+
+echo ""
+echo "🎯 3-Iteration Quality Process Summary:"
+echo "   - Original URL: ${CONTENT_URL:0:60}..."
+echo "   - MCP Service: $USED_SERVICE"
+echo "   - Final Quality: ${QUALITY_SCORE:-'Unknown'}/100"
+echo "   - Iterations: ${ITERATIONS_COMPLETED:-3}/3"
+echo "   - Final Path: ${FINAL_IMAGE_PATH:--}"
+
+echo ""
+echo "✅ AI content generation with quality enhancement completed!"
                         '''
                     },
                     {

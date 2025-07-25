@@ -5,6 +5,149 @@ category: "multimedia-content-creation"
 complexity_level: 5
 estimated_duration_minutes: 45
 
+# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
+dynamic_inputs_spec:
+  modal_title: "動画コンテンツ制作設定"
+  modal_description: "テキスト→画像→動画→音声の完全な動画制作パラメータを設定"
+  form_sections:
+    - section_name: "コンテンツ企画"
+      section_description: "動画の基本コンセプトとストーリー"
+      inputs:
+        - name: "video_concept"
+          label: "動画コンセプト・テーマ"
+          type: "textarea"
+          required: true
+          placeholder: "例: 商品紹介動画、美しい風景と共に新製品の魅力を伝える"
+          description: "動画全体のコンセプトとメッセージを詳細に入力"
+          validation:
+            min_length: 20
+            max_length: 800
+        
+        - name: "target_audience"
+          label: "ターゲット視聴者"
+          type: "select"
+          required: true
+          options:
+            - value: "general"
+              label: "🌍 一般視聴者 (幅広い年齢層)"
+            - value: "business"
+              label: "💼 ビジネス・企業向け"
+            - value: "young_adult"
+              label: "🎯 若年層 (20-35歳)"
+            - value: "professional"
+              label: "👔 専門職・技術者向け"
+            - value: "creative"
+              label: "🎨 クリエイター・アーティスト向け"
+          default: "general"
+        
+        - name: "video_length"
+          label: "動画尺 (秒)"
+          type: "range"
+          required: true
+          min: 15
+          max: 300
+          default: 60
+          step: 15
+          description: "生成する動画の長さ (15秒-5分)"
+
+    - section_name: "ビジュアル設定"
+      section_description: "映像スタイルと品質パラメータ"
+      inputs:
+        - name: "visual_style"
+          label: "映像スタイル"
+          type: "select"
+          required: true
+          options:
+            - value: "cinematic"
+              label: "🎬 シネマティック (映画的・ドラマティック)"
+            - value: "documentary"
+              label: "📺 ドキュメンタリー (リアル・情報重視)"
+            - value: "commercial"
+              label: "📺 コマーシャル (商品・サービス紹介)"
+            - value: "educational"
+              label: "📚 教育・解説 (分かりやすい構成)"
+            - value: "artistic"
+              label: "🎨 アーティスティック (創造的・実験的)"
+          default: "commercial"
+        
+        - name: "color_mood"
+          label: "色調・ムード"
+          type: "select"
+          required: true
+          options:
+            - value: "vibrant"
+              label: "🌈 鮮やか・活動的"
+            - value: "warm"
+              label: "🌅 暖色・親しみやすい"
+            - value: "cool"
+              label: "❄️ 寒色・プロフェッショナル"
+            - value: "monochrome"
+              label: "⚫ モノクローム・シック"
+            - value: "natural"
+              label: "🌿 自然・オーガニック"
+          default: "vibrant"
+
+    - section_name: "技術設定"
+      section_description: "動画品質と生成パラメータ"
+      inputs:
+        - name: "video_quality"
+          label: "動画品質"
+          type: "select"
+          required: true
+          options:
+            - value: "ultra_hd"
+              label: "🔥 Ultra HD (最高品質・時間がかかる)"
+            - value: "high_def"
+              label: "✨ High Definition (高品質・バランス)"
+            - value: "standard"
+              label: "📺 Standard (標準品質・高速)"
+          default: "high_def"
+        
+        - name: "frame_rate"
+          label: "フレームレート"
+          type: "select"
+          required: true
+          options:
+            - value: "24fps"
+              label: "🎬 24fps (映画的)"
+            - value: "30fps"
+              label: "📺 30fps (標準)"
+            - value: "60fps"
+              label: "⚡ 60fps (滑らか)"
+          default: "30fps"
+        
+        - name: "audio_integration"
+          label: "音声統合"
+          type: "select"
+          required: true
+          options:
+            - value: "full_audio"
+              label: "🎵 フル音声 (BGM + 効果音 + ナレーション)"
+            - value: "bgm_only"
+              label: "🎶 BGMのみ"
+            - value: "silent"
+              label: "🔇 無音 (映像のみ)"
+          default: "full_audio"
+
+# GitHub Actions inputs変換マッピング
+github_actions_inputs_mapping:
+  inputs_conversion:
+    textarea: "string"
+    select: "choice"
+    range: "number"
+  
+  generated_inputs_preview:
+    video_concept:
+      description: "動画コンセプト・テーマ"
+      required: true
+      type: string
+    visual_style:
+      description: "映像スタイル"
+      required: true
+      type: choice
+      options: ["cinematic", "documentary", "commercial", "educational", "artistic"]
+      default: "commercial"
+
 # 人間の無意識思考プロセス
 human_process:
   - phase: "concept_planning"

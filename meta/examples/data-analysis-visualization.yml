@@ -5,6 +5,242 @@ category: "data-analytics-reporting"
 complexity_level: 4
 estimated_duration_minutes: 45
 
+# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
+dynamic_inputs_spec:
+  modal_title: "データ分析・可視化設定"
+  modal_description: "データ分析プロジェクトの詳細設定を入力してください"
+  form_sections:
+    - section_name: "分析対象・データソース"
+      section_description: "分析する対象とデータの設定"
+      inputs:
+        - name: "analysis_subject"
+          label: "分析対象・テーマ"
+          type: "textarea"
+          required: true
+          placeholder: "例: GitHub リポジトリの開発活動分析、売上データの季節性分析、ユーザー行動パターン分析"
+          description: "何について分析を行うかを具体的に記述してください"
+          validation:
+            min_length: 10
+            max_length: 300
+            
+        - name: "data_sources"
+          label: "データソース"
+          type: "select"
+          required: true
+          description: "分析に使用するデータの主な取得先を選択"
+          options:
+            - value: "github_api"
+              label: "🐙 GitHub API"
+              description: "リポジトリデータ、イシュー、PR、コミット履歴"
+            - value: "google_sheets"
+              label: "📊 Google Sheets"
+              description: "スプレッドシートのデータ"
+            - value: "csv_files"
+              label: "📄 CSVファイル"
+              description: "ローカルのCSVデータファイル"
+            - value: "web_scraping"
+              label: "🌐 Webスクレイピング"
+              description: "ウェブサイトからのデータ収集"
+            - value: "api_data"
+              label: "🔌 外部API"
+              description: "各種外部APIからのデータ取得"
+            - value: "database"
+              label: "🗄️ データベース"
+              description: "SQL/NoSQLデータベース"
+              
+        - name: "analysis_period"
+          label: "分析対象期間"
+          type: "select"
+          required: true
+          description: "データ分析の対象とする期間を選択"
+          options:
+            - value: "1-week"
+              label: "📅 過去1週間"
+            - value: "1-month"
+              label: "📅 過去1ヶ月"
+            - value: "3-months"
+              label: "📅 過去3ヶ月"
+            - value: "6-months"
+              label: "📅 過去6ヶ月"
+            - value: "1-year"
+              label: "📅 過去1年"
+            - value: "custom"
+              label: "🎯 カスタム期間"
+
+    - section_name: "分析設定"
+      section_description: "分析の深度と手法に関する設定"
+      inputs:
+        - name: "analysis_depth"
+          label: "分析の深度"
+          type: "select"
+          required: true
+          description: "どの程度詳細な分析を行うかを選択"
+          options:
+            - value: "basic"
+              label: "📊 基本分析"
+              description: "基本統計、トレンド分析"
+            - value: "intermediate"
+              label: "📈 中級分析"
+              description: "相関分析、パターン認識、予測"
+            - value: "advanced"
+              label: "🔬 高度分析"
+              description: "機械学習、統計モデリング、複雑な可視化"
+              
+        - name: "chart_types"
+          label: "希望する可視化タイプ"
+          type: "select"
+          required: true
+          description: "重点的に作成したい図表の種類を選択"
+          options:
+            - value: "time_series"
+              label: "📈 時系列グラフ"
+              description: "時間軸でのデータ変化を表示"
+            - value: "comparison"
+              label: "📊 比較チャート"
+              description: "カテゴリ間やグループ間の比較"
+            - value: "distribution"
+              label: "📉 分布・ヒストグラム"
+              description: "データの分布状況を可視化"
+            - value: "correlation"
+              label: "🔗 相関・散布図"
+              description: "変数間の関係性を分析"
+            - value: "geographic"
+              label: "🗺️ 地理的可視化"
+              description: "地図上でのデータ表示"
+            - value: "network"
+              label: "🕸️ ネットワーク図"
+              description: "関係性やつながりを可視化"
+              
+        - name: "target_audience"
+          label: "レポート対象者"
+          type: "select"
+          required: true
+          description: "分析結果を報告する対象者を選択"
+          options:
+            - value: "executives"
+              label: "👔 経営層"
+              description: "CEO、役員向けの要約重視"
+            - value: "managers"
+              label: "📊 管理職"
+              description: "部長、マネージャー向け"
+            - value: "analysts"
+              label: "🔍 分析担当者"
+              description: "データアナリスト、研究者向け"
+            - value: "developers"
+              label: "💻 開発チーム"
+              description: "エンジニア、開発者向け"
+            - value: "stakeholders"
+              label: "🤝 関係者全般"
+              description: "プロジェクト関係者向け"
+
+    - section_name: "アウトプット設定"
+      section_description: "分析結果の出力形式と詳細度の設定"
+      inputs:
+        - name: "output_format"
+          label: "メイン出力形式"
+          type: "select"
+          required: true
+          description: "分析結果の主要な出力形式を選択"
+          options:
+            - value: "dashboard"
+              label: "📊 インタラクティブダッシュボード"
+              description: "動的な可視化ダッシュボード"
+            - value: "report"
+              label: "📄 詳細レポート"
+              description: "包括的な分析レポート"
+            - value: "presentation"
+              label: "📽️ プレゼンテーション"
+              description: "発表用スライド形式"
+            - value: "summary"
+              label: "📋 エグゼクティブサマリー"
+              description: "要点を絞った概要"
+              
+        - name: "technical_level"
+          label: "技術的詳細度"
+          type: "range"
+          required: true
+          description: "統計的詳細や技術情報の含有レベル"
+          min: 1
+          max: 5
+          default: 3
+          step: 1
+          labels:
+            1: "非技術者向け"
+            3: "バランス"
+            5: "技術者向け"
+            
+        - name: "include_predictions"
+          label: "予測・将来分析"
+          type: "select"
+          required: false
+          description: "将来予測や予測分析を含めるかどうか"
+          options:
+            - value: "none"
+              label: "❌ 含めない"
+              description: "現状分析のみ"
+            - value: "trends"
+              label: "📈 トレンド予測"
+              description: "基本的なトレンド予測"
+            - value: "advanced"
+              label: "🔮 高度予測"
+              description: "機械学習による予測分析"
+
+  # GitHub Actions 入力マッピングプレビュー
+  github_inputs_mapping:
+    analysis_subject:
+      input_name: "analysis_subject"
+      description: "分析対象・テーマ"
+      required: true
+      type: "string"
+    data_sources:
+      input_name: "data_sources"
+      description: "データソース"
+      required: true
+      type: "choice"
+      options: ["github_api", "google_sheets", "csv_files", "web_scraping", "api_data", "database"]
+    analysis_period:
+      input_name: "analysis_period"
+      description: "分析対象期間"
+      required: true
+      type: "choice"
+      options: ["1-week", "1-month", "3-months", "6-months", "1-year", "custom"]
+    analysis_depth:
+      input_name: "analysis_depth"
+      description: "分析の深度"
+      required: true
+      type: "choice"
+      options: ["basic", "intermediate", "advanced"]
+    chart_types:
+      input_name: "chart_types"
+      description: "希望する可視化タイプ"
+      required: true
+      type: "choice"
+      options: ["time_series", "comparison", "distribution", "correlation", "geographic", "network"]
+    target_audience:
+      input_name: "target_audience"
+      description: "レポート対象者"
+      required: true
+      type: "choice"
+      options: ["executives", "managers", "analysts", "developers", "stakeholders"]
+    output_format:
+      input_name: "output_format"
+      description: "メイン出力形式"
+      required: true
+      type: "choice"
+      options: ["dashboard", "report", "presentation", "summary"]
+    technical_level:
+      input_name: "technical_level"
+      description: "技術的詳細度（1-5）"
+      required: true
+      type: "string"
+      default: "3"
+    include_predictions:
+      input_name: "include_predictions"
+      description: "予測・将来分析"
+      required: false
+      type: "choice"
+      options: ["none", "trends", "advanced"]
+
 # 人間の無意識思考プロセス
 human_process:
   - phase: "data_understanding"

@@ -487,11 +487,46 @@ jobs:
           if grep -q "dynamic_inputs_spec:" "$TEMPLATE"; then
             echo "✅ Dynamic inputs found, generating enhanced workflow..."
             
-            # Pythonスクリプトで動的inputsを生成
-            if command -v python3 &> /dev/null; then
-              python3 script/generate-dynamic-inputs.py \
-                --template "$TEMPLATE" \
-                --output "$GENERATED_FILE"
+            # スクリプトパス確認・権限設定
+            echo "🔧 Checking script paths and permissions..."
+            
+            # 必要スクリプトの存在確認
+            SCRIPTS_MISSING=""
+            
+            if [ ! -f "./script/generate-dynamic-inputs.py" ]; then
+              SCRIPTS_MISSING="${SCRIPTS_MISSING}generate-dynamic-inputs.py "
+            else
+              chmod +x ./script/generate-dynamic-inputs.py
+              echo "✅ Found: ./script/generate-dynamic-inputs.py"
+            fi
+            
+            if [ ! -f "./script/content-download-manager.sh" ]; then
+              SCRIPTS_MISSING="${SCRIPTS_MISSING}content-download-manager.sh "
+            else
+              chmod +x ./script/content-download-manager.sh
+              echo "✅ Found: ./script/content-download-manager.sh"
+            fi
+            
+            if [ ! -f "./script/enhance-content-quality.py" ]; then
+              SCRIPTS_MISSING="${SCRIPTS_MISSING}enhance-content-quality.py "
+            else
+              chmod +x ./script/enhance-content-quality.py
+              echo "✅ Found: ./script/enhance-content-quality.py"
+            fi
+            
+            if [ -n "$SCRIPTS_MISSING" ]; then
+              echo "❌ Missing required scripts: $SCRIPTS_MISSING"
+              echo "   Falling back to basic template generation"
+              DYNAMIC_INPUTS_ENABLED="false"
+            else
+              echo "✅ All required scripts found and executable"
+              
+              # Pythonスクリプトで動的inputsを生成（相対パス使用）
+              echo "🐍 Generating dynamic inputs with Python..."
+              if command -v python3 &> /dev/null; then
+                python3 ./script/generate-dynamic-inputs.py \
+                  --template "$TEMPLATE" \
+                  --output "$GENERATED_FILE"
               
               if [ $? -eq 0 ]; then
                 echo "✅ Dynamic inputs workflow generated successfully"
