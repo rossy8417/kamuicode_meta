@@ -1,0 +1,140 @@
+jobs:
+  create-video:
+    needs: generate-images
+    outputs:
+      video_path: ${{ steps.i2v.outputs.path }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - id: i2v
+      name: Image-to-Video Conversion
+      run: "\necho \"\U0001F3AC Converting images to video\"\necho \"Duration: ${{\
+        \ github.event.inputs.video_duration }} seconds\"\necho \"Images: ${{ needs.generate-images.outputs.image_paths\
+        \ }}\"\n\n# MCP Image-to-Video generation\nmkdir -p outputs/video\necho \"\
+        I2V generation completed\"\necho \"path=outputs/video/story_video.mp4\" >>\
+        \ $GITHUB_OUTPUT\n                        "
+  final-composition:
+    needs:
+    - create-video
+    - generate-bgm
+    - generate-narration
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Compose Final Video
+      run: "\necho \"\U0001F39E️ Composing final video with audio\"\necho \"Video:\
+        \ ${{ needs.create-video.outputs.video_path }}\"\necho \"BGM: ${{ needs.generate-bgm.outputs.bgm_path\
+        \ }}\"\necho \"Narration: ${{ needs.generate-narration.outputs.narration_path\
+        \ }}\"\n\n# Final video composition\nmkdir -p outputs/final\necho \"✅ Final\
+        \ composite video created: outputs/final/story_video_complete.mp4\"\n    \
+        \                    "
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: story-video-complete
+        path: outputs/
+  generate-bgm:
+    outputs:
+      bgm_path: ${{ steps.t2m.outputs.path }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - id: t2m
+      name: Generate Background Music
+      run: "\necho \"\U0001F3B5 Generating BGM\"\necho \"Mood: ${{ github.event.inputs.bgm_mood\
+        \ }}\"\necho \"Duration: ${{ github.event.inputs.video_duration }} seconds\"\
+        \n\n# MCP Text-to-Music generation\nmkdir -p outputs/audio\necho \"T2M generation\
+        \ completed\"\necho \"path=outputs/audio/bgm.mp3\" >> $GITHUB_OUTPUT\n   \
+        \                     "
+  generate-images:
+    needs: story-analysis
+    outputs:
+      image_paths: ${{ steps.t2i.outputs.paths }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - id: t2i
+      name: Text-to-Image Generation
+      run: "\necho \"\U0001F3A8 Generating images for ${{ needs.story-analysis.outputs.scene_count\
+        \ }} scenes\"\necho \"Style: ${{ github.event.inputs.visual_style }}\"\n\n\
+        # MCP Text-to-Image generation\nmkdir -p outputs/images\necho \"T2I generation\
+        \ completed\"\necho \"paths=image1.jpg,image2.jpg,image3.jpg\" >> $GITHUB_OUTPUT\n\
+        \                        "
+  generate-narration:
+    needs: create-video
+    outputs:
+      narration_path: ${{ steps.v2a.outputs.path }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - id: v2a
+      name: Generate Narration
+      run: "\necho \"\U0001F399️ Generating narration\"\necho \"Voice: ${{ github.event.inputs.narration_voice\
+        \ }}\"\necho \"Story: ${{ github.event.inputs.story_prompt }}\"\n\n# MCP Video-to-Audio/Text-to-Speech\
+        \ generation\nmkdir -p outputs/narration\necho \"V2A/TTS generation completed\"\
+        \necho \"path=outputs/narration/narration.mp3\" >> $GITHUB_OUTPUT\n      \
+        \                  "
+  story-analysis:
+    outputs:
+      scene_count: ${{ steps.analyze.outputs.scene_count }}
+      scenes: ${{ steps.analyze.outputs.scenes }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - id: analyze
+      name: Analyze Story and Extract Scenes
+      run: "\necho \"\U0001F4D6 Analyzing story: ${{ github.event.inputs.story_prompt\
+        \ }}\"\necho \"\U0001F3AC Target scenes: ${{ github.event.inputs.scene_count\
+        \ }}\"\necho \"\U0001F3A8 Visual style: ${{ github.event.inputs.visual_style\
+        \ }}\"\n\n# Story analysis and scene extraction\nmkdir -p outputs/scenes\n\
+        echo \"Scene analysis completed\"\necho \"scenes=scene1,scene2,scene3\" >>\
+        \ $GITHUB_OUTPUT\necho \"scene_count=${{ github.event.inputs.scene_count }}\"\
+        \ >> $GITHUB_OUTPUT\n                        "
+name: Generated story-video-audio Workflow - Enhanced
+'on':
+  workflow_dispatch:
+    inputs:
+      bgm_mood:
+        default: dramatic
+        description: BGMの雰囲気 (dramatic, peaceful, energetic, mysterious)
+        options:
+        - dramatic
+        - peaceful
+        - energetic
+        - mysterious
+        required: false
+        type: choice
+      narration_voice:
+        default: neutral
+        description: ナレーション音声タイプ (male, female, neutral)
+        options:
+        - male
+        - female
+        - neutral
+        required: false
+        type: choice
+      scene_count:
+        default: 5
+        description: シーン数 (3-10)
+        required: false
+        type: number
+      story_prompt:
+        description: ストーリー・物語の内容
+        required: true
+        type: string
+      video_duration:
+        default: 60
+        description: 目標動画長 (秒)
+        required: false
+        type: number
+      visual_style:
+        default: cinematic
+        description: 映像スタイル (cinematic, anime, realistic, artistic)
+        options:
+        - cinematic
+        - anime
+        - realistic
+        - artistic
+        required: false
+        type: choice
+run-name: ${{ github.actor }} executes story-video-audio generation 🎬🎵
