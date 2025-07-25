@@ -433,7 +433,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Generate Workflow from Template
+      - name: Generate Workflow from Template with Dynamic Inputs
         id: generate
         run: |
           echo "🎯 Generating workflow from template for ${{ needs.analyze-request.outputs.workflow_type }}..."
@@ -451,7 +451,11 @@ jobs:
               TEMPLATE="meta/examples/video-content-creation.yml"
               VALIDATION_REQUIRED="true"
               ;;
-            "image-generation"|"3d-model")
+            "image-generation"|"image")
+              TEMPLATE="meta/examples/image-generation.yml"
+              VALIDATION_REQUIRED="true"
+              ;;
+            "3d-model"|"3d")
               TEMPLATE="meta/examples/3d-model-creation.yml" 
               VALIDATION_REQUIRED="true"
               ;;
@@ -478,26 +482,57 @@ jobs:
             exit 1
           fi
           
-          # テンプレートをカスタマイズして生成
-          cp "$TEMPLATE" "$GENERATED_FILE"
+          # 動的inputs仕様の確認
+          echo "🔍 Checking for dynamic inputs specification..."
+          if grep -q "dynamic_inputs_spec:" "$TEMPLATE"; then
+            echo "✅ Dynamic inputs found, generating enhanced workflow..."
+            
+            # Pythonスクリプトで動的inputsを生成
+            if command -v python3 &> /dev/null; then
+              python3 script/generate-dynamic-inputs.py \
+                --template "$TEMPLATE" \
+                --output "$GENERATED_FILE"
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ Dynamic inputs workflow generated successfully"
+                DYNAMIC_INPUTS_ENABLED="true"
+              else
+                echo "⚠️ Dynamic inputs generation failed, falling back to basic template"
+                cp "$TEMPLATE" "$GENERATED_FILE"
+                DYNAMIC_INPUTS_ENABLED="false"
+              fi
+            else
+              echo "⚠️ Python3 not available, falling back to basic template"
+              cp "$TEMPLATE" "$GENERATED_FILE"
+              DYNAMIC_INPUTS_ENABLED="false"
+            fi
+          else
+            echo "ℹ️ No dynamic inputs specification, using basic template"
+            cp "$TEMPLATE" "$GENERATED_FILE"
+            DYNAMIC_INPUTS_ENABLED="false"
+          fi
           
-          # 基本的な置換処理
+          # 基本的な置換処理（動的inputs生成後）
           ISSUE_TITLE="${{ github.event.issue.title || github.event.inputs.description }}"
           SAFE_TITLE=$(echo "$ISSUE_TITLE" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
           
-          # ワークフロー名とトリガーをカスタマイズ
-          sed -i "1s/.*/name: \"Generated ${WORKFLOW_TYPE} - ${SAFE_TITLE}\"/" "$GENERATED_FILE"
-          
-          # GitHub Actionsワークフロー形式に変換（必要に応じて）
-          if ! grep -q "^name:" "$GENERATED_FILE"; then
-            # exampleファイルがワークフロー形式でない場合の変換処理
-            echo "Converting example to GitHub Actions workflow format..."
-            # ここで変換ロジックを実装
+          # ワークフロー名の更新（既に生成されている場合は更新）
+          if [ "$DYNAMIC_INPUTS_ENABLED" = "false" ]; then
+            # 基本テンプレートの場合のみ名前を更新
+            if grep -q "^name:" "$GENERATED_FILE"; then
+              sed -i "1s/.*/name: \"Generated ${WORKFLOW_TYPE} - ${SAFE_TITLE}\"/" "$GENERATED_FILE"
+            fi
           fi
           
+          # 出力パラメータ設定
           echo "workflow_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
           echo "validation_required=$VALIDATION_REQUIRED" >> $GITHUB_OUTPUT
-          echo "✅ Workflow generated: $GENERATED_FILE"
+          echo "dynamic_inputs_enabled=$DYNAMIC_INPUTS_ENABLED" >> $GITHUB_OUTPUT
+          echo "template_used=$TEMPLATE" >> $GITHUB_OUTPUT
+          
+          echo "✅ Workflow generation completed: $GENERATED_FILE"
+          echo "   - Dynamic inputs: $DYNAMIC_INPUTS_ENABLED"
+          echo "   - Template: $TEMPLATE"
           
       - name: Upload Staging Workflow
         uses: actions/upload-artifact@v4
@@ -681,22 +716,48 @@ jobs:
           
           - **Type**: ${{ needs.analyze-request.outputs.workflow_type }}
           - **Validation**: ${{ needs.validate-workflow.outputs.validation_result || 'skipped' }}
+          - **Dynamic Inputs**: ${{ needs.template-based-generation.outputs.dynamic_inputs_enabled || 'false' }}
+          - **Template Used**: ${{ needs.template-based-generation.outputs.template_used }}
           - **Deployed To**: \`.github/workflows/\` (production)
           - **Timestamp**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
           
           ## Deployment Process
           1. ✅ Template-based generation completed
-          2. ✅ Staged in \`generated/workflows/staging/\`
-          3. ✅ Validation completed (Score: 75+/100)
-          4. ✅ Deployed to production workflows directory
+          2. ✅ Dynamic inputs processing $([ "${{ needs.template-based-generation.outputs.dynamic_inputs_enabled }}" = "true" ] && echo "✅ enabled" || echo "⚪ not required")
+          3. ✅ Staged in \`generated/workflows/staging/\`
+          4. ✅ Validation completed (Score: 75+/100)
+          5. ✅ Deployed to production workflows directory
           
-          ## Quality Assurance
-          - YAML syntax validation
-          - GitHub Actions structure check  
-          - MCP service reference validation
-          - Job dependency verification
+          ## Features
+          - **Dynamic Modal Interface**: $([ "${{ needs.template-based-generation.outputs.dynamic_inputs_enabled }}" = "true" ] && echo "🎯 User-friendly input forms with validation" || echo "📝 Standard GitHub Actions inputs")
+          - **Quality Assurance**: YAML syntax, GitHub Actions structure, MCP service references, dependencies
+          - **MCP Integration**: AI generation services with fallback strategies
+          - **Staged Deployment**: Quality-controlled deployment pipeline
           
-          Generated by Meta Workflow Generator v3 (Staged Deployment) 🤖🔄✅
+          ## Usage Instructions
+          $([ "${{ needs.template-based-generation.outputs.dynamic_inputs_enabled }}" = "true" ] && cat << 'USAGE'
+          ### 🎨 Dynamic Interface Usage
+          1. Go to **Actions** → Find your generated workflow
+          2. Click **"Run workflow"** 
+          3. Fill out the **dynamic form** with:
+             - Detailed prompts and descriptions
+             - Style preferences and quality settings
+             - Technical parameters (size, count, etc.)
+          4. Click **"Run workflow"** to start generation
+          5. Download results from **Artifacts** when complete
+          USAGE
+          || cat << 'BASIC'
+          ### 📝 Standard Usage
+          1. Go to **Actions** → Find your generated workflow
+          2. Click **"Run workflow"**
+          3. Fill out the basic input fields
+          4. Click **"Run workflow"** to start
+          5. Check results in workflow logs and artifacts
+          BASIC
+          )
+          
+          ---
+          Generated by **Meta Workflow Generator v3** (Staged Deployment + Dynamic Inputs) 🤖🔄✅🎯
           EOF
           
       - name: Commit Deployed Workflow
