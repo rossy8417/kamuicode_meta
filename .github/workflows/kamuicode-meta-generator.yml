@@ -27,14 +27,6 @@ on:
         required: false
         type: boolean
         default: false
-      composite_templates:
-        description: '複合ワークフローテンプレート (カンマ区切り)'
-        required: false
-        type: string
-      additional_instructions:
-        description: '追加の生成指示'
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -58,13 +50,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Comprehensive Auto-Fix & Diagnostic System
+      - name: Self-Diagnostic & Auto-Fix
         id: diagnose
         run: |
-          echo "🔍 Starting comprehensive diagnostic system..."
+          echo "🔍 Starting self-diagnostic..."
           
           # 診断結果とログを保存するディレクトリ作成
-          mkdir -p .meta/{diagnostics,fixes,auto-repairs} generated/{workflows/staging,workflows/validated}
+          mkdir -p .meta/diagnostics .meta/fixes
           
           # 失敗履歴の確認
           RETRY_COUNT=0
@@ -76,225 +68,72 @@ jobs:
           echo $((RETRY_COUNT + 1)) > .meta/diagnostics/retry_count
           
           FIXES_APPLIED=""
-          CRITICAL_ISSUES=""
           
-          echo "📊 === PHASE 1: ファイルパス・構造整合性チェック ==="
+          # Fix 1: MCP設定ファイルの参照・確認（AI生成サービス用のみ）
+          echo "🔧 Checking MCP configuration for AI generation services..."
+          mkdir -p ~/.claude
           
-          # Fix 1: テンプレートファイルの包括的チェックと自動修正
-          echo "🔧 Comprehensive template file validation with auto-recovery..."
-          
-          REQUIRED_TEMPLATES=(
-            "meta/examples/video-content-creation.yml"
-            "meta/examples/audio-music-creation.yml" 
-            "meta/examples/image-generation.yml"
-            "meta/examples/3d-model-creation.yml"
-            "meta/examples/presentation-slide-creation.yml"
-            "meta/examples/multimedia-ad-campaign.yml"
-            "meta/examples/news-summarization.yml"
-            "meta/examples/blog-article-creation.yml"
-            "meta/examples/data-analysis-visualization.yml"
-          )
-          
-          MISSING_TEMPLATES=""
-          for template in "${REQUIRED_TEMPLATES[@]}"; do
-            if [ ! -f "$template" ]; then
-              echo "❌ Missing critical template: $template"
-              MISSING_TEMPLATES="${MISSING_TEMPLATES}$template;"
-              
-              # 自動修復: 基本テンプレートを生成（YAML安全）
-              echo "🔧 Auto-creating missing template: $template"
-              mkdir -p "$(dirname "$template")"
-              echo 'name: Auto-Generated Basic Workflow' > "$template"
-              echo 'on:' >> "$template"
-              echo '  workflow_dispatch:' >> "$template"
-              echo '    inputs:' >> "$template"
-              echo '      prompt:' >> "$template"
-              echo '        description: "Generation prompt"' >> "$template"
-              echo '        required: true' >> "$template"
-              echo '        type: string' >> "$template"
-              echo 'jobs:' >> "$template"
-              echo '  generate:' >> "$template"
-              echo '    runs-on: ubuntu-latest' >> "$template"
-              echo '    steps:' >> "$template"
-              echo '      - uses: actions/checkout@v4' >> "$template"
-              echo '      - name: Basic Generation' >> "$template"
-              echo '        run: echo "Generated content"' >> "$template"
-              chmod +r "$template"
-              FIXES_APPLIED="${FIXES_APPLIED}auto-created-template-$template;"
-              echo "✅ Auto-created template: $template"
-            else
-              echo "✅ Template found: $template"
-              # ファイル読み取り権限チェック
-              if [ ! -r "$template" ]; then
-                echo "🔧 Fixing read permissions for $template"
-                chmod +r "$template" 2>/dev/null || echo "⚠️ Cannot fix permissions for $template"
-                FIXES_APPLIED="${FIXES_APPLIED}template-permissions-fixed;"
-              fi
-            fi
-          done
-          
-          # 追加: Git情報のデバッグ
-          echo "🔍 Git repository status check..."
-          echo "Current directory: $(pwd)"
-          echo "Git status:"
-          git status --porcelain || echo "Git status failed"
-          echo "Template directory contents:"
-          ls -la meta/examples/ 2>/dev/null || echo "Template directory not accessible"
-          
-          # Fix 2: 必要なスクリプトファイルの自動チェックと作成
-          echo "🔧 Checking and auto-creating required scripts..."
-          
-          REQUIRED_SCRIPTS=(
-            "script/generate-dynamic-inputs.py"
-            "script/content-download-manager.sh"
-            "script/enhance-content-quality.py"
-          )
-          
-          for script in "${REQUIRED_SCRIPTS[@]}"; do
-            if [ ! -f "$script" ]; then
-              echo "🔧 Auto-creating missing script: $script"
-              mkdir -p "$(dirname "$script")"
-              
-              # 簡略化されたスクリプト自動生成（YAML構文安全）
-              case "$script" in
-                "script/generate-dynamic-inputs.py")
-                  echo '#!/usr/bin/env python3' > "$script"
-                  echo 'import sys, shutil' >> "$script"
-                  echo 'if len(sys.argv) >= 5: shutil.copy2(sys.argv[2], sys.argv[4])' >> "$script"
-                  echo 'print("✅ Fallback script executed")' >> "$script"
-                  chmod +x "$script"
-                  ;;
-                "script/content-download-manager.sh")
-                  echo '#!/bin/bash' > "$script"
-                  echo 'echo "🔄 Content Download Manager (Fallback)"' >> "$script"
-                  echo 'echo "✅ Completed"' >> "$script"
-                  chmod +x "$script"
-                  ;;
-                "script/enhance-content-quality.py")
-                  echo '#!/usr/bin/env python3' > "$script"
-                  echo 'print("🔄 Content Quality Enhancement (Fallback)")' >> "$script"
-                  echo 'print("✅ Completed")' >> "$script"
-                  chmod +x "$script"
-                  ;;
-              esac
-              FIXES_APPLIED="${FIXES_APPLIED}auto-created-$script;"
-            else
-              echo "✅ Script found: $script"
-              # 実行権限チェック
-              if [ ! -x "$script" ]; then
-                echo "🔧 Fixing execute permissions for $script"
-                chmod +x "$script"
-                FIXES_APPLIED="${FIXES_APPLIED}script-permissions-fixed;"
-              fi
-            fi
-          done
-          
-          echo "📊 === PHASE 2: 設定ファイル整合性チェック ==="
-          
-          # Fix 3: MCP設定ファイルの詳細チェック
-          echo "🔧 Advanced MCP configuration validation..."
+          # ワークフロータイプを確認してMCPが必要かチェック
           WORKFLOW_TYPE="${{ github.event.inputs.workflow_type || 'unknown' }}"
           
           if [[ "$WORKFLOW_TYPE" =~ ^(image-generation|video-generation|audio-generation|news-video)$ ]]; then
-            if [ -f ".claude/mcp-kamuicode.json" ]; then
-              echo "✅ MCP configuration found"
-              # JSON構文チェック
-              if jq empty .claude/mcp-kamuicode.json 2>/dev/null; then
-                echo "✅ MCP JSON syntax valid"
-                FIXES_APPLIED="${FIXES_APPLIED}mcp-config-validated;"
-              else
-                echo "❌ MCP JSON syntax error"
-                CRITICAL_ISSUES="${CRITICAL_ISSUES}mcp-json-invalid;"
-              fi
+            # 既存のMCP設定ファイルを参照
+            if [ -f "${HOME}/.claude/mcp-kamuicode.json" ]; then
+              echo "✅ Using existing MCP configuration at ~/.claude/mcp-kamuicode.json"
+              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-found;"
+            elif [ -f "mcp-kamuicode.json" ]; then
+              echo "📋 Copying MCP config from repository"
+              cp mcp-kamuicode.json ~/.claude/mcp-kamuicode.json
+              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-copied-from-repo;"
             else
-              echo "⚠️ MCP configuration missing - creating fallback"
-              mkdir -p .claude
-              echo '{' > .claude/mcp-kamuicode.json
-              echo '  "mcpServers": {' >> .claude/mcp-kamuicode.json
-              echo '    "t2i-google-imagen3": {"command": "echo", "args": ["fallback-mcp"]},' >> .claude/mcp-kamuicode.json
-              echo '    "t2v-fal-veo3-fast": {"command": "echo", "args": ["fallback-mcp"]},' >> .claude/mcp-kamuicode.json
-              echo '    "t2m-google-lyria": {"command": "echo", "args": ["fallback-mcp"]}' >> .claude/mcp-kamuicode.json
-              echo '  }' >> .claude/mcp-kamuicode.json
-              echo '}' >> .claude/mcp-kamuicode.json
-              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-auto-created;"
+              echo "⚠️ MCP configuration not found - AI generation may not work"
+              echo "Please ensure mcp-kamuicode.json exists in repository or ~/.claude/"
+              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-missing;"
             fi
-          fi
-          
-          echo "📊 === PHASE 3: 依存関係・環境チェック ==="
-          
-          # Fix 4: Python/Node.js環境チェック
-          echo "🔧 Environment dependency validation..."
-          
-          if command -v python3 &> /dev/null; then
-            echo "✅ Python3 available"
-            FIXES_APPLIED="${FIXES_APPLIED}python3-available;"
+            echo "✅ MCP configuration setup completed"
           else
-            echo "⚠️ Python3 not available"
-            CRITICAL_ISSUES="${CRITICAL_ISSUES}python3-missing;"
+            echo "ℹ️ MCP not needed for text-only workflow type: $WORKFLOW_TYPE"
+            FIXES_APPLIED="${FIXES_APPLIED}mcp-not-required;"
           fi
           
-          if command -v jq &> /dev/null; then
-            echo "✅ jq available for JSON processing"
-            FIXES_APPLIED="${FIXES_APPLIED}jq-available;"
-          else
-            echo "⚠️ jq not available - installing..."
-            sudo apt-get update && sudo apt-get install -y jq 2>/dev/null || echo "❌ Cannot install jq"
-            FIXES_APPLIED="${FIXES_APPLIED}jq-install-attempted;"
+          # Fix 2: 必要なディレクトリ構造の確認・作成
+          echo "🔧 Ensuring directory structure..."
+          mkdir -p .meta/{requests,tasks,generated,logs} generated/{config,prompts,scripts}
+          FIXES_APPLIED="${FIXES_APPLIED}directories-created;"
+          
+          # Fix 3: プロンプトファイルの存在確認
+          echo "🔧 Checking prompt files..."
+          if [ ! -f "meta/prompts/task-decomposition.md" ]; then
+            echo "⚠️ Missing task-decomposition.md - will use fallback"
+            FIXES_APPLIED="${FIXES_APPLIED}missing-prompts-detected;"
           fi
           
-          echo "📊 === PHASE 4: 予防的問題検出 ==="
+          # 診断結果の保存
+          cat > .meta/diagnostics/diagnostic-$(date +%Y%m%d-%H%M%S).json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "retry_count": $((RETRY_COUNT + 1)),
+            "fixes_applied": "$FIXES_APPLIED",
+            "environment": {
+              "runner_os": "$RUNNER_OS",
+              "github_event": "${{ github.event_name }}",
+              "claude_token_present": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}"
+            }
+          }
+          EOF
           
-          # Fix 5: ワークフロー権限チェック
-          echo "🔧 GitHub Actions permissions validation..."
-          
-          # ディレクトリ書き込み権限チェック
-          TEST_DIRS=("generated/workflows/staging" ".meta/tasks" ".meta/validation")
-          for dir in "${TEST_DIRS[@]}"; do
-            mkdir -p "$dir"
-            if [ -w "$dir" ]; then
-              echo "✅ Write permission OK: $dir"
-            else
-              echo "❌ Write permission issue: $dir"
-              CRITICAL_ISSUES="${CRITICAL_ISSUES}write-permission-$dir;"
-            fi
-          done
-          
-          echo "📊 === PHASE 5: 診断結果とレポート生成 ==="
-          
-          # 診断結果の保存（YAML構文安全）
-          DIAGNOSTIC_FILE=".meta/diagnostics/diagnostic-$(date +%Y%m%d-%H%M%S).json"
-          echo "{" > "$DIAGNOSTIC_FILE"
-          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> "$DIAGNOSTIC_FILE"
-          echo "  \"retry_count\": $((RETRY_COUNT + 1))," >> "$DIAGNOSTIC_FILE"
-          echo "  \"fixes_applied\": \"$FIXES_APPLIED\"," >> "$DIAGNOSTIC_FILE"
-          echo "  \"critical_issues\": \"$CRITICAL_ISSUES\"," >> "$DIAGNOSTIC_FILE"
-          echo "  \"diagnostic_summary\": \"$FIXES_COUNT fixes applied, $ISSUES_COUNT issues found\"" >> "$DIAGNOSTIC_FILE"
-          echo "}" >> "$DIAGNOSTIC_FILE"
-          
-          # 重要な問題がある場合の警告
-          if [ -n "$CRITICAL_ISSUES" ]; then
-            echo "⚠️ CRITICAL ISSUES DETECTED: $CRITICAL_ISSUES"
-            echo "🔧 Some issues may require manual intervention"
-          fi
-          
-          # 成功メトリクス計算
-          FIXES_COUNT=$(echo "$FIXES_APPLIED" | tr ';' '\n' | grep -v '^$' | wc -l)
-          ISSUES_COUNT=$(echo "$CRITICAL_ISSUES" | tr ';' '\n' | grep -v '^$' | wc -l)
-          
-          echo "📋 === DIAGNOSTIC SUMMARY ==="
-          echo "✅ Auto-fixes applied: $FIXES_COUNT"
-          echo "⚠️ Critical issues found: $ISSUES_COUNT"
-          echo "🔄 Retry attempt: $((RETRY_COUNT + 1))"
-          
-          # GitHub Actions outputs設定
           echo "result=success" >> $GITHUB_OUTPUT
           echo "fixes_applied=$FIXES_APPLIED" >> $GITHUB_OUTPUT
           echo "retry_count=$((RETRY_COUNT + 1))" >> $GITHUB_OUTPUT
-          echo "critical_issues=$CRITICAL_ISSUES" >> $GITHUB_OUTPUT
           
-          echo "🎯 Comprehensive diagnostic completed with $FIXES_COUNT auto-fixes applied"
+          echo "🎯 Self-diagnostic completed. Fixes applied: $FIXES_APPLIED"
           
-      # Diagnostic Data は .meta/diagnostics/ で永続保存されるためArtifact不要
+      - name: Upload Diagnostic Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-${{ github.run_number }}
+          path: .meta/diagnostics/
+          retention-days: 30
 
   # Step 1: 要求の初期分析（エラーハンドリング強化）
   analyze-request:
@@ -304,7 +143,6 @@ jobs:
       workflow_type: ${{ steps.analyze.outputs.workflow_type }}
       branch_name: ${{ steps.analyze.outputs.branch_name }}
       request_file: ${{ steps.analyze.outputs.request_file }}
-      composite_detected: ${{ steps.analyze.outputs.composite_detected }}
     
     steps:
       - name: Checkout repository
@@ -342,15 +180,12 @@ jobs:
             WORKFLOW_TYPE="${{ github.event.inputs.workflow_type }}"
             echo "✅ Using manually specified workflow type: $WORKFLOW_TYPE"
           else
-            # Issues作成の場合はテキスト解析で推定（複合パターン優先）
+            # Issues作成の場合はテキスト解析で推定
             echo "🔍 Analyzing text to determine workflow type..."
-            if echo "$TITLE $BODY" | grep -qi "動画.*音楽\|video.*music\|I2V.*T2M\|複合.*動画\|story.*video.*audio\|ストーリー.*動画"; then
-              WORKFLOW_TYPE="video-generation"
-              echo "🎬 Composite video workflow detected"
+            if echo "$TITLE $BODY" | grep -qi "画像\|image\|バナー\|ロゴ\|illustration"; then
+              WORKFLOW_TYPE="image-generation"
             elif echo "$TITLE $BODY" | grep -qi "動画\|video\|アニメーション\|movie\|clip"; then
               WORKFLOW_TYPE="video-generation"
-            elif echo "$TITLE $BODY" | grep -qi "画像\|image\|バナー\|ロゴ\|illustration"; then
-              WORKFLOW_TYPE="image-generation"
             elif echo "$TITLE $BODY" | grep -qi "音声\|audio\|ナレーション\|music\|sound"; then
               WORKFLOW_TYPE="audio-generation"
             elif echo "$TITLE $BODY" | grep -qi "ニュース.*動画\|news.*video"; then
@@ -363,36 +198,6 @@ jobs:
               WORKFLOW_TYPE="custom"
             fi
             echo "📊 Text analysis result: $WORKFLOW_TYPE"
-          fi
-          
-          # 複合ワークフロー検出（analyze-request段階）
-          echo "🔍 Checking for composite workflow patterns..."
-          REQUEST_CONTENT="$TITLE $BODY"
-          COMPOSITE_DETECTED="single"
-          
-          # パターン1: ストーリー+動画+音楽
-          if echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
-            echo "✅ Detected: Story-based Video+Audio composite workflow"
-            COMPOSITE_DETECTED="story-video-audio"
-          # パターン2: 画像+動画+音楽
-          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*動画.*音楽\|image.*video.*music\|T2I.*I2V.*BGM"; then
-            echo "✅ Detected: Image-to-Video-Audio composite workflow"
-            COMPOSITE_DETECTED="image-video-audio"
-          # パターン3: 動画+音楽のみ
-          elif echo "$REQUEST_CONTENT" | grep -qi "動画.*音楽\|video.*music\|動画.*BGM"; then
-            echo "✅ Detected: Video+Audio composite workflow"
-            COMPOSITE_DETECTED="video-audio"
-          # パターン4: 画像+3D
-          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*3D\|image.*3d\|3D.*モデル"; then
-            echo "✅ Detected: Image+3D composite workflow"
-            COMPOSITE_DETECTED="image-3d"
-          # パターン5: プレゼン+データ分析
-          elif echo "$REQUEST_CONTENT" | grep -qi "プレゼン.*データ\|presentation.*data\|スライド.*分析"; then
-            echo "✅ Detected: Presentation+Data Analysis composite workflow"
-            COMPOSITE_DETECTED="presentation-data"
-          else
-            echo "ℹ️ Single template workflow detected"
-            COMPOSITE_DETECTED="single"
           fi
           
           # ブランチ名の生成
@@ -420,11 +225,15 @@ jobs:
           echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "request_file=.meta/requests/${REQUEST_ID}.md" >> $GITHUB_OUTPUT
-          echo "composite_detected=$COMPOSITE_DETECTED" >> $GITHUB_OUTPUT
           
-          echo "✅ Request analysis completed: Type=$WORKFLOW_TYPE, Composite=$COMPOSITE_DETECTED"
+          echo "✅ Request analysis completed: Type=$WORKFLOW_TYPE"
           
-      # Request Data は .meta/requests/ で永続保存されるためArtifact不要
+      - name: Upload Request Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: request-${{ github.run_number }}
+          path: .meta/requests/
+          retention-days: 30
 
   # Step 2: タスク分解（自己修復機能付き）
   decompose-tasks:
@@ -438,7 +247,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      # Request Data は既に .meta/requests/ に永続保存済みでDownload不要
+      - name: Download Request
+        uses: actions/download-artifact@v4
+        with:
+          name: request-${{ github.run_number }}
+          path: .meta/requests/
           
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -488,36 +301,11 @@ jobs:
           EOF
           fi
           
-          # プロンプトに要求内容と複合検出結果を追加
+          # プロンプトに要求内容を追加
           cat $PROMPT_FILE > .meta/decompose-prompt.md
           echo "" >> .meta/decompose-prompt.md
           echo "## User Request:" >> .meta/decompose-prompt.md
-          echo "Type: ${{ needs.analyze-request.outputs.workflow_type }}" >> .meta/decompose-prompt.md
-          echo "Description: ${{ github.event.inputs.description || github.event.issue.body }}" >> .meta/decompose-prompt.md
-          echo "" >> .meta/decompose-prompt.md
-          echo "## Composite Workflow Analysis:" >> .meta/decompose-prompt.md
-          echo "- Detected Type: ${{ needs.analyze-request.outputs.composite_detected }}" >> .meta/decompose-prompt.md
-          echo "- Workflow Type: ${{ needs.analyze-request.outputs.workflow_type }}" >> .meta/decompose-prompt.md
-          
-          # 複合タスク分解用の特別指示を追加
-          if [ "${{ needs.analyze-request.outputs.composite_detected }}" != "single" ]; then
-            echo "" >> .meta/decompose-prompt.md
-            echo "## 重要：複合ワークフロー分解指示" >> .meta/decompose-prompt.md
-            echo "このリクエストは複合ワークフロー（${{ needs.analyze-request.outputs.composite_detected }}）です。以下の点に注意してタスク分解してください：" >> .meta/decompose-prompt.md
-            echo "1. **段階的生成**: 各AI生成サービス（T2I → I2V → T2M → V2A）を独立したタスクとして分解" >> .meta/decompose-prompt.md
-            echo "2. **ファイル連携**: 前段の出力を次段の入力として正確に参照" >> .meta/decompose-prompt.md
-            echo "3. **並行処理**: 独立可能なタスク（音楽生成など）は並行実行を指定" >> .meta/decompose-prompt.md
-            echo "4. **統合タスク**: 最終的な動画+音楽統合タスクを含める" >> .meta/decompose-prompt.md
-            echo "5. **所要時間**: 複合ワークフローは通常60-90分を想定" >> .meta/decompose-prompt.md
-            echo "" >> .meta/decompose-prompt.md
-            echo "例: story-video-audio の場合" >> .meta/decompose-prompt.md
-            echo "- Task 1: ストーリー生成とシーン抽出" >> .meta/decompose-prompt.md
-            echo "- Task 2: Text-to-Image (T2I) - 各シーンの画像生成" >> .meta/decompose-prompt.md
-            echo "- Task 3: Image-to-Video (I2V) - 画像から動画変換（並行処理）" >> .meta/decompose-prompt.md
-            echo "- Task 4: Text-to-Music (T2M) - BGM生成（並行処理）" >> .meta/decompose-prompt.md
-            echo "- Task 5: Video-to-Audio (V2A) - ナレーション生成" >> .meta/decompose-prompt.md
-            echo "- Task 6: 最終統合 - 動画+BGM+ナレーション合成" >> .meta/decompose-prompt.md
-          fi
+          cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
           
           # Claude Code タスク分解の実行（ファイル保存指示付き）
           echo "🔄 Executing Claude Code task decomposition with file save instruction..."
@@ -626,7 +414,12 @@ jobs:
             exit 1
           fi
           
-      # Task Plan は .meta/tasks/ で永続保存されるためArtifact不要
+      - name: Upload Task Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-plan-${{ github.run_number }}
+          path: .meta/tasks/
+          retention-days: 30
 
   # Step 3: エラー監視・学習システム
   error-monitoring:
@@ -692,164 +485,141 @@ jobs:
           # 段階的格納用ディレクトリ作成
           mkdir -p generated/workflows/staging generated/workflows/validated .meta/validation
           
-          # 複合テンプレート選択とカスタマイズ（Enhanced Multi-Template System）
+          # テンプレート選択とカスタマイズ
           WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
           REQUEST_ID="$(echo '${{ needs.analyze-request.outputs.request_file }}' | sed 's/.*\///' | sed 's/\.md$//')"
           GENERATED_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
           
-          # 複合テンプレート選択（analyze-requestからの検出結果を使用）
-          COMPOSITE_DETECTED="${{ needs.analyze-request.outputs.composite_detected }}"
-          TEMPLATES=""
-          
-          echo "🔍 Using composite detection from analyze-request: $COMPOSITE_DETECTED"
-          
-          # 複合タイプに基づくテンプレート選択
-          case "$COMPOSITE_DETECTED" in
-            "story-video-audio")
-              echo "✅ Story-based Video+Audio composite workflow"
-              TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+          case "$WORKFLOW_TYPE" in
+            "video-generation"|"video-content")
+              TEMPLATE="meta/examples/video-content-creation.yml"
+              VALIDATION_REQUIRED="true"
               ;;
-            "image-video-audio")
-              echo "✅ Image-to-Video-Audio composite workflow"
-              TEMPLATES="image-generation.yml,video-content-creation.yml,audio-music-creation.yml"
+            "image-generation"|"image")
+              TEMPLATE="meta/examples/image-generation.yml"
+              VALIDATION_REQUIRED="true"
               ;;
-            "video-audio")
-              echo "✅ Video+Audio composite workflow"
-              TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+            "3d-model"|"3d")
+              TEMPLATE="meta/examples/3d-model-creation.yml" 
+              VALIDATION_REQUIRED="true"
               ;;
-            "image-3d")
-              echo "✅ Image+3D composite workflow"
-              TEMPLATES="image-generation.yml,3d-model-creation.yml"
+            "audio-generation"|"music")
+              TEMPLATE="meta/examples/audio-music-creation.yml"
+              VALIDATION_REQUIRED="true"
               ;;
-            "presentation-data")
-              echo "✅ Presentation+Data Analysis composite workflow"
-              TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
+            "presentation"|"slides")
+              TEMPLATE="meta/examples/presentation-slide-creation.yml"
+              VALIDATION_REQUIRED="true"
               ;;
-            "single"|*)
-              echo "ℹ️ Using single template selection logic"
-              case "$WORKFLOW_TYPE" in
-                "video-generation"|"video-content"|"video")
-                  TEMPLATES="video-content-creation.yml"
-                  ;;
-                "image-generation"|"image")
-                  TEMPLATES="image-generation.yml"
-                  ;;
-                "3d-model"|"3d")
-                  TEMPLATES="3d-model-creation.yml"
-                  ;;
-                "audio-generation"|"music")
-                  TEMPLATES="audio-music-creation.yml"
-                  ;;
-                "presentation"|"slides")
-                  TEMPLATES="presentation-slide-creation.yml"
-                  ;;
-                "news-article"|"news")
-                  TEMPLATES="news-summarization.yml"
-                  ;;
-                *)
-                  TEMPLATES="multimedia-ad-campaign.yml"
-                  ;;
-              esac
+            "news-article"|"news")
+              TEMPLATE="meta/examples/news-summarization.yml"
+              VALIDATION_REQUIRED="false"
+              ;;
+            *)
+              TEMPLATE="meta/examples/multimedia-ad-campaign.yml"
+              VALIDATION_REQUIRED="true"
               ;;
           esac
           
-          VALIDATION_REQUIRED="true"
+          if [ ! -f "$TEMPLATE" ]; then
+            echo "❌ Template not found: $TEMPLATE"
+            exit 1
+          fi
           
-          # 複数テンプレート組み合わせ処理
-          if [[ "$TEMPLATES" == *","* ]]; then
-            echo "🔧 Processing composite workflow with multiple templates..."
+          # 動的inputs仕様の確認
+          echo "🔍 Checking for dynamic inputs specification..."
+          if grep -q "dynamic_inputs_spec:" "$TEMPLATE"; then
+            echo "✅ Dynamic inputs found, generating enhanced workflow..."
             
-            # テンプレートを配列に分割
-            IFS=',' read -ra TEMPLATE_ARRAY <<< "$TEMPLATES"
+            # スクリプトパス確認・権限設定
+            echo "🔧 Checking script paths and permissions..."
             
-            echo "📋 Templates to combine: ${TEMPLATE_ARRAY[@]}"
+            # 必要スクリプトの存在確認
+            SCRIPTS_MISSING=""
             
-            # 各テンプレートの存在確認と自動修復
-            for template in "${TEMPLATE_ARRAY[@]}"; do
-              TEMPLATE_PATH="meta/examples/$template"
-              if [ ! -f "$TEMPLATE_PATH" ]; then
-                echo "❌ Template not found: $TEMPLATE_PATH"
-                echo "🔧 Creating fallback template: $TEMPLATE_PATH"
+            if [ ! -f "./script/generate-dynamic-inputs.py" ]; then
+              SCRIPTS_MISSING="${SCRIPTS_MISSING}generate-dynamic-inputs.py "
+            else
+              chmod +x ./script/generate-dynamic-inputs.py
+              echo "✅ Found: ./script/generate-dynamic-inputs.py"
+            fi
+            
+            if [ ! -f "./script/content-download-manager.sh" ]; then
+              SCRIPTS_MISSING="${SCRIPTS_MISSING}content-download-manager.sh "
+            else
+              chmod +x ./script/content-download-manager.sh
+              echo "✅ Found: ./script/content-download-manager.sh"
+            fi
+            
+            if [ ! -f "./script/enhance-content-quality.py" ]; then
+              SCRIPTS_MISSING="${SCRIPTS_MISSING}enhance-content-quality.py "
+            else
+              chmod +x ./script/enhance-content-quality.py
+              echo "✅ Found: ./script/enhance-content-quality.py"
+            fi
+            
+            if [ -n "$SCRIPTS_MISSING" ]; then
+              echo "❌ Missing required scripts: $SCRIPTS_MISSING"
+              echo "   Falling back to basic template generation"
+              DYNAMIC_INPUTS_ENABLED="false"
+            else
+              echo "✅ All required scripts found and executable"
+              
+              # Pythonスクリプトで動的inputsを生成（相対パス使用）
+              echo "🐍 Generating dynamic inputs with Python..."
+              if command -v python3 &> /dev/null; then
+                python3 ./script/generate-dynamic-inputs.py \
+                  --template "$TEMPLATE" \
+                  --output "$GENERATED_FILE"
                 
-                # 自動修復: 基本テンプレートを即座に生成
-                mkdir -p "$(dirname "$TEMPLATE_PATH")"
-                cat > "$TEMPLATE_PATH" << 'FALLBACK_TEMPLATE'
-# Auto-Generated Fallback Template
-name: Generated Composite Story-Video-Audio Workflow
-run-name: ${{ github.actor }} creates story-based video with BGM and narration
-
-on:
-  workflow_dispatch:
-    inputs:
-      story_prompt:
-        description: 'Story/narrative for the video'
-        required: true
-        type: string
-      video_style:
-        description: 'Visual style for the video'
-        required: false
-        type: string
-        default: 'cinematic'
-      bgm_mood:
-        description: 'BGM mood/genre'
-        required: false
-        type: string
-        default: 'dramatic'
-
-jobs:
-  story-to-image:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate Images from Story
-        run: |
-          echo "🎯 Generating images from story: ${{ github.event.inputs.story_prompt }}"
-          echo "Style: ${{ github.event.inputs.video_style }}"
-          # MCP Text-to-Image generation would go here
-          echo "✅ Story images generated"
+                if [ $? -eq 0 ]; then
+                  echo "✅ Dynamic inputs workflow generated successfully"
+                  DYNAMIC_INPUTS_ENABLED="true"
+                else
+                  echo "⚠️ Dynamic inputs generation failed, falling back to basic template"
+                  cp "$TEMPLATE" "$GENERATED_FILE"
+                  DYNAMIC_INPUTS_ENABLED="false"
+                fi
+              else
+                echo "⚠️ Python3 not available, falling back to basic template"
+                cp "$TEMPLATE" "$GENERATED_FILE"
+                DYNAMIC_INPUTS_ENABLED="false"
+              fi
+            fi
+          else
+            echo "ℹ️ No dynamic inputs specification, using basic template"
+            cp "$TEMPLATE" "$GENERATED_FILE"
+            DYNAMIC_INPUTS_ENABLED="false"
+          fi
           
-  image-to-video:
-    needs: story-to-image
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Convert Images to Video
-        run: |
-          echo "🎬 Converting images to video sequence"
-          # MCP Image-to-Video generation would go here
-          echo "✅ Video sequence created"
+          # 基本的な置換処理（動的inputs生成後）
+          ISSUE_TITLE="${{ github.event.issue.title || github.event.inputs.description }}"
+          SAFE_TITLE=$(echo "$ISSUE_TITLE" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
           
-  generate-bgm:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate Background Music
-        run: |
-          echo "🎵 Generating BGM with mood: ${{ github.event.inputs.bgm_mood }}"
-          # MCP Text-to-Music generation would go here
-          echo "✅ BGM generated"
+          # ワークフロー名の更新（既に生成されている場合は更新）
+          if [ "$DYNAMIC_INPUTS_ENABLED" = "false" ]; then
+            # 基本テンプレートの場合のみ名前を更新
+            if grep -q "^name:" "$GENERATED_FILE"; then
+              sed -i "1s/.*/name: \"Generated ${WORKFLOW_TYPE} - ${SAFE_TITLE}\"/" "$GENERATED_FILE"
+            fi
+          fi
           
-  generate-narration:
-    needs: image-to-video
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate Narration
-        run: |
-          echo "🎙️ Generating narration for story"
-          # MCP Video-to-Audio generation would go here
-          echo "✅ Narration generated"
+          # 出力パラメータ設定
+          echo "workflow_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
+          echo "validation_required=$VALIDATION_REQUIRED" >> $GITHUB_OUTPUT
+          echo "dynamic_inputs_enabled=$DYNAMIC_INPUTS_ENABLED" >> $GITHUB_OUTPUT
+          echo "template_used=$TEMPLATE" >> $GITHUB_OUTPUT
           
-  final-composition:
-    needs: [image-to-video, generate-bgm, generate-narration]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Compose Final Video
-        run: |
-          echo "🎞️ Composing final video with BGM and narration"
-          echo "Story: ${{ github.event.inputs.story_prompt }}"
-          echo "✅ Final composite video created"
+          echo "✅ Workflow generation completed: $GENERATED_FILE"
+          echo "   - Dynamic inputs: $DYNAMIC_INPUTS_ENABLED"
+          echo "   - Template: $TEMPLATE"
+          
+      - name: Upload Staging Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-workflow-${{ github.run_number }}
+          path: generated/workflows/staging/
+          retention-days: 7
 
   # Step 5: ワークフロー検証（段階的格納の核心）
   validate-workflow:
@@ -864,7 +634,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      # Staging Workflow は既に generated/workflows/staging/ にあるためDownload不要
+      - name: Download Staging Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-workflow-${{ github.run_number }}
+          path: generated/workflows/staging/
           
       - name: Validate Workflow Syntax and Logic
         id: validate
@@ -959,7 +733,12 @@ jobs:
           echo "result=$VALIDATION_RESULT" >> $GITHUB_OUTPUT
           echo "errors=$VALIDATION_ERRORS" >> $GITHUB_OUTPUT
           
-      # Validation Report は .meta/validation/ で永続保存されるためArtifact不要
+      - name: Upload Validation Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report-${{ github.run_number }}
+          path: .meta/validation/
+          retention-days: 30
 
   # Step 6: 承認済みワークフローの最終配置
   deploy-validated-workflow:
@@ -971,7 +750,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      # Staging Workflow は既に generated/workflows/staging/ にあるためDownload不要
+      - name: Download Staging Workflow  
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-workflow-${{ github.run_number }}
+          path: generated/workflows/staging/
           
       - name: Deploy to Production Workflows Directory
         run: |
@@ -1076,8 +859,6 @@ jobs:
           🤖 Generated with [Claude Code](https://claude.ai/code)
           Co-Authored-By: Claude <noreply@anthropic.com>" || echo "No changes to commit"
           
-          # Git push with conflict resolution
-          git pull --rebase origin main || echo "Rebase failed, but continuing..."
           git push origin main || echo "Push failed, but continuing..."
 
   # Step 5: 失敗時の自動修復・学習・Git更新
@@ -1150,8 +931,6 @@ jobs:
             🤖 Generated with [Claude Code](https://claude.ai/code)
             Co-Authored-By: Claude <noreply@anthropic.com>"
             
-            # Git push with conflict resolution
-            git pull --rebase origin main || echo "Rebase failed"
             git push origin main
             echo "✅ Auto-fixes committed and pushed to repository"
           else
@@ -1181,9 +960,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      # Generated Workflow は既に generated/workflows/staging/ に永続保存済み
+      - name: Download Generated Workflow Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-workflow-${{ github.run_number }}
+          path: ./artifacts/staging/
           
-      # Validation Report は既に .meta/validation/ に永続保存済み
+      - name: Download Validation Report (if available)
+        uses: actions/download-artifact@v4
+        with:
+          name: validation-report-${{ github.run_number }}
+          path: ./artifacts/validation/
+        continue-on-error: true
         
       - name: Save Generated Workflow to Repository
         run: |
@@ -1192,22 +980,17 @@ jobs:
           # ディレクトリ構造の確保
           mkdir -p generated/workflows/staging generated/workflows/validated .meta/generated-history
           
-          # ファイルはGit内に既に永続保存されているため、コピー不要
-          echo "📁 Files already persisted in Git repository:"
-          
-          if [ -d "generated/workflows/staging" ]; then
-            echo "📂 Staging workflows:"
+          # Artifactからファイルをコピー
+          if [ -d "./artifacts/staging" ]; then
+            echo "📁 Copying staging files..."
+            cp -r ./artifacts/staging/* generated/workflows/staging/ 2>/dev/null || echo "No staging files to copy"
             ls -la generated/workflows/staging/
           fi
           
-          if [ -d "generated/workflows/validated" ]; then
-            echo "📂 Validated workflows:"
+          if [ -d "./artifacts/validation" ]; then
+            echo "📁 Copying validation files..."
+            cp -r ./artifacts/validation/* generated/workflows/validated/ 2>/dev/null || echo "No validation files to copy"
             ls -la generated/workflows/validated/
-          fi
-          
-          if [ -d ".meta/validation" ]; then
-            echo "📂 Validation reports:"
-            ls -la .meta/validation/
           fi
           
           # 生成履歴の記録
@@ -1246,8 +1029,6 @@ jobs:
             
             git commit -m "feat: 自動生成ワークフロー保存 🤖 Generated with Claude Code"
             
-            # Git push with conflict resolution
-            git pull --rebase origin main || echo "Rebase failed"
             git push origin main
             echo "✅ Generated workflow committed and pushed to repository"
             echo "🎯 Available at: generated/workflows/staging/$GENERATED_FILE"
