@@ -225,30 +225,16 @@ if [ -f "requirements.txt" ]; then
   pip3 install -r requirements.txt --quiet || echo "⚠️ Some dependencies may not be available"
 fi
 
-# MCP設定をセットアップ（環境に応じて）
-if [ ! -f ~/.claude/mcp-kamuicode.json ]; then
-  echo "⚠️ MCP config not found, creating basic config..."
-  cat > ~/.claude/mcp-kamuicode.json << 'EOF'
-{
-  "mcpServers": {
-    "t2i-google-imagen3": {
-      "type": "http",
-      "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/google/imagen",
-      "description": "Google Imagen 3 Text-to-Image Generation"
-    },
-    "t2i-fal-imagen4-ultra": {
-      "type": "http", 
-      "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/fal/imagen4/ultra",
-      "description": "Fal.ai Imagen 4 Ultra Text-to-Image Generation"
-    },
-    "t2i-fal-imagen4-fast": {
-      "type": "http",
-      "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/fal/imagen4/fast", 
-      "description": "Fal.ai Imagen 4 Fast Text-to-Image Generation"
-    }
-  }
-}
-EOF
+# MCP設定をセットアップ（既存ファイル参照）
+if [ -f "${HOME}/.claude/mcp-kamuicode.json" ]; then
+  echo "✅ Using existing MCP configuration at ~/.claude/mcp-kamuicode.json"
+elif [ -f "mcp-kamuicode.json" ]; then
+  echo "📋 Copying MCP config from repository"
+  cp mcp-kamuicode.json ~/.claude/mcp-kamuicode.json
+else
+  echo "⚠️ MCP configuration not found"
+  echo "Please ensure mcp-kamuicode.json exists in repository or ~/.claude/"
+  echo "AI generation services may not work without proper MCP configuration"
 fi
                         '''
                     },
@@ -275,7 +261,7 @@ SUCCESS=false
 for service in "${SERVICES[@]}"; do
   echo "🔄 Trying MCP service: $service"
   
-  if timeout 180 claude --mcp-config=~/.claude/mcp-kamuicode.json --mcp "$service" --prompt "$OPTIMIZED_PROMPT" > ".logs/image-generation/${service}-result.json" 2>&1; then
+  if timeout 180 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp "$service" --prompt "$OPTIMIZED_PROMPT" > ".logs/image-generation/${service}-result.json" 2>&1; then
     echo "✅ Success with $service"
     SUCCESS=true
     
