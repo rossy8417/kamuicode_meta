@@ -318,7 +318,8 @@ jobs:
           cat $PROMPT_FILE > .meta/decompose-prompt.md
           echo "" >> .meta/decompose-prompt.md
           echo "## User Request:" >> .meta/decompose-prompt.md
-          cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
+          echo "Type: ${{ needs.analyze-request.outputs.workflow_type }}" >> .meta/decompose-prompt.md
+          echo "Description: ${{ github.event.inputs.description || github.event.issue.body }}" >> .meta/decompose-prompt.md
           echo "" >> .meta/decompose-prompt.md
           echo "## Composite Workflow Analysis:" >> .meta/decompose-prompt.md
           echo "- Detected Type: ${{ needs.analyze-request.outputs.composite_detected }}" >> .meta/decompose-prompt.md
