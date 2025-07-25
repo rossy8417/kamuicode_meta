@@ -6,7 +6,11 @@ on:
     workflows: ["Kamuicode Meta Generator (Self-Healing)"]
     types:
       - completed
-    # 成功時のみ監視実行（失敗時はauto-fixが対応）
+      - in_progress
+    # 実行中と完了時に監視実行（全状況をカバー）
+  schedule:
+    # 5分ごとに定期監視（アクティブな実行がある場合のみ）
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       emergency_mode:
@@ -25,10 +29,10 @@ env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 jobs:
-  # 継続的システム監視（メインワークフロー成功時のみ）
+  # 継続的システム監視（全状況対応）
   continuous-monitoring:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'workflow_run'
     outputs:
       critical_issue: ${{ steps.detect.outputs.critical_issue }}
       immediate_fix_needed: ${{ steps.detect.outputs.immediate_fix_needed }}
