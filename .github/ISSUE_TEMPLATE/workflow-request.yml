@@ -1,65 +1,220 @@
-name: ワークフロー生成リクエスト
-description: 新しいKamuicodeワークフローの生成をリクエスト
+name: ワークフロー生成リクエスト (Enhanced v3)
+description: 複合テンプレート機能・段階的デプロイメント対応の新しいKamuicodeワークフロー生成リクエスト
 title: "[Workflow Request] "
-labels: ["workflow-generation", "automation"]
+labels: ["workflow-generation", "automation", "v3-enhanced"]
 body:
   - type: markdown
     attributes:
       value: |
-        ## 🤖 ワークフロー生成リクエスト
-        このフォームを使用して、新しいKamuicodeワークフローの自動生成をリクエストできます。
+        ## 🤖 Kamuicode Meta Workflow Generator v3
+        **複合テンプレート機能・段階的デプロイメント・動的inputs対応**
+        
+        このフォームを使用して、AI生成サービス統合ワークフローを自動生成できます。
+        複数のテンプレートを組み合わせた複合ワークフローの生成も可能です。
+        
+        ### ✨ **新機能**
+        - 🔗 **複合テンプレート**: 複数のAI機能を自動組み合わせ（例：画像→動画→音楽）
+        - 🎯 **動的inputs**: ユーザーフレンドリーな入力フォーム自動生成
+        - 🛡️ **品質保証**: 段階的デプロイメント（Staging→Validation→Production）
+        - 🤖 **MCP統合**: 最新AI生成サービス（T2I, I2V, T2M, V2A等）
         
   - type: dropdown
-    id: workflow-type
+    id: workflow-category
     attributes:
-      label: ワークフローのタイプ
-      description: 生成したいワークフローのタイプを選択してください
+      label: ワークフロー種別
+      description: 生成したいワークフローの種別を選択してください
       options:
-        - 画像生成（image-generation）
-        - 動画生成（video-generation）
-        - 音声生成（audio-generation）
-        - ニュース記事生成（news-article）
-        - ニュース動画生成（news-video）
-        - ソーシャル連携（social-integration）
-        - カスタム（custom）
+        - "単一機能ワークフロー（従来型）"
+        - "複合統合ワークフロー（複数AI機能組み合わせ）" 
+        - "カスタム・実験的ワークフロー"
     validations:
       required: true
-      
-  - type: textarea
-    id: description
+
+  - type: dropdown
+    id: primary-workflow-type
     attributes:
-      label: 詳細な説明
-      description: 生成したいワークフローの詳細を記述してください
-      placeholder: |
-        例：
-        - 毎日午前9時に今日の天気に合わせたイラストを生成したい
-        - 新しいイシューが作成されたら自動でサムネイルを生成したい
-        - 最新のAIニュースを収集して動画化したい
+      label: 主要ワークフロータイプ
+      description: メインとなるワークフローのタイプを選択
+      options:
+        - "画像生成（image-generation）- T2I"
+        - "動画生成（video-generation）- T2V/I2V"
+        - "音声・音楽生成（audio-generation）- T2M/V2A"
+        - "3Dモデル生成（3d-model）- I2I3D"
+        - "プレゼンテーション作成（presentation）"
+        - "データ分析・可視化（data-analysis）"
+        - "ニュース記事生成（news-article）"
+        - "ブログ記事作成（blog-article）"
+        - "マルチメディア広告（multimedia-ad）"
+        - "カスタム（custom）"
     validations:
       required: true
-      
-  - type: textarea
-    id: requirements
-    attributes:
-      label: 具体的な要件
-      description: 必要な機能や制約を記載してください
-      placeholder: |
-        - 出力形式: 1920x1080のPNG画像
-        - 実行頻度: 毎日午前9時
-        - 使用モデル: DALL-E 3
-        - エラー時の通知: Slack
-        
+
   - type: checkboxes
-    id: features
+    id: composite-features
     attributes:
-      label: 必要な機能
-      description: ワークフローに含めたい機能を選択してください
+      label: 複合機能（複数選択で自動組み合わせ）
+      description: 組み合わせたいAI機能を選択（複数選択で複合ワークフロー生成）
       options:
-        - label: 定期実行（スケジュール）
-        - label: エラー通知
-        - label: 複数ファイル出力
-        - label: 並列処理
-        - label: キャッシュ機能
-        - label: Web検索機能
-        - label: 外部API連携
-        - label: 品質検証
+        - label: "🎨 T2I - テキストから画像生成（Imagen4, Google Imagen3）"
+        - label: "🎬 T2V - テキストから動画生成（Veo3 Fast）"
+        - label: "🖼️ I2V - 画像から動画生成（Hailuo-02 Pro）"
+        - label: "🎵 T2M - テキストから音楽生成（Google Lyria）"
+        - label: "🔊 V2A - 動画から音声生成（ThinkSound）"
+        - label: "📐 I2I3D - 画像から3Dモデル生成（Hunyuan3D）"
+        - label: "🎞️ V2V - 動画変換・修正（Luma Ray-2）"
+        - label: "🎪 R2V - 参照画像から動画生成（Vidu Q1）"
+
+  - type: textarea
+    id: detailed-description
+    attributes:
+      label: 詳細な説明・ストーリー
+      description: |
+        生成したいワークフローの詳細を記述してください。
+        複合ワークフローの場合は、各機能間の連携方法も記載してください。
+      placeholder: |
+        【単一機能の例】
+        - 毎日午前9時にその日の天気に合わせたイラストを自動生成したい
+        - プロダクト画像から3Dモデルを生成してARアプリで使用したい
+        
+        【複合機能の例】
+        - ストーリーテキストから画像生成→動画化→BGM追加→完成動画出力
+        - ニュース記事から要約画像生成→プレゼンスライド作成→ナレーション音声追加
+        - 商品説明から画像生成→3Dモデル化→プロモーション動画作成
+      value: |
+        ## ワークフローの目的・背景
+        
+        
+        ## 期待する処理フロー
+        1. 
+        2. 
+        3. 
+        
+        ## 最終成果物
+        
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-requirements
+    attributes:
+      label: 技術的要件・制約
+      description: MCP設定、出力形式、品質設定などの技術仕様
+      placeholder: |
+        【出力仕様】
+        - 画像：1920x1080、16:9、PNG/JPEG
+        - 動画：MP4、H.264、30fps、4-8秒
+        - 音楽：MP3、44.1kHz、ステレオ、30-60秒
+        
+        【品質設定】
+        - 画像品質：Ultra（最高品質）/ Balanced（バランス）/ Fast（高速）
+        - 処理優先度：品質重視 / 速度重視 / バランス
+        
+        【MCP設定】
+        - 使用優先サービス：imagen4-ultra, veo3-fast, google-lyria など
+        
+        【実行制約】
+        - 最大実行時間：○○分
+        - 並列処理数：○○個
+        - リトライ回数：○○回
+      value: |
+        ## 出力形式・品質
+        
+        
+        ## MCP設定・AI生成サービス
+        
+        
+        ## 実行・パフォーマンス制約
+        
+        
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: advanced-features
+    attributes:
+      label: 高度な機能・最適化
+      description: ワークフローに含めたい高度な機能を選択
+      options:
+        - label: "🎯 動的inputs - ユーザーフレンドリーな入力フォーム生成"
+        - label: "🔄 段階的デプロイメント - Staging→Validation→Production"
+        - label: "⚡ 並列処理 - 複数タスクの同時実行"
+        - label: "🛡️ 品質検証 - 自動品質チェック・向上処理"
+        - label: "🔧 自動修復 - エラー検出時の自動修正"
+        - label: "📊 進捗監視 - リアルタイム実行状況監視"
+        - label: "💾 中間ファイル保存 - 各段階の結果ファイル保存"
+        - label: "🔀 フォールバック - 代替サービス・手法による継続実行"
+        - label: "⏰ 定期実行 - スケジュール実行機能"
+        - label: "🔔 通知機能 - 完了・エラー通知"
+
+  - type: dropdown
+    id: deployment-mode
+    attributes:
+      label: デプロイメントモード
+      description: ワークフローの配置・実行方式を選択
+      options:
+        - "本番直接配置（通常モード）"
+        - "段階的デプロイメント（推奨：Staging→Validation→Production）"
+        - "テスト専用配置（実験・検証用）"
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: urgency-level
+    attributes:
+      label: 緊急度・優先度
+      description: 生成リクエストの優先度を選択
+      options:
+        - "低（通常処理）"
+        - "中（優先処理）"
+        - "高（緊急処理）"
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: success-criteria
+    attributes:
+      label: 成功判定条件・期待結果
+      description: |
+        ワークフローが正常に動作したと判定する条件を記載
+        生成されるファイルや実行結果の期待値を具体的に記述
+      placeholder: |
+        【成功条件の例】
+        ✅ 指定した品質基準（75点以上）を満たす画像が生成される
+        ✅ 動画とBGMが正しく合成された最終ファイルが出力される  
+        ✅ 全処理が10分以内に完了する
+        ✅ エラー発生時に適切なフォールバック処理が動作する
+        
+        【期待結果】
+        - 最終成果物：○○形式のファイル
+        - 中間成果物：各段階での○○ファイル
+        - ログ・レポート：実行結果詳細レポート
+      value: |
+        ## 成功判定条件
+        ✅ 
+        ✅ 
+        ✅ 
+        
+        ## 期待される最終成果物
+        
+        
+        ## 期待される中間成果物
+        
+        
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 📋 生成プロセス
+        
+        1. **🔍 要求分析**: 複合パターン検出・テンプレート選択
+        2. **🛠️ ワークフロー生成**: 動的inputs・複合テンプレート統合
+        3. **✅ 品質検証**: YAML構文・GitHub Actions構造・MCP参照チェック
+        4. **🚀 段階的配置**: Staging→Validation→Production デプロイメント
+        5. **📊 結果通知**: 生成完了・実行可能ワークフロー提供
+        
+        **Generated by Kamuicode Meta Workflow Generator v3** 🤖✨
