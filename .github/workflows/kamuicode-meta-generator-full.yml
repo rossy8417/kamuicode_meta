@@ -556,62 +556,62 @@ jobs:
           if [ -z "$COMPOSITE_DETECTED" ]; then
             echo "🔍 Falling back to content-based composite detection..."
             
-            # パターン1: ストーリー+動画+音楽 (今回のケース)
-          if echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
-            echo "✅ Detected: Story-based Video+Audio composite workflow"
-            TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
-            COMPOSITE_DETECTED="story-video-audio"
-            
-          # パターン2: 画像+動画+音楽
-          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*動画.*音楽\|image.*video.*music\|T2I.*I2V.*BGM"; then
-            echo "✅ Detected: Image-to-Video-Audio composite workflow"
-            TEMPLATES="image-generation.yml,video-content-creation.yml,audio-music-creation.yml"
-            COMPOSITE_DETECTED="image-video-audio"
-            
-          # パターン3: 動画+音楽のみ
-          elif echo "$REQUEST_CONTENT" | grep -qi "動画.*音楽\|video.*music\|動画.*BGM"; then
-            echo "✅ Detected: Video+Audio composite workflow"
-            TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
-            COMPOSITE_DETECTED="video-audio"
-            
-          # パターン4: 画像+3D
-          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*3D\|image.*3d\|3D.*モデル"; then
-            echo "✅ Detected: Image+3D composite workflow"
-            TEMPLATES="image-generation.yml,3d-model-creation.yml"
-            COMPOSITE_DETECTED="image-3d"
-            
-          # パターン5: プレゼン+データ分析
-          elif echo "$REQUEST_CONTENT" | grep -qi "プレゼン.*データ\|presentation.*data\|スライド.*分析"; then
-            echo "✅ Detected: Presentation+Data Analysis composite workflow"
-            TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
-            COMPOSITE_DETECTED="presentation-data"
-            
+              # パターン1: ストーリー+動画+音楽 (今回のケース)
+            if echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
+              echo "✅ Detected: Story-based Video+Audio composite workflow"
+              TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+              COMPOSITE_DETECTED="story-video-audio"
+              
+            # パターン2: 画像+動画+音楽
+            elif echo "$REQUEST_CONTENT" | grep -qi "画像.*動画.*音楽\|image.*video.*music\|T2I.*I2V.*BGM"; then
+              echo "✅ Detected: Image-to-Video-Audio composite workflow"
+              TEMPLATES="image-generation.yml,video-content-creation.yml,audio-music-creation.yml"
+              COMPOSITE_DETECTED="image-video-audio"
+              
+            # パターン3: 動画+音楽のみ
+            elif echo "$REQUEST_CONTENT" | grep -qi "動画.*音楽\|video.*music\|動画.*BGM"; then
+              echo "✅ Detected: Video+Audio composite workflow"
+              TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+              COMPOSITE_DETECTED="video-audio"
+              
+            # パターン4: 画像+3D
+            elif echo "$REQUEST_CONTENT" | grep -qi "画像.*3D\|image.*3d\|3D.*モデル"; then
+              echo "✅ Detected: Image+3D composite workflow"
+              TEMPLATES="image-generation.yml,3d-model-creation.yml"
+              COMPOSITE_DETECTED="image-3d"
+              
+            # パターン5: プレゼン+データ分析
+            elif echo "$REQUEST_CONTENT" | grep -qi "プレゼン.*データ\|presentation.*data\|スライド.*分析"; then
+              echo "✅ Detected: Presentation+Data Analysis composite workflow"
+              TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
+              COMPOSITE_DETECTED="presentation-data"
+              
             # 単一テンプレートフォールバック
             else
-            echo "ℹ️ Using single template selection logic"
-            case "$WORKFLOW_TYPE" in
-              "video-generation"|"video-content"|"video")
-                TEMPLATES="video-content-creation.yml"
-                ;;
-              "image-generation"|"image")
-                TEMPLATES="image-generation.yml"
-                ;;
-              "3d-model"|"3d")
-                TEMPLATES="3d-model-creation.yml"
-                ;;
-              "audio-generation"|"music")
-                TEMPLATES="audio-music-creation.yml"
-                ;;
-              "presentation"|"slides")
-                TEMPLATES="presentation-slide-creation.yml"
-                ;;
-              "news-article"|"news")
-                TEMPLATES="news-summarization.yml"
-                ;;
-              *)
-                TEMPLATES="multimedia-ad-campaign.yml"
-                ;;
-            esac
+              echo "ℹ️ Using single template selection logic"
+              case "$WORKFLOW_TYPE" in
+                "video-generation"|"video-content"|"video")
+                  TEMPLATES="video-content-creation.yml"
+                  ;;
+                "image-generation"|"image")
+                  TEMPLATES="image-generation.yml"
+                  ;;
+                "3d-model"|"3d")
+                  TEMPLATES="3d-model-creation.yml"
+                  ;;
+                "audio-generation"|"music")
+                  TEMPLATES="audio-music-creation.yml"
+                  ;;
+                "presentation"|"slides")
+                  TEMPLATES="presentation-slide-creation.yml"
+                  ;;
+                "news-article"|"news")
+                  TEMPLATES="news-summarization.yml"
+                  ;;
+                *)
+                  TEMPLATES="multimedia-ad-campaign.yml"
+                  ;;
+              esac
             fi
           fi
           
