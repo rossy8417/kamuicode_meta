@@ -307,46 +307,88 @@ jobs:
           echo "## User Request:" >> .meta/decompose-prompt.md
           cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
           
-          # タスク分解の実行（Claude Code直接実行）
-          if ! claude --continue "$(cat .meta/decompose-prompt.md)" \
-            --output-format text; then
+          # Claude Code タスク分解の実行（ファイル保存指示付き）
+          echo "🔄 Executing Claude Code task decomposition with file save instruction..."
+          
+          # 明確なファイル保存指示をプロンプトに追加
+          echo "" >> .meta/decompose-prompt.md
+          echo "## 重要：必須実行指示" >> .meta/decompose-prompt.md
+          echo "分解完了後、必ず以下のコマンドを実行してJSONファイルを保存してください：" >> .meta/decompose-prompt.md
+          echo "\`\`\`bash" >> .meta/decompose-prompt.md
+          echo "mkdir -p .meta/tasks" >> .meta/decompose-prompt.md  
+          echo "cat > .meta/tasks/task-plan.json << 'EOFJSON'" >> .meta/decompose-prompt.md
+          echo "{あなたが生成したJSONデータをここに完全に貼り付け}" >> .meta/decompose-prompt.md
+          echo "EOFJSON" >> .meta/decompose-prompt.md
+          echo "\`\`\`" >> .meta/decompose-prompt.md
+          
+          # Claude Code実行（ファイル保存指示付き）
+          if claude --continue "$(cat .meta/decompose-prompt.md)" --output-format text; then
+            echo "✅ Claude Code decomposition completed"
             
-            echo "⚠️ Claude Code failed, using fallback decomposition..."
-            
-            # フォールバック: 基本的なタスクプランを生成
-            mkdir -p .meta/tasks
-            cat > .meta/tasks/task-plan.json << EOF
+            # JSONファイルが作成されたか確認
+            if [ ! -f ".meta/tasks/task-plan.json" ]; then
+              echo "⚠️ Claude Code did not create JSON file, using fallback..."
+              
+              # フォールバック用基本タスクプラン作成
+              mkdir -p .meta/tasks
+              cat > .meta/tasks/task-plan.json << EOF
           {
-            "complexity_level": 2,
+            "complexity_level": 3,
             "estimated_duration_minutes": 45,
             "tasks": [
               {
                 "id": "task-001",
-                "name": "Workflow Structure Generation",
-                "description": "Create basic workflow YAML structure for ${{ needs.analyze-request.outputs.workflow_type }}",
-                "type": "generation",
+                "name": "Template-Based Workflow Generation",
+                "description": "Generate ${{ needs.analyze-request.outputs.workflow_type }} workflow from existing template",
+                "type": "template_generation",
                 "dependencies": [],
-                "required_tools": ["filesystem"],
+                "required_tools": ["template_system"],
                 "implementation_details": {
-                  "prompt_file": "prompts/workflow-basic.md",
+                  "template_file": "meta/examples/video-content-creation.yml",
                   "expected_output": {
-                    "type": "file",
+                    "type": "file", 
                     "format": "yaml",
                     "location": ".github/workflows/generated-${{ needs.analyze-request.outputs.workflow_type }}.yml"
                   }
                 }
-              },
-              {
-                "id": "task-002", 
-                "name": "Script Generation",
-                "description": "Generate execution scripts",
-                "type": "generation",
-                "dependencies": ["task-001"]
               }
             ],
             "execution_flow": [
-              {"stage": 1, "parallel": false, "tasks": ["task-001"]},
-              {"stage": 2, "parallel": false, "tasks": ["task-002"]}
+              {"stage": 1, "parallel": false, "tasks": ["task-001"]}
+            ],
+            "fallback_mode": true
+          }
+          EOF
+            fi
+          else
+            echo "❌ Claude Code failed, using fallback decomposition..."
+            
+            # フォールバック用基本タスクプラン作成
+            mkdir -p .meta/tasks
+            cat > .meta/tasks/task-plan.json << EOF
+          {
+            "complexity_level": 2,
+            "estimated_duration_minutes": 30,
+            "tasks": [
+              {
+                "id": "task-001",
+                "name": "Basic Template Generation",
+                "description": "Generate basic ${{ needs.analyze-request.outputs.workflow_type }} workflow",
+                "type": "generation",
+                "dependencies": [],
+                "required_tools": ["filesystem"],
+                "implementation_details": {
+                  "template_file": "meta/examples/video-content-creation.yml",
+                  "expected_output": {
+                    "type": "file",
+                    "format": "yaml", 
+                    "location": ".github/workflows/generated-${{ needs.analyze-request.outputs.workflow_type }}.yml"
+                  }
+                }
+              }
+            ],
+            "execution_flow": [
+              {"stage": 1, "parallel": false, "tasks": ["task-001"]}
             ],
             "fallback_mode": true
           }
