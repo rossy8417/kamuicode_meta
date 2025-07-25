@@ -93,29 +93,24 @@ jobs:
               echo "❌ Missing critical template: $template"
               MISSING_TEMPLATES="${MISSING_TEMPLATES}$template;"
               
-              # 自動修復: 基本テンプレートを生成
+              # 自動修復: 基本テンプレートを生成（YAML安全）
               echo "🔧 Auto-creating missing template: $template"
               mkdir -p "$(dirname "$template")"
-              cat > "$template" << 'TEMPLATE_EOF'
-name: Auto-Generated Basic Workflow
-on:
-  workflow_dispatch:
-    inputs:
-      prompt:
-        description: 'Generation prompt'
-        required: true
-        type: string
-jobs:
-  generate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Basic Generation
-        run: |
-          echo "🎯 Executing auto-generated basic workflow"
-          echo "Input: ${{ github.event.inputs.prompt }}"
-          echo "✅ Generation completed"
-TEMPLATE_EOF
+              echo 'name: Auto-Generated Basic Workflow' > "$template"
+              echo 'on:' >> "$template"
+              echo '  workflow_dispatch:' >> "$template"
+              echo '    inputs:' >> "$template"
+              echo '      prompt:' >> "$template"
+              echo '        description: "Generation prompt"' >> "$template"
+              echo '        required: true' >> "$template"
+              echo '        type: string' >> "$template"
+              echo 'jobs:' >> "$template"
+              echo '  generate:' >> "$template"
+              echo '    runs-on: ubuntu-latest' >> "$template"
+              echo '    steps:' >> "$template"
+              echo '      - uses: actions/checkout@v4' >> "$template"
+              echo '      - name: Basic Generation' >> "$template"
+              echo '        run: echo "Generated content"' >> "$template"
               chmod +r "$template"
               FIXES_APPLIED="${FIXES_APPLIED}auto-created-template-$template;"
               echo "✅ Auto-created template: $template"
