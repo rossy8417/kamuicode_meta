@@ -191,6 +191,36 @@ jobs:
             echo "📊 Text analysis result: $WORKFLOW_TYPE"
           fi
           
+          # 複合ワークフロー検出（analyze-request段階）
+          echo "🔍 Checking for composite workflow patterns..."
+          REQUEST_CONTENT="$TITLE $BODY"
+          COMPOSITE_DETECTED="single"
+          
+          # パターン1: ストーリー+動画+音楽
+          if echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
+            echo "✅ Detected: Story-based Video+Audio composite workflow"
+            COMPOSITE_DETECTED="story-video-audio"
+          # パターン2: 画像+動画+音楽
+          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*動画.*音楽\|image.*video.*music\|T2I.*I2V.*BGM"; then
+            echo "✅ Detected: Image-to-Video-Audio composite workflow"
+            COMPOSITE_DETECTED="image-video-audio"
+          # パターン3: 動画+音楽のみ
+          elif echo "$REQUEST_CONTENT" | grep -qi "動画.*音楽\|video.*music\|動画.*BGM"; then
+            echo "✅ Detected: Video+Audio composite workflow"
+            COMPOSITE_DETECTED="video-audio"
+          # パターン4: 画像+3D
+          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*3D\|image.*3d\|3D.*モデル"; then
+            echo "✅ Detected: Image+3D composite workflow"
+            COMPOSITE_DETECTED="image-3d"
+          # パターン5: プレゼン+データ分析
+          elif echo "$REQUEST_CONTENT" | grep -qi "プレゼン.*データ\|presentation.*data\|スライド.*分析"; then
+            echo "✅ Detected: Presentation+Data Analysis composite workflow"
+            COMPOSITE_DETECTED="presentation-data"
+          else
+            echo "ℹ️ Single template workflow detected"
+            COMPOSITE_DETECTED="single"
+          fi
+          
           # ブランチ名の生成
           SAFE_TITLE=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-50)
           BRANCH_NAME="workflow/${WORKFLOW_TYPE}-${REQUEST_ID}"
@@ -216,8 +246,9 @@ jobs:
           echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "request_file=.meta/requests/${REQUEST_ID}.md" >> $GITHUB_OUTPUT
+          echo "composite_detected=$COMPOSITE_DETECTED" >> $GITHUB_OUTPUT
           
-          echo "✅ Request analysis completed: Type=$WORKFLOW_TYPE"
+          echo "✅ Request analysis completed: Type=$WORKFLOW_TYPE, Composite=$COMPOSITE_DETECTED"
           
       # Request Data は .meta/requests/ で永続保存されるためArtifact不要
 
@@ -283,11 +314,35 @@ jobs:
           EOF
           fi
           
-          # プロンプトに要求内容を追加
+          # プロンプトに要求内容と複合検出結果を追加
           cat $PROMPT_FILE > .meta/decompose-prompt.md
           echo "" >> .meta/decompose-prompt.md
           echo "## User Request:" >> .meta/decompose-prompt.md
           cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
+          echo "" >> .meta/decompose-prompt.md
+          echo "## Composite Workflow Analysis:" >> .meta/decompose-prompt.md
+          echo "- Detected Type: ${{ needs.analyze-request.outputs.composite_detected }}" >> .meta/decompose-prompt.md
+          echo "- Workflow Type: ${{ needs.analyze-request.outputs.workflow_type }}" >> .meta/decompose-prompt.md
+          
+          # 複合タスク分解用の特別指示を追加
+          if [ "${{ needs.analyze-request.outputs.composite_detected }}" != "single" ]; then
+            echo "" >> .meta/decompose-prompt.md
+            echo "## 重要：複合ワークフロー分解指示" >> .meta/decompose-prompt.md
+            echo "このリクエストは複合ワークフロー（${{ needs.analyze-request.outputs.composite_detected }}）です。以下の点に注意してタスク分解してください：" >> .meta/decompose-prompt.md
+            echo "1. **段階的生成**: 各AI生成サービス（T2I → I2V → T2M → V2A）を独立したタスクとして分解" >> .meta/decompose-prompt.md
+            echo "2. **ファイル連携**: 前段の出力を次段の入力として正確に参照" >> .meta/decompose-prompt.md
+            echo "3. **並行処理**: 独立可能なタスク（音楽生成など）は並行実行を指定" >> .meta/decompose-prompt.md
+            echo "4. **統合タスク**: 最終的な動画+音楽統合タスクを含める" >> .meta/decompose-prompt.md
+            echo "5. **所要時間**: 複合ワークフローは通常60-90分を想定" >> .meta/decompose-prompt.md
+            echo "" >> .meta/decompose-prompt.md
+            echo "例: story-video-audio の場合" >> .meta/decompose-prompt.md
+            echo "- Task 1: ストーリー生成とシーン抽出" >> .meta/decompose-prompt.md
+            echo "- Task 2: Text-to-Image (T2I) - 各シーンの画像生成" >> .meta/decompose-prompt.md
+            echo "- Task 3: Image-to-Video (I2V) - 画像から動画変換（並行処理）" >> .meta/decompose-prompt.md
+            echo "- Task 4: Text-to-Music (T2M) - BGM生成（並行処理）" >> .meta/decompose-prompt.md
+            echo "- Task 5: Video-to-Audio (V2A) - ナレーション生成" >> .meta/decompose-prompt.md
+            echo "- Task 6: 最終統合 - 動画+BGM+ナレーション合成" >> .meta/decompose-prompt.md
+          fi
           
           # Claude Code タスク分解の実行（ファイル保存指示付き）
           echo "🔄 Executing Claude Code task decomposition with file save instruction..."
@@ -467,73 +522,61 @@ jobs:
           REQUEST_ID="$(echo '${{ needs.analyze-request.outputs.request_file }}' | sed 's/.*\///' | sed 's/\.md$//')"
           GENERATED_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
           
-          # 要求内容分析による複合テンプレート検出
-          REQUEST_CONTENT="${{ github.event.issue.body || github.event.inputs.description }}"
-          
-          echo "🔍 Analyzing request for composite template needs..."
-          echo "Request content (first 200 chars): ${REQUEST_CONTENT:0:200}..."
-          
-          # 複合ワークフロー検出ロジック
-          COMPOSITE_DETECTED=""
+          # 複合テンプレート選択（analyze-requestからの検出結果を使用）
+          COMPOSITE_DETECTED="${{ needs.analyze-request.outputs.composite_detected }}"
           TEMPLATES=""
           
-          # パターン1: ストーリー+動画+音楽 (今回のケース)
-          if echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
-            echo "✅ Detected: Story-based Video+Audio composite workflow"
-            TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
-            COMPOSITE_DETECTED="story-video-audio"
-            
-          # パターン2: 画像+動画+音楽
-          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*動画.*音楽\|image.*video.*music\|T2I.*I2V.*BGM"; then
-            echo "✅ Detected: Image-to-Video-Audio composite workflow"
-            TEMPLATES="image-generation.yml,video-content-creation.yml,audio-music-creation.yml"
-            COMPOSITE_DETECTED="image-video-audio"
-            
-          # パターン3: 動画+音楽のみ
-          elif echo "$REQUEST_CONTENT" | grep -qi "動画.*音楽\|video.*music\|動画.*BGM"; then
-            echo "✅ Detected: Video+Audio composite workflow"
-            TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
-            COMPOSITE_DETECTED="video-audio"
-            
-          # パターン4: 画像+3D
-          elif echo "$REQUEST_CONTENT" | grep -qi "画像.*3D\|image.*3d\|3D.*モデル"; then
-            echo "✅ Detected: Image+3D composite workflow"
-            TEMPLATES="image-generation.yml,3d-model-creation.yml"
-            COMPOSITE_DETECTED="image-3d"
-            
-          # パターン5: プレゼン+データ分析
-          elif echo "$REQUEST_CONTENT" | grep -qi "プレゼン.*データ\|presentation.*data\|スライド.*分析"; then
-            echo "✅ Detected: Presentation+Data Analysis composite workflow"
-            TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
-            COMPOSITE_DETECTED="presentation-data"
-            
-          # 単一テンプレートフォールバック
-          else
-            echo "ℹ️ Using single template selection logic"
-            case "$WORKFLOW_TYPE" in
-              "video-generation"|"video-content"|"video")
-                TEMPLATES="video-content-creation.yml"
-                ;;
-              "image-generation"|"image")
-                TEMPLATES="image-generation.yml"
-                ;;
-              "3d-model"|"3d")
-                TEMPLATES="3d-model-creation.yml"
-                ;;
-              "audio-generation"|"music")
-                TEMPLATES="audio-music-creation.yml"
-                ;;
-              "presentation"|"slides")
-                TEMPLATES="presentation-slide-creation.yml"
-                ;;
-              "news-article"|"news")
-                TEMPLATES="news-summarization.yml"
-                ;;
-              *)
-                TEMPLATES="multimedia-ad-campaign.yml"
-                ;;
-            esac
-          fi
+          echo "🔍 Using composite detection from analyze-request: $COMPOSITE_DETECTED"
+          
+          # 複合タイプに基づくテンプレート選択
+          case "$COMPOSITE_DETECTED" in
+            "story-video-audio")
+              echo "✅ Story-based Video+Audio composite workflow"
+              TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+              ;;
+            "image-video-audio")
+              echo "✅ Image-to-Video-Audio composite workflow"
+              TEMPLATES="image-generation.yml,video-content-creation.yml,audio-music-creation.yml"
+              ;;
+            "video-audio")
+              echo "✅ Video+Audio composite workflow"
+              TEMPLATES="video-content-creation.yml,audio-music-creation.yml"
+              ;;
+            "image-3d")
+              echo "✅ Image+3D composite workflow"
+              TEMPLATES="image-generation.yml,3d-model-creation.yml"
+              ;;
+            "presentation-data")
+              echo "✅ Presentation+Data Analysis composite workflow"
+              TEMPLATES="presentation-slide-creation.yml,data-analysis-visualization.yml"
+              ;;
+            "single"|*)
+              echo "ℹ️ Using single template selection logic"
+              case "$WORKFLOW_TYPE" in
+                "video-generation"|"video-content"|"video")
+                  TEMPLATES="video-content-creation.yml"
+                  ;;
+                "image-generation"|"image")
+                  TEMPLATES="image-generation.yml"
+                  ;;
+                "3d-model"|"3d")
+                  TEMPLATES="3d-model-creation.yml"
+                  ;;
+                "audio-generation"|"music")
+                  TEMPLATES="audio-music-creation.yml"
+                  ;;
+                "presentation"|"slides")
+                  TEMPLATES="presentation-slide-creation.yml"
+                  ;;
+                "news-article"|"news")
+                  TEMPLATES="news-summarization.yml"
+                  ;;
+                *)
+                  TEMPLATES="multimedia-ad-campaign.yml"
+                  ;;
+              esac
+              ;;
+          esac
           
           VALIDATION_REQUIRED="true"
           
