@@ -197,10 +197,10 @@ tasks:
           
           # 画像生成サービステスト（動画の基礎素材）
           echo "Testing image generation services..."
-          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "test video frame" > .logs/connectivity-tests/image-test.log 2>&1; then
+          if timeout 60 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "test video frame" > .logs/connectivity-tests/image-test.log 2>&1; then
             IMAGE_GEN_STATUS="success"
             echo "✅ Image Generation (Imagen4 Ultra): Available"
-          elif timeout 45 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "test video frame" > .logs/connectivity-tests/image-fast-test.log 2>&1; then
+          elif timeout 45 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "test video frame" > .logs/connectivity-tests/image-fast-test.log 2>&1; then
             IMAGE_GEN_STATUS="success_fast"
             echo "✅ Image Generation (Imagen4 Fast): Available"
           else
@@ -210,7 +210,7 @@ tasks:
           
           # 動画生成サービステスト（T2V）
           echo "Testing text-to-video generation..."
-          if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "test short video clip" > .logs/connectivity-tests/t2v-test.log 2>&1; then
+          if timeout 120 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "test short video clip" > .logs/connectivity-tests/t2v-test.log 2>&1; then
             T2V_STATUS="success"
             echo "✅ Text-to-Video (Veo3): Available"
           else
@@ -220,7 +220,7 @@ tasks:
           
           # 画像→動画変換サービステスト（I2V）
           echo "Testing image-to-video generation..."
-          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2v-fal-hailuo-02-pro --image-path "/tmp/test.jpg" > .logs/connectivity-tests/i2v-test.log 2>&1; then
+          if timeout 90 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp i2v-fal-hailuo-02-pro --image-path "/tmp/test.jpg" > .logs/connectivity-tests/i2v-test.log 2>&1; then
             I2V_STATUS="success"
             echo "✅ Image-to-Video (Hailuo-02): Available"
           else
@@ -230,7 +230,7 @@ tasks:
           
           # 音楽生成サービステスト（BGM用）
           echo "Testing music generation..."
-          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "test background music" > .logs/connectivity-tests/music-test.log 2>&1; then
+          if timeout 90 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "test background music" > .logs/connectivity-tests/music-test.log 2>&1; then
             MUSIC_STATUS="success"
             echo "✅ Music Generation (Lyria): Available"
           else
@@ -240,7 +240,7 @@ tasks:
           
           # 動画→音声生成サービステスト（効果音用）
           echo "Testing video-to-audio generation..."
-          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "/tmp/test.mp4" > .logs/connectivity-tests/v2a-test.log 2>&1; then
+          if timeout 60 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "/tmp/test.mp4" > .logs/connectivity-tests/v2a-test.log 2>&1; then
             V2A_STATUS="success"
             echo "✅ Video-to-Audio (ThinkSound): Available"
           else
@@ -250,7 +250,7 @@ tasks:
           
           # 動画編集サービステスト（修正・強化用）
           echo "Testing video modification services..."
-          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2v-fal-luma-ray2-modify --video-path "/tmp/test.mp4" --modification "enhance quality" > .logs/connectivity-tests/v2v-test.log 2>&1; then
+          if timeout 60 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp v2v-fal-luma-ray2-modify --video-path "/tmp/test.mp4" --modification "enhance quality" > .logs/connectivity-tests/v2v-test.log 2>&1; then
             V2V_STATUS="success"
             echo "✅ Video-to-Video Modification (Luma Ray-2): Available"
           else
@@ -500,11 +500,11 @@ tasks:
             
             if [ "$PRODUCTION_CAPABILITY" = "full" ]; then
               # Imagen4 Ultra で高品質生成
-              if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "$FULL_PROMPT" > .logs/visual-creation/keyframes/frame-${FRAME_NUMBER}.json 2>&1; then
+              if timeout 120 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "$FULL_PROMPT" > .logs/visual-creation/keyframes/frame-${FRAME_NUMBER}.json 2>&1; then
                 echo "✅ Frame $FRAME_NUMBER generated (Ultra quality)"
               else
                 # フォールバック: Imagen4 Fast
-                timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FULL_PROMPT" > .logs/visual-creation/keyframes/frame-${FRAME_NUMBER}.json 2>&1
+                timeout 90 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FULL_PROMPT" > .logs/visual-creation/keyframes/frame-${FRAME_NUMBER}.json 2>&1
                 echo "✅ Frame $FRAME_NUMBER generated (Fast mode)"
               fi
             else
@@ -631,7 +631,7 @@ tasks:
           echo "Generating base video with T2V..."
           MAIN_VIDEO_PROMPT="$NARRATIVE_STRUCTURE video in $VISUAL_STYLE style, $TONE tone, duration: ${TOTAL_DURATION}s, professional quality, smooth transitions, cinematic composition"
           
-          if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "$MAIN_VIDEO_PROMPT" --duration "$TOTAL_DURATION" > .logs/video-production/main-video.json 2>&1; then
+          if timeout 180 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "$MAIN_VIDEO_PROMPT" --duration "$TOTAL_DURATION" > .logs/video-production/main-video.json 2>&1; then
             echo "✅ Main video generated successfully"
             MAIN_VIDEO_STATUS="success"
           else
@@ -646,7 +646,7 @@ tasks:
             # 最初のキーフレームから動画生成
             FIRST_FRAME_PATH=$(jq -r '.image_url // .file_path // "none"' .logs/visual-creation/keyframes/frame-1.json)
             
-            if [ "$FIRST_FRAME_PATH" != "none" ] && timeout 150 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2v-fal-hailuo-02-pro --image-path "$FIRST_FRAME_PATH" --motion-description "smooth cinematic motion matching video concept" > .logs/video-production/i2v-supplement.json 2>&1; then
+            if [ "$FIRST_FRAME_PATH" != "none" ] && timeout 150 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp i2v-fal-hailuo-02-pro --image-path "$FIRST_FRAME_PATH" --motion-description "smooth cinematic motion matching video concept" > .logs/video-production/i2v-supplement.json 2>&1; then
               echo "✅ I2V supplementary content generated"
               I2V_STATUS="success"
             else
@@ -715,7 +715,7 @@ tasks:
             echo "Generating custom background music..."
             MUSIC_PROMPT="$MUSIC_STYLE background music, $TONE mood, ${TOTAL_DURATION} seconds duration, suitable for video content, seamless loop, professional quality"
             
-            if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MUSIC_PROMPT" --duration "$TOTAL_DURATION" > .logs/audio-integration/bgm.json 2>&1; then
+            if timeout 120 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MUSIC_PROMPT" --duration "$TOTAL_DURATION" > .logs/audio-integration/bgm.json 2>&1; then
               echo "✅ Custom BGM generated successfully"
               BGM_STATUS="success"
             else
@@ -737,7 +737,7 @@ tasks:
             # メイン動画ファイルパスを取得
             VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$MAIN_VIDEO_FILE")
             
-            if [ "$VIDEO_PATH" != "none" ] && timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "$VIDEO_PATH" --audio-style "natural sound effects matching video content" > .logs/audio-integration/sound-effects.json 2>&1; then
+            if [ "$VIDEO_PATH" != "none" ] && timeout 90 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "$VIDEO_PATH" --audio-style "natural sound effects matching video content" > .logs/audio-integration/sound-effects.json 2>&1; then
               echo "✅ Sound effects generated from video"
               SFX_STATUS="success"
             else
@@ -807,7 +807,7 @@ tasks:
               # 動画品質向上処理
               ENHANCEMENT_PROMPT="enhance video quality, improve clarity and sharpness, stabilize motion, optimize colors and contrast, maintain original style and mood"
               
-              if timeout 150 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2v-fal-luma-ray2-modify --video-path "$VIDEO_PATH" --modification "$ENHANCEMENT_PROMPT" > .logs/post-production/enhanced-video.json 2>&1; then
+              if timeout 150 claude --mcp-config ~/.claude/mcp-kamuicode.json --mcp v2v-fal-luma-ray2-modify --video-path "$VIDEO_PATH" --modification "$ENHANCEMENT_PROMPT" > .logs/post-production/enhanced-video.json 2>&1; then
                 echo "✅ Video quality enhancement completed"
                 ENHANCEMENT_STATUS="success"
                 FINAL_VIDEO_FILE=".logs/post-production/enhanced-video.json"

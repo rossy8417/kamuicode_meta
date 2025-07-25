@@ -69,37 +69,28 @@ jobs:
           
           FIXES_APPLIED=""
           
-          # Fix 1: MCP設定ファイルの自動作成（AI生成サービス用のみ）
-          echo "🔧 Creating MCP configuration for AI generation services..."
+          # Fix 1: MCP設定ファイルの参照・確認（AI生成サービス用のみ）
+          echo "🔧 Checking MCP configuration for AI generation services..."
           mkdir -p ~/.claude
           
           # ワークフロータイプを確認してMCPが必要かチェック
           WORKFLOW_TYPE="${{ github.event.inputs.workflow_type || 'unknown' }}"
           
           if [[ "$WORKFLOW_TYPE" =~ ^(image-generation|video-generation|audio-generation|news-video)$ ]]; then
-            cat > ~/.claude/mcp-kamuicode.json << 'EOF'
-          {
-            "mcpServers": {
-              "t2i-google-imagen3": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2i/google/imagen",
-                "description": "Google Imagen 3 Text-to-Image Generation"
-              },
-              "t2v-fal-veo3-fast": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2v/fal/veo3/fast",
-                "description": "Fal.ai Veo3 Fast Text-to-Video Generation P+"
-              },
-              "t2m-google-lyria": {
-                "type": "http",
-                "url": "https://mcp-hunyuan3d-fix-20250711-022649-9904c5ca-zl3xx5lsaq-uc.a.run.app/t2m/google/lyria",
-                "description": "Google Lyria Text-to-Music Generation P+"
-              }
-            }
-          }
-          EOF
-            FIXES_APPLIED="${FIXES_APPLIED}mcp-config-created-for-ai-generation;"
-            echo "✅ MCP configuration created for AI generation services"
+            # 既存のMCP設定ファイルを参照
+            if [ -f "${HOME}/.claude/mcp-kamuicode.json" ]; then
+              echo "✅ Using existing MCP configuration at ~/.claude/mcp-kamuicode.json"
+              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-found;"
+            elif [ -f "mcp-kamuicode.json" ]; then
+              echo "📋 Copying MCP config from repository"
+              cp mcp-kamuicode.json ~/.claude/mcp-kamuicode.json
+              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-copied-from-repo;"
+            else
+              echo "⚠️ MCP configuration not found - AI generation may not work"
+              echo "Please ensure mcp-kamuicode.json exists in repository or ~/.claude/"
+              FIXES_APPLIED="${FIXES_APPLIED}mcp-config-missing;"
+            fi
+            echo "✅ MCP configuration setup completed"
           else
             echo "ℹ️ MCP not needed for text-only workflow type: $WORKFLOW_TYPE"
             FIXES_APPLIED="${FIXES_APPLIED}mcp-not-required;"
@@ -699,7 +690,7 @@ jobs:
           MCP_ERRORS=0
           
           # 利用可能なMCPサービスリスト（実際の設定から）
-          VALID_MCPS="t2i-google-imagen3 t2i-fal-imagen4-ultra t2i-fal-imagen4-fast t2v-fal-veo3-fast i2v-fal-hailuo-02-pro t2m-google-lyria v2a-fal-metavoice-v1 v2v-fal-cogvideo-1_5 i2i3d-fal-hunyuan3d-v21"
+          VALID_MCPS="t2i-google-imagen3 t2i-fal-imagen4-ultra t2i-fal-imagen4-fast t2v-fal-veo3-fast i2v-fal-hailuo-02-pro t2m-google-lyria v2a-fal-metavoice-v1 v2v-fal-cogvideo-1_5"
           
           while IFS= read -r line; do
             if echo "$line" | grep -q "claude-code.*--mcp"; then
