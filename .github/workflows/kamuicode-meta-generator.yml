@@ -183,21 +183,30 @@ jobs:
             exit 1
           fi
           
-          # ワークフロータイプの推定（改良版）
-          if echo "$TITLE $BODY" | grep -qi "画像\|image\|バナー\|ロゴ\|illustration"; then
-            WORKFLOW_TYPE="image-generation"
-          elif echo "$TITLE $BODY" | grep -qi "動画\|video\|アニメーション\|movie\|clip"; then
-            WORKFLOW_TYPE="video-generation"
-          elif echo "$TITLE $BODY" | grep -qi "音声\|audio\|ナレーション\|music\|sound"; then
-            WORKFLOW_TYPE="audio-generation"
-          elif echo "$TITLE $BODY" | grep -qi "ニュース.*動画\|news.*video"; then
-            WORKFLOW_TYPE="news-video"
-          elif echo "$TITLE $BODY" | grep -qi "ニュース\|記事\|article\|news"; then
-            WORKFLOW_TYPE="news-article"
-          elif echo "$TITLE $BODY" | grep -qi "sns\|social\|twitter\|instagram"; then
-            WORKFLOW_TYPE="social-integration"
+          # ワークフロータイプの決定（手動入力優先）
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.workflow_type }}" ]; then
+            # 手動実行の場合は入力されたワークフロータイプを優先
+            WORKFLOW_TYPE="${{ github.event.inputs.workflow_type }}"
+            echo "✅ Using manually specified workflow type: $WORKFLOW_TYPE"
           else
-            WORKFLOW_TYPE="custom"
+            # Issues作成の場合はテキスト解析で推定
+            echo "🔍 Analyzing text to determine workflow type..."
+            if echo "$TITLE $BODY" | grep -qi "画像\|image\|バナー\|ロゴ\|illustration"; then
+              WORKFLOW_TYPE="image-generation"
+            elif echo "$TITLE $BODY" | grep -qi "動画\|video\|アニメーション\|movie\|clip"; then
+              WORKFLOW_TYPE="video-generation"
+            elif echo "$TITLE $BODY" | grep -qi "音声\|audio\|ナレーション\|music\|sound"; then
+              WORKFLOW_TYPE="audio-generation"
+            elif echo "$TITLE $BODY" | grep -qi "ニュース.*動画\|news.*video"; then
+              WORKFLOW_TYPE="news-video"
+            elif echo "$TITLE $BODY" | grep -qi "ニュース\|記事\|article\|news"; then
+              WORKFLOW_TYPE="news-article"
+            elif echo "$TITLE $BODY" | grep -qi "sns\|social\|twitter\|instagram"; then
+              WORKFLOW_TYPE="social-integration"
+            else
+              WORKFLOW_TYPE="custom"
+            fi
+            echo "📊 Text analysis result: $WORKFLOW_TYPE"
           fi
           
           # ブランチ名の生成
