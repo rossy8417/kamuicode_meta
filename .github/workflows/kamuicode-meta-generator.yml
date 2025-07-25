@@ -138,14 +138,9 @@ jobs:
           
           echo "📋 Processing: Type=$WORKFLOW_TYPE, Composite=$COMPOSITE_DETECTED"
           
-          # 要求内容の読み込み
-          if [ -f "$REQUEST_FILE" ]; then
-            REQUEST_CONTENT=$(cat "$REQUEST_FILE")
-            echo "✅ Request content loaded"
-          else
-            echo "❌ Request file not found: $REQUEST_FILE"
-            exit 1
-          fi
+          # 要求内容を再構築（ジョブ間ファイル共有の問題を回避）
+          REQUEST_CONTENT="${{ github.event.inputs.description || github.event.issue.body }}"
+          echo "✅ Request content loaded from input: ${REQUEST_CONTENT:0:100}..."
           
           # 複合ワークフロー判定とタスク分解
           if [ "$COMPOSITE_DETECTED" = "true" ] && echo "$REQUEST_CONTENT" | grep -qi "ストーリー.*動画.*音楽\|story.*video.*music\|BGM.*動画\|ナレーション.*動画"; then
