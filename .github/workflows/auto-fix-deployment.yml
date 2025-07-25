@@ -6,7 +6,9 @@ on:
     workflows: ["Kamuicode Meta Generator (Self-Healing)"]
     types:
       - completed
-    # 失敗時のみ動作するよう条件追加
+    # 失敗時のみトリガー
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       force_analysis:
@@ -34,10 +36,33 @@ env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 jobs:
+  # 失敗判定・早期終了
+  check-failure:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    outputs:
+      should_proceed: ${{ steps.check.outputs.should_proceed }}
+    
+    steps:
+      - name: Check if Auto-Fix is Needed
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "🔧 Manual trigger - proceeding with auto-fix"
+            echo "should_proceed=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.workflow_run.conclusion }}" == "failure" ]; then
+            echo "❌ Workflow failure detected - proceeding with auto-fix"
+            echo "should_proceed=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Workflow completed successfully - no auto-fix needed"
+            echo "should_proceed=false" >> $GITHUB_OUTPUT
+          fi
+
   # Step 1: 緊急事態検知・即座に対応（失敗時のみ）
   emergency-response:
+    needs: check-failure
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'failure' || github.event_name == 'workflow_dispatch'
+    if: needs.check-failure.outputs.should_proceed == 'true'
     outputs:
       has_issues: ${{ steps.detect.outputs.has_issues }}
       issue_types: ${{ steps.detect.outputs.issue_types }}
@@ -173,9 +198,9 @@ jobs:
 
   # Step 2: 自動修正の実行
   auto-fix:
-    needs: detect-anomalies
+    needs: emergency-response
     runs-on: ubuntu-latest
-    if: needs.detect-anomalies.outputs.fix_required == 'true'
+    if: needs.emergency-response.outputs.fix_required == 'true'
     outputs:
       fixes_applied: ${{ steps.fix.outputs.fixes_applied }}
       fix_success: ${{ steps.fix.outputs.fix_success }}
@@ -194,7 +219,7 @@ jobs:
         run: |
           echo "🔧 Applying automatic fixes for detected issues..."
           
-          ISSUE_TYPES="${{ needs.detect-anomalies.outputs.issue_types }}"
+          ISSUE_TYPES="${{ needs.emergency-response.outputs.issue_types }}"
           FIXES_APPLIED=""
           FIX_SUCCESS=true
           
@@ -317,7 +342,7 @@ jobs:
 
   # Step 3: 改善されたワークフローの自動デプロイ
   deploy-improvements:
-    needs: [detect-anomalies, auto-fix]
+    needs: [emergency-response, auto-fix]
     runs-on: ubuntu-latest
     if: needs.auto-fix.outputs.fix_success == 'true'
     
@@ -374,8 +399,8 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "🔧 Auto-fix: Deploy system improvements
 
-          Applied fixes for: ${{ needs.detect-anomalies.outputs.issue_types }}
-          Severity: ${{ needs.detect-anomalies.outputs.severity }}
+          Applied fixes for: ${{ needs.emergency-response.outputs.issue_types }}
+          Severity: ${{ needs.emergency-response.outputs.severity }}
           Fixes applied: ${{ needs.auto-fix.outputs.fixes_applied }}
           
           Changes:
@@ -400,7 +425,7 @@ jobs:
 
   # Step 4: 改善効果の検証と学習
   validate-improvements:
-    needs: [detect-anomalies, auto-fix, deploy-improvements]
+    needs: [emergency-response, auto-fix, deploy-improvements]
     runs-on: ubuntu-latest
     if: always()
     
@@ -453,13 +478,13 @@ jobs:
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "fix_session": "${{ github.run_number }}",
-            "original_issues": "${{ needs.detect-anomalies.outputs.issue_types }}",
+            "original_issues": "${{ needs.emergency-response.outputs.issue_types }}",
             "fixes_applied": "${{ needs.auto-fix.outputs.fixes_applied }}",
             "validation_result": "$VALIDATION_RESULTS",
             "success_rate_after_fix": ${SUCCESS_RATE:-0},
             "learning_points": [
               "$([ "$VALIDATION_RESULTS" = "improved" ] && echo "Applied fixes were effective" || echo "Fixes need refinement")",
-              "$(echo "${{ needs.detect-anomalies.outputs.issue_types }}" | sed 's/;/ patterns, /g') require ongoing attention"
+              "$(echo "${{ needs.emergency-response.outputs.issue_types }}" | sed 's/;/ patterns, /g') require ongoing attention"
             ],
             "next_optimizations": [
               "$([[ "$VALIDATION_RESULTS" != "improved" ]] && echo "Enhance fix algorithms" || echo "Maintain current approach")",
@@ -481,9 +506,9 @@ jobs:
               gh issue comment "$LATEST_ISSUE" --body "## 🔧 Auto-Fix System Report
 
           **Detection Results:**
-          - Issues Found: ${{ needs.detect-anomalies.outputs.has_issues }}
-          - Issue Types: ${{ needs.detect-anomalies.outputs.issue_types }}
-          - Severity: ${{ needs.detect-anomalies.outputs.severity }}
+          - Issues Found: ${{ needs.emergency-response.outputs.has_issues }}
+          - Issue Types: ${{ needs.emergency-response.outputs.issue_types }}
+          - Severity: ${{ needs.emergency-response.outputs.severity }}
 
           **Applied Fixes:**
           - Fixes Applied: ${{ needs.auto-fix.outputs.fixes_applied }}
