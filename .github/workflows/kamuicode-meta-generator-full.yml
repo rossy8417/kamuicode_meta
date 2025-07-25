@@ -493,7 +493,17 @@ jobs:
           
           # 複合テンプレート選択とカスタマイズ（Enhanced Multi-Template System）
           WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
-          REQUEST_ID="$(echo '${{ needs.analyze-request.outputs.request_file }}' | sed 's/.*\///' | sed 's/\.md$//')"
+          
+          # REQUEST_ID の正しい取得方法
+          REQUEST_FILE_PATH="${{ needs.analyze-request.outputs.request_file }}"
+          if [ -n "$REQUEST_FILE_PATH" ]; then
+            REQUEST_ID=$(echo "$REQUEST_FILE_PATH" | sed 's/.*\///' | sed 's/\.md$//')
+          else
+            # Fallback: Issue number based ID
+            REQUEST_ID="issue-${{ github.event.issue.number || 'manual' }}"
+          fi
+          
+          echo "🔍 Using REQUEST_ID: $REQUEST_ID, WORKFLOW_TYPE: $WORKFLOW_TYPE"
           GENERATED_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
           
           # 要求内容分析による複合テンプレート検出
@@ -866,15 +876,34 @@ jobs:
           # Git pull to get latest committed workflow
           git pull origin main
           
-          REQUEST_ID="${{ needs.analyze-request.outputs.request_file }}"
-          REQUEST_ID=$(echo "$REQUEST_ID" | sed 's/.*\///' | sed 's/\.md$//')
+          # REQUEST_ID の正しい取得方法
+          REQUEST_FILE_PATH="${{ needs.analyze-request.outputs.request_file }}"
+          if [ -n "$REQUEST_FILE_PATH" ]; then
+            REQUEST_ID=$(echo "$REQUEST_FILE_PATH" | sed 's/.*\///' | sed 's/\.md$//')
+          else
+            # Fallback: Issue number based ID
+            REQUEST_ID="issue-${{ github.event.issue.number || 'manual' }}"
+          fi
+          
           WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
+          
+          echo "🔍 Looking for workflow with REQUEST_ID: $REQUEST_ID, TYPE: $WORKFLOW_TYPE"
           
           # Try multiple possible locations for the generated workflow
           WORKFLOW_FILE="generated/workflows/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
           if [ ! -f "$WORKFLOW_FILE" ]; then
             # Fallback to staging location  
             WORKFLOW_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
+          fi
+          
+          # Additional fallback: find any workflow file in staging
+          if [ ! -f "$WORKFLOW_FILE" ]; then
+            echo "⚠️ Exact file not found, searching for any recent workflow..."
+            LATEST_WORKFLOW=$(find generated/workflows/staging -name "*${WORKFLOW_TYPE}.yml" -type f | head -1)
+            if [ -n "$LATEST_WORKFLOW" ] && [ -f "$LATEST_WORKFLOW" ]; then
+              WORKFLOW_FILE="$LATEST_WORKFLOW"
+              echo "📁 Using found workflow: $WORKFLOW_FILE"
+            fi
           fi
           
           echo "🔍 Validating workflow file: $WORKFLOW_FILE"
