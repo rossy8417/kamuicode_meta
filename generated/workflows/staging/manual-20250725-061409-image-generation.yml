@@ -1,0 +1,213 @@
+name: Generated ai-image-generation - Dynamic Interface
+'on':
+  workflow_dispatch:
+    inputs:
+      main_prompt:
+        description: 生成したい画像の詳細な説明を入力してください
+        required: true
+        type: string
+      negative_prompt:
+        description: 生成から除外したい要素を指定
+        required: false
+        type: string
+      art_style:
+        description: 画像のアートスタイルを選択
+        required: true
+        type: choice
+        options:
+        - photorealistic
+        - anime
+        - oil_painting
+        - digital_art
+        - watercolor
+        default: photorealistic
+      quality_level:
+        description: 画像品質 (1=最低品質・高速, 10=最高品質・低速)
+        required: true
+        type: number
+        default: 8
+      creativity_level:
+        description: 創造性 (1=プロンプト厳守, 10=創造的解釈)
+        required: true
+        type: number
+        default: 5
+      aspect_ratio:
+        description: 画像の縦横比を選択（SNS映え重視のため1:1を標準設定）
+        required: true
+        type: choice
+        options:
+        - '1:1'
+        - '16:9'
+        - '4:3'
+        - '3:4'
+        - '9:16'
+        default: '1:1'
+      image_count:
+        description: 同時に生成する画像の枚数 (多いほど選択肢が増えるが時間がかかる)
+        required: true
+        type: number
+        default: 4
+      mcp_service_priority:
+        description: 画像生成に使用するMCPサービスの優先順位
+        required: true
+        type: choice
+        options:
+        - ultra_quality
+        - balanced
+        - speed_priority
+        - google_only
+        default: balanced
+permissions:
+  contents: write
+  issues: write
+  actions: read
+jobs:
+  setup-dynamic-execution:
+    runs-on: ubuntu-latest
+    outputs:
+      optimized-prompt: ${{ steps.optimize.outputs.prompt }}
+      execution-plan: ${{ steps.plan.outputs.plan }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Setup dynamic inputs processing
+      id: setup
+      run: "\necho \"\U0001F3AF Processing dynamic inputs...\"\nmkdir -p .logs/dynamic-inputs\n\
+        \n# ユーザー入力を記録\ncat > .logs/dynamic-inputs/user-inputs.json << EOF\n{\n  \"\
+        timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\n  \"inputs\": {\n    \"\
+        main_prompt\": \"${{ github.event.inputs.main_prompt }}\",\n    \"negative_prompt\"\
+        : \"${{ github.event.inputs.negative_prompt }}\",\n    \"art_style\": \"${{\
+        \ github.event.inputs.art_style }}\",\n    \"quality_level\": \"${{ github.event.inputs.quality_level\
+        \ }}\",\n    \"creativity_level\": \"${{ github.event.inputs.creativity_level\
+        \ }}\",\n    \"aspect_ratio\": \"${{ github.event.inputs.aspect_ratio }}\"\
+        ,\n    \"image_count\": \"${{ github.event.inputs.image_count }}\",\n    \"\
+        mcp_service_priority\": \"${{ github.event.inputs.mcp_service_priority }}\"\
+        \n  }\n}\nEOF\n\necho \"✅ Dynamic inputs recorded\"\n                    \
+        \    "
+    - name: Optimize prompt from user input
+      id: optimize
+      run: "\necho \"\U0001F680 Optimizing prompt based on user inputs...\"\n\n# メインプロンプトを取得\n\
+        MAIN_PROMPT=\"${{ github.event.inputs.main_prompt || 'high quality image'\
+        \ }}\"\nART_STYLE=\"${{ github.event.inputs.art_style || 'photorealistic'\
+        \ }}\"\nQUALITY_LEVEL=\"${{ github.event.inputs.quality_level || '8' }}\"\n\
+        \n# プロンプト最適化\nOPTIMIZED_PROMPT=\"$MAIN_PROMPT\"\n\n# アートスタイル追加\ncase \"$ART_STYLE\"\
+        \ in\n  \"photorealistic\") OPTIMIZED_PROMPT=\"$OPTIMIZED_PROMPT, photorealistic,\
+        \ high detail, professional photography\" ;;\n  \"anime\") OPTIMIZED_PROMPT=\"\
+        $OPTIMIZED_PROMPT, anime style, manga art, cel shading, vibrant colors\" ;;\n\
+        \  \"oil_painting\") OPTIMIZED_PROMPT=\"$OPTIMIZED_PROMPT, oil painting, classical\
+        \ art, brush strokes, artistic\" ;;\n  \"digital_art\") OPTIMIZED_PROMPT=\"\
+        $OPTIMIZED_PROMPT, digital art, concept art, detailed, modern\" ;;\n  \"watercolor\"\
+        ) OPTIMIZED_PROMPT=\"$OPTIMIZED_PROMPT, watercolor painting, soft colors,\
+        \ artistic, flowing\" ;;\nesac\n\n# 品質レベル追加\nif [ \"$QUALITY_LEVEL\" -ge 8\
+        \ ]; then\n  OPTIMIZED_PROMPT=\"$OPTIMIZED_PROMPT, ultra high quality, masterpiece,\
+        \ best quality\"\nelif [ \"$QUALITY_LEVEL\" -ge 6 ]; then\n  OPTIMIZED_PROMPT=\"\
+        $OPTIMIZED_PROMPT, high quality, detailed\"\nfi\n\necho \"prompt=$OPTIMIZED_PROMPT\"\
+        \ >> $GITHUB_OUTPUT\necho \"✅ Optimized prompt: $OPTIMIZED_PROMPT\"\n    \
+        \                    "
+    - name: Create execution plan
+      id: plan
+      run: "\necho \"\U0001F4CB Creating execution plan...\"\n\n# MCPサービス優先度を決定\n\
+        MCP_PRIORITY=\"${{ github.event.inputs.mcp_service_priority || 'balanced'\
+        \ }}\"\nIMAGE_COUNT=\"${{ github.event.inputs.image_count || '4' }}\"\n\n\
+        case \"$MCP_PRIORITY\" in\n  \"ultra_quality\") MCP_SERVICES=\"t2i-fal-imagen4-ultra,t2i-fal-imagen4-fast,t2i-google-imagen3\"\
+        \ ;;\n  \"balanced\") MCP_SERVICES=\"t2i-fal-imagen4-fast,t2i-fal-imagen4-ultra,t2i-google-imagen3\"\
+        \ ;;\n  \"speed_priority\") MCP_SERVICES=\"t2i-fal-imagen4-fast,t2i-google-imagen3,t2i-fal-imagen4-ultra\"\
+        \ ;;\n  \"google_only\") MCP_SERVICES=\"t2i-google-imagen3\" ;;\n  *) MCP_SERVICES=\"\
+        t2i-fal-imagen4-fast,t2i-google-imagen3\" ;;\nesac\n\n# 実行プラン作成\ncat > .logs/dynamic-inputs/execution-plan.json\
+        \ << EOF\n{\n  \"mcp_services\": \"$MCP_SERVICES\",\n  \"image_count\": $IMAGE_COUNT,\n\
+        \  \"parallel_execution\": true,\n  \"retry_strategy\": \"fallback_service\"\
+        \n}\nEOF\n\necho \"plan=$MCP_SERVICES\" >> $GITHUB_OUTPUT\necho \"✅ Execution\
+        \ plan created with services: $MCP_SERVICES\"\n                        "
+  execute-image-generation:
+    needs: setup-dynamic-execution
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Setup MCP configuration and scripts
+      run: "\necho \"\U0001F527 Setting up MCP configuration and script dependencies...\"\
+        \nmkdir -p .claude\n\n# スクリプトの実行権限確認・設定\nif [ -f \"script/content-download-manager.sh\"\
+        \ ]; then\n  chmod +x script/content-download-manager.sh\n  echo \"✅ content-download-manager.sh\
+        \ executable\"\nelse\n  echo \"⚠️ content-download-manager.sh not found\"\n\
+        fi\n\nif [ -f \"script/enhance-content-quality.py\" ]; then\n  echo \"✅ enhance-content-quality.py\
+        \ found\"\nelse\n  echo \"⚠️ enhance-content-quality.py not found\"\nfi\n\n\
+        # Python依存関係インストール\nif [ -f \"requirements.txt\" ]; then\n  echo \"\U0001F4E6\
+        \ Installing Python dependencies...\"\n  pip3 install -r requirements.txt\
+        \ --quiet || echo \"⚠️ Some dependencies may not be available\"\nfi\n\n# MCP設定をセットアップ（既存ファイル参照）\n\
+        if [ -f \".claude/mcp-kamuicode.json\" ]; then\n  echo \"✅ Using existing\
+        \ MCP configuration at .claude/mcp-kamuicode.json\"\nelif [ -f \"mcp-kamuicode.json\"\
+        \ ]; then\n  echo \"\U0001F4CB Copying MCP config from repository\"\n  cp\
+        \ mcp-kamuicode.json .claude/mcp-kamuicode.json\nelse\n  echo \"⚠️ MCP configuration\
+        \ not found\"\n  echo \"Please ensure mcp-kamuicode.json exists in repository\
+        \ or .claude/\"\n  echo \"AI generation services may not work without proper\
+        \ MCP configuration\"\nfi\n                        "
+    - name: Generate and enhance content with 3-iteration quality process
+      run: "\necho \"\U0001F3A8 Starting AI content generation with 3-iteration quality\
+        \ enhancement...\"\n\nOPTIMIZED_PROMPT=\"${{ needs.setup-dynamic-execution.outputs.optimized-prompt\
+        \ }}\"\nMCP_SERVICES=\"${{ needs.setup-dynamic-execution.outputs.execution-plan\
+        \ }}\"\nIMAGE_COUNT=\"${{ github.event.inputs.image_count || '4' }}\"\nCONTENT_CATEGORY=\"\
+        ${{ github.event.inputs.art_style || 'general' }}\"\n\nmkdir -p .logs/image-generation\
+        \ .logs/content-processing\n\necho \"Using prompt: $OPTIMIZED_PROMPT\"\necho\
+        \ \"MCP services: $MCP_SERVICES\"\necho \"Content category: $CONTENT_CATEGORY\"\
+        \n\n# MCPサービスを順番に試行\nIFS=',' read -ra SERVICES <<< \"$MCP_SERVICES\"\nSUCCESS=false\n\
+        \nfor service in \"${SERVICES[@]}\"; do\n  echo \"\U0001F504 Trying MCP service:\
+        \ $service\"\n  \n  if timeout 180 claude --mcp-config .claude/mcp-kamuicode.json\
+        \ --mcp \"$service\" --prompt \"$OPTIMIZED_PROMPT\" > \".logs/image-generation/${service}-result.json\"\
+        \ 2>&1; then\n    echo \"✅ Success with $service\"\n    SUCCESS=true\n   \
+        \ \n    # 結果からフルURLを抽出（省略・短縮しない）\n    FULL_URL=$(jq -r '.image_url // .url\
+        \ // .file_path // \"none\"' \".logs/image-generation/${service}-result.json\"\
+        \ 2>/dev/null || echo \"none\")\n    \n    if [ \"$FULL_URL\" != \"none\"\
+        \ ]; then\n      echo \"\U0001F517 Generated content URL: ${FULL_URL:0:100}...\"\
+        \n      echo \"CONTENT_URL=$FULL_URL\" >> $GITHUB_ENV\n      echo \"USED_SERVICE=$service\"\
+        \ >> $GITHUB_ENV\n      break\n    fi\n  else\n    echo \"❌ Failed with $service,\
+        \ trying next...\"\n    continue\n  fi\ndone\n\nif [ \"$SUCCESS\" = false\
+        \ ]; then\n  echo \"❌ All MCP services failed\"\n  exit 1\nfi\n\n# 3イテレーション品質向上プロセス開始\n\
+        echo \"\"\necho \"\U0001F680 Starting 3-iteration quality enhancement process...\"\
+        \n\nfor ITERATION in 1 2 3; do\n  echo \"\"\n  echo \"═══════════════════════════════════════\"\
+        \n  echo \"\U0001F504 ITERATION $ITERATION/3\"\n  echo \"═══════════════════════════════════════\"\
+        \n  \n  # 統合ダウンロード・品質向上処理\n  if ./script/content-download-manager.sh \\\n\
+        \    --url \"$CONTENT_URL\" \\\n    --type image \\\n    --iteration \"$ITERATION\"\
+        \ \\\n    --category \"$CONTENT_CATEGORY\" \\\n    --working-dir \"$(pwd)\"\
+        ; then\n    \n    echo \"✅ Iteration $ITERATION completed successfully\"\n\
+        \    \n    # 品質チェック結果を確認\n    if [ -f \"quality_enhancement_iter${ITERATION}.json\"\
+        \ ]; then\n      QUALITY_SCORE=$(python3 -c \"\nimport json\ntry:\n    with\
+        \ open('quality_enhancement_iter${ITERATION}.json', 'r') as f:\n        data\
+        \ = json.load(f)\n    print(f\\\"{data['quality_check']['score']:.1f}\\\"\
+        )\nexcept:\n    print('0')\n\")\n      \n      echo \"\U0001F4CA Quality Score:\
+        \ $QUALITY_SCORE/100\"\n      \n      # 品質閾値チェック (70点以上で完了)\n      if (( $(echo\
+        \ \"$QUALITY_SCORE >= 70\" | bc -l) )); then\n        echo \"\U0001F389 Quality\
+        \ threshold met! Process completed at iteration $ITERATION\"\n        \n \
+        \       # 最終ファイルパスを記録\n        ENHANCED_FILE=$(ls *_enhanced_iter${ITERATION}.*\
+        \ 2>/dev/null | head -1 || echo \"\")\n        if [ -n \"$ENHANCED_FILE\"\
+        \ ]; then\n          FINAL_PATH=\"$(pwd)/$ENHANCED_FILE\"\n          FINAL_HOME_PATH=\"\
+        ${FINAL_PATH/#$HOME/~}\"\n          echo \"FINAL_IMAGE_PATH=$FINAL_HOME_PATH\"\
+        \ >> $GITHUB_ENV\n          echo \"QUALITY_SCORE=$QUALITY_SCORE\" >> $GITHUB_ENV\n\
+        \          echo \"ITERATIONS_COMPLETED=$ITERATION\" >> $GITHUB_ENV\n     \
+        \   fi\n        break\n      else\n        echo \"⚠️ Quality score below threshold\
+        \ (70). Continuing to next iteration...\"\n      fi\n    else\n      echo\
+        \ \"⚠️ Quality check file not found, continuing...\"\n    fi\n  else\n   \
+        \ echo \"❌ Iteration $ITERATION failed\"\n    if [ \"$ITERATION\" -eq 3 ];\
+        \ then\n      echo \"❌ All 3 iterations failed\"\n      exit 1\n    fi\n \
+        \ fi\ndone\n\necho \"\"\necho \"\U0001F3AF 3-Iteration Quality Process Summary:\"\
+        \necho \"   - Original URL: ${CONTENT_URL:0:60}...\"\necho \"   - MCP Service:\
+        \ $USED_SERVICE\"\necho \"   - Final Quality: ${QUALITY_SCORE:-'Unknown'}/100\"\
+        \necho \"   - Iterations: ${ITERATIONS_COMPLETED:-3}/3\"\necho \"   - Final\
+        \ Path: ${FINAL_IMAGE_PATH:--}\"\n\necho \"\"\necho \"✅ AI content generation\
+        \ with quality enhancement completed!\"\n                        "
+    - name: Upload generated images
+      uses: actions/upload-artifact@v4
+      with:
+        name: generated-images-${{ github.run_number }}
+        path: .logs/image-generation/
+        retention-days: 14
+    - name: Create summary report
+      run: "\necho \"\U0001F4CB Creating generation summary...\"\n\ncat > image-generation-report.md\
+        \ << EOF\n# \U0001F3A8 AI画像生成レポート\n\n## 生成設定\n- **プロンプト**: ${{ github.event.inputs.main_prompt\
+        \ }}\n- **アートスタイル**: ${{ github.event.inputs.art_style }}\n- **品質レベル**: ${{\
+        \ github.event.inputs.quality_level }}\n- **縦横比**: ${{ github.event.inputs.aspect_ratio\
+        \ }}\n- **生成枚数**: ${{ github.event.inputs.image_count }}\n\n## 実行結果\n- **使用MCPサービス**:\
+        \ $USED_SERVICE\n- **最適化プロンプト**: ${{ needs.setup-dynamic-execution.outputs.optimized-prompt\
+        \ }}\n- **生成画像パス**: $IMAGE_PATH\n- **実行時刻**: $(date -u +%Y-%m-%dT%H:%M:%SZ)\n\
+        \n## 生成された画像\n画像は上記のArtifactsからダウンロードできます。\n\n---\n\U0001F916 Generated by\
+        \ Dynamic Modal Image Generation System\nEOF\n\necho \"✅ Report created: image-generation-report.md\"\
+        \n                        "
