@@ -85,6 +85,24 @@ jobs:
           SEVERITY="low"
           FIX_REQUIRED=false
           
+          # 手動実行時は強制的に修正を実行
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "🔧 Manual trigger detected - forcing auto-fix execution"
+            HAS_ISSUES=true
+            ISSUE_TYPES="manual-trigger;"
+            SEVERITY="medium"
+            FIX_REQUIRED=true
+          fi
+          
+          # ワークフロー失敗時は基本的に修正を実行
+          if [ "${{ github.event_name }}" == "workflow_run" ] && [ "${{ github.event.workflow_run.conclusion }}" == "failure" ]; then
+            echo "❌ Workflow failure detected - auto-fix required"
+            HAS_ISSUES=true
+            ISSUE_TYPES="${ISSUE_TYPES}workflow-failure;"
+            SEVERITY="high"
+            FIX_REQUIRED=true
+          fi
+          
           # 1. GitHub Actions 失敗率の確認
           if command -v gh &> /dev/null; then
             echo "📊 Analyzing workflow failure patterns..."
