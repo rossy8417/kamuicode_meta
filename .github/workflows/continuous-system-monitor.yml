@@ -2,12 +2,11 @@ name: Workflow Companion Monitor
 run-name: 👥 Monitoring workflow for run ${{ github.event.workflow_run.run_number || 'manual' }}
 
 on:
-  # workflow_run トリガーを無効化（自動起動を停止）
-  # workflow_run:
-  #   workflows: ["Kamuicode Meta Generator (Self-Healing)"]
-  #   types:
-  #     - requested
-  #   # メインワークフロー開始時に監視開始
+  workflow_run:
+    workflows: ["Kamuicode Meta Generator (Self-Healing)"]
+    types:
+      - requested
+    # メインワークフロー開始時に監視開始
   workflow_dispatch:
     inputs:
       target_run_id:
@@ -33,7 +32,7 @@ jobs:
   # メインワークフロー連動監視
   companion-monitoring:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.monitoring_enabled == 'true'
+    if: github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && github.event.inputs.monitoring_enabled == 'true')
     outputs:
       critical_issue: ${{ steps.monitor.outputs.critical_issue }}
       immediate_fix_needed: ${{ steps.monitor.outputs.immediate_fix_needed }}
