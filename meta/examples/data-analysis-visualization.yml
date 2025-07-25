@@ -1,0 +1,1534 @@
+# データ分析・可視化 - 超詳細タスク分解
+name: "data-analysis-visualization"
+description: "データ収集・分析・可視化・レポート生成の包括的分析ワークフロー"
+category: "data-analytics-reporting"
+complexity_level: 4
+estimated_duration_minutes: 45
+
+# 人間の無意識思考プロセス
+human_process:
+  - phase: "data_understanding"
+    description: "データ理解段階（要件・ソース・品質・構造の把握）"
+  - phase: "data_collection" 
+    description: "データ収集段階（取得・統合・前処理・検証）"
+  - phase: "exploratory_analysis"
+    description: "探索的分析段階（パターン発見・統計分析・仮説形成）"
+  - phase: "analytical_modeling"
+    description: "分析モデリング段階（手法選択・実行・検証・調整）"
+  - phase: "visualization_design"
+    description: "可視化設計段階（チャート設計・ダッシュボード・インタラクション）"
+  - phase: "insight_reporting"
+    description: "洞察レポート段階（解釈・提言・ストーリーテリング・配信）"
+
+# GitHub Actions ノード設計
+github_actions_config:
+  workflow_name: "Data Analysis & Visualization Pipeline"
+  on_triggers: ["workflow_dispatch", "issues", "schedule"]
+  permissions:
+    contents: "write"
+    issues: "write"
+    actions: "read"
+  artifacts_retention_days: 30
+  max_parallel_jobs: 4
+
+# 超詳細タスク分解
+tasks:
+  # === 事前テスト段階 ===
+  - id: "analytics-services-connectivity-test"
+    name: "分析・データサービス接続テスト"
+    phase: "pre_validation"
+    github_job: "connectivity-test"
+    type: "validation"
+    implementation: "script"
+    duration_minutes: 4
+    dependencies: []
+    parallel_group: null
+    
+    github_steps:
+      - name: "Test analytics and data services"
+        shell: "bash"
+        script: |
+          echo "📊 Testing analytics and data services..."
+          
+          mkdir -p .logs/connectivity-tests
+          
+          # Claude Code AI テスト（データ分析用）
+          echo "Testing Claude Code for data analysis..."
+          if timeout 30 claude-code --prompt "Test: Analyze sample dataset with 3 columns (A, B, C) and return 'DATA_AI_TEST_SUCCESS' if working." > .logs/connectivity-tests/data-ai-test.log 2>&1; then
+            if grep -q "DATA_AI_TEST_SUCCESS" .logs/connectivity-tests/data-ai-test.log; then
+              DATA_AI_STATUS="success"
+              echo "✅ Data AI Analysis: Available"
+            else
+              DATA_AI_STATUS="partial"
+              echo "⚠️ Data AI Analysis: Partial response"
+            fi
+          else
+            DATA_AI_STATUS="failed"
+            echo "❌ Data AI Analysis: Failed"
+          fi
+          
+          # データ処理ツールテスト
+          echo "Testing data processing tools..."
+          PYTHON_AVAILABLE="false"
+          JQ_AVAILABLE="false"
+          
+          if command -v python3 &> /dev/null; then
+            if timeout 10 python3 -c "import pandas, numpy, matplotlib; print('SUCCESS')" > .logs/connectivity-tests/python-test.log 2>&1; then
+              PYTHON_AVAILABLE="true"
+              echo "✅ Python Data Stack: Available"
+            else
+              echo "⚠️ Python: Available but missing data packages"
+            fi
+          else
+            echo "ℹ️ Python: Not installed"
+          fi
+          
+          if command -v jq &> /dev/null; then
+            if timeout 5 echo '{"test": "value"}' | jq '.test' > /dev/null 2>&1; then
+              JQ_AVAILABLE="true"
+              echo "✅ JSON Processing (jq): Available"
+            fi
+          else
+            echo "ℹ️ jq: Not installed"
+          fi
+          
+          # 外部データAPIテスト
+          echo "Testing external data APIs..."
+          if [ -n "${{ secrets.GOOGLE_SHEETS_API_KEY }}" ]; then
+            if timeout 30 curl -s "https://sheets.googleapis.com/v4/spreadsheets?key=${{ secrets.GOOGLE_SHEETS_API_KEY }}" > .logs/connectivity-tests/sheets-api-test.log 2>&1; then
+              SHEETS_API_STATUS="success"
+              echo "✅ Google Sheets API: Available"
+            else
+              SHEETS_API_STATUS="failed"
+              echo "⚠️ Google Sheets API: Failed"
+            fi
+          else
+            SHEETS_API_STATUS="not_configured"
+            echo "ℹ️ Google Sheets API: Not configured"
+          fi
+          
+          # GitHub API テスト（リポジトリデータ分析用）
+          echo "Testing GitHub API for repository analytics..."
+          if timeout 30 curl -s "https://api.github.com/rate_limit" > .logs/connectivity-tests/github-api-test.log 2>&1; then
+            GITHUB_API_STATUS="success"
+            echo "✅ GitHub API: Available"
+          else
+            GITHUB_API_STATUS="failed"
+            echo "⚠️ GitHub API: Failed"
+          fi
+          
+          # Webスクレイピング機能テスト
+          echo "Testing web scraping capabilities..."
+          if timeout 30 curl -s "https://httpbin.org/json" | jq '.origin' > .logs/connectivity-tests/scraping-test.log 2>&1; then
+            WEB_SCRAPING_STATUS="success"
+            echo "✅ Web Scraping: Available" 
+          else
+            WEB_SCRAPING_STATUS="failed"
+            echo "⚠️ Web Scraping: Limited"
+          fi
+          
+          # 画像生成サービステスト（グラフ・チャート用）
+          echo "Testing image generation for charts..."
+          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "data visualization chart test" > .logs/connectivity-tests/chart-image-test.log 2>&1; then
+            CHART_IMAGE_STATUS="success"
+            echo "✅ Chart Image Generation: Available"
+          else
+            CHART_IMAGE_STATUS="failed"
+            echo "⚠️ Chart Image Generation: Not available"
+          fi
+          
+          # 分析機能能力の評価
+          BASIC_ANALYTICS_CAPABILITY="none"
+          ADVANCED_ANALYTICS_CAPABILITY="none"
+          
+          # 基本機能（AI分析またはデータ処理ツール）
+          if [ "$DATA_AI_STATUS" = "success" ] || [ "$JQ_AVAILABLE" = "true" ]; then
+            BASIC_ANALYTICS_CAPABILITY="available"
+          fi
+          
+          # 高度機能（AI分析+処理ツール+外部API）
+          if [ "$DATA_AI_STATUS" = "success" ] && [ "$PYTHON_AVAILABLE" = "true" ] && [ "$GITHUB_API_STATUS" = "success" ]; then
+            ADVANCED_ANALYTICS_CAPABILITY="available"
+          fi
+          
+          # テスト結果をJSON保存
+          cat > .logs/connectivity-tests/test-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "analytics_services": {
+              "data_ai_analysis": "$DATA_AI_STATUS",
+              "python_data_stack": "$PYTHON_AVAILABLE",
+              "json_processing": "$JQ_AVAILABLE",
+              "google_sheets_api": "$SHEETS_API_STATUS",
+              "github_api": "$GITHUB_API_STATUS",
+              "web_scraping": "$WEB_SCRAPING_STATUS",
+              "chart_image_generation": "$CHART_IMAGE_STATUS"
+            },
+            "capability_assessment": {
+              "basic_analytics_capability": "$BASIC_ANALYTICS_CAPABILITY",
+              "advanced_analytics_capability": "$ADVANCED_ANALYTICS_CAPABILITY",
+              "workflow_can_proceed": $([ "$BASIC_ANALYTICS_CAPABILITY" = "available" ] && echo "true" || echo "false"),
+              "comprehensive_analytics": $([ "$ADVANCED_ANALYTICS_CAPABILITY" = "available" ] && echo "true" || echo "false")
+            },
+            "service_priorities": {
+              "primary_analysis_service": "$([ "$DATA_AI_STATUS" = "success" ] && echo "claude-code" || echo "manual")",
+              "data_processing": "$([ "$PYTHON_AVAILABLE" = "true" ] && echo "python" || [ "$JQ_AVAILABLE" = "true" ] && echo "jq" || echo "manual")",
+              "data_source": "$([ "$GITHUB_API_STATUS" = "success" ] && echo "github_api" || [ "$SHEETS_API_STATUS" = "success" ] && echo "sheets_api" || echo "manual")"
+            }
+          }
+          EOF
+          
+          # 環境変数に結果を設定
+          echo "BASIC_ANALYTICS_CAPABILITY=$BASIC_ANALYTICS_CAPABILITY" >> $GITHUB_ENV
+          echo "ADVANCED_ANALYTICS_CAPABILITY=$ADVANCED_ANALYTICS_CAPABILITY" >> $GITHUB_ENV
+          echo "DATA_AI_AVAILABLE=$([ "$DATA_AI_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          echo "PYTHON_AVAILABLE=$PYTHON_AVAILABLE" >> $GITHUB_ENV
+          echo "GITHUB_API_AVAILABLE=$([ "$GITHUB_API_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          echo "CHART_IMAGE_AVAILABLE=$([ "$CHART_IMAGE_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          
+          echo "📊 Analytics services connectivity tests completed"
+          echo "Basic capability: $BASIC_ANALYTICS_CAPABILITY"
+          echo "Advanced capability: $ADVANCED_ANALYTICS_CAPABILITY"
+          
+    validation:
+      criteria:
+        - "基本的な分析機能が利用可能"
+        - "テスト結果がJSON形式で保存されている"
+      validation_script: |
+        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
+          echo "❌ VALIDATION FAILED: Test results missing"
+          exit 1
+        fi
+        
+        WORKFLOW_CAN_PROCEED=$(jq -r '.capability_assessment.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
+        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
+          echo "✅ Validation passed: Analytics services ready"
+        else
+          echo "❌ VALIDATION FAILED: Critical analytics services unavailable"
+          exit 1
+        fi
+
+  # === データ理解段階 ===
+  - id: "analysis-requirements-definition"
+    name: "分析要件・目標定義"
+    phase: "data_understanding"
+    github_job: "requirements-definition"
+    type: "planning"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["analytics-services-connectivity-test"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Define analysis requirements and objectives"
+        shell: "bash"
+        script: |
+          echo "🎯 Defining analysis requirements and objectives..."
+          
+          mkdir -p .logs/data-understanding
+          
+          # 入力から分析要件を抽出
+          ANALYSIS_SUBJECT="${{ github.event.inputs.analysis_subject || github.event.issue.title || 'GitHub Repository Analytics' }}"
+          DATA_SOURCES="${{ github.event.inputs.data_sources || 'GitHub API, Repository files' }}"
+          ANALYSIS_GOALS="${{ github.event.inputs.analysis_goals || 'Performance and activity analysis' }}"
+          TARGET_AUDIENCE="${{ github.event.inputs.target_audience || 'Development team' }}"
+          ANALYSIS_PERIOD="${{ github.event.inputs.analysis_period || 'Last 30 days' }}"
+          OUTPUT_FORMAT="${{ github.event.inputs.output_format || 'Interactive dashboard' }}"
+          
+          echo "Analysis subject: $ANALYSIS_SUBJECT"
+          echo "Data sources: $DATA_SOURCES"
+          echo "Goals: $ANALYSIS_GOALS"
+          echo "Audience: $TARGET_AUDIENCE"
+          echo "Period: $ANALYSIS_PERIOD"
+          echo "Output: $OUTPUT_FORMAT"
+          
+          # Claude Code で分析要件設計
+          claude-code --prompt "以下の要件に基づいて、データ分析プロジェクトの詳細な要件と目標を設計してください：
+          
+          分析対象: $ANALYSIS_SUBJECT
+          データソース: $DATA_SOURCES
+          分析目標: $ANALYSIS_GOALS
+          対象者: $TARGET_AUDIENCE
+          分析期間: $ANALYSIS_PERIOD
+          出力形式: $OUTPUT_FORMAT
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"analysis_objectives\": {
+              \"primary_questions\": [\"主要な分析質問\"],
+              \"business_goals\": [\"ビジネス目標\"],
+              \"success_metrics\": [\"成功指標\"],
+              \"key_hypotheses\": [\"検証したい仮説\"],
+              \"expected_outcomes\": [\"期待される成果\"]
+            },
+            \"data_requirements\": {
+              \"required_data_types\": [\"必要データタイプ\"],
+              \"data_sources_details\": [
+                {
+                  \"source_name\": \"データソース名\",
+                  \"data_type\": \"データ種別\",
+                  \"access_method\": \"アクセス方法\",
+                  \"update_frequency\": \"更新頻度\",
+                  \"data_quality_expectations\": \"品質期待値\"
+                }
+              ],
+              \"data_volume_estimates\": \"データ量推定\",
+              \"historical_data_needs\": \"履歴データ要件\",
+              \"real_time_requirements\": \"リアルタイム要件\"
+            },
+            \"analytical_approach\": {
+              \"analysis_methods\": [\"分析手法\"],
+              \"statistical_techniques\": [\"統計技法\"],
+              \"visualization_types\": [\"可視化タイプ\"],
+              \"modeling_approaches\": [\"モデリングアプローチ\"],
+              \"validation_strategies\": [\"検証戦略\"]
+            },
+            \"stakeholder_analysis\": {
+              \"primary_users\": [\"主要ユーザー\"],
+              \"information_needs\": [\"情報ニーズ\"],
+              \"decision_contexts\": [\"意思決定コンテキスト\"],
+              \"communication_preferences\": [\"コミュニケーション嗜好\"],
+              \"technical_expertise_levels\": [\"技術専門レベル\"]
+            },
+            \"output_specifications\": {
+              \"deliverable_types\": [\"成果物タイプ\"],
+              \"report_formats\": [\"レポート形式\"],
+              \"visualization_requirements\": [\"可視化要件\"],
+              \"interactivity_needs\": [\"インタラクティブ要件\"],
+              \"distribution_channels\": [\"配信チャネル\"]
+            },
+            \"quality_criteria\": {
+              \"accuracy_standards\": \"精度基準\",
+              \"completeness_requirements\": \"完全性要件\",
+              \"timeliness_expectations\": \"適時性期待\",
+              \"relevance_criteria\": \"関連性基準\",
+              \"actionability_standards\": \"実行可能性基準\"
+            },
+            \"project_constraints\": {
+              \"time_limitations\": \"時間制限\",
+              \"resource_constraints\": \"リソース制約\",
+              \"technical_limitations\": [\"技術的制限\"],
+              \"data_access_restrictions\": [\"データアクセス制限\"],
+              \"privacy_considerations\": [\"プライバシー配慮\"]
+            },
+            \"success_framework\": {
+              \"evaluation_metrics\": [\"評価指標\"],
+              \"milestone_definitions\": [\"マイルストーン定義\"],
+              \"quality_gates\": [\"品質ゲート\"],
+              \"feedback_mechanisms\": [\"フィードバック仕組み\"],
+              \"iteration_strategy\": \"反復戦略\"
+            }
+          }" > .logs/data-understanding/analysis-requirements.json
+          
+          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
+          echo "ANALYSIS_REQUIREMENTS_FILE=.logs/data-understanding/analysis-requirements.json" >> $GITHUB_ENV
+          
+          # 主要パラメータを環境変数に設定
+          PRIMARY_QUESTIONS=$(echo "$ANALYSIS_REQUIREMENTS" | jq -r '.analysis_objectives.primary_questions | length')
+          DATA_SOURCES_COUNT=$(echo "$ANALYSIS_REQUIREMENTS" | jq -r '.data_requirements.data_sources_details | length')
+          
+          echo "PRIMARY_QUESTIONS_COUNT=$PRIMARY_QUESTIONS" >> $GITHUB_ENV
+          echo "DATA_SOURCES_COUNT=$DATA_SOURCES_COUNT" >> $GITHUB_ENV
+          
+          echo "🎯 Analysis requirements definition completed"
+          echo "Primary questions: $PRIMARY_QUESTIONS"
+          echo "Data sources: $DATA_SOURCES_COUNT"
+
+  # === データ収集段階 ===
+  - id: "data-collection-integration"
+    name: "データ収集・統合"
+    phase: "data_collection"
+    github_job: "data-collection"
+    type: "collection"
+    implementation: "script"
+    duration_minutes: 8
+    dependencies: ["analysis-requirements-definition"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Collect and integrate data from sources"
+        shell: "bash"
+        script: |
+          echo "📥 Collecting and integrating data from sources..."
+          
+          mkdir -p .logs/data-collection/{raw,processed,metadata}
+          
+          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
+          
+          # GitHub リポジトリデータ収集（デフォルトデータソース）
+          if [ "$GITHUB_API_AVAILABLE" = "true" ]; then
+            echo "Collecting GitHub repository data..."
+            
+            # 基本リポジトリ情報
+            REPO_OWNER=$(echo "${{ github.repository }}" | cut -d'/' -f1)
+            REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+            
+            echo "Repository: $REPO_OWNER/$REPO_NAME"
+            
+            # リポジトリ基本情報
+            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME" > .logs/data-collection/raw/repo-info.json 2>&1; then
+              echo "✅ Repository info collected"
+            fi
+            
+            # コミット履歴（最新100件）
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/commits?per_page=100" > .logs/data-collection/raw/commits.json 2>&1; then
+              echo "✅ Commit history collected"
+            fi
+            
+            # イシュー情報（最新100件）
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/issues?state=all&per_page=100" > .logs/data-collection/raw/issues.json 2>&1; then
+              echo "✅ Issues data collected"
+            fi
+            
+            # プルリクエスト情報（最新50件）
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/pulls?state=all&per_page=50" > .logs/data-collection/raw/pulls.json 2>&1; then
+              echo "✅ Pull requests collected"
+            fi
+            
+            # リポジトリ統計
+            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/stats/contributors" > .logs/data-collection/raw/contributors.json 2>&1; then
+              echo "✅ Contributor stats collected"
+            fi
+            
+            # 言語統計
+            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/languages" > .logs/data-collection/raw/languages.json 2>&1; then
+              echo "✅ Language stats collected"
+            fi
+            
+            # GitHub Actionsワークフロー実行履歴
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/actions/runs?per_page=50" > .logs/data-collection/raw/workflow-runs.json 2>&1; then
+              echo "✅ Workflow runs collected"
+            fi
+            
+            GITHUB_COLLECTION_STATUS="success"
+          else
+            echo "⚠️ GitHub API not available - using alternative data collection"
+            GITHUB_COLLECTION_STATUS="unavailable"
+          fi
+          
+          # ローカルファイルシステムデータ収集
+          echo "Collecting local repository data..."
+          
+          # ファイル構造分析
+          find . -type f -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.md" | head -100 > .logs/data-collection/raw/file-list.txt 2>&1
+          
+          # Git ログ分析（利用可能な場合）
+          if command -v git &> /dev/null && [ -d ".git" ]; then
+            git log --oneline --since="30 days ago" > .logs/data-collection/raw/recent-commits.txt 2>&1 || true
+            git shortlog -sn > .logs/data-collection/raw/commit-authors.txt 2>&1 || true
+            git ls-files | wc -l > .logs/data-collection/raw/file-count.txt 2>&1 || true
+          fi
+          
+          # ディレクトリサイズ分析
+          du -sh . > .logs/data-collection/raw/repo-size.txt 2>&1 || true
+          
+          # データ前処理・統合
+          echo "Processing and integrating collected data..."
+          
+          # JSONデータの検証・統合
+          for json_file in .logs/data-collection/raw/*.json; do
+            if [ -f "$json_file" ]; then
+              filename=$(basename "$json_file" .json)
+              echo "Processing $filename..."
+              
+              # JSON有効性チェック
+              if jq empty "$json_file" 2>/dev/null; then
+                # 基本統計抽出
+                jq -r "type" "$json_file" > ".logs/data-collection/metadata/${filename}-type.txt" 2>/dev/null || true
+                jq '. | length' "$json_file" > ".logs/data-collection/metadata/${filename}-count.txt" 2>/dev/null || true
+                echo "✅ $filename processed successfully"
+              else
+                echo "⚠️ $filename: Invalid JSON format"
+              fi
+            fi
+          done
+          
+          # データ収集サマリー作成
+          COLLECTED_FILES=$(ls .logs/data-collection/raw/ | wc -l)
+          PROCESSED_FILES=$(ls .logs/data-collection/metadata/ | wc -l)
+          
+          cat > .logs/data-collection/collection-summary.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "collection_summary": {
+              "github_api_status": "$GITHUB_COLLECTION_STATUS",
+              "total_raw_files": $COLLECTED_FILES,
+              "processed_metadata_files": $PROCESSED_FILES,
+              "repository": "${{ github.repository }}",
+              "collection_period": "$(date -u +%Y-%m-%d)"
+            },
+            "data_sources": {
+              "github_api": $([ "$GITHUB_COLLECTION_STATUS" = "success" ] && echo "true" || echo "false"),
+              "local_filesystem": true,
+              "git_history": $([ -d ".git" ] && echo "true" || echo "false")
+            },
+            "collected_data_types": [
+              "repository_metadata",
+              "commit_history", 
+              "issues_data",
+              "pull_requests",
+              "contributor_stats",
+              "language_stats",
+              "workflow_runs",
+              "file_structure"
+            ],
+            "data_quality": {
+              "completeness": "$([ "$GITHUB_COLLECTION_STATUS" = "success" ] && echo "high" || echo "medium")",  
+              "freshness": "current",
+              "accuracy": "verified_sources"
+            }
+          }
+          EOF
+          
+          echo "COLLECTION_STATUS=$GITHUB_COLLECTION_STATUS" >> $GITHUB_ENV
+          echo "COLLECTED_FILES_COUNT=$COLLECTED_FILES" >> $GITHUB_ENV
+          echo "COLLECTION_SUMMARY_FILE=.logs/data-collection/collection-summary.json" >> $GITHUB_ENV
+          
+          echo "📥 Data collection and integration completed"
+          echo "Collected files: $COLLECTED_FILES"
+          echo "GitHub API status: $GITHUB_COLLECTION_STATUS"
+
+  # === 探索的分析段階 ===
+  - id: "exploratory-data-analysis"
+    name: "探索的データ分析・パターン発見"
+    phase: "exploratory_analysis"
+    github_job: "exploratory-analysis"
+    type: "analysis"
+    implementation: "ai"
+    duration_minutes: 10
+    dependencies: ["data-collection-integration"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Perform exploratory data analysis"
+        shell: "bash"
+        script: |
+          echo "🔍 Performing exploratory data analysis..."
+          
+          mkdir -p .logs/exploratory-analysis
+          
+          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
+          COLLECTION_SUMMARY=$(cat .logs/data-collection/collection-summary.json)
+          
+          # 収集されたデータの統合分析
+          echo "Analyzing collected data patterns..."
+          
+          # GitHub データの分析（利用可能な場合）
+          if [ "$COLLECTION_STATUS" = "success" ]; then
+            
+            # リポジトリ基本統計の抽出
+            if [ -f ".logs/data-collection/raw/repo-info.json" ]; then
+              echo "Analyzing repository information..."
+              
+              REPO_DATA=$(cat .logs/data-collection/raw/repo-info.json)
+              
+              # 基本情報抽出
+              STARS=$(echo "$REPO_DATA" | jq -r '.stargazers_count // 0')
+              FORKS=$(echo "$REPO_DATA" | jq -r '.forks_count // 0')
+              OPEN_ISSUES=$(echo "$REPO_DATA" | jq -r '.open_issues_count // 0')
+              SIZE=$(echo "$REPO_DATA" | jq -r '.size // 0')
+              LANGUAGE=$(echo "$REPO_DATA" | jq -r '.language // "Unknown"')
+              CREATED_AT=$(echo "$REPO_DATA" | jq -r '.created_at // "unknown"')
+              UPDATED_AT=$(echo "$REPO_DATA" | jq -r '.updated_at // "unknown"')
+              
+              echo "Repository Statistics:"
+              echo "- Stars: $STARS"
+              echo "- Forks: $FORKS" 
+              echo "- Open Issues: $OPEN_ISSUES"
+              echo "- Size: $SIZE KB"
+              echo "- Primary Language: $LANGUAGE"
+            fi
+            
+            # コミット分析
+            if [ -f ".logs/data-collection/raw/commits.json" ]; then
+              echo "Analyzing commit patterns..."
+              
+              COMMIT_COUNT=$(jq 'length' .logs/data-collection/raw/commits.json 2>/dev/null || echo "0")
+              
+              # 最新コミット情報
+              LATEST_COMMIT_DATE=$(jq -r '.[0].commit.author.date // "unknown"' .logs/data-collection/raw/commits.json 2>/dev/null)
+              LATEST_AUTHOR=$(jq -r '.[0].commit.author.name // "unknown"' .logs/data-collection/raw/commits.json 2>/dev/null)
+              
+              echo "Commit Analysis:"
+              echo "- Total commits analyzed: $COMMIT_COUNT"
+              echo "- Latest commit: $LATEST_COMMIT_DATE by $LATEST_AUTHOR"
+            fi
+            
+            # イシュー分析
+            if [ -f ".logs/data-collection/raw/issues.json" ]; then
+              echo "Analyzing issues and pull requests..."
+              
+              TOTAL_ISSUES=$(jq 'length' .logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
+              OPEN_ISSUES_COUNT=$(jq '[.[] | select(.state == "open")] | length' .logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
+              CLOSED_ISSUES_COUNT=$(jq '[.[] | select(.state == "closed")] | length' .logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
+              
+              echo "Issues Analysis:"
+              echo "- Total issues/PRs: $TOTAL_ISSUES"
+              echo "- Open: $OPEN_ISSUES_COUNT"
+              echo "- Closed: $CLOSED_ISSUES_COUNT"
+            fi
+            
+            # 言語分析
+            if [ -f ".logs/data-collection/raw/languages.json" ]; then
+              echo "Analyzing language distribution..."
+              
+              LANGUAGES=$(jq -r 'keys[]' .logs/data-collection/raw/languages.json 2>/dev/null | head -5 | paste -sd, -)
+              echo "Languages used: $LANGUAGES"
+            fi
+            
+            # ワークフロー分析
+            if [ -f ".logs/data-collection/raw/workflow-runs.json" ]; then
+              echo "Analyzing workflow execution patterns..."
+              
+              WORKFLOW_RUNS=$(jq '.total_count // 0' .logs/data-collection/raw/workflow-runs.json 2>/dev/null)
+              RECENT_RUNS=$(jq '[.workflow_runs[]? | select(.created_at >= (now - 7*24*3600 | strftime("%Y-%m-%dT%H:%M:%SZ")))] | length' .logs/data-collection/raw/workflow-runs.json 2>/dev/null || echo "0")
+              
+              echo "Workflow Analysis:"
+              echo "- Total workflow runs: $WORKFLOW_RUNS"
+              echo "- Recent runs (7 days): $RECENT_RUNS"
+            fi
+          fi
+          
+          # ローカルファイルシステム分析
+          echo "Analyzing local file system data..."
+          
+          if [ -f ".logs/data-collection/raw/file-list.txt" ]; then
+            FILE_COUNT=$(wc -l < .logs/data-collection/raw/file-list.txt)
+            YAML_FILES=$(grep -c "\.yml\|\.yaml" .logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
+            JSON_FILES=$(grep -c "\.json" .logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
+            MD_FILES=$(grep -c "\.md" .logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
+            
+            echo "File System Analysis:"
+            echo "- Configuration files: $FILE_COUNT"
+            echo "- YAML files: $YAML_FILES"
+            echo "- JSON files: $JSON_FILES"
+            echo "- Markdown files: $MD_FILES"
+          fi
+          
+          # AI駆動の深度分析
+          if [ "$DATA_AI_AVAILABLE" = "true" ]; then
+            echo "Performing AI-driven pattern analysis..."
+            
+            # 統合データ分析
+            claude-code --prompt "以下のデータ収集結果を基に、詳細な探索的データ分析を実施してください：
+            
+            分析要件: $ANALYSIS_REQUIREMENTS
+            収集サマリー: $COLLECTION_SUMMARY
+            
+            リポジトリ統計:
+            - Stars: ${STARS:-0}, Forks: ${FORKS:-0}, Issues: ${OPEN_ISSUES:-0}
+            - Size: ${SIZE:-0}KB, Language: ${LANGUAGE:-Unknown}
+            - Commits analyzed: ${COMMIT_COUNT:-0}
+            - Workflow runs: ${WORKFLOW_RUNS:-0}
+            - File distribution: YAML(${YAML_FILES:-0}), JSON(${JSON_FILES:-0}), MD(${MD_FILES:-0})
+            
+            以下の形式でJSONで回答してください：
+            {
+              \"data_overview\": {
+                \"dataset_characteristics\": \"データセット特徴\",
+                \"data_quality_assessment\": \"データ品質評価\",
+                \"completeness_score\": \"完全性スコア（1-10）\",
+                \"reliability_indicators\": [\"信頼性指標\"]
+              },
+              \"pattern_discovery\": {
+                \"key_trends\": [\"主要トレンド\"],
+                \"anomalies_detected\": [\"検出された異常\"],
+                \"seasonal_patterns\": [\"季節パターン\"],
+                \"correlation_insights\": [\"相関関係の洞察\"],
+                \"outlier_analysis\": [\"外れ値分析\"]
+              },
+              \"statistical_summary\": {
+                \"central_tendencies\": \"中心傾向\",
+                \"variability_measures\": \"変動性指標\",
+                \"distribution_characteristics\": \"分布特性\",
+                \"confidence_intervals\": \"信頼区間\",
+                \"significance_tests\": [\"有意性検定結果\"]
+              },
+              \"behavioral_insights\": {
+                \"user_activity_patterns\": [\"ユーザー活動パターン\"],
+                \"development_velocity\": \"開発速度分析\",
+                \"collaboration_dynamics\": \"協働ダイナミクス\",
+                \"issue_resolution_patterns\": \"課題解決パターン\",
+                \"workflow_efficiency\": \"ワークフロー効率性\"
+              },
+              \"comparative_analysis\": {
+                \"historical_comparisons\": [\"履歴比較\"],
+                \"benchmark_analysis\": \"ベンチマーク分析\",
+                \"performance_indicators\": [\"パフォーマンス指標\"],
+                \"relative_positioning\": \"相対的位置づけ\"
+              },
+              \"hypothesis_validation\": {
+                \"initial_hypotheses\": [\"初期仮説\"],
+                \"validation_results\": [\"検証結果\"],
+                \"new_hypotheses\": [\"新たな仮説\"],
+                \"areas_for_investigation\": [\"追加調査領域\"]
+              },
+              \"data_gaps_identified\": {
+                \"missing_data_points\": [\"欠損データポイント\"],
+                \"additional_data_needs\": [\"追加データ要件\"],
+                \"quality_improvement_areas\": [\"品質改善領域\"],
+                \"collection_recommendations\": [\"収集推奨事項\"]
+              },
+              \"next_analysis_steps\": {
+                \"priority_investigations\": [\"優先調査項目\"],
+                \"recommended_methods\": [\"推奨分析手法\"],
+                \"visualization_opportunities\": [\"可視化機会\"],
+                \"modeling_approaches\": [\"モデリングアプローチ\"]
+              }
+            }" > .logs/exploratory-analysis/eda-insights.json
+            
+            echo "✅ AI-driven pattern analysis completed"
+          else
+            echo "⚠️ AI analysis not available - creating basic statistical summary"
+            
+            # 基本的な統計サマリー作成
+            cat > .logs/exploratory-analysis/eda-insights.json << EOF
+            {
+              "data_overview": {
+                "dataset_characteristics": "GitHub repository analysis dataset",
+                "data_quality_assessment": "$([ "$COLLECTION_STATUS" = "success" ] && echo "High quality API data" || echo "Limited local data only")",
+                "completeness_score": "$([ "$COLLECTION_STATUS" = "success" ] && echo "8" || echo "5")",
+                "reliability_indicators": ["GitHub API", "Git history", "File system"]
+              },
+              "pattern_discovery": {
+                "key_trends": ["Repository activity patterns"],
+                "statistical_summary": {
+                  "repository_stats": {
+                    "stars": ${STARS:-0},
+                    "forks": ${FORKS:-0},
+                    "open_issues": ${OPEN_ISSUES:-0},
+                    "commits_analyzed": ${COMMIT_COUNT:-0}
+                  }
+                }
+              }
+            }
+            EOF
+          fi
+          
+          # 探索的分析サマリー
+          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
+          COMPLETENESS_SCORE=$(echo "$EDA_INSIGHTS" | jq -r '.data_overview.completeness_score // "5"')
+          
+          echo "EDA_COMPLETENESS_SCORE=$COMPLETENESS_SCORE" >> $GITHUB_ENV
+          echo "EDA_INSIGHTS_FILE=.logs/exploratory-analysis/eda-insights.json" >> $GITHUB_ENV
+          
+          echo "🔍 Exploratory data analysis completed"
+          echo "Data completeness score: $COMPLETENESS_SCORE/10"
+
+  # === 分析モデリング段階 ===
+  - id: "analytical-modeling-insights"
+    name: "分析モデリング・洞察抽出"
+    phase: "analytical_modeling"
+    github_job: "analytical-modeling"
+    type: "modeling"
+    implementation: "ai"
+    duration_minutes: 8
+    dependencies: ["exploratory-data-analysis"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Perform analytical modeling and extract insights"
+        shell: "bash"
+        script: |
+          echo "🧮 Performing analytical modeling and insight extraction..."
+          
+          mkdir -p .logs/analytical-modeling
+          
+          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
+          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
+          COLLECTION_SUMMARY=$(cat .logs/data-collection/collection-summary.json)
+          
+          # 高度な分析モデリング
+          if [ "$DATA_AI_AVAILABLE" = "true" ]; then
+            echo "Performing advanced analytical modeling..."
+            
+            claude-code --prompt "以下の探索的分析結果を基に、高度な分析モデリングと洞察抽出を実施してください：
+            
+            分析要件: $ANALYSIS_REQUIREMENTS
+            EDA結果: $EDA_INSIGHTS
+            データ収集サマリー: $COLLECTION_SUMMARY
+            
+            以下の形式でJSONで回答してください：
+            {
+              \"modeling_approach\": {
+                \"selected_methods\": [\"選択された分析手法\"],
+                \"method_rationale\": \"手法選択理由\",
+                \"model_assumptions\": [\"モデル前提条件\"],
+                \"validation_strategy\": \"検証戦略\",
+                \"confidence_levels\": \"信頼度レベル\"
+              },
+              \"quantitative_analysis\": {
+                \"performance_metrics\": {
+                  \"development_velocity\": {
+                    \"commits_per_week\": \"週間コミット数\",
+                    \"issues_resolution_rate\": \"課題解決率\",
+                    \"pr_merge_time\": \"PR統合時間\",
+                    \"code_review_efficiency\": \"レビュー効率性\"
+                  },
+                  \"quality_indicators\": {
+                    \"issue_to_commit_ratio\": \"課題・コミット比率\",
+                    \"documentation_coverage\": \"ドキュメント網羅度\",
+                    \"workflow_success_rate\": \"ワークフロー成功率\",
+                    \"maintenance_frequency\": \"メンテナンス頻度\"
+                  }
+                },
+                \"trend_analysis\": {
+                  \"activity_trends\": [\"活動トレンド\"],
+                  \"growth_patterns\": [\"成長パターン\"],
+                  \"seasonal_variations\": [\"季節変動\"],
+                  \"cyclical_behaviors\": [\"周期的行動\"]
+                },
+                \"predictive_insights\": {
+                  \"future_projections\": [\"将来予測\"],
+                  \"risk_assessments\": [\"リスク評価\"],
+                  \"opportunity_identification\": [\"機会特定\"],
+                  \"scenario_analysis\": [\"シナリオ分析\"]
+                }
+              },
+              \"behavioral_modeling\": {
+                \"user_segmentation\": {
+                  \"contributor_types\": [\"貢献者タイプ\"],
+                  \"activity_clusters\": [\"活動クラスター\"],
+                  \"engagement_levels\": [\"エンゲージメントレベル\"],
+                  \"specialization_areas\": [\"専門分野\"]
+                },
+                \"collaboration_patterns\": {
+                  \"team_dynamics\": \"チームダイナミクス\",
+                  \"communication_flows\": [\"コミュニケーション流れ\"],
+                  \"decision_making_processes\": [\"意思決定プロセス\"],
+                  \"knowledge_sharing\": \"知識共有パターン\"
+                },
+                \"workflow_optimization\": {
+                  \"bottleneck_identification\": [\"ボトルネック特定\"],
+                  \"efficiency_opportunities\": [\"効率化機会\"],
+                  \"automation_potential\": [\"自動化可能性\"],
+                  \"process_improvements\": [\"プロセス改善案\"]
+                }
+              },
+              \"comparative_benchmarking\": {
+                \"industry_comparisons\": {
+                  \"peer_performance\": \"同業他社パフォーマンス\",
+                  \"best_practices\": [\"ベストプラクティス\"],
+                  \"competitive_positioning\": \"競争ポジション\",
+                  \"differentiation_factors\": [\"差別化要因\"]
+                },
+                \"internal_benchmarks\": {
+                  \"historical_performance\": \"履歴パフォーマンス\",
+                  \"goal_achievement\": \"目標達成度\",
+                  \"improvement_trajectories\": [\"改善軌道\"],
+                  \"milestone_analysis\": \"マイルストーン分析\"
+                }
+              },
+              \"statistical_modeling\": {
+                \"correlation_analysis\": {
+                  \"significant_correlations\": [\"有意な相関関係\"],
+                  \"causation_hypotheses\": [\"因果関係仮説\"],
+                  \"confounding_factors\": [\"交絡因子\"],
+                  \"interaction_effects\": [\"交互作用効果\"]
+                },
+                \"regression_insights\": {
+                  \"key_drivers\": [\"主要ドライバー\"],
+                  \"predictor_importance\": [\"予測子重要度\"],
+                  \"model_performance\": \"モデル性能\",
+                  \"residual_analysis\": \"残差分析\"
+                },
+                \"classification_results\": {
+                  \"category_definitions\": [\"カテゴリ定義\"],
+                  \"classification_accuracy\": \"分類精度\",
+                  \"feature_importance\": [\"特徴量重要度\"],
+                  \"decision_boundaries\": \"決定境界\"
+                }
+              },
+              \"actionable_insights\": {
+                \"strategic_recommendations\": [
+                  {
+                    \"recommendation\": \"戦略的推奨事項\",
+                    \"rationale\": \"根拠\",
+                    \"expected_impact\": \"期待される影響\",
+                    \"implementation_difficulty\": \"実装難易度\",
+                    \"timeline\": \"実装タイムライン\"
+                  }
+                ],
+                \"tactical_actions\": [
+                  {
+                    \"action\": \"戦術的アクション\",
+                    \"priority\": \"優先度\",
+                    \"resources_required\": \"必要リソース\",
+                    \"success_metrics\": \"成功指標\"
+                  }
+                ],
+                \"monitoring_requirements\": [\"監視要件\"],
+                \"success_indicators\": [\"成功指標\"]
+              },
+              \"model_validation\": {
+                \"validation_methods\": [\"検証手法\"],
+                \"accuracy_measures\": [\"精度測定\"],
+                \"robustness_tests\": [\"頑健性テスト\"],
+                \"sensitivity_analysis\": \"感度分析\",
+                \"confidence_intervals\": \"信頼区間\"
+              },
+              \"limitations_assumptions\": {
+                \"data_limitations\": [\"データ制限\"],
+                \"model_assumptions\": [\"モデル前提\"],
+                \"uncertainty_factors\": [\"不確実性要因\"],
+                \"scope_boundaries\": [\"スコープ境界\"],
+                \"future_considerations\": [\"将来考慮事項\"]
+              }
+            }" > .logs/analytical-modeling/modeling-insights.json
+            
+            echo "✅ Advanced analytical modeling completed"
+            MODELING_STATUS="success"
+          else
+            echo "⚠️ AI modeling not available - creating basic analytical summary"
+            
+            # 基本的な分析サマリー作成
+            cat > .logs/analytical-modeling/modeling-insights.json << EOF
+            {
+              "modeling_approach": {
+                "selected_methods": ["Basic statistical analysis", "Pattern recognition"],
+                "method_rationale": "Limited by available tools"
+              },
+              "quantitative_analysis": {
+                "performance_metrics": {
+                  "basic_stats": {
+                    "stars": ${STARS:-0},
+                    "forks": ${FORKS:-0},
+                    "issues": ${OPEN_ISSUES:-0},
+                    "commits": ${COMMIT_COUNT:-0}
+                  }
+                }
+              },
+              "actionable_insights": {
+                "strategic_recommendations": [
+                  {
+                    "recommendation": "Continue monitoring repository activity",
+                    "rationale": "Based on current metrics",
+                    "expected_impact": "Improved development oversight"
+                  }
+                ]
+              }
+            }
+            EOF
+            MODELING_STATUS="basic"
+          fi
+          
+          MODELING_INSIGHTS=$(cat .logs/analytical-modeling/modeling-insights.json)
+          RECOMMENDATIONS_COUNT=$(echo "$MODELING_INSIGHTS" | jq '.actionable_insights.strategic_recommendations | length' 2>/dev/null || echo "1")
+          
+          echo "MODELING_STATUS=$MODELING_STATUS" >> $GITHUB_ENV
+          echo "RECOMMENDATIONS_COUNT=$RECOMMENDATIONS_COUNT" >> $GITHUB_ENV
+          echo "MODELING_INSIGHTS_FILE=.logs/analytical-modeling/modeling-insights.json" >> $GITHUB_ENV
+          
+          echo "🧮 Analytical modeling completed"
+          echo "Modeling status: $MODELING_STATUS"
+          echo "Strategic recommendations: $RECOMMENDATIONS_COUNT"
+
+  # === 可視化設計段階 ===
+  - id: "visualization-dashboard-creation"
+    name: "可視化・ダッシュボード作成"
+    phase: "visualization_design"
+    github_job: "visualization-creation"
+    type: "visualization"
+    implementation: "ai"
+    duration_minutes: 8
+    dependencies: ["analytical-modeling-insights"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create visualizations and dashboard designs"
+        shell: "bash"
+        script: |
+          echo "📊 Creating visualizations and dashboard designs..."
+          
+          mkdir -p .logs/visualization-design
+          
+          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
+          MODELING_INSIGHTS=$(cat .logs/analytical-modeling/modeling-insights.json)
+          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
+          
+          # 可視化設計・仕様作成
+          if [ "$DATA_AI_AVAILABLE" = "true" ]; then
+            echo "Designing comprehensive visualization strategy..."
+            
+            claude-code --prompt "以下の分析結果を基に、効果的な可視化とダッシュボードを設計してください：
+            
+            分析要件: $ANALYSIS_REQUIREMENTS
+            モデリング結果: $MODELING_INSIGHTS
+            EDA結果: $EDA_INSIGHTS
+            
+            以下の形式でJSONで回答してください：
+            {
+              \"visualization_strategy\": {
+                \"primary_objectives\": [\"主要可視化目標\"],
+                \"target_audiences\": [\"対象ユーザー\"],
+                \"design_principles\": [\"デザイン原則\"],
+                \"interaction_paradigms\": [\"インタラクションパラダイム\"],
+                \"accessibility_considerations\": [\"アクセシビリティ配慮\"]
+              },
+              \"dashboard_specification\": {
+                \"layout_structure\": \"レイアウト構造\",
+                \"navigation_design\": \"ナビゲーション設計\",
+                \"responsive_behavior\": \"レスポンシブ動作\",
+                \"color_scheme\": \"カラースキーム\",
+                \"typography_guidelines\": \"タイポグラフィガイドライン\"
+              },
+              \"chart_specifications\": [
+                {
+                  \"chart_id\": \"チャートID\",
+                  \"chart_type\": \"bar|line|pie|scatter|heatmap|treemap|gauge\",
+                  \"title\": \"チャートタイトル\",
+                  \"description\": \"チャート説明\",
+                  \"data_source\": \"データソース\",
+                  \"x_axis\": \"X軸データ\",
+                  \"y_axis\": \"Y軸データ\",
+                  \"aggregation_method\": \"集計方法\",
+                  \"filtering_options\": [\"フィルタリング選択肢\"],
+                  \"drill_down_capabilities\": [\"ドリルダウン機能\"],
+                  \"color_mapping\": \"色マッピング\",
+                  \"tooltip_content\": \"ツールチップ内容\",
+                  \"export_options\": [\"エクスポート選択肢\"],
+                  \"update_frequency\": \"更新頻度\"
+                }
+              ],
+              \"key_performance_indicators\": [
+                {
+                  \"kpi_name\": \"KPI名\",
+                  \"display_format\": \"表示形式\",
+                  \"calculation_method\": \"計算方法\",
+                  \"target_value\": \"目標値\",
+                  \"threshold_levels\": [\"閾値レベル\"],
+                  \"alert_conditions\": [\"アラート条件\"],
+                  \"historical_comparison\": \"履歴比較\"
+                }
+              ],
+              \"interactive_features\": {
+                \"filtering_controls\": [\"フィルタリング制御\"],
+                \"time_range_selectors\": [\"時間範囲セレクター\"],
+                \"drill_down_options\": [\"ドリルダウン選択肢\"],
+                \"cross_filtering\": \"クロスフィルタリング\",
+                \"export_capabilities\": [\"エクスポート機能\"],
+                \"sharing_options\": [\"共有選択肢\"]
+              },
+              \"data_storytelling\": {
+                \"narrative_structure\": \"物語構造\",
+                \"key_messages\": [\"重要メッセージ\"],
+                \"progression_flow\": \"進行フロー\",
+                \"highlight_annotations\": [\"強調注釈\"],
+                \"contextual_explanations\": [\"文脈説明\"]
+              },
+              \"technical_implementation\": {
+                \"recommended_tools\": [\"推奨ツール\"],
+                \"data_connection_methods\": [\"データ接続方法\"],
+                \"performance_optimization\": [\"パフォーマンス最適化\"],
+                \"security_considerations\": [\"セキュリティ配慮\"],
+                \"scalability_planning\": \"スケーラビリティ計画\"
+              },
+              \"quality_assurance\": {
+                \"visual_testing\": [\"ビジュアルテスト\"],
+                \"usability_validation\": [\"ユーザビリティ検証\"],
+                \"performance_benchmarks\": [\"パフォーマンスベンチマーク\"],
+                \"accessibility_compliance\": [\"アクセシビリティ適合\"],
+                \"cross_platform_testing\": [\"クロスプラットフォームテスト\"]
+              },
+              \"maintenance_guidelines\": {
+                \"update_procedures\": [\"更新手順\"],
+                \"monitoring_requirements\": [\"監視要件\"],
+                \"backup_strategies\": [\"バックアップ戦略\"],
+                \"version_control\": \"バージョン管理\",
+                \"documentation_standards\": [\"ドキュメント基準\"]
+              }
+            }" > .logs/visualization-design/visualization-specification.json
+            
+            echo "✅ Comprehensive visualization strategy completed"
+            VIZ_DESIGN_STATUS="success"
+          else
+            echo "⚠️ AI design not available - creating basic visualization plan"
+            
+            # 基本的な可視化計画作成
+            cat > .logs/visualization-design/visualization-specification.json << EOF
+            {
+              "visualization_strategy": {
+                "primary_objectives": ["Display repository metrics", "Show activity trends"],
+                "design_principles": ["Clarity", "Simplicity", "Actionability"]
+              },
+              "chart_specifications": [
+                {
+                  "chart_id": "repo_overview",
+                  "chart_type": "bar",
+                  "title": "Repository Overview",
+                  "description": "Basic repository statistics",
+                  "data_source": "github_api"
+                },
+                {
+                  "chart_id": "activity_trend",
+                  "chart_type": "line", 
+                  "title": "Activity Trend",
+                  "description": "Commit and issue activity over time",
+                  "data_source": "git_history"
+                }
+              ]
+            }
+            EOF
+            VIZ_DESIGN_STATUS="basic"
+          fi
+          
+          # チャート画像生成（可能な場合）
+          if [ "$CHART_IMAGE_AVAILABLE" = "true" ]; then
+            echo "Generating sample chart visualizations..."
+            
+            # サンプルダッシュボード画像生成
+            DASHBOARD_PROMPT="professional data analytics dashboard, GitHub repository metrics, modern UI design, charts and graphs, clean layout, blue and white color scheme, high quality"
+            
+            if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$DASHBOARD_PROMPT" > .logs/visualization-design/dashboard-mockup.json 2>&1; then
+              echo "✅ Dashboard mockup generated"
+            fi
+            
+            # 個別チャート画像生成
+            CHART_PROMPT="data visualization charts, bar charts and line graphs, professional business analytics style, clean design, colorful but professional"
+            
+            if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$CHART_PROMPT" > .logs/visualization-design/charts-sample.json 2>&1; then
+              echo "✅ Sample charts generated"
+            fi
+            
+            CHART_GENERATION_STATUS="success"
+          else
+            echo "⚠️ Chart image generation not available"
+            CHART_GENERATION_STATUS="unavailable"
+          fi
+          
+          # 可視化仕様の統計
+          VIZ_SPEC=$(cat .logs/visualization-design/visualization-specification.json)
+          CHART_COUNT=$(echo "$VIZ_SPEC" | jq '.chart_specifications | length' 2>/dev/null || echo "2")
+          KPI_COUNT=$(echo "$VIZ_SPEC" | jq '.key_performance_indicators | length' 2>/dev/null || echo "0")
+          
+          # 可視化サマリー作成
+          cat > .logs/visualization-design/visualization-summary.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "visualization_summary": {
+              "design_status": "$VIZ_DESIGN_STATUS",
+              "chart_generation_status": "$CHART_GENERATION_STATUS",
+              "total_charts_designed": $CHART_COUNT,
+              "kpis_defined": $KPI_COUNT,
+              "interactive_features": $([ "$VIZ_DESIGN_STATUS" = "success" ] && echo "true" || echo "false")
+            },
+            "deliverables": {
+              "specification_document": "visualization-specification.json",
+              "dashboard_mockup": "$([ "$CHART_GENERATION_STATUS" = "success" ] && echo "dashboard-mockup.json" || echo "none")",
+              "sample_charts": "$([ "$CHART_GENERATION_STATUS" = "success" ] && echo "charts-sample.json" || echo "none")"
+            }
+          }
+          EOF
+          
+          echo "VIZ_DESIGN_STATUS=$VIZ_DESIGN_STATUS" >> $GITHUB_ENV
+          echo "CHART_COUNT=$CHART_COUNT" >> $GITHUB_ENV
+          echo "CHART_GENERATION_STATUS=$CHART_GENERATION_STATUS" >> $GITHUB_ENV
+          echo "VIZ_SUMMARY_FILE=.logs/visualization-design/visualization-summary.json" >> $GITHUB_ENV
+          
+          echo "📊 Visualization and dashboard creation completed"
+          echo "Design status: $VIZ_DESIGN_STATUS"
+          echo "Charts designed: $CHART_COUNT"
+
+  # === 洞察レポート段階 ===
+  - id: "insight-report-generation"
+    name: "洞察レポート・提言作成"
+    phase: "insight_reporting"
+    github_job: "report-generation"
+    type: "reporting"
+    implementation: "ai"
+    duration_minutes: 7
+    dependencies: ["visualization-dashboard-creation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Generate comprehensive insight report"
+        shell: "bash"
+        script: |
+          echo "📝 Generating comprehensive insight report..."
+          
+          mkdir -p .logs/insight-reporting
+          
+          # 全分析結果の統合
+          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
+          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
+          MODELING_INSIGHTS=$(cat .logs/analytical-modeling/modeling-insights.json)
+          VIZ_SPEC=$(cat .logs/visualization-design/visualization-specification.json)
+          COLLECTION_SUMMARY=$(cat .logs/data-collection/collection-summary.json)
+          
+          # 包括的レポート生成
+          if [ "$DATA_AI_AVAILABLE" = "true" ]; then
+            echo "Generating comprehensive analytical report..."
+            
+            claude-code --prompt "以下の全分析結果を統合し、包括的な洞察レポートを作成してください：
+            
+            分析要件: $ANALYSIS_REQUIREMENTS
+            探索的分析: $EDA_INSIGHTS
+            モデリング結果: $MODELING_INSIGHTS
+            可視化仕様: $VIZ_SPEC
+            データ収集: $COLLECTION_SUMMARY
+            
+            以下の形式でJSONで回答してください：
+            {
+              \"executive_summary\": {
+                \"project_overview\": \"プロジェクト概要\",
+                \"key_findings\": [\"主要発見事項\"],
+                \"strategic_implications\": [\"戦略的示唆\"],
+                \"immediate_actions\": [\"即座に取るべきアクション\"],
+                \"success_metrics\": [\"成功指標\"]
+              },
+              \"detailed_analysis\": {
+                \"data_quality_assessment\": {
+                  \"completeness\": \"完全性評価\",
+                  \"accuracy\": \"精度評価\",
+                  \"timeliness\": \"適時性評価\",
+                  \"reliability\": \"信頼性評価\",
+                  \"overall_score\": \"総合スコア（1-10）\"
+                },
+                \"performance_analysis\": {
+                  \"current_state\": \"現状分析\",
+                  \"historical_trends\": [\"履歴トレンド\"],
+                  \"benchmark_comparisons\": [\"ベンチマーク比較\"],
+                  \"performance_gaps\": [\"パフォーマンスギャップ\"],
+                  \"improvement_opportunities\": [\"改善機会\"]
+                },
+                \"behavioral_insights\": {
+                  \"user_patterns\": [\"ユーザーパターン\"],
+                  \"engagement_levels\": [\"エンゲージメントレベル\"],
+                  \"collaboration_effectiveness\": \"協働効果性\",
+                  \"productivity_indicators\": [\"生産性指標\"],
+                  \"workflow_efficiency\": \"ワークフロー効率性\"
+                },
+                \"risk_assessment\": {
+                  \"identified_risks\": [\"特定されたリスク\"],
+                  \"risk_severity\": [\"リスク深刻度\"],
+                  \"mitigation_strategies\": [\"軽減戦略\"],
+                  \"monitoring_requirements\": [\"監視要件\"],
+                  \"contingency_plans\": [\"緊急時計画\"]
+                }
+              },
+              \"strategic_recommendations\": [
+                {
+                  \"category\": \"推奨事項カテゴリ\",
+                  \"recommendation\": \"具体的推奨事項\",
+                  \"rationale\": \"根拠・理由\",
+                  \"expected_benefits\": [\"期待される効果\"],
+                  \"implementation_complexity\": \"low|medium|high\",
+                  \"resource_requirements\": [\"必要リソース\"],
+                  \"timeline\": \"実装タイムライン\",
+                  \"success_indicators\": [\"成功指標\"],
+                  \"dependencies\": [\"依存関係\"],
+                  \"risks\": [\"実装リスク\"]
+                }
+              ],
+              \"tactical_action_plan\": {
+                \"immediate_actions\": [
+                  {
+                    \"action\": \"即座のアクション\",
+                    \"owner\": \"責任者\",
+                    \"deadline\": \"期限\",
+                    \"resources\": [\"必要リソース\"],
+                    \"success_criteria\": \"成功基準\"
+                  }
+                ],
+                \"short_term_initiatives\": [\"短期イニシアチブ\"],
+                \"long_term_strategic_moves\": [\"長期戦略的行動\"],
+                \"milestone_schedule\": [\"マイルストーンスケジュール\"],
+                \"progress_tracking\": \"進捗追跡方法\"
+              },
+              \"monitoring_framework\": {
+                \"key_metrics\": [\"主要メトリクス\"],
+                \"measurement_frequency\": \"測定頻度\",
+                \"reporting_schedule\": \"レポートスケジュール\",
+                \"alert_thresholds\": [\"アラート閾値\"],
+                \"dashboard_requirements\": [\"ダッシュボード要件\"],
+                \"review_cycles\": [\"レビューサイクル\"]
+              },
+              \"implementation_guidance\": {
+                \"change_management\": \"変更管理アプローチ\",
+                \"stakeholder_communication\": \"ステークホルダーコミュニケーション\",
+                \"training_requirements\": [\"研修要件\"],
+                \"technology_considerations\": [\"技術考慮事項\"],
+                \"budget_implications\": \"予算影響\",
+                \"timeline_considerations\": \"タイムライン考慮事項\"
+              },
+              \"appendices\": {
+                \"methodology_details\": \"方法論詳細\",
+                \"data_sources_documentation\": \"データソース文書\",
+                \"statistical_validation\": \"統計的検証\",
+                \"assumptions_limitations\": [\"前提条件・制限事項\"],
+                \"glossary\": [\"用語集\"],
+                \"references\": [\"参考文献\"]
+              },
+              \"next_steps\": {
+                \"follow_up_analysis\": [\"フォローアップ分析\"],
+                \"additional_data_collection\": [\"追加データ収集\"],
+                \"model_refinement\": [\"モデル改善\"],
+                \"stakeholder_validation\": [\"ステークホルダー検証\"],
+                \"implementation_planning\": [\"実装計画\"]
+              }
+            }" > .logs/insight-reporting/comprehensive-report.json
+            
+            echo "✅ Comprehensive analytical report generated"
+            REPORT_STATUS="success"
+          else
+            echo "⚠️ AI reporting not available - creating basic summary report"
+            
+            # 基本レポート作成
+            cat > .logs/insight-reporting/comprehensive-report.json << EOF
+            {
+              "executive_summary": {
+                "project_overview": "Data analysis of GitHub repository: ${{ github.repository }}",
+                "key_findings": [
+                  "Repository analysis completed with available data",
+                  "Basic metrics collected and processed"
+                ],
+                "immediate_actions": [
+                  "Review generated analysis results",
+                  "Consider implementing recommended monitoring"
+                ]
+              },
+              "detailed_analysis": {
+                "data_quality_assessment": {
+                  "completeness": "$([ "$COLLECTION_STATUS" = "success" ] && echo "High" || echo "Medium")",
+                  "overall_score": "$EDA_COMPLETENESS_SCORE"
+                }
+              },
+              "strategic_recommendations": [
+                {
+                  "category": "monitoring",
+                  "recommendation": "Establish regular repository monitoring",
+                  "rationale": "Based on current analysis capabilities"
+                }
+              ]
+            }
+            EOF
+            REPORT_STATUS="basic"
+          fi
+          
+          # レポート統計の抽出
+          REPORT_DATA=$(cat .logs/insight-reporting/comprehensive-report.json)
+          RECOMMENDATIONS_COUNT=$(echo "$REPORT_DATA" | jq '.strategic_recommendations | length' 2>/dev/null || echo "1")
+          FINDINGS_COUNT=$(echo "$REPORT_DATA" | jq '.executive_summary.key_findings | length' 2>/dev/null || echo "2")
+          
+          # 最終レポートサマリー作成
+          cat > .logs/insight-reporting/report-summary.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "report_generation": {
+              "status": "$REPORT_STATUS",
+              "comprehensive_report": "comprehensive-report.json",
+              "key_findings": $FINDINGS_COUNT,
+              "strategic_recommendations": $RECOMMENDATIONS_COUNT,
+              "data_quality_score": "$EDA_COMPLETENESS_SCORE/10"
+            },
+            "analysis_completeness": {
+              "data_collection": "$([ "$COLLECTION_STATUS" = "success" ] && echo "complete" || echo "limited")",
+              "exploratory_analysis": "$([ "$EDA_COMPLETENESS_SCORE" -ge 7 ] && echo "comprehensive" || echo "basic")",
+              "modeling": "$MODELING_STATUS",
+              "visualization": "$VIZ_DESIGN_STATUS",
+              "reporting": "$REPORT_STATUS"
+            }
+          }
+          EOF
+          
+          echo "REPORT_STATUS=$REPORT_STATUS" >> $GITHUB_ENV
+          echo "FINAL_FINDINGS_COUNT=$FINDINGS_COUNT" >> $GITHUB_ENV
+          echo "FINAL_RECOMMENDATIONS_COUNT=$RECOMMENDATIONS_COUNT" >> $GITHUB_ENV
+          echo "REPORT_SUMMARY_FILE=.logs/insight-reporting/report-summary.json" >> $GITHUB_ENV
+          
+          echo "📝 Insight report generation completed"
+          echo "Report status: $REPORT_STATUS"
+          echo "Key findings: $FINDINGS_COUNT"
+          echo "Strategic recommendations: $RECOMMENDATIONS_COUNT"
+
+  - id: "final-analytics-packaging"
+    name: "最終分析パッケージ作成"
+    phase: "insight_reporting"
+    github_job: "final-packaging"
+    type: "packaging"
+    implementation: "script"
+    duration_minutes: 3
+    dependencies: ["insight-report-generation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create comprehensive analytics delivery package"
+        shell: "bash"
+        script: |
+          echo "📦 Creating comprehensive analytics delivery package..."
+          
+          mkdir -p .final-output/{requirements,data,analysis,visualization,reports}
+          
+          # プロジェクト文書
+          cp .logs/data-understanding/analysis-requirements.json .final-output/requirements/ 2>/dev/null || true
+          
+          # データ関連
+          cp .logs/data-collection/collection-summary.json .final-output/data/ 2>/dev/null || true
+          # 実際のデータファイルは容量の関係で概要のみ
+          ls .logs/data-collection/raw/ > .final-output/data/collected-files-list.txt 2>/dev/null || echo "No raw data files" > .final-output/data/collected-files-list.txt
+          
+          # 分析結果
+          cp .logs/exploratory-analysis/eda-insights.json .final-output/analysis/ 2>/dev/null || true
+          cp .logs/analytical-modeling/modeling-insights.json .final-output/analysis/ 2>/dev/null || true
+          cp .logs/model-optimization/*.json .final-output/analysis/ 2>/dev/null || true
+          
+          # 可視化設計
+          cp .logs/visualization-design/*.json .final-output/visualization/ 2>/dev/null || true
+          
+          # レポート
+          cp .logs/insight-reporting/*.json .final-output/reports/ 2>/dev/null || true
+          
+          # マスター分析プロジェクト情報
+          cat > .final-output/analytics-project-master.json << EOF
+          {
+            "project_info": {
+              "project_name": "Data Analysis & Visualization",
+              "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "github_run_id": "${{ github.run_id }}",
+              "project_type": "comprehensive_data_analytics",
+              "total_analysis_time": "45 minutes",
+              "repository_analyzed": "${{ github.repository }}"
+            },
+            "analysis_overview": {
+              "data_completeness_score": "$EDA_COMPLETENESS_SCORE/10",
+              "primary_questions_addressed": $PRIMARY_QUESTIONS_COUNT,
+              "data_sources_utilized": $DATA_SOURCES_COUNT,
+              "charts_designed": $CHART_COUNT,
+              "key_findings": $FINAL_FINDINGS_COUNT,
+              "strategic_recommendations": $FINAL_RECOMMENDATIONS_COUNT
+            },
+            "technical_capabilities": {
+              "basic_analytics_capability": "$BASIC_ANALYTICS_CAPABILITY",
+              "advanced_analytics_capability": "$ADVANCED_ANALYTICS_CAPABILITY",
+              "data_ai_available": "$DATA_AI_AVAILABLE",
+              "python_available": "$PYTHON_AVAILABLE",
+              "github_api_available": "$GITHUB_API_AVAILABLE",
+              "chart_generation_available": "$CHART_IMAGE_AVAILABLE"
+            },
+            "analysis_completeness": {
+              "data_collection_status": "$COLLECTION_STATUS",
+              "exploratory_analysis_score": "$EDA_COMPLETENESS_SCORE/10",
+              "modeling_status": "$MODELING_STATUS",
+              "visualization_design_status": "$VIZ_DESIGN_STATUS",
+              "report_generation_status": "$REPORT_STATUS"
+            },
+            "deliverables": {
+              "requirements_analysis": {
+                "analysis_requirements": "requirements/analysis-requirements.json"
+              },
+              "data_collection": {
+                "collection_summary": "data/collection-summary.json",
+                "collected_files_list": "data/collected-files-list.txt"
+              },
+              "analytical_insights": {
+                "exploratory_analysis": "analysis/eda-insights.json",
+                "modeling_insights": "analysis/modeling-insights.json"
+              },
+              "visualization_design": {
+                "visualization_specification": "visualization/visualization-specification.json",
+                "visualization_summary": "visualization/visualization-summary.json"
+              },
+              "reports": {
+                "comprehensive_report": "reports/comprehensive-report.json",
+                "report_summary": "reports/report-summary.json"
+              }
+            },
+            "usage_guidelines": {
+              "data_interpretation": "Follow comprehensive report for proper data interpretation",
+              "visualization_implementation": "Use visualization specification for dashboard creation",
+              "recommendation_prioritization": "Focus on high-priority strategic recommendations",
+              "monitoring_setup": "Implement suggested monitoring framework",
+              "continuous_improvement": "Regular analysis updates recommended"
+            },
+            "support_resources": {
+              "methodology_reference": "Check analysis requirements for methodology details",
+              "data_validation": "Use collection summary for data quality validation",
+              "visualization_guidance": "Follow visualization specification for implementation",
+              "troubleshooting": "Check individual analysis logs for detailed information"
+            }
+          }
+          EOF
+          
+          # データ分析プロジェクトガイドの作成
+          cat > .final-output/DATA_ANALYTICS_GUIDE.md << 'EOF'
+          # データ分析・可視化プロジェクトガイド
+          
+          ## 📊 プロジェクト概要
+          - 分析対象: GitHub リポジトリの包括的分析
+          - 分析手法: 探索的データ分析 + 統計モデリング
+          - 可視化: インタラクティブダッシュボード設計
+          
+          ## 🎯 分析成果
+          - データ品質評価と収集状況
+          - 探索的分析による パターン発見
+          - 統計モデリングによる洞察抽出
+          - 戦略的推奨事項と行動計画
+          
+          ## 📈 主要発見事項
+          - リポジトリ活動パターンの分析
+          - 開発速度と品質指標の評価
+          - 協働効果性とワークフロー効率
+          - パフォーマンス改善機会の特定
+          
+          ## 📊 可視化・ダッシュボード
+          - KPI監視ダッシュボード設計
+          - インタラクティブチャート仕様
+          - データストーリーテリング構成
+          - ユーザビリティとアクセシビリティ対応
+          
+          ## 🚀 実装・活用ガイド
+          - 推奨事項の優先順位付け
+          - 監視フレームワークの構築
+          - 継続的改善プロセス
+          - ステークホルダーコミュニケーション
+          
+          ## 🔧 技術的考慮事項
+          - データ収集の自動化
+          - 分析パイプラインの構築
+          - 可視化ツールの選択
+          - セキュリティとプライバシー
+          EOF
+          
+          # ZIPパッケージ作成
+          cd .final-output && zip -r ../data-analytics-package.zip . && cd ..
+          
+          echo "📦 Final analytics packaging completed"
+          echo "Package includes:"
+          echo "- Analysis requirements and methodology"
+          echo "- Data collection summary ($COLLECTED_FILES_COUNT files processed)"
+          echo "- Exploratory analysis (quality score: $EDA_COMPLETENESS_SCORE/10)"
+          echo "- $FINAL_FINDINGS_COUNT key findings and $FINAL_RECOMMENDATIONS_COUNT recommendations"
+          echo "- $CHART_COUNT visualization specifications"
+          echo "- Comprehensive analytical report"
+          echo "- Implementation guidance and best practices"
+          echo "Package location: data-analytics-package.zip"
+          
+    success_links:
+      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+      comprehensive_report: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/reports/comprehensive-report.json"
+      visualization_spec: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/visualization/visualization-specification.json"
+      analytics_guide: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/DATA_ANALYTICS_GUIDE.md"
+
+    validation:
+      criteria:
+        - "分析要件が定義されている"
+        - "データ収集が実施されている"
+        - "探索的分析が完了している"
+        - "可視化設計が作成されている"
+        - "包括的レポートが生成されている"
+        - "最終パッケージが作成されている"
+      validation_script: |
+        if [ ! -f ".final-output/analytics-project-master.json" ]; then
+          echo "❌ VALIDATION FAILED: Analytics project package missing"
+          exit 1
+        fi
+        
+        if [ "$REPORT_STATUS" = "success" ] || [ "$REPORT_STATUS" = "basic" ]; then
+          echo "✅ Validation passed: Data analytics project completed successfully"
+          echo "Data quality score: $EDA_COMPLETENESS_SCORE/10"
+          echo "Key findings: $FINAL_FINDINGS_COUNT"
+          echo "Recommendations: $FINAL_RECOMMENDATIONS_COUNT"
+        else
+          echo "❌ VALIDATION FAILED: Report generation failed"
+          exit 1
+        fi

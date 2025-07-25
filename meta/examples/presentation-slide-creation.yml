@@ -1,0 +1,1023 @@
+# プレゼンテーションスライド制作 - 超詳細タスク分解
+name: "presentation-slide-creation"
+description: "テーマ分析からスライドデザイン・内容作成まで包括的なプレゼン資料制作"
+category: "business-presentation-creation"
+complexity_level: 4
+estimated_duration_minutes: 40
+
+# 人間の無意識思考プロセス
+human_process:
+  - phase: "content_analysis"
+    description: "内容分析段階（テーマ理解・対象者分析・構成検討）"
+  - phase: "structure_design"
+    description: "構造設計段階（流れ・論理・ストーリー構築）"
+  - phase: "visual_planning"
+    description: "ビジュアル企画段階（デザイン方針・レイアウト・色彩計画）"
+  - phase: "content_creation"
+    description: "内容制作段階（各スライド作成・テキスト・図解）"
+  - phase: "design_integration"
+    description: "デザイン統合段階（視覚的一貫性・ブランディング）"
+  - phase: "quality_refinement"
+    description: "品質向上段階（レビュー・調整・最終化）"
+
+# GitHub Actions ノード設計
+github_actions_config:
+  workflow_name: "Presentation Slide Creation Pipeline"
+  on_triggers: ["workflow_dispatch", "issues"]
+  permissions:
+    contents: "write"
+    issues: "write"
+    actions: "read"
+  artifacts_retention_days: 30
+  max_parallel_jobs: 4
+
+# 超詳細タスク分解
+tasks:
+  # === 事前テスト段階 ===
+  - id: "design-services-connectivity-test"
+    name: "デザイン・生成サービス接続テスト"
+    phase: "pre_validation"
+    github_job: "connectivity-test"
+    type: "validation"
+    implementation: "mcp"
+    duration_minutes: 3
+    dependencies: []
+    parallel_group: null
+    
+    github_steps:
+      - name: "Test design and generation services"
+        shell: "bash"
+        script: |
+          echo "🎨 Testing presentation design services..."
+          
+          mkdir -p .logs/connectivity-tests
+          
+          # 画像生成サービステスト（スライド背景・アイコン用）
+          echo "Testing image generation for slide graphics..."
+          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "business presentation slide background, professional clean design" > .logs/connectivity-tests/image-test.log 2>&1; then
+            IMAGE_GEN_STATUS="success"
+            echo "✅ Image Generation (Slide Graphics): Available"
+          else
+            IMAGE_GEN_STATUS="failed"
+            echo "⚠️ Image Generation: Not available - will use text-based slides"
+          fi
+          
+          # 画像強化サービステスト（品質向上用）
+          echo "Testing image enhancement services..."
+          if timeout 45 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "/tmp/test.jpg" --enhancement "professional presentation quality" > .logs/connectivity-tests/enhancement-test.log 2>&1; then
+            IMAGE_ENHANCEMENT_STATUS="success"
+            echo "✅ Image Enhancement: Available"
+          else
+            IMAGE_ENHANCEMENT_STATUS="failed"
+            echo "⚠️ Image Enhancement: Not available - basic quality only"
+          fi
+          
+          # Claude Code AI テスト（コンテンツ生成用）
+          echo "Testing Claude Code for content generation..."
+          if timeout 30 claude-code --prompt "Test: Create a simple presentation outline for 'Business Strategy'. Return 'CONTENT_TEST_SUCCESS' if working." > .logs/connectivity-tests/content-test.log 2>&1; then
+            if grep -q "CONTENT_TEST_SUCCESS" .logs/connectivity-tests/content-test.log; then
+              CONTENT_GEN_STATUS="success"
+              echo "✅ Content Generation: Available"
+            else
+              CONTENT_GEN_STATUS="partial"
+              echo "⚠️ Content Generation: Partial - response received but format needs adjustment"
+            fi
+          else
+            CONTENT_GEN_STATUS="failed"
+            echo "❌ Content Generation: Failed"
+          fi
+          
+          # 外部デザインAPIテスト（Canva API等）
+          echo "Testing external design APIs..."
+          if [ -n "${{ secrets.CANVA_API_KEY }}" ]; then
+            if timeout 30 curl -s -H "Authorization: Bearer ${{ secrets.CANVA_API_KEY }}" "https://api.canva.com/rest/v1/designs" > .logs/connectivity-tests/canva-test.log 2>&1; then
+              DESIGN_API_STATUS="success"
+              echo "✅ External Design API: Available"
+            else
+              DESIGN_API_STATUS="failed"
+              echo "⚠️ External Design API: Failed - will use generated graphics"
+            fi
+          else
+            DESIGN_API_STATUS="not_configured"
+            echo "ℹ️ External Design API: Not configured"
+          fi
+          
+          # Google Slides APIテスト（最終出力用）
+          echo "Testing Google Slides API..."
+          if [ -n "${{ secrets.GOOGLE_SLIDES_API_KEY }}" ]; then
+            if timeout 30 curl -s "https://slides.googleapis.com/v1/presentations?key=${{ secrets.GOOGLE_SLIDES_API_KEY }}" > .logs/connectivity-tests/gslides-test.log 2>&1; then
+              GSLIDES_API_STATUS="success"
+              echo "✅ Google Slides API: Available"
+            else
+              GSLIDES_API_STATUS="failed"
+              echo "⚠️ Google Slides API: Failed - will output as static files"
+            fi
+          else
+            GSLIDES_API_STATUS="not_configured"
+            echo "ℹ️ Google Slides API: Not configured"
+          fi
+          
+          # テスト結果をJSON保存
+          cat > .logs/connectivity-tests/test-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "presentation_services": {
+              "image_generation": "$IMAGE_GEN_STATUS",
+              "image_enhancement": "$IMAGE_ENHANCEMENT_STATUS", 
+              "content_generation": "$CONTENT_GEN_STATUS",
+              "design_api": "$DESIGN_API_STATUS",
+              "google_slides_api": "$GSLIDES_API_STATUS"
+            },
+            "production_capability": "$([ "$CONTENT_GEN_STATUS" != "failed" ] && echo "full" || echo "limited")",
+            "workflow_can_proceed": $([ "$CONTENT_GEN_STATUS" != "failed" ] && echo "true" || echo "false"),
+            "enhanced_design": $([ "$IMAGE_GEN_STATUS" = "success" ] && echo "true" || echo "false"),
+            "external_integration": $([ "$GSLIDES_API_STATUS" = "success" ] && echo "true" || echo "false")
+          }
+          EOF
+          
+          # 環境変数に結果を設定
+          echo "PRODUCTION_CAPABILITY=$([ "$CONTENT_GEN_STATUS" != "failed" ] && echo "full" || echo "limited")" >> $GITHUB_ENV
+          echo "ENHANCED_DESIGN=$([ "$IMAGE_GEN_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          echo "EXTERNAL_INTEGRATION=$([ "$GSLIDES_API_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          
+          echo "🎨 Design services connectivity tests completed"
+          
+    validation:
+      criteria:
+        - "コンテンツ生成サービスが利用可能"
+        - "最低限のデザイン機能が利用可能"
+        - "テスト結果がJSON形式で保存されている"
+      validation_script: |
+        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
+          echo "❌ VALIDATION FAILED: Test results missing"
+          exit 1
+        fi
+        
+        WORKFLOW_CAN_PROCEED=$(jq -r '.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
+        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
+          echo "✅ Validation passed: Presentation services ready"
+        else
+          echo "❌ VALIDATION FAILED: Critical presentation services unavailable"
+          exit 1
+        fi
+
+  # === 内容分析段階 ===
+  - id: "presentation-topic-analysis"
+    name: "プレゼンテーマ・対象者分析"
+    phase: "content_analysis"
+    github_job: "topic-analysis"
+    type: "analysis"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["design-services-connectivity-test"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Analyze presentation topic and audience"
+        shell: "bash"
+        script: |
+          echo "🔍 Analyzing presentation topic and target audience..."
+          
+          mkdir -p .logs/content-analysis
+          
+          # 入力からテーマと要件を抽出
+          PRESENTATION_TOPIC="${{ github.event.inputs.presentation_topic || github.event.issue.title || 'Business Presentation' }}"
+          TARGET_AUDIENCE="${{ github.event.inputs.target_audience || 'business professionals' }}"
+          PRESENTATION_TIME="${{ github.event.inputs.presentation_time || '15 minutes' }}"
+          PRESENTATION_STYLE="${{ github.event.inputs.presentation_style || 'professional and engaging' }}"
+          PURPOSE="${{ github.event.inputs.purpose || 'inform and persuade' }}"
+          
+          echo "Topic: $PRESENTATION_TOPIC"
+          echo "Audience: $TARGET_AUDIENCE"
+          echo "Duration: $PRESENTATION_TIME"
+          echo "Style: $PRESENTATION_STYLE"
+          echo "Purpose: $PURPOSE"
+          
+          # Claude Code でテーマ・対象者分析
+          claude-code --prompt "以下のプレゼンテーション要件を詳細に分析してください：
+          
+          プレゼンテーマ: $PRESENTATION_TOPIC
+          対象視聴者: $TARGET_AUDIENCE
+          発表時間: $PRESENTATION_TIME
+          スタイル: $PRESENTATION_STYLE
+          目的: $PURPOSE
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"topic_analysis\": {
+              \"main_theme\": \"主要テーマ\",
+              \"key_concepts\": [\"重要概念のリスト\"],
+              \"complexity_level\": \"beginner|intermediate|advanced\",
+              \"industry_context\": \"業界・分野コンテキスト\",
+              \"trending_aspects\": [\"トレンド要素\"],
+              \"potential_challenges\": [\"想定される課題・反論\"]
+            },
+            \"audience_analysis\": {
+              \"primary_audience\": \"主要対象者\",
+              \"knowledge_level\": \"専門知識レベル\",
+              \"interests_motivations\": [\"関心・動機\"],
+              \"communication_preferences\": \"コミュニケーション好み\",
+              \"expected_outcomes\": [\"期待される成果\"],
+              \"attention_span\": \"集中力持続時間\"
+            },
+            \"presentation_requirements\": {
+              \"estimated_slides\": \"推定スライド数\",
+              \"content_depth\": \"内容の深さ\",
+              \"visual_emphasis\": \"ビジュアル重要度（high|medium|low）\",
+              \"interaction_level\": \"聴衆との対話レベル\",
+              \"supporting_materials\": [\"必要な補助資料\"]
+            },
+            \"success_metrics\": {
+              \"primary_objectives\": [\"主要目標\"],
+              \"key_messages\": [\"伝えるべき重要メッセージ\"],
+              \"desired_actions\": [\"聴衆に期待する行動\"],
+              \"measurement_criteria\": [\"成功の判断基準\"]
+            },
+            \"content_strategy\": {
+              \"opening_approach\": \"導入方法\",
+              \"narrative_structure\": \"物語構造\",
+              \"persuasion_techniques\": [\"説得技法\"],
+              \"engagement_methods\": [\"参加促進方法\"]
+            }
+          }" > .logs/content-analysis/topic-analysis.json
+          
+          TOPIC_ANALYSIS=$(cat .logs/content-analysis/topic-analysis.json)
+          echo "TOPIC_ANALYSIS_FILE=.logs/content-analysis/topic-analysis.json" >> $GITHUB_ENV
+          
+          # スライド数を環境変数に設定
+          ESTIMATED_SLIDES=$(echo "$TOPIC_ANALYSIS" | jq -r '.presentation_requirements.estimated_slides')
+          echo "ESTIMATED_SLIDES=$ESTIMATED_SLIDES" >> $GITHUB_ENV
+          
+          echo "🔍 Topic and audience analysis completed"
+          echo "Estimated slides: $ESTIMATED_SLIDES"
+
+  - id: "content-structure-planning"
+    name: "コンテンツ構造・流れ設計"
+    phase: "structure_design"
+    github_job: "structure-planning"
+    type: "planning"
+    implementation: "ai"
+    duration_minutes: 5
+    dependencies: ["presentation-topic-analysis"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Design content structure and flow"
+        shell: "bash"
+        script: |
+          echo "📐 Designing content structure and presentation flow..."
+          
+          mkdir -p .logs/structure-design
+          
+          TOPIC_ANALYSIS=$(cat .logs/content-analysis/topic-analysis.json)
+          
+          # 構造設計とスライド詳細設計
+          claude-code --prompt "以下の分析結果に基づいて、プレゼンテーションの詳細な構造とスライド設計を行ってください：
+          
+          テーマ・対象者分析: $TOPIC_ANALYSIS
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"presentation_structure\": {
+              \"total_slides\": \"総スライド数\",
+              \"estimated_duration\": \"推定発表時間\",
+              \"structure_type\": \"問題解決型|比較検討型|時系列型|プロセス説明型等\",
+              \"flow_strategy\": \"論理的な流れの戦略\"
+            },
+            \"slide_sequence\": [
+              {
+                \"slide_number\": 1,
+                \"slide_type\": \"title|agenda|content|transition|conclusion|q_and_a\",
+                \"section\": \"所属セクション（導入|本論|結論等）\",
+                \"title\": \"スライドタイトル\",
+                \"main_content\": \"主要コンテンツの概要\",
+                \"key_points\": [\"重要ポイント\"],
+                \"visual_elements\": [\"必要なビジュアル要素\"],
+                \"speaker_notes\": \"話者用メモ\",
+                \"estimated_time\": \"このスライドの想定時間（分）\",
+                \"interaction_points\": [\"聴衆との対話ポイント\"],
+                \"transition_to_next\": \"次のスライドへの繋ぎ方\"
+              }
+            ],
+            \"visual_consistency\": {
+              \"color_scheme\": \"推奨カラースキーム\",
+              \"typography_style\": \"フォント・文字スタイル\",
+              \"layout_patterns\": [\"使用するレイアウトパターン\"],
+              \"visual_hierarchy\": \"視覚的優先順位の方針\",
+              \"branding_elements\": [\"ブランディング要素\"]
+            },
+            \"content_guidelines\": {
+              \"text_density\": \"テキスト密度の方針\",
+              \"bullet_point_strategy\": \"箇条書きの使用方針\",
+              \"data_visualization\": [\"データ可視化の方針\"],
+              \"image_usage\": \"画像使用の方針\",
+              \"consistency_rules\": [\"一貫性を保つルール\"]
+            },
+            \"engagement_strategy\": {
+              \"opening_hook\": \"冒頭での関心喚起方法\",
+              \"mid_point_energizers\": [\"中盤での集中力維持方法\"],
+              \"closing_impact\": \"印象的な終わり方\",
+              \"q_and_a_preparation\": \"質疑応答の準備方針\"
+            }
+          }" > .logs/structure-design/presentation-structure.json
+          
+          PRESENTATION_STRUCTURE=$(cat .logs/structure-design/presentation-structure.json)
+          echo "PRESENTATION_STRUCTURE_FILE=.logs/structure-design/presentation-structure.json" >> $GITHUB_ENV
+          
+          # 総スライド数を更新
+          TOTAL_SLIDES=$(echo "$PRESENTATION_STRUCTURE" | jq -r '.presentation_structure.total_slides')
+          echo "TOTAL_SLIDES=$TOTAL_SLIDES" >> $GITHUB_ENV
+          
+          echo "📐 Content structure design completed"
+          echo "Total slides planned: $TOTAL_SLIDES"
+
+  # === ビジュアル企画段階 ===
+  - id: "visual-design-planning"
+    name: "ビジュアルデザイン企画・テンプレート設計"
+    phase: "visual_planning"
+    github_job: "visual-planning"
+    type: "design"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["content-structure-planning"]
+    parallel_group: "design_parallel"
+    
+    github_steps:
+      - name: "Plan visual design and create templates"
+        shell: "bash"
+        script: |
+          echo "🎨 Planning visual design and creating templates..."
+          
+          mkdir -p .logs/visual-planning
+          
+          TOPIC_ANALYSIS=$(cat .logs/content-analysis/topic-analysis.json)
+          PRESENTATION_STRUCTURE=$(cat .logs/structure-design/presentation-structure.json)
+          
+          # ビジュアルデザイン企画
+          claude-code --prompt "以下の情報に基づいて、プレゼンテーションの統一的なビジュアルデザインを企画してください：
+          
+          テーマ分析: $TOPIC_ANALYSIS
+          プレゼン構造: $PRESENTATION_STRUCTURE
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"design_concept\": {
+              \"overall_theme\": \"全体的なデザインテーマ\",
+              \"visual_mood\": \"ビジュアルの雰囲気（professional|creative|modern|classic等）\",
+              \"brand_alignment\": \"ブランドイメージとの整合性\",
+              \"differentiation_strategy\": \"他との差別化戦略\"
+            },
+            \"color_system\": {
+              \"primary_colors\": [\"メインカラー（HEXコード）\"],
+              \"secondary_colors\": [\"サブカラー（HEXコード）\"],
+              \"accent_colors\": [\"アクセントカラー（HEXコード）\"],
+              \"background_colors\": [\"背景色（HEXコード）\"],
+              \"text_colors\": [\"テキスト色（HEXコード）\"]
+            },
+            \"typography_system\": {
+              \"heading_fonts\": [\"見出し用フォント\"],
+              \"body_fonts\": [\"本文用フォント\"],
+              \"accent_fonts\": [\"アクセント用フォント\"],
+              \"font_sizes\": {
+                \"title\": \"タイトルサイズ\",
+                \"heading\": \"見出しサイズ\",
+                \"body\": \"本文サイズ\",
+                \"caption\": \"キャプションサイズ\"
+              }
+            },
+            \"layout_templates\": [
+              {
+                \"template_name\": \"テンプレート名\",
+                \"use_case\": \"使用場面\",
+                \"layout_description\": \"レイアウトの説明\",
+                \"grid_structure\": \"グリッド構造\",
+                \"content_areas\": [\"コンテンツエリアの定義\"],
+                \"visual_elements\": [\"含まれるビジュアル要素\"]
+              }
+            ],
+            \"graphic_elements\": {
+              \"icons_style\": \"アイコンスタイル\",
+              \"illustration_style\": \"イラストレーションスタイル\",
+              \"photo_treatment\": \"写真の処理方針\",
+              \"chart_style\": \"グラフ・チャートスタイル\",
+              \"decorative_elements\": [\"装飾要素\"]
+            },
+            \"slide_templates\": [
+              {
+                \"slide_type\": \"title|content|image|chart|quote|transition\",
+                \"template_description\": \"テンプレートの説明\",
+                \"layout_specifications\": \"レイアウト仕様\",
+                \"image_generation_prompt\": \"背景画像生成用プロンプト\",
+                \"color_usage\": \"色の使用方針\",
+                \"typography_usage\": \"文字の使用方針\"
+              }
+            ]
+          }" > .logs/visual-planning/design-plan.json
+          
+          DESIGN_PLAN=$(cat .logs/visual-planning/design-plan.json)
+          echo "DESIGN_PLAN_FILE=.logs/visual-planning/design-plan.json" >> $GITHUB_ENV
+          
+          echo "🎨 Visual design planning completed"
+
+  - id: "slide-background-generation"
+    name: "スライド背景・グラフィック生成"
+    phase: "visual_planning"
+    github_job: "background-generation"
+    type: "generation"
+    implementation: "mcp"
+    tool: "image-generation"
+    duration_minutes: 6
+    dependencies: ["visual-design-planning"]
+    parallel_group: "design_parallel"
+    
+    github_steps:
+      - name: "Generate slide backgrounds and graphics"
+        shell: "bash"
+        script: |
+          echo "🖼️ Generating slide backgrounds and graphics..."
+          
+          mkdir -p .logs/visual-planning/backgrounds
+          
+          DESIGN_PLAN=$(cat .logs/visual-planning/design-plan.json)
+          
+          if [ "$ENHANCED_DESIGN" = "true" ]; then
+            echo "Generating custom slide backgrounds..."
+            
+            # スライドテンプレート用背景生成
+            TEMPLATE_COUNT=$(echo "$DESIGN_PLAN" | jq '.slide_templates | length')
+            echo "Generating $TEMPLATE_COUNT template backgrounds..."
+            
+            for i in $(seq 0 $((TEMPLATE_COUNT - 1))); do
+              TEMPLATE_DATA=$(echo "$DESIGN_PLAN" | jq ".slide_templates[$i]")
+              SLIDE_TYPE=$(echo "$TEMPLATE_DATA" | jq -r '.slide_type')
+              IMAGE_PROMPT=$(echo "$TEMPLATE_DATA" | jq -r '.image_generation_prompt')
+              
+              if [ "$IMAGE_PROMPT" != "null" ] && [ "$IMAGE_PROMPT" != "" ]; then
+                echo "Generating background for $SLIDE_TYPE slide..."
+                
+                FULL_PROMPT="$IMAGE_PROMPT, professional presentation background, clean design, subtle, high resolution, business appropriate"
+                
+                if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FULL_PROMPT" > .logs/visual-planning/backgrounds/${SLIDE_TYPE}-background.json 2>&1; then
+                  echo "✅ Background generated for $SLIDE_TYPE"
+                else
+                  echo "⚠️ Background generation failed for $SLIDE_TYPE"
+                fi
+              fi
+            done
+            
+            # 汎用グラフィック要素生成
+            echo "Generating generic graphic elements..."
+            
+            # アイコンセット生成
+            ICONS_STYLE=$(echo "$DESIGN_PLAN" | jq -r '.graphic_elements.icons_style')
+            if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "business presentation icons set, $ICONS_STYLE style, clean vector design, transparent background" > .logs/visual-planning/backgrounds/icons-set.json 2>&1; then
+              echo "✅ Icon set generated"
+            fi
+            
+            # 装飾要素生成
+            DECORATIVE_ELEMENTS=$(echo "$DESIGN_PLAN" | jq -r '.graphic_elements.decorative_elements[0] // "geometric patterns"')
+            if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "presentation decorative elements, $DECORATIVE_ELEMENTS, professional, subtle, vector style" > .logs/visual-planning/backgrounds/decorative-elements.json 2>&1; then
+              echo "✅ Decorative elements generated"
+            fi
+            
+            BACKGROUND_GENERATION_STATUS="success"
+          else
+            echo "⚠️ Enhanced design not available - using text-based templates"
+            BACKGROUND_GENERATION_STATUS="text_only"
+          fi
+          
+          # 生成結果ログ
+          GENERATED_FILES=$(ls .logs/visual-planning/backgrounds/*.json 2>/dev/null | wc -l)
+          
+          cat > .logs/visual-planning/backgrounds/generation-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "background_generation": {
+              "status": "$BACKGROUND_GENERATION_STATUS",
+              "files_generated": $GENERATED_FILES,
+              "enhanced_design_available": "$ENHANCED_DESIGN"
+            },
+            "generated_assets": [$(ls .logs/visual-planning/backgrounds/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+          }
+          EOF
+          
+          echo "BACKGROUND_GENERATION_STATUS=$BACKGROUND_GENERATION_STATUS" >> $GITHUB_ENV
+          
+          echo "🖼️ Background generation completed: $GENERATED_FILES files"
+
+  # === 内容制作段階 ===
+  - id: "individual-slide-content-creation"
+    name: "個別スライド内容作成"
+    phase: "content_creation"
+    github_job: "slide-content-creation"
+    type: "creation"
+    implementation: "ai"
+    duration_minutes: 12
+    dependencies: ["slide-background-generation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create detailed content for each slide"
+        shell: "bash"
+        script: |
+          echo "📝 Creating detailed content for each slide..."
+          
+          mkdir -p .logs/content-creation/slides
+          
+          PRESENTATION_STRUCTURE=$(cat .logs/structure-design/presentation-structure.json)
+          DESIGN_PLAN=$(cat .logs/visual-planning/design-plan.json)
+          TOPIC_ANALYSIS=$(cat .logs/content-analysis/topic-analysis.json)
+          
+          # 各スライドの詳細内容を作成
+          SLIDE_COUNT=$(echo "$PRESENTATION_STRUCTURE" | jq '.slide_sequence | length')
+          echo "Creating content for $SLIDE_COUNT slides..."
+          
+          for i in $(seq 0 $((SLIDE_COUNT - 1))); do
+            SLIDE_DATA=$(echo "$PRESENTATION_STRUCTURE" | jq ".slide_sequence[$i]")
+            SLIDE_NUMBER=$(echo "$SLIDE_DATA" | jq -r '.slide_number')
+            SLIDE_TYPE=$(echo "$SLIDE_DATA" | jq -r '.slide_type')
+            SLIDE_TITLE=$(echo "$SLIDE_DATA" | jq -r '.title')
+            
+            echo "Creating content for slide $SLIDE_NUMBER: $SLIDE_TITLE"
+            
+            # 各スライドの詳細内容を生成
+            claude-code --prompt "以下の情報に基づいて、スライド${SLIDE_NUMBER}の詳細な内容を作成してください：
+            
+            スライド基本情報: $SLIDE_DATA
+            全体構造: $PRESENTATION_STRUCTURE
+            デザイン方針: $DESIGN_PLAN
+            テーマ分析: $TOPIC_ANALYSIS
+            
+            以下の形式でJSONで回答してください：
+            {
+              \"slide_info\": {
+                \"slide_number\": $SLIDE_NUMBER,
+                \"slide_type\": \"$SLIDE_TYPE\",
+                \"title\": \"$SLIDE_TITLE\",
+                \"section\": \"所属セクション\"
+              },
+              \"content_details\": {
+                \"main_headline\": \"メインの見出し\",
+                \"sub_headlines\": [\"サブ見出しのリスト\"],
+                \"bullet_points\": [\"箇条書きポイント\"],
+                \"body_text\": \"本文テキスト\",
+                \"key_takeaways\": [\"重要なポイント\"],
+                \"supporting_data\": [\"裏付けデータ・統計\"],
+                \"quotes_testimonials\": [\"引用・証言\"]
+              },
+              \"visual_elements\": {
+                \"background_type\": \"使用する背景タイプ\",
+                \"images_needed\": [\"必要な画像の説明\"],
+                \"charts_graphs\": [\"必要なグラフ・チャートの仕様\"],
+                \"icons_symbols\": [\"使用するアイコン・シンボル\"],
+                \"color_emphasis\": [\"強調に使う色の指定\"]
+              },
+              \"layout_specification\": {
+                \"text_layout\": \"テキストレイアウト方針\",
+                \"visual_hierarchy\": \"視覚的優先順位\",
+                \"white_space_usage\": \"余白の使い方\",
+                \"alignment_strategy\": \"配置・整列方針\"
+              },
+              \"speaker_guidance\": {
+                \"speaking_notes\": [\"話者用詳細メモ\"],
+                \"timing_guidance\": \"時間配分ガイダンス\",
+                \"interaction_cues\": [\"聴衆との対話のきっかけ\"],
+                \"transition_phrases\": [\"次スライドへの繋ぎフレーズ\"]
+              },
+              \"technical_specs\": {
+                \"text_length\": \"テキスト量の目安\",
+                \"font_usage\": \"フォント使用指定\",
+                \"animation_suggestions\": [\"推奨アニメーション\"],
+                \"accessibility_notes\": [\"アクセシビリティ配慮事項\"]
+              }
+            }" > .logs/content-creation/slides/slide-${SLIDE_NUMBER}.json
+            
+            echo "✅ Content created for slide $SLIDE_NUMBER"
+          done
+          
+          # 全スライドの概要作成
+          claude-code --prompt "以下の個別スライド情報を統合して、プレゼンテーション全体の概要を作成してください：
+          
+          $(for file in .logs/content-creation/slides/slide-*.json; do
+            echo "$(basename "$file"): $(cat "$file" | jq -r '.slide_info.title // "untitled"')"
+          done)
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"presentation_overview\": {
+              \"total_slides\": $SLIDE_COUNT,
+              \"estimated_duration\": \"推定発表時間\",
+              \"content_density\": \"内容密度の評価\",
+              \"visual_balance\": \"視覚バランスの評価\"
+            },
+            \"content_quality\": {
+              \"message_clarity\": \"1-10点でのメッセージ明確度\",
+              \"logical_flow\": \"1-10点での論理的流れ\",
+              \"engagement_level\": \"1-10点での関心喚起度\",
+              \"actionability\": \"1-10点での行動促進度\"
+            },
+            \"readiness_assessment\": {
+              \"content_completeness\": \"ready|needs_revision|major_gaps\",
+              \"design_integration\": \"ready|needs_adjustment|major_redesign\",
+              \"speaker_preparation\": \"ready|needs_practice|extensive_prep_needed\"
+            },
+            \"next_steps\": [\"推奨される次のステップ\"]
+          }" > .logs/content-creation/presentation-overview.json
+          
+          PRESENTATION_OVERVIEW=$(cat .logs/content-creation/presentation-overview.json)
+          CONTENT_READINESS=$(echo "$PRESENTATION_OVERVIEW" | jq -r '.readiness_assessment.content_completeness')
+          
+          echo "CONTENT_READINESS=$CONTENT_READINESS" >> $GITHUB_ENV
+          echo "PRESENTATION_OVERVIEW_FILE=.logs/content-creation/presentation-overview.json" >> $GITHUB_ENV
+          
+          echo "📝 Individual slide content creation completed"
+          echo "Content readiness: $CONTENT_READINESS"
+
+  # === デザイン統合段階 ===
+  - id: "visual-content-integration"
+    name: "ビジュアル・コンテンツ統合"
+    phase: "design_integration"
+    github_job: "visual-integration"
+    type: "integration"
+    implementation: "ai"
+    duration_minutes: 6
+    dependencies: ["individual-slide-content-creation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Integrate visual design with content"
+        shell: "bash"
+        script: |
+          echo "🎨 Integrating visual design with content..."
+          
+          mkdir -p .logs/design-integration
+          
+          DESIGN_PLAN=$(cat .logs/visual-planning/design-plan.json)
+          PRESENTATION_OVERVIEW=$(cat .logs/content-creation/presentation-overview.json)
+          
+          # 各スライドファイルを統合処理
+          echo "Processing slide integration..."
+          
+          for slide_file in .logs/content-creation/slides/slide-*.json; do
+            if [ -f "$slide_file" ]; then
+              SLIDE_NUMBER=$(basename "$slide_file" .json | sed 's/slide-//')
+              SLIDE_CONTENT=$(cat "$slide_file")
+              
+              echo "Integrating design for slide $SLIDE_NUMBER..."
+              
+              # デザインとコンテンツの統合
+              claude-code --prompt "以下のスライド内容にビジュアルデザインを統合してください：
+              
+              スライド内容: $SLIDE_CONTENT
+              デザイン方針: $DESIGN_PLAN
+              全体概要: $PRESENTATION_OVERVIEW
+              
+              以下の形式でJSONで回答してください：
+              {
+                \"integrated_slide\": {
+                  \"slide_number\": $SLIDE_NUMBER,
+                  \"final_layout\": \"最終レイアウト仕様\",
+                  \"color_application\": \"色彩適用方針\",
+                  \"typography_application\": \"文字デザイン適用\"
+                },
+                \"visual_content_mapping\": {
+                  \"background_selection\": \"選択された背景\",
+                  \"graphic_elements\": [\"使用するグラフィック要素\"],
+                  \"image_placements\": [\"画像配置の詳細\"],
+                  \"text_styling\": [\"テキストスタイリング詳細\"]
+                },
+                \"quality_check\": {
+                  \"visual_hierarchy_score\": \"1-10点\",
+                  \"readability_score\": \"1-10点\",
+                  \"aesthetic_appeal\": \"1-10点\",
+                  \"brand_consistency\": \"1-10点\"
+                },
+                \"output_specification\": {
+                  \"slide_format\": \"出力形式\",
+                  \"resolution\": \"解像度\",
+                  \"file_requirements\": [\"ファイル要件\"]
+                }
+              }" > .logs/design-integration/integrated-slide-${SLIDE_NUMBER}.json
+            fi
+          done
+          
+          # 統合品質の総合評価
+          echo "Assessing overall integration quality..."
+          
+          claude-code --prompt "以下の統合されたスライド情報を基に、プレゼンテーション全体のデザイン統合品質を評価してください：
+          
+          統合スライド情報: $(for file in .logs/design-integration/integrated-slide-*.json; do
+            echo "$(basename "$file"): $(cat "$file" | jq -r '.quality_check // {}' 2>/dev/null)"
+          done)
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"integration_assessment\": {
+              \"overall_visual_consistency\": \"1-10点での評価\",
+              \"design_content_harmony\": \"1-10点での評価\",
+              \"professional_appearance\": \"1-10点での評価\",
+              \"audience_appropriateness\": \"1-10点での評価\"
+            },
+            \"identified_improvements\": [
+              {
+                \"slide_number\": \"スライド番号\",
+                \"issue\": \"問題点\",
+                \"suggestion\": \"改善提案\",
+                \"priority\": \"high|medium|low\"
+              }
+            ],
+            \"readiness_status\": {
+              \"design_integration\": \"complete|needs_minor_adjustments|major_revision_needed\",
+              \"quality_level\": \"professional|acceptable|needs_improvement\",
+              \"presentation_ready\": \"ready|almost_ready|not_ready\"
+            },
+            \"final_specifications\": {
+              \"total_integrated_slides\": \"統合完了スライド数\",
+              \"consistent_design_elements\": [\"一貫したデザイン要素\"],
+              \"output_formats\": [\"出力可能形式\"],
+              \"file_size_estimate\": \"推定ファイルサイズ\"
+            }
+          }" > .logs/design-integration/integration-assessment.json
+          
+          INTEGRATION_ASSESSMENT=$(cat .logs/design-integration/integration-assessment.json)
+          INTEGRATION_STATUS=$(echo "$INTEGRATION_ASSESSMENT" | jq -r '.readiness_status.design_integration')
+          PRESENTATION_READY=$(echo "$INTEGRATION_ASSESSMENT" | jq -r '.readiness_status.presentation_ready')
+          
+          echo "INTEGRATION_STATUS=$INTEGRATION_STATUS" >> $GITHUB_ENV
+          echo "PRESENTATION_READY=$PRESENTATION_READY" >> $GITHUB_ENV
+          echo "INTEGRATION_ASSESSMENT_FILE=.logs/design-integration/integration-assessment.json" >> $GITHUB_ENV
+          
+          echo "🎨 Visual content integration completed"
+          echo "Integration status: $INTEGRATION_STATUS"
+          echo "Presentation ready: $PRESENTATION_READY"
+
+  # === 品質向上段階 ===
+  - id: "presentation-quality-review"
+    name: "プレゼンテーション品質レビュー・最終調整"
+    phase: "quality_refinement"
+    github_job: "quality-review"
+    type: "validation"
+    implementation: "ai"
+    duration_minutes: 5
+    dependencies: ["visual-content-integration"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Comprehensive quality review and final adjustments"
+        shell: "bash"
+        script: |
+          echo "🔍 Conducting comprehensive quality review..."
+          
+          mkdir -p .logs/quality-review
+          
+          TOPIC_ANALYSIS=$(cat .logs/content-analysis/topic-analysis.json)
+          PRESENTATION_STRUCTURE=$(cat .logs/structure-design/presentation-structure.json)
+          PRESENTATION_OVERVIEW=$(cat .logs/content-creation/presentation-overview.json)
+          INTEGRATION_ASSESSMENT=$(cat .logs/design-integration/integration-assessment.json)
+          
+          # 包括的品質レビュー
+          claude-code --prompt "以下の情報を総合して、プレゼンテーションの包括的な品質レビューを実施してください：
+          
+          初期分析: $TOPIC_ANALYSIS
+          構造設計: $PRESENTATION_STRUCTURE
+          内容概要: $PRESENTATION_OVERVIEW
+          統合評価: $INTEGRATION_ASSESSMENT
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"comprehensive_review\": {
+              \"content_quality\": {
+                \"message_clarity\": \"1-10点\",
+                \"logical_coherence\": \"1-10点\",
+                \"audience_relevance\": \"1-10点\",
+                \"actionable_insights\": \"1-10点\",
+                \"supporting_evidence\": \"1-10点\"
+              },
+              \"design_quality\": {
+                \"visual_appeal\": \"1-10点\",
+                \"consistency\": \"1-10点\",
+                \"readability\": \"1-10点\",
+                \"professional_appearance\": \"1-10点\",
+                \"brand_alignment\": \"1-10点\"
+              },
+              \"structure_quality\": {
+                \"logical_flow\": \"1-10点\",
+                \"pacing\": \"1-10点\",
+                \"transitions\": \"1-10点\",
+                \"engagement_maintenance\": \"1-10点\",
+                \"conclusion_strength\": \"1-10点\"
+              },
+              \"technical_quality\": {
+                \"slide_count_appropriateness\": \"1-10点\",
+                \"text_density\": \"1-10点\",
+                \"visual_balance\": \"1-10点\",
+                \"accessibility\": \"1-10点\",
+                \"format_compliance\": \"1-10点\"
+              }
+            },
+            \"improvement_recommendations\": [
+              {
+                \"category\": \"content|design|structure|technical\",
+                \"priority\": \"critical|high|medium|low\",
+                \"issue_description\": \"問題の詳細\",
+                \"recommended_action\": \"推奨される対応\",
+                \"implementation_effort\": \"low|medium|high\",
+                \"impact_potential\": \"high|medium|low\"
+              }
+            ],
+            \"final_assessment\": {
+              \"overall_quality_score\": \"1-100点での総合評価\",
+              \"readiness_level\": \"ready_to_present|minor_revisions_needed|major_revisions_needed\",
+              \"strength_areas\": [\"強みのある領域\"],
+              \"improvement_areas\": [\"改善が必要な領域\"],
+              \"competitive_advantage\": [\"競合優位性\"],
+              \"risk_factors\": [\"潜在的リスク要因\"]
+            },
+            \"presentation_guidance\": {
+              \"speaker_preparation_time\": \"推奨準備時間\",
+              \"key_practice_points\": [\"練習すべきポイント\"],
+              \"audience_interaction_tips\": [\"聴衆対応のコツ\"],
+              \"technical_setup_requirements\": [\"技術的準備要件\"],
+              \"backup_plans\": [\"緊急時対応プラン\"]
+            },
+            \"distribution_recommendations\": {
+              \"optimal_delivery_formats\": [\"推奨配信形式\"],
+              \"platform_specific_adjustments\": [\"プラットフォーム別調整\"],
+              \"follow_up_materials\": [\"フォローアップ資料\"],
+              \"measurement_metrics\": [\"効果測定指標\"]
+            }
+          }" > .logs/quality-review/comprehensive-review.json
+          
+          COMPREHENSIVE_REVIEW=$(cat .logs/quality-review/comprehensive-review.json)
+          OVERALL_QUALITY=$(echo "$COMPREHENSIVE_REVIEW" | jq -r '.final_assessment.overall_quality_score')
+          READINESS_LEVEL=$(echo "$COMPREHENSIVE_REVIEW" | jq -r '.final_assessment.readiness_level')
+          
+          echo "OVERALL_QUALITY=$OVERALL_QUALITY" >> $GITHUB_ENV
+          echo "READINESS_LEVEL=$READINESS_LEVEL" >> $GITHUB_ENV
+          echo "COMPREHENSIVE_REVIEW_FILE=.logs/quality-review/comprehensive-review.json" >> $GITHUB_ENV
+          
+          echo "🔍 Quality review completed"
+          echo "Overall quality score: $OVERALL_QUALITY/100"
+          echo "Readiness level: $READINESS_LEVEL"
+
+  - id: "final-presentation-packaging"
+    name: "最終プレゼンテーション配信パッケージ作成"
+    phase: "quality_refinement"
+    github_job: "final-packaging"
+    type: "packaging"
+    implementation: "script"
+    duration_minutes: 4
+    dependencies: ["presentation-quality-review"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create comprehensive presentation delivery package"
+        shell: "bash"
+        script: |
+          echo "📦 Creating final presentation delivery package..."
+          
+          mkdir -p .final-output
+          
+          # 重要ファイルを最終出力に収集
+          cp .logs/content-analysis/topic-analysis.json .final-output/ 2>/dev/null || true
+          cp .logs/structure-design/presentation-structure.json .final-output/ 2>/dev/null || true
+          cp .logs/visual-planning/design-plan.json .final-output/ 2>/dev/null || true
+          cp .logs/content-creation/presentation-overview.json .final-output/ 2>/dev/null || true
+          cp .logs/design-integration/integration-assessment.json .final-output/ 2>/dev/null || true
+          cp .logs/quality-review/comprehensive-review.json .final-output/ 2>/dev/null || true
+          
+          # 個別スライドファイルをまとめる
+          mkdir -p .final-output/slides
+          cp .logs/content-creation/slides/slide-*.json .final-output/slides/ 2>/dev/null || true
+          cp .logs/design-integration/integrated-slide-*.json .final-output/slides/ 2>/dev/null || true
+          
+          # 生成されたビジュアル素材
+          mkdir -p .final-output/visual-assets
+          cp .logs/visual-planning/backgrounds/*.json .final-output/visual-assets/ 2>/dev/null || true
+          
+          # マスター配信情報の作成
+          cat > .final-output/presentation-delivery-package.json << EOF
+          {
+            "project_info": {
+              "project_name": "Presentation Slide Creation",
+              "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "github_run_id": "${{ github.run_id }}",
+              "production_capability": "$PRODUCTION_CAPABILITY",
+              "total_slides": $TOTAL_SLIDES,
+              "estimated_duration": "40 minutes production time"
+            },
+            "deliverables": {
+              "presentation_analysis": "topic-analysis.json",
+              "structure_design": "presentation-structure.json",
+              "visual_design_plan": "design-plan.json",
+              "content_overview": "presentation-overview.json",
+              "integration_assessment": "integration-assessment.json",
+              "quality_review": "comprehensive-review.json",
+              "individual_slides": "slides/",
+              "visual_assets": "visual-assets/"
+            },
+            "presentation_specs": {
+              "total_slides": $TOTAL_SLIDES,
+              "estimated_presentation_time": "$(echo "$COMPREHENSIVE_REVIEW" | jq -r '.presentation_guidance.speaker_preparation_time // "15-20 minutes"' 2>/dev/null)",
+              "quality_score": "$OVERALL_QUALITY/100",
+              "readiness_level": "$READINESS_LEVEL",
+              "design_enhanced": "$ENHANCED_DESIGN",
+              "external_integration": "$EXTERNAL_INTEGRATION"
+            },
+            "usage_instructions": {
+              "speaker_preparation": $(echo "$COMPREHENSIVE_REVIEW" | jq '.presentation_guidance' 2>/dev/null || echo '{}'),
+              "technical_requirements": [
+                "Presentation software (PowerPoint, Google Slides, etc.)",
+                "Display device with appropriate resolution",
+                "Backup devices for redundancy",
+                "Remote or clicker for navigation"
+              ],
+              "customization_notes": [
+                "Colors can be adjusted for brand alignment",
+                "Content can be modified for specific audiences",
+                "Additional slides can be added using provided templates",
+                "Speaker notes are included for each slide"
+              ]
+            },
+            "quality_metrics": $(echo "$COMPREHENSIVE_REVIEW" | jq '.final_assessment' 2>/dev/null || echo '{}'),
+            "next_steps": [
+              "Review all slide content for accuracy",
+              "Practice presentation timing",
+              "Prepare for audience Q&A",
+              "Set up technical equipment",
+              "Create backup presentation formats"
+            ],
+            "support_information": {
+              "modification_guidance": "Use provided JSON files to understand structure and regenerate if needed",
+              "troubleshooting": "Check logs/ directory for detailed generation information",
+              "enhancement_options": "Additional visual elements can be generated using MCP services"
+            }
+          }
+          EOF
+          
+          # 簡易プレゼンテーション実行ガイド作成
+          cat > .final-output/PRESENTATION_GUIDE.md << 'EOF'
+          # プレゼンテーション実行ガイド
+          
+          ## 📋 事前準備
+          - [ ] 全スライド内容の確認
+          - [ ] 発表練習（推奨3回以上）
+          - [ ] 技術機器のテスト
+          - [ ] バックアップファイルの準備
+          
+          ## 🎯 発表のポイント
+          - 各スライドの推奨時間を守る
+          - 聴衆との対話を意識する
+          - 重要メッセージを強調する
+          - 質疑応答の準備をしておく
+          
+          ## 🔧 技術的注意事項
+          - 解像度の確認
+          - フォントの互換性チェック
+          - 画像表示の確認
+          - アニメーション動作テスト
+          
+          ## 📊 成果測定
+          - 聴衆の反応をモニター
+          - 質問の質と量を記録
+          - フィードバックを収集
+          - 次回への改善点を記録
+          EOF
+          
+          # ZIPパッケージ作成
+          cd .final-output && zip -r ../presentation-package.zip . && cd ..
+          
+          echo "📦 Final presentation packaging completed"
+          echo "Package includes:"
+          echo "- $TOTAL_SLIDES slide specifications"
+          echo "- Design plans and visual assets"
+          echo "- Quality review (score: $OVERALL_QUALITY/100)"
+          echo "- Speaker guidance and setup instructions"
+          echo "Package location: presentation-package.zip"
+          
+    success_links:
+      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+      quality_review: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/comprehensive-review.json"
+      design_plan: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/design-plan.json"
+      presentation_guide: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/PRESENTATION_GUIDE.md"
+
+    validation:
+      criteria:
+        - "全スライドの内容が作成されている"
+        - "デザイン統合が完了している"
+        - "品質レビューが実施されている"
+        - "配信パッケージが作成されている"
+      validation_script: |
+        if [ ! -f ".final-output/presentation-delivery-package.json" ]; then
+          echo "❌ VALIDATION FAILED: Delivery package missing"
+          exit 1
+        fi
+        
+        if [ "$READINESS_LEVEL" = "ready_to_present" ]; then
+          echo "✅ Validation passed: Presentation ready for delivery"
+        elif [ "$READINESS_LEVEL" = "minor_revisions_needed" ]; then
+          echo "⚠️ WARNING: Minor revisions recommended before presentation"
+        else
+          echo "❌ VALIDATION FAILED: Major revisions needed before presentation"
+          exit 1
+        fi

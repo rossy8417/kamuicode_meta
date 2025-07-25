@@ -1,0 +1,1505 @@
+# マルチメディア広告キャンペーン制作 - 超詳細タスク分解
+name: "multimedia-ad-campaign"
+description: "統合的なマルチメディア広告キャンペーンの完全制作フロー（画像・動画・音楽・3D統合）"
+category: "integrated-marketing-campaign"
+complexity_level: 6
+estimated_duration_minutes: 60
+
+# 人間の無意識思考プロセス
+human_process:
+  - phase: "campaign_strategy"
+    description: "キャンペーン戦略段階（目標・対象・メッセージ・チャネル戦略）"
+  - phase: "creative_concept"
+    description: "クリエイティブコンセプト段階（アイデア・ビジュアル方向性・ストーリー）"
+  - phase: "asset_planning"
+    description: "素材企画段階（必要素材・制作仕様・品質基準・スケジュール）"
+  - phase: "multimedia_production"
+    description: "マルチメディア制作段階（画像・動画・音楽・3D・テキスト統合制作）"
+  - phase: "integration_optimization"
+    description: "統合最適化段階（チャネル別最適化・一貫性・相乗効果）"
+  - phase: "campaign_finalization"
+    description: "キャンペーン完成段階（品質管理・配信準備・効果測定設定）"
+
+# GitHub Actions ノード設計
+github_actions_config:
+  workflow_name: "Multimedia Ad Campaign Creation Pipeline"
+  on_triggers: ["workflow_dispatch", "issues"]
+  permissions:
+    contents: "write"
+    issues: "write"
+    actions: "read"
+  artifacts_retention_days: 30
+  max_parallel_jobs: 5
+
+# 超詳細タスク分解
+tasks:
+  # === 事前テスト段階 ===
+  - id: "multimedia-services-connectivity-test"
+    name: "全マルチメディアサービス接続テスト"
+    phase: "pre_validation"
+    github_job: "connectivity-test"
+    type: "validation"
+    implementation: "mcp"
+    duration_minutes: 5
+    dependencies: []
+    parallel_group: null
+    
+    github_steps:
+      - name: "Test all multimedia generation services"
+        shell: "bash"
+        script: |
+          echo "🎯 Testing comprehensive multimedia ad services..."
+          
+          mkdir -p .logs/connectivity-tests
+          
+          # 画像生成サービステスト（広告メイン素材）
+          echo "Testing image generation services..."
+          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "professional advertisement image test" > .logs/connectivity-tests/image-ultra-test.log 2>&1; then
+            IMAGE_ULTRA_STATUS="success"
+            echo "✅ Image Generation (Ultra): Available"
+          else
+            IMAGE_ULTRA_STATUS="failed"
+            echo "⚠️ Image Ultra: Not available"
+          fi
+          
+          if timeout 45 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "advertisement graphics test" > .logs/connectivity-tests/image-fast-test.log 2>&1; then
+            IMAGE_FAST_STATUS="success"
+            echo "✅ Image Generation (Fast): Available"
+          else
+            IMAGE_FAST_STATUS="failed"
+            echo "⚠️ Image Fast: Not available"
+          fi
+          
+          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 --prompt "google imagen test" > .logs/connectivity-tests/image-google-test.log 2>&1; then
+            IMAGE_GOOGLE_STATUS="success"
+            echo "✅ Google Imagen3: Available"
+          else
+            IMAGE_GOOGLE_STATUS="failed"
+            echo "⚠️ Google Imagen3: Not available"
+          fi
+          
+          # 動画生成サービステスト
+          echo "Testing video generation services..."
+          if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "test advertisement video" > .logs/connectivity-tests/video-test.log 2>&1; then
+            VIDEO_STATUS="success"
+            echo "✅ Video Generation (T2V): Available"
+          else
+            VIDEO_STATUS="failed"
+            echo "⚠️ Video Generation: Not available"
+          fi
+          
+          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2v-fal-hailuo-02-pro --image-path "/tmp/test.jpg" > .logs/connectivity-tests/i2v-test.log 2>&1; then
+            I2V_STATUS="success"
+            echo "✅ Image-to-Video: Available"
+          else
+            I2V_STATUS="failed"
+            echo "⚠️ Image-to-Video: Not available"
+          fi
+          
+          # 音楽・音声生成サービステスト
+          echo "Testing audio generation services..."
+          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "advertisement background music" > .logs/connectivity-tests/music-test.log 2>&1; then
+            MUSIC_STATUS="success"
+            echo "✅ Music Generation: Available"
+          else
+            MUSIC_STATUS="failed"
+            echo "⚠️ Music Generation: Not available"
+          fi
+          
+          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "/tmp/test.mp4" > .logs/connectivity-tests/v2a-test.log 2>&1; then
+            V2A_STATUS="success"
+            echo "✅ Video-to-Audio: Available"
+          else
+            V2A_STATUS="failed"
+            echo "⚠️ Video-to-Audio: Not available"
+          fi
+          
+          # 3D生成サービステスト
+          echo "Testing 3D generation services..."
+          if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "/tmp/test.jpg" > .logs/connectivity-tests/3d-test.log 2>&1; then
+            THREED_STATUS="success"
+            echo "✅ 3D Model Generation: Available"
+          else
+            THREED_STATUS="failed"
+            echo "⚠️ 3D Generation: Not available"
+          fi
+          
+          # 画像強化サービステスト
+          echo "Testing image enhancement services..."
+          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "/tmp/test.jpg" > .logs/connectivity-tests/enhancement-test.log 2>&1; then
+            ENHANCEMENT_STATUS="success"
+            echo "✅ Image Enhancement: Available"
+          else
+            ENHANCEMENT_STATUS="failed"
+            echo "⚠️ Image Enhancement: Not available"
+          fi
+          
+          # 動画編集サービステスト
+          echo "Testing video editing services..."
+          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2v-fal-luma-ray2-modify --video-path "/tmp/test.mp4" > .logs/connectivity-tests/video-edit-test.log 2>&1; then
+            VIDEO_EDIT_STATUS="success"
+            echo "✅ Video Editing: Available"
+          else
+            VIDEO_EDIT_STATUS="failed"
+            echo "⚠️ Video Editing: Not available"
+          fi
+          
+          # Reference-to-Video サービステスト
+          echo "Testing reference-to-video services..."
+          if timeout 100 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp r2v-fal-vidu-q1 --reference-path "/tmp/test.jpg" > .logs/connectivity-tests/r2v-test.log 2>&1; then
+            R2V_STATUS="success"
+            echo "✅ Reference-to-Video: Available"
+          else
+            R2V_STATUS="failed"
+            echo "⚠️ Reference-to-Video: Not available"
+          fi
+          
+          # サービス可用性の総合評価
+          BASIC_CAPABILITY="none"
+          ADVANCED_CAPABILITY="none"
+          
+          # 基本機能判定（画像+動画または音楽）
+          if [ "$IMAGE_FAST_STATUS" = "success" ] || [ "$IMAGE_ULTRA_STATUS" = "success" ] || [ "$IMAGE_GOOGLE_STATUS" = "success" ]; then
+            if [ "$VIDEO_STATUS" = "success" ] || [ "$MUSIC_STATUS" = "success" ]; then
+              BASIC_CAPABILITY="available"
+            fi
+          fi
+          
+          # 高度機能判定（3D、高品質動画編集等）
+          if [ "$THREED_STATUS" = "success" ] && [ "$VIDEO_EDIT_STATUS" = "success" ] && [ "$ENHANCEMENT_STATUS" = "success" ]; then
+            ADVANCED_CAPABILITY="available"
+          fi
+          
+          # テスト結果をJSON保存
+          cat > .logs/connectivity-tests/test-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "multimedia_services": {
+              "image_generation": {
+                "ultra_quality": "$IMAGE_ULTRA_STATUS",
+                "fast_quality": "$IMAGE_FAST_STATUS",
+                "google_imagen": "$IMAGE_GOOGLE_STATUS"
+              },
+              "video_generation": {
+                "text_to_video": "$VIDEO_STATUS",
+                "image_to_video": "$I2V_STATUS",
+                "reference_to_video": "$R2V_STATUS",
+                "video_editing": "$VIDEO_EDIT_STATUS"
+              },
+              "audio_generation": {
+                "music_creation": "$MUSIC_STATUS",
+                "video_to_audio": "$V2A_STATUS"
+              },
+              "3d_generation": {
+                "model_creation": "$THREED_STATUS"
+              },
+              "enhancement_services": {
+                "image_enhancement": "$ENHANCEMENT_STATUS"
+              }
+            },
+            "capability_assessment": {
+              "basic_multimedia_capability": "$BASIC_CAPABILITY",
+              "advanced_multimedia_capability": "$ADVANCED_CAPABILITY",
+              "workflow_can_proceed": $([ "$BASIC_CAPABILITY" = "available" ] && echo "true" || echo "false"),
+              "full_feature_campaign": $([ "$ADVANCED_CAPABILITY" = "available" ] && echo "true" || echo "false")
+            },
+            "service_priorities": {
+              "primary_image_service": "$([ "$IMAGE_ULTRA_STATUS" = "success" ] && echo "ultra" || [ "$IMAGE_FAST_STATUS" = "success" ] && echo "fast" || [ "$IMAGE_GOOGLE_STATUS" = "success" ] && echo "google" || echo "none")",
+              "video_capability": "$([ "$VIDEO_STATUS" = "success" ] && echo "full" || [ "$I2V_STATUS" = "success" ] && echo "i2v_only" || echo "none")",
+              "audio_capability": "$([ "$MUSIC_STATUS" = "success" ] && [ "$V2A_STATUS" = "success" ] && echo "full" || [ "$MUSIC_STATUS" = "success" ] && echo "music_only" || echo "none")",
+              "enhancement_level": "$([ "$ENHANCEMENT_STATUS" = "success" ] && [ "$VIDEO_EDIT_STATUS" = "success" ] && echo "professional" || echo "basic")"
+            }
+          }
+          EOF
+          
+          # 環境変数に結果を設定
+          echo "BASIC_CAPABILITY=$BASIC_CAPABILITY" >> $GITHUB_ENV
+          echo "ADVANCED_CAPABILITY=$ADVANCED_CAPABILITY" >> $GITHUB_ENV
+          echo "PRIMARY_IMAGE_SERVICE=$([ "$IMAGE_ULTRA_STATUS" = "success" ] && echo "ultra" || [ "$IMAGE_FAST_STATUS" = "success" ] && echo "fast" || [ "$IMAGE_GOOGLE_STATUS" = "success" ] && echo "google" || echo "none")" >> $GITHUB_ENV
+          echo "VIDEO_CAPABILITY=$([ "$VIDEO_STATUS" = "success" ] && echo "full" || [ "$I2V_STATUS" = "success" ] && echo "i2v_only" || echo "none")" >> $GITHUB_ENV
+          echo "AUDIO_CAPABILITY=$([ "$MUSIC_STATUS" = "success" ] && [ "$V2A_STATUS" = "success" ] && echo "full" || [ "$MUSIC_STATUS" = "success" ] && echo "music_only" || echo "none")" >> $GITHUB_ENV
+          
+          echo "🎯 Multimedia services connectivity tests completed"
+          echo "Basic capability: $BASIC_CAPABILITY"
+          echo "Advanced capability: $ADVANCED_CAPABILITY"
+          
+    validation:
+      criteria:
+        - "基本的なマルチメディア機能が利用可能"
+        - "テスト結果がJSON形式で保存されている"
+        - "サービス優先度が決定されている"
+      validation_script: |
+        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
+          echo "❌ VALIDATION FAILED: Test results missing"
+          exit 1
+        fi
+        
+        WORKFLOW_CAN_PROCEED=$(jq -r '.capability_assessment.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
+        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
+          echo "✅ Validation passed: Multimedia campaign services ready"
+        else
+          echo "❌ VALIDATION FAILED: Critical multimedia services unavailable"
+          exit 1
+        fi
+
+  # === キャンペーン戦略段階 ===
+  - id: "campaign-strategy-development"
+    name: "キャンペーン戦略・ターゲティング分析"
+    phase: "campaign_strategy"
+    github_job: "strategy-development"
+    type: "analysis"
+    implementation: "ai"
+    duration_minutes: 6
+    dependencies: ["multimedia-services-connectivity-test"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Develop comprehensive campaign strategy"
+        shell: "bash"
+        script: |
+          echo "🎯 Developing comprehensive campaign strategy..."
+          
+          mkdir -p .logs/campaign-strategy
+          
+          # 入力からキャンペーン要件を抽出
+          CAMPAIGN_OBJECTIVE="${{ github.event.inputs.campaign_objective || github.event.issue.title || 'Brand Awareness Campaign' }}"
+          TARGET_AUDIENCE="${{ github.event.inputs.target_audience || 'general consumers' }}"
+          BUDGET_RANGE="${{ github.event.inputs.budget_range || 'medium budget' }}"
+          CAMPAIGN_DURATION="${{ github.event.inputs.campaign_duration || '4 weeks' }}"
+          CHANNELS="${{ github.event.inputs.channels || 'digital channels' }}"
+          BRAND_TONE="${{ github.event.inputs.brand_tone || 'professional and friendly' }}"
+          
+          echo "Campaign objective: $CAMPAIGN_OBJECTIVE"
+          echo "Target audience: $TARGET_AUDIENCE"
+          echo "Budget range: $BUDGET_RANGE"
+          echo "Duration: $CAMPAIGN_DURATION"
+          echo "Channels: $CHANNELS"
+          echo "Brand tone: $BRAND_TONE"
+          
+          # Claude Code でキャンペーン戦略開発
+          claude-code --prompt "以下の要件に基づいて、包括的なマルチメディア広告キャンペーン戦略を開発してください：
+          
+          キャンペーン目標: $CAMPAIGN_OBJECTIVE
+          対象顧客: $TARGET_AUDIENCE
+          予算規模: $BUDGET_RANGE
+          実施期間: $CAMPAIGN_DURATION
+          活用チャネル: $CHANNELS
+          ブランドトーン: $BRAND_TONE
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"campaign_overview\": {
+              \"campaign_name\": \"キャンペーン名\",
+              \"primary_objective\": \"主要目標\",
+              \"success_metrics\": [\"成功指標\"],
+              \"unique_value_proposition\": \"独自価値提案\",
+              \"competitive_advantage\": \"競合優位性\"
+            },
+            \"target_analysis\": {
+              \"primary_persona\": {
+                \"demographics\": \"人口統計的特徴\",
+                \"psychographics\": \"心理的特徴\",
+                \"pain_points\": [\"課題・ニーズ\"],
+                \"media_consumption\": [\"メディア接触習慣\"],
+                \"decision_factors\": [\"購買決定要因\"]
+              },
+              \"secondary_personas\": [\"サブターゲット群\"],
+              \"market_size\": \"市場規模推定\",
+              \"growth_potential\": \"成長可能性\"
+            },
+            \"messaging_strategy\": {
+              \"core_message\": \"核となるメッセージ\",
+              \"supporting_messages\": [\"サポートメッセージ\"],
+              \"emotional_triggers\": [\"感情的訴求ポイント\"],
+              \"rational_benefits\": [\"理性的ベネフィット\"],
+              \"call_to_action\": \"行動喚起メッセージ\"
+            },
+            \"channel_strategy\": {
+              \"primary_channels\": [\"主要チャネル\"],
+              \"secondary_channels\": [\"補助チャネル\"],
+              \"channel_mix_rationale\": \"チャネルミックスの理由\",
+              \"cross_channel_synergy\": \"チャネル間相乗効果\"
+            },
+            \"multimedia_requirements\": {
+              \"content_types_needed\": [\"必要なコンテンツタイプ\"],
+              \"format_specifications\": {
+                \"images\": [\"画像仕様要件\"],
+                \"videos\": [\"動画仕様要件\"],
+                \"audio\": [\"音声仕様要件\"],
+                \"3d_content\": [\"3Dコンテンツ要件\"]
+              },
+              \"quality_standards\": \"品質基準\",
+              \"brand_consistency\": \"ブランド一貫性要件\"
+            },
+            \"campaign_timeline\": {
+              \"phase_1\": \"第1フェーズ（準備・制作）\",
+              \"phase_2\": \"第2フェーズ（実行・展開）\",
+              \"phase_3\": \"第3フェーズ（最適化・拡張）\",
+              \"key_milestones\": [\"重要マイルストーン\"],
+              \"optimization_points\": [\"最適化ポイント\"]
+            },
+            \"success_measurement\": {
+              \"kpis\": [\"主要業績指標\"],
+              \"tracking_methods\": [\"測定方法\"],
+              \"reporting_frequency\": \"レポート頻度\",
+              \"optimization_triggers\": [\"最適化実行トリガー\"]
+            }
+          }" > .logs/campaign-strategy/campaign-strategy.json
+          
+          CAMPAIGN_STRATEGY=$(cat .logs/campaign-strategy/campaign-strategy.json)
+          echo "CAMPAIGN_STRATEGY_FILE=.logs/campaign-strategy/campaign-strategy.json" >> $GITHUB_ENV
+          
+          # 必要コンテンツタイプを環境変数に設定
+          CONTENT_TYPES=$(echo "$CAMPAIGN_STRATEGY" | jq -r '.multimedia_requirements.content_types_needed | join(",")')
+          echo "REQUIRED_CONTENT_TYPES=$CONTENT_TYPES" >> $GITHUB_ENV
+          
+          echo "🎯 Campaign strategy development completed"
+          echo "Required content types: $CONTENT_TYPES"
+
+  - id: "creative-concept-ideation"
+    name: "クリエイティブコンセプト・アイデア開発"
+    phase: "creative_concept"
+    github_job: "concept-ideation"
+    type: "creation"
+    implementation: "ai"
+    duration_minutes: 5
+    dependencies: ["campaign-strategy-development"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Develop creative concepts and ideas"
+        shell: "bash"
+        script: |
+          echo "💡 Developing creative concepts and ideas..."
+          
+          mkdir -p .logs/creative-concept
+          
+          CAMPAIGN_STRATEGY=$(cat .logs/campaign-strategy/campaign-strategy.json)
+          
+          # クリエイティブコンセプト開発
+          claude-code --prompt "以下のキャンペーン戦略に基づいて、革新的で効果的なクリエイティブコンセプトを開発してください：
+          
+          キャンペーン戦略: $CAMPAIGN_STRATEGY
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"creative_theme\": {
+              \"central_concept\": \"中心的なクリエイティブコンセプト\",
+              \"visual_metaphor\": \"視覚的メタファー\",
+              \"storytelling_approach\": \"ストーリーテリング手法\",
+              \"emotional_arc\": \"感情的な流れ\",
+              \"memorable_elements\": [\"記憶に残る要素\"]
+            },
+            \"visual_identity\": {
+              \"color_palette\": {
+                \"primary_colors\": [\"メインカラー（HEXコード）\"],
+                \"secondary_colors\": [\"サブカラー（HEXコード）\"],
+                \"accent_colors\": [\"アクセントカラー（HEXコード）\"]
+              },
+              \"typography_style\": \"タイポグラフィスタイル\",
+              \"visual_style\": \"全体的なビジュアルスタイル\",
+              \"imagery_direction\": \"画像の方向性\",
+              \"iconography\": \"アイコノグラフィー方針\"
+            },
+            \"content_concepts\": [
+              {
+                \"concept_name\": \"コンセプト名\",
+                \"media_type\": \"image|video|audio|3d|mixed\",
+                \"core_idea\": \"核となるアイデア\",
+                \"visual_description\": \"ビジュアル表現の詳細\",
+                \"target_emotion\": \"狙う感情\",
+                \"key_message\": \"伝えるメッセージ\",
+                \"production_complexity\": \"low|medium|high\",
+                \"estimated_impact\": \"high|medium|low\"
+              }
+            ],
+            \"multimedia_integration\": {
+              \"cross_media_consistency\": \"メディア間一貫性の方針\",
+              \"format_adaptation\": \"フォーマット適応戦略\",
+              \"synergy_opportunities\": [\"相乗効果の機会\"],
+              \"user_journey_mapping\": \"ユーザージャーニーでの活用\"
+            },
+            \"innovation_elements\": {
+              \"cutting_edge_techniques\": [\"最先端技術の活用\"],
+              \"interactive_features\": [\"インタラクティブ要素\"],
+              \"personalization_opportunities\": [\"パーソナライゼーション機会\"],
+              \"viral_potential\": \"バイラル可能性\"
+            },
+            \"execution_guidelines\": {
+              \"quality_standards\": \"品質基準\",
+              \"brand_compliance\": \"ブランド遵守事項\",
+              \"technical_requirements\": [\"技術要件\"],
+              \"approval_criteria\": [\"承認基準\"]
+            }
+          }" > .logs/creative-concept/creative-concepts.json
+          
+          CREATIVE_CONCEPTS=$(cat .logs/creative-concept/creative-concepts.json)
+          echo "CREATIVE_CONCEPTS_FILE=.logs/creative-concept/creative-concepts.json" >> $GITHUB_ENV
+          
+          # コンセプト数を環境変数に設定
+          CONCEPT_COUNT=$(echo "$CREATIVE_CONCEPTS" | jq '.content_concepts | length')
+          echo "CONCEPT_COUNT=$CONCEPT_COUNT" >> $GITHUB_ENV
+          
+          echo "💡 Creative concept development completed"
+          echo "Generated concepts: $CONCEPT_COUNT"
+
+  # === 素材企画段階 ===
+  - id: "asset-specification-planning"
+    name: "制作素材仕様・優先度計画"
+    phase: "asset_planning"
+    github_job: "asset-planning"
+    type: "planning"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["creative-concept-ideation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Plan asset specifications and priorities"
+        shell: "bash"
+        script: |
+          echo "📋 Planning asset specifications and production priorities..."
+          
+          mkdir -p .logs/asset-planning
+          
+          CAMPAIGN_STRATEGY=$(cat .logs/campaign-strategy/campaign-strategy.json)
+          CREATIVE_CONCEPTS=$(cat .logs/creative-concept/creative-concepts.json)
+          TEST_RESULTS=$(cat .logs/connectivity-tests/test-results.json)
+          
+          # 素材制作計画の詳細設計
+          claude-code --prompt "以下の情報を基に、マルチメディア広告キャンペーンの制作素材仕様と優先度を計画してください：
+          
+          キャンペーン戦略: $CAMPAIGN_STRATEGY
+          クリエイティブコンセプト: $CREATIVE_CONCEPTS
+          利用可能サービス: $TEST_RESULTS
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"production_overview\": {
+              \"total_assets_planned\": \"計画素材総数\",
+              \"production_phases\": [\"制作フェーズ\"],
+              \"estimated_timeline\": \"推定制作時間\",
+              \"quality_tier\": \"品質ティア（premium|standard|rapid）\"
+            },
+            \"asset_specifications\": [
+              {
+                \"asset_id\": \"素材ID\",
+                \"asset_name\": \"素材名\",
+                \"media_type\": \"image|video|audio|3d|mixed\",
+                \"primary_use\": \"主要用途\",
+                \"target_channels\": [\"対象チャネル\"],
+                \"priority_level\": \"high|medium|low\",
+                \"production_service\": \"使用予定サービス（MCPサービス名）\",
+                \"technical_specs\": {
+                  \"dimensions\": \"サイズ・解像度\",
+                  \"duration\": \"尺・時間\",
+                  \"file_format\": \"ファイル形式\",
+                  \"quality_level\": \"品質レベル\"
+                },
+                \"creative_requirements\": {
+                  \"visual_style\": \"ビジュアルスタイル\",
+                  \"color_scheme\": \"カラースキーム\",
+                  \"messaging\": \"メッセージング\",
+                  \"mood_tone\": \"ムード・トーン\"
+                },
+                \"production_prompt\": \"生成用詳細プロンプト\",
+                \"quality_criteria\": [\"品質判定基準\"],
+                \"fallback_options\": [\"代替案\"]
+              }
+            ],
+            \"production_sequence\": {
+              \"phase_1_assets\": [\"第1フェーズ制作素材ID\"],
+              \"phase_2_assets\": [\"第2フェーズ制作素材ID\"],
+              \"phase_3_assets\": [\"第3フェーズ制作素材ID\"],
+              \"dependencies\": [\"制作依存関係\"],
+              \"parallel_opportunities\": [\"並行制作可能素材\"]
+            },
+            \"resource_allocation\": {
+              \"service_usage_plan\": {
+                \"image_generation\": \"画像生成サービス使用計画\",
+                \"video_generation\": \"動画生成サービス使用計画\",
+                \"audio_generation\": \"音声生成サービス使用計画\",
+                \"3d_generation\": \"3D生成サービス使用計画\",
+                \"enhancement_services\": \"強化サービス使用計画\"
+              },
+              \"estimated_processing_time\": \"推定処理時間\",
+              \"quality_assurance_plan\": \"品質保証計画\"
+            },
+            \"success_metrics\": {
+              \"production_kpis\": [\"制作KPI\"],
+              \"quality_thresholds\": [\"品質閾値\"],
+              \"efficiency_targets\": [\"効率目標\"]
+            }
+          }" > .logs/asset-planning/production-plan.json
+          
+          PRODUCTION_PLAN=$(cat .logs/asset-planning/production-plan.json)
+          echo "PRODUCTION_PLAN_FILE=.logs/asset-planning/production-plan.json" >> $GITHUB_ENV
+          
+          # 制作フェーズ情報を環境変数に設定
+          TOTAL_ASSETS=$(echo "$PRODUCTION_PLAN" | jq -r '.production_overview.total_assets_planned')
+          PHASE_1_COUNT=$(echo "$PRODUCTION_PLAN" | jq '.production_sequence.phase_1_assets | length')
+          
+          echo "TOTAL_PLANNED_ASSETS=$TOTAL_ASSETS" >> $GITHUB_ENV
+          echo "PHASE_1_ASSET_COUNT=$PHASE_1_COUNT" >> $GITHUB_ENV
+          
+          echo "📋 Asset planning completed"
+          echo "Total planned assets: $TOTAL_ASSETS"
+          echo "Phase 1 assets: $PHASE_1_COUNT"
+
+  # === マルチメディア制作段階 ===
+  - id: "hero-image-creation"
+    name: "メインビジュアル・ヒーロー画像制作"
+    phase: "multimedia_production"
+    github_job: "hero-image-creation"
+    type: "generation"
+    implementation: "mcp"
+    tool: "image-generation"
+    duration_minutes: 8
+    dependencies: ["asset-specification-planning"]
+    parallel_group: "media_production_parallel"
+    
+    github_steps:
+      - name: "Create hero images and main visuals"
+        shell: "bash"
+        script: |
+          echo "🖼️ Creating hero images and main visuals..."
+          
+          mkdir -p .logs/multimedia-production/images
+          
+          PRODUCTION_PLAN=$(cat .logs/asset-planning/production-plan.json)
+          CREATIVE_CONCEPTS=$(cat .logs/creative-concept/creative-concepts.json)
+          
+          # Phase 1 画像素材を抽出・生成
+          PHASE_1_ASSETS=$(echo "$PRODUCTION_PLAN" | jq -r '.production_sequence.phase_1_assets[]')
+          
+          echo "Creating Phase 1 image assets..."
+          
+          for asset_id in $PHASE_1_ASSETS; do
+            # 該当素材の詳細情報を取得
+            ASSET_INFO=$(echo "$PRODUCTION_PLAN" | jq ".asset_specifications[] | select(.asset_id == \"$asset_id\")")
+            MEDIA_TYPE=$(echo "$ASSET_INFO" | jq -r '.media_type')
+            
+            if [ "$MEDIA_TYPE" = "image" ] || [ "$MEDIA_TYPE" = "mixed" ]; then
+              ASSET_NAME=$(echo "$ASSET_INFO" | jq -r '.asset_name')
+              PRODUCTION_PROMPT=$(echo "$ASSET_INFO" | jq -r '.production_prompt')
+              QUALITY_LEVEL=$(echo "$ASSET_INFO" | jq -r '.technical_specs.quality_level')
+              
+              echo "Generating $ASSET_NAME (ID: $asset_id)..."
+              
+              # サービス選択と生成実行
+              if [ "$PRIMARY_IMAGE_SERVICE" = "ultra" ] && [ "$QUALITY_LEVEL" = "premium" ]; then
+                echo "Using Ultra quality service for $asset_id..."
+                if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-ultra --prompt "$PRODUCTION_PROMPT" > .logs/multimedia-production/images/${asset_id}.json 2>&1; then
+                  echo "✅ $asset_id generated with Ultra quality"
+                  GENERATION_STATUS="success_ultra"
+                else
+                  echo "⚠️ Ultra generation failed for $asset_id, trying fast..."
+                  if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PRODUCTION_PROMPT" > .logs/multimedia-production/images/${asset_id}.json 2>&1; then
+                    echo "✅ $asset_id generated with Fast quality"
+                    GENERATION_STATUS="success_fast"
+                  else
+                    echo "❌ $asset_id generation failed"
+                    GENERATION_STATUS="failed"
+                  fi
+                fi
+              elif [ "$PRIMARY_IMAGE_SERVICE" = "fast" ] || [ "$PRIMARY_IMAGE_SERVICE" = "google" ]; then
+                SERVICE_NAME=$([ "$PRIMARY_IMAGE_SERVICE" = "fast" ] && echo "t2i-fal-imagen4-fast" || echo "t2i-google-imagen3")
+                echo "Using $SERVICE_NAME for $asset_id..."
+                if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp $SERVICE_NAME --prompt "$PRODUCTION_PROMPT" > .logs/multimedia-production/images/${asset_id}.json 2>&1; then
+                  echo "✅ $asset_id generated successfully"
+                  GENERATION_STATUS="success"
+                else
+                  echo "❌ $asset_id generation failed"
+                  GENERATION_STATUS="failed"
+                fi
+              else
+                echo "⚠️ No suitable image generation service available for $asset_id"
+                GENERATION_STATUS="service_unavailable"
+              fi
+              
+              # 生成結果の品質向上（可能な場合）
+              if [ "$GENERATION_STATUS" != "failed" ] && [ "$GENERATION_STATUS" != "service_unavailable" ]; then
+                IMAGE_FILE_PATH=$(jq -r '.image_url // .file_path // "none"' .logs/multimedia-production/images/${asset_id}.json 2>/dev/null)
+                
+                if [ "$IMAGE_FILE_PATH" != "none" ] && [ "$(echo "$TEST_RESULTS" | jq -r '.multimedia_services.enhancement_services.image_enhancement')" = "success" ]; then
+                  echo "Enhancing quality for $asset_id..."
+                  if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "$IMAGE_FILE_PATH" --enhancement "professional advertisement quality, sharp details, vibrant colors" > .logs/multimedia-production/images/${asset_id}-enhanced.json 2>&1; then
+                    echo "✅ $asset_id enhanced successfully"
+                  fi
+                fi
+              fi
+            fi
+          done
+          
+          # 生成結果の統計
+          GENERATED_COUNT=$(ls .logs/multimedia-production/images/*.json 2>/dev/null | wc -l)
+          
+          # 生成ログの作成
+          cat > .logs/multimedia-production/images/generation-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "image_generation_summary": {
+              "total_requested": $PHASE_1_ASSET_COUNT,
+              "successfully_generated": $GENERATED_COUNT,
+              "primary_service_used": "$PRIMARY_IMAGE_SERVICE",
+              "quality_enhancement_applied": $([ "$(echo "$TEST_RESULTS" | jq -r '.multimedia_services.enhancement_services.image_enhancement')" = "success" ] && echo "true" || echo "false")
+            },
+            "generated_assets": [$(ls .logs/multimedia-production/images/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+          }
+          EOF
+          
+          echo "IMAGE_GENERATION_STATUS=completed" >> $GITHUB_ENV
+          echo "GENERATED_IMAGE_COUNT=$GENERATED_COUNT" >> $GITHUB_ENV
+          
+          echo "🖼️ Hero image creation completed: $GENERATED_COUNT images"
+
+  - id: "video-content-production"
+    name: "動画コンテンツ・アニメーション制作"
+    phase: "multimedia_production"
+    github_job: "video-production"
+    type: "generation"
+    implementation: "mcp"
+    tool: "video-generation"
+    duration_minutes: 12
+    dependencies: ["hero-image-creation"]
+    parallel_group: "media_production_parallel"
+    
+    github_steps:
+      - name: "Create video content and animations"
+        shell: "bash"
+        script: |
+          echo "🎬 Creating video content and animations..."
+          
+          mkdir -p .logs/multimedia-production/videos
+          
+          PRODUCTION_PLAN=$(cat .logs/asset-planning/production-plan.json)
+          IMAGE_GENERATION_LOG=$(cat .logs/multimedia-production/images/generation-log.json)
+          
+          # 動画制作対象素材を抽出
+          echo "Identifying video assets for production..."
+          
+          VIDEO_ASSETS=$(echo "$PRODUCTION_PLAN" | jq -r '.asset_specifications[] | select(.media_type == "video" or .media_type == "mixed") | .asset_id')
+          VIDEO_COUNT=$(echo "$VIDEO_ASSETS" | wc -w)
+          
+          echo "Found $VIDEO_COUNT video assets to produce"
+          
+          for asset_id in $VIDEO_ASSETS; do
+            ASSET_INFO=$(echo "$PRODUCTION_PLAN" | jq ".asset_specifications[] | select(.asset_id == \"$asset_id\")")
+            ASSET_NAME=$(echo "$ASSET_INFO" | jq -r '.asset_name')
+            PRODUCTION_PROMPT=$(echo "$ASSET_INFO" | jq -r '.production_prompt')
+            DURATION=$(echo "$ASSET_INFO" | jq -r '.technical_specs.duration // "15 seconds"')
+            PRIORITY=$(echo "$ASSET_INFO" | jq -r '.priority_level')
+            
+            echo "Producing video: $ASSET_NAME (ID: $asset_id, Priority: $PRIORITY)..."
+            
+            # 制作方法の決定
+            PRODUCTION_METHOD="none"
+            
+            if [ "$VIDEO_CAPABILITY" = "full" ]; then
+              # T2V (Text-to-Video) で直接生成
+              echo "Using T2V for $asset_id..."
+              ENHANCED_PROMPT="$PRODUCTION_PROMPT, professional advertisement video, high quality, engaging, $DURATION duration, smooth motion, commercial grade"
+              
+              if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "$ENHANCED_PROMPT" --duration "$DURATION" > .logs/multimedia-production/videos/${asset_id}.json 2>&1; then
+                echo "✅ $asset_id created with T2V"
+                PRODUCTION_METHOD="t2v"
+              else
+                echo "⚠️ T2V failed for $asset_id, trying I2V..."
+                PRODUCTION_METHOD="failed_t2v"
+              fi
+            fi
+            
+            # I2V (Image-to-Video) フォールバック
+            if [ "$PRODUCTION_METHOD" = "failed_t2v" ] || [ "$VIDEO_CAPABILITY" = "i2v_only" ]; then
+              # 対応する画像ファイルを探す
+              CORRESPONDING_IMAGE=$(ls .logs/multimedia-production/images/${asset_id}*.json 2>/dev/null | head -1)
+              
+              if [ -n "$CORRESPONDING_IMAGE" ]; then
+                IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$CORRESPONDING_IMAGE" 2>/dev/null)
+                
+                if [ "$IMAGE_PATH" != "none" ]; then
+                  echo "Using I2V for $asset_id with corresponding image..."
+                  MOTION_DESCRIPTION="$PRODUCTION_PROMPT, cinematic motion, smooth transitions, professional advertisement style"
+                  
+                  if timeout 150 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2v-fal-hailuo-02-pro --image-path "$IMAGE_PATH" --motion-description "$MOTION_DESCRIPTION" > .logs/multimedia-production/videos/${asset_id}-i2v.json 2>&1; then
+                    echo "✅ $asset_id created with I2V"
+                    PRODUCTION_METHOD="i2v"
+                  else
+                    echo "❌ I2V failed for $asset_id"
+                    PRODUCTION_METHOD="failed"
+                  fi
+                fi
+              else
+                echo "⚠️ No corresponding image found for I2V production of $asset_id"
+                PRODUCTION_METHOD="no_image"
+              fi
+            fi
+            
+            # R2V (Reference-to-Video) 試行（可能な場合）
+            if [ "$PRODUCTION_METHOD" = "failed" ] && [ "$(echo "$TEST_RESULTS" | jq -r '.multimedia_services.video_generation.reference_to_video')" = "success" ]; then
+              REFERENCE_IMAGE=$(ls .logs/multimedia-production/images/*.json 2>/dev/null | head -1)
+              if [ -n "$REFERENCE_IMAGE" ]; then
+                REFERENCE_PATH=$(jq -r '.image_url // .file_path // "none"' "$REFERENCE_IMAGE" 2>/dev/null)
+                if [ "$REFERENCE_PATH" != "none" ]; then
+                  echo "Trying R2V for $asset_id..."
+                  if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp r2v-fal-vidu-q1 --reference-path "$REFERENCE_PATH" --description "$PRODUCTION_PROMPT" > .logs/multimedia-production/videos/${asset_id}-r2v.json 2>&1; then
+                    echo "✅ $asset_id created with R2V"
+                    PRODUCTION_METHOD="r2v"
+                  fi
+                fi
+              fi
+            fi
+            
+            # 動画品質向上（可能な場合）
+            if [ "$PRODUCTION_METHOD" != "failed" ] && [ "$PRODUCTION_METHOD" != "none" ] && [ "$PRODUCTION_METHOD" != "no_image" ]; then
+              VIDEO_FILE=$(ls .logs/multimedia-production/videos/${asset_id}*.json | head -1)
+              VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$VIDEO_FILE" 2>/dev/null)
+              
+              if [ "$VIDEO_PATH" != "none" ] && [ "$(echo "$TEST_RESULTS" | jq -r '.multimedia_services.video_generation.video_editing')" = "success" ]; then
+                echo "Enhancing video quality for $asset_id..."
+                if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2v-fal-luma-ray2-modify --video-path "$VIDEO_PATH" --modification "enhance quality, improve sharpness, optimize colors, professional advertisement standard" > .logs/multimedia-production/videos/${asset_id}-enhanced.json 2>&1; then
+                  echo "✅ $asset_id video enhanced"
+                fi
+              fi
+            fi
+          done
+          
+          # 制作結果の統計
+          PRODUCED_COUNT=$(ls .logs/multimedia-production/videos/*.json 2>/dev/null | wc -l)
+          
+          # 動画制作ログ
+          cat > .logs/multimedia-production/videos/production-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "video_production_summary": {
+              "total_video_assets_planned": $VIDEO_COUNT,
+              "successfully_produced": $PRODUCED_COUNT,
+              "video_capability_used": "$VIDEO_CAPABILITY",
+              "primary_production_methods": ["t2v", "i2v", "r2v"],
+              "quality_enhancement_applied": $([ "$(echo "$TEST_RESULTS" | jq -r '.multimedia_services.video_generation.video_editing')" = "success" ] && echo "true" || echo "false")
+            },
+            "produced_assets": [$(ls .logs/multimedia-production/videos/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+          }
+          EOF
+          
+          echo "VIDEO_PRODUCTION_STATUS=completed" >> $GITHUB_ENV
+          echo "PRODUCED_VIDEO_COUNT=$PRODUCED_COUNT" >> $GITHUB_ENV
+          
+          echo "🎬 Video production completed: $PRODUCED_COUNT videos"
+
+  - id: "audio-music-creation"
+    name: "BGM・効果音・音声素材制作"
+    phase: "multimedia_production"
+    github_job: "audio-creation"
+    type: "generation"
+    implementation: "mcp"
+    tool: "audio-generation"
+    duration_minutes: 8
+    dependencies: ["video-content-production"]
+    parallel_group: "media_production_parallel"
+    
+    github_steps:
+      - name: "Create background music and audio elements"
+        shell: "bash"
+        script: |
+          echo "🎵 Creating background music and audio elements..."
+          
+          mkdir -p .logs/multimedia-production/audio
+          
+          PRODUCTION_PLAN=$(cat .logs/asset-planning/production-plan.json)
+          VIDEO_PRODUCTION_LOG=$(cat .logs/multimedia-production/videos/production-log.json)
+          CREATIVE_CONCEPTS=$(cat .logs/creative-concept/creative-concepts.json)
+          
+          # 音声制作対象素材を抽出
+          AUDIO_ASSETS=$(echo "$PRODUCTION_PLAN" | jq -r '.asset_specifications[] | select(.media_type == "audio") | .asset_id')
+          AUDIO_COUNT=$(echo "$AUDIO_ASSETS" | wc -w)
+          
+          echo "Found $AUDIO_COUNT dedicated audio assets"
+          
+          # 1. 専用音声素材の制作
+          if [ "$AUDIO_CAPABILITY" = "full" ] || [ "$AUDIO_CAPABILITY" = "music_only" ]; then
+            for asset_id in $AUDIO_ASSETS; do
+              ASSET_INFO=$(echo "$PRODUCTION_PLAN" | jq ".asset_specifications[] | select(.asset_id == \"$asset_id\")")
+              ASSET_NAME=$(echo "$ASSET_INFO" | jq -r '.asset_name')
+              PRODUCTION_PROMPT=$(echo "$ASSET_INFO" | jq -r '.production_prompt')
+              DURATION=$(echo "$ASSET_INFO" | jq -r '.technical_specs.duration // "30 seconds"')
+              
+              echo "Creating audio: $ASSET_NAME (ID: $asset_id)..."
+              
+              # T2M (Text-to-Music) で音楽生成
+              MUSIC_PROMPT="$PRODUCTION_PROMPT, professional advertisement music, ${DURATION} duration, high quality, suitable for commercial use"
+              
+              if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MUSIC_PROMPT" --duration "$DURATION" > .logs/multimedia-production/audio/${asset_id}.json 2>&1; then
+                echo "✅ $asset_id music created successfully"
+              else
+                echo "❌ $asset_id music creation failed"
+              fi
+            done
+          else
+            echo "⚠️ Audio generation not available - skipping dedicated audio assets"
+          fi
+          
+          # 2. 動画からの音声生成（V2A）
+          if [ "$AUDIO_CAPABILITY" = "full" ]; then
+            echo "Generating complementary audio from videos..."
+            
+            for video_file in .logs/multimedia-production/videos/*.json; do
+              if [ -f "$video_file" ]; then
+                VIDEO_ASSET_ID=$(basename "$video_file" .json | sed 's/-enhanced$//' | sed 's/-i2v$//' | sed 's/-r2v$//')
+                VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$video_file" 2>/dev/null)
+                
+                if [ "$VIDEO_PATH" != "none" ]; then
+                  echo "Generating complementary audio for video $VIDEO_ASSET_ID..."
+                  
+                  # V2A (Video-to-Audio) で効果音・環境音生成
+                  AUDIO_STYLE="natural sound effects and ambient audio matching the video content, professional advertisement quality"
+                  
+                  if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "$VIDEO_PATH" --audio-style "$AUDIO_STYLE" > .logs/multimedia-production/audio/${VIDEO_ASSET_ID}-v2a.json 2>&1; then
+                    echo "✅ Complementary audio generated for $VIDEO_ASSET_ID"
+                  else
+                    echo "⚠️ V2A failed for $VIDEO_ASSET_ID"
+                  fi
+                fi
+              fi
+            done
+          fi
+          
+          # 3. キャンペーン統一BGMの生成
+          echo "Creating campaign signature music..."
+          CAMPAIGN_THEME=$(echo "$CREATIVE_CONCEPTS" | jq -r '.creative_theme.central_concept')
+          BRAND_TONE=$(echo "$CREATIVE_CONCEPTS" | jq -r '.visual_identity.visual_style')
+          
+          if [ "$AUDIO_CAPABILITY" = "full" ] || [ "$AUDIO_CAPABILITY" = "music_only" ]; then
+            SIGNATURE_MUSIC_PROMPT="campaign signature music, $CAMPAIGN_THEME theme, $BRAND_TONE style, 45 seconds, memorable melody, suitable for brand recognition, professional commercial quality"
+            
+            if timeout 150 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$SIGNATURE_MUSIC_PROMPT" --duration "45" > .logs/multimedia-production/audio/campaign-signature-music.json 2>&1; then
+              echo "✅ Campaign signature music created"
+            else
+              echo "⚠️ Campaign signature music creation failed"
+            fi
+          fi
+          
+          # 制作結果の統計
+          CREATED_AUDIO_COUNT=$(ls .logs/multimedia-production/audio/*.json 2>/dev/null | wc -l)
+          
+          # 音声制作ログ
+          cat > .logs/multimedia-production/audio/creation-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "audio_creation_summary": {
+              "dedicated_audio_assets": $AUDIO_COUNT,
+              "total_audio_files_created": $CREATED_AUDIO_COUNT,
+              "audio_capability": "$AUDIO_CAPABILITY",
+              "creation_methods": {
+                "text_to_music": $([ "$AUDIO_CAPABILITY" = "full" ] || [ "$AUDIO_CAPABILITY" = "music_only" ] && echo "true" || echo "false"),
+                "video_to_audio": $([ "$AUDIO_CAPABILITY" = "full" ] && echo "true" || echo "false"),
+                "signature_music": $([ -f ".logs/multimedia-production/audio/campaign-signature-music.json" ] && echo "true" || echo "false")
+              }
+            },
+            "created_assets": [$(ls .logs/multimedia-production/audio/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+          }
+          EOF
+          
+          echo "AUDIO_CREATION_STATUS=completed" >> $GITHUB_ENV
+          echo "CREATED_AUDIO_COUNT=$CREATED_AUDIO_COUNT" >> $GITHUB_ENV
+          
+          echo "🎵 Audio creation completed: $CREATED_AUDIO_COUNT audio files"
+
+  - id: "3d-immersive-content-creation"
+    name: "3D・没入型コンテンツ制作"
+    phase: "multimedia_production"
+    github_job: "3d-content-creation"
+    type: "generation"
+    implementation: "mcp"
+    tool: "3d-generation"
+    duration_minutes: 10
+    dependencies: ["hero-image-creation"]
+    parallel_group: "media_production_parallel"  
+    
+    github_steps:
+      - name: "Create 3D models and immersive content"
+        shell: "bash"
+        script: |
+          echo "🧊 Creating 3D models and immersive content..."
+          
+          mkdir -p .logs/multimedia-production/3d
+          
+          PRODUCTION_PLAN=$(cat .logs/asset-planning/production-plan.json)
+          IMAGE_GENERATION_LOG=$(cat .logs/multimedia-production/images/generation-log.json)
+          
+          # 3D制作対象素材を抽出
+          THREED_ASSETS=$(echo "$PRODUCTION_PLAN" | jq -r '.asset_specifications[] | select(.media_type == "3d") | .asset_id')
+          THREED_COUNT=$(echo "$THREED_ASSETS" | wc -w)
+          
+          echo "Found $THREED_COUNT dedicated 3D assets"
+          
+          if [ "$(echo "$TEST_RESULTS" | jq -r '.multimedia_services."3d_generation".model_creation')" = "success" ]; then
+            echo "3D generation service available - proceeding with creation..."
+            
+            # 専用3D素材の制作
+            for asset_id in $THREED_ASSETS; do
+              ASSET_INFO=$(echo "$PRODUCTION_PLAN" | jq ".asset_specifications[] | select(.asset_id == \"$asset_id\")")
+              ASSET_NAME=$(echo "$ASSET_INFO" | jq -r '.asset_name')
+              PRODUCTION_PROMPT=$(echo "$ASSET_INFO" | jq -r '.production_prompt')
+              
+              echo "Creating 3D asset: $ASSET_NAME (ID: $asset_id)..."
+              
+              # 対応する2D画像を探して3D化
+              CORRESPONDING_IMAGE=$(ls .logs/multimedia-production/images/${asset_id}*.json 2>/dev/null | head -1)
+              
+              if [ -n "$CORRESPONDING_IMAGE" ]; then
+                IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$CORRESPONDING_IMAGE" 2>/dev/null)
+                
+                if [ "$IMAGE_PATH" != "none" ]; then
+                  echo "Converting 2D image to 3D for $asset_id..."
+                  
+                  if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$IMAGE_PATH" > .logs/multimedia-production/3d/${asset_id}.json 2>&1; then
+                    echo "✅ $asset_id 3D model created successfully"
+                  else
+                    echo "❌ $asset_id 3D conversion failed"
+                  fi
+                else
+                  echo "⚠️ No valid image path found for $asset_id"
+                fi
+              else
+                echo "⚠️ No corresponding 2D image found for $asset_id"
+              fi
+            done
+            
+            # 主要画像素材の3D化（追加バリエーション作成）
+            echo "Creating 3D variations of hero images..."
+            
+            for image_file in .logs/multimedia-production/images/*.json; do
+              if [ -f "$image_file" ]; then
+                IMAGE_ASSET_ID=$(basename "$image_file" .json | sed 's/-enhanced$//')
+                IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$image_file" 2>/dev/null)
+                
+                # 重複チェック（既に専用3D素材として処理済みでないか）
+                if ! echo "$THREED_ASSETS" | grep -q "$IMAGE_ASSET_ID"; then
+                  if [ "$IMAGE_PATH" != "none" ]; then
+                    echo "Creating 3D variation for image $IMAGE_ASSET_ID..."
+                    
+                    if timeout 150 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$IMAGE_PATH" > .logs/multimedia-production/3d/${IMAGE_ASSET_ID}-3d-variation.json 2>&1; then
+                      echo "✅ 3D variation created for $IMAGE_ASSET_ID"
+                    else
+                      echo "⚠️ 3D variation creation failed for $IMAGE_ASSET_ID"
+                    fi
+                  fi
+                fi
+              fi
+            done
+            
+          else
+            echo "⚠️ 3D generation service not available - skipping 3D content creation"
+            
+            # 代替案の提示
+            cat > .logs/multimedia-production/3d/3d-alternatives.json << EOF
+            {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "3d_service_status": "unavailable",
+              "alternative_approaches": [
+                "Use 2D images with parallax effects for pseudo-3D",
+                "Apply depth-of-field effects to existing images", 
+                "Create layered compositions for dimensionality",
+                "Use external 3D rendering services",
+                "Focus on enhanced 2D visuals with motion graphics"
+              ],
+              "recommended_next_steps": [
+                "Enhance existing 2D assets with depth effects",
+                "Create multiple angle variations manually",
+                "Consider external 3D service integration"
+              ]
+            }
+            EOF
+          fi
+          
+          # 制作結果の統計
+          CREATED_3D_COUNT=$(ls .logs/multimedia-production/3d/*.json 2>/dev/null | wc -l)
+          
+          # 3D制作ログ
+          cat > .logs/multimedia-production/3d/creation-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "3d_creation_summary": {
+              "dedicated_3d_assets_planned": $THREED_COUNT,
+              "total_3d_files_created": $CREATED_3D_COUNT,
+              "3d_service_available": $([ "$(echo "$TEST_RESULTS" | jq -r '.multimedia_services."3d_generation".model_creation')" = "success" ] && echo "true" || echo "false"),
+              "creation_method": "image_to_3d_conversion",
+              "additional_variations_created": $([ $CREATED_3D_COUNT -gt $THREED_COUNT ] && echo "true" || echo "false")
+            },
+            "created_assets": [$(ls .logs/multimedia-production/3d/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+          }
+          EOF
+          
+          echo "THREED_CREATION_STATUS=completed" >> $GITHUB_ENV
+          echo "CREATED_3D_COUNT=$CREATED_3D_COUNT" >> $GITHUB_ENV
+          
+          echo "🧊 3D content creation completed: $CREATED_3D_COUNT assets"
+
+  # === 統合最適化段階 ===
+  - id: "cross-media-optimization"
+    name: "クロスメディア最適化・一貫性確保"
+    phase: "integration_optimization"
+    github_job: "cross-media-optimization"
+    type: "optimization"
+    implementation: "ai"
+    duration_minutes: 8
+    dependencies: ["audio-music-creation", "3d-immersive-content-creation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Optimize cross-media consistency and performance"
+        shell: "bash"
+        script: |
+          echo "🔄 Optimizing cross-media consistency and performance..."
+          
+          mkdir -p .logs/integration-optimization
+          
+          # 全制作ログを収集
+          IMAGE_LOG=$(cat .logs/multimedia-production/images/generation-log.json 2>/dev/null || echo '{}')
+          VIDEO_LOG=$(cat .logs/multimedia-production/videos/production-log.json 2>/dev/null || echo '{}')  
+          AUDIO_LOG=$(cat .logs/multimedia-production/audio/creation-log.json 2>/dev/null || echo '{}')
+          THREED_LOG=$(cat .logs/multimedia-production/3d/creation-log.json 2>/dev/null || echo '{}')
+          
+          CAMPAIGN_STRATEGY=$(cat .logs/campaign-strategy/campaign-strategy.json)
+          CREATIVE_CONCEPTS=$(cat .logs/creative-concept/creative-concepts.json)
+          PRODUCTION_PLAN=$(cat .logs/asset-planning/production-plan.json)
+          
+          # クロスメディア最適化分析
+          claude-code --prompt "以下の制作結果を基に、マルチメディア広告キャンペーンのクロスメディア最適化を実施してください：
+          
+          キャンペーン戦略: $CAMPAIGN_STRATEGY
+          クリエイティブコンセプト: $CREATIVE_CONCEPTS
+          制作計画: $PRODUCTION_PLAN
+          
+          制作実績:
+          - 画像制作: $IMAGE_LOG
+          - 動画制作: $VIDEO_LOG
+          - 音声制作: $AUDIO_LOG
+          - 3D制作: $THREED_LOG
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"optimization_analysis\": {
+              \"cross_media_consistency\": {
+                \"visual_consistency_score\": \"1-10点\",
+                \"brand_alignment_score\": \"1-10点\",
+                \"message_coherence_score\": \"1-10点\",
+                \"style_uniformity_score\": \"1-10点\"
+              },
+              \"technical_quality\": {
+                \"resolution_consistency\": \"1-10点\",
+                \"color_accuracy\": \"1-10点\",
+                \"audio_quality\": \"1-10点\",
+                \"format_compatibility\": \"1-10点\"
+              },
+              \"user_experience\": {
+                \"engagement_potential\": \"1-10点\",
+                \"accessibility_score\": \"1-10点\",
+                \"loading_performance\": \"1-10点\",
+                \"mobile_optimization\": \"1-10点\"
+              }
+            },
+            \"identified_issues\": [
+              {
+                \"issue_category\": \"visual|audio|technical|branding\",
+                \"severity\": \"critical|high|medium|low\",
+                \"description\": \"問題の詳細説明\",
+                \"affected_assets\": [\"影響を受ける素材ID\"],
+                \"impact_assessment\": \"キャンペーンへの影響評価\",
+                \"recommended_fix\": \"推奨修正方法\"
+              }
+            ],
+            \"optimization_recommendations\": [
+              {
+                \"optimization_type\": \"color_correction|size_optimization|format_conversion|quality_enhancement\",
+                \"target_assets\": [\"対象素材ID\"],
+                \"optimization_goal\": \"最適化の目標\",
+                \"implementation_method\": \"実装方法\",
+                \"expected_improvement\": \"期待される改善効果\",
+                \"priority_level\": \"high|medium|low\"
+              }
+            ],
+            \"channel_specific_adaptations\": {
+              \"social_media\": {
+                \"format_requirements\": [\"SNS向けフォーマット要件\"],
+                \"sizing_adaptations\": [\"サイズ調整要件\"],
+                \"engagement_optimizations\": [\"エンゲージメント最適化\"]
+              },
+              \"web_advertising\": {
+                \"banner_variations\": [\"バナー広告バリエーション\"],
+                \"loading_optimizations\": [\"読み込み最適化\"],
+                \"responsive_design\": [\"レスポンシブ対応\"]
+              },
+              \"video_platforms\": {
+                \"aspect_ratio_variants\": [\"アスペクト比バリエーション\"],
+                \"duration_adaptations\": [\"尺調整\"],
+                \"platform_specific_features\": [\"プラットフォーム固有機能\"]
+              }
+            },
+            \"integration_strategy\": {
+              \"content_hierarchy\": \"コンテンツ階層の最適化\",
+              \"cross_promotion\": \"クロスプロモーション戦略\",
+              \"synergy_maximization\": \"相乗効果最大化方法\",
+              \"measurement_framework\": \"効果測定フレームワーク\"
+            },
+            \"quality_assurance\": {
+              \"final_checklist\": [\"最終品質チェックリスト\"],
+              \"compliance_verification\": [\"コンプライアンス確認項目\"],
+              \"performance_benchmarks\": [\"パフォーマンス基準\"],
+              \"approval_workflow\": \"承認ワークフロー\"
+            }
+          }" > .logs/integration-optimization/optimization-analysis.json
+          
+          OPTIMIZATION_ANALYSIS=$(cat .logs/integration-optimization/optimization-analysis.json)
+          
+          # 最適化実行の優先度決定
+          CRITICAL_ISSUES=$(echo "$OPTIMIZATION_ANALYSIS" | jq '[.identified_issues[] | select(.severity == "critical")] | length')
+          HIGH_PRIORITY_OPT=$(echo "$OPTIMIZATION_ANALYSIS" | jq '[.optimization_recommendations[] | select(.priority_level == "high")] | length')
+          
+          echo "CRITICAL_ISSUES_COUNT=$CRITICAL_ISSUES" >> $GITHUB_ENV
+          echo "HIGH_PRIORITY_OPTIMIZATIONS=$HIGH_PRIORITY_OPT" >> $GITHUB_ENV
+          echo "OPTIMIZATION_ANALYSIS_FILE=.logs/integration-optimization/optimization-analysis.json" >> $GITHUB_ENV
+          
+          # チャネル別適応版の生成計画
+          claude-code --prompt "以下の最適化分析結果に基づいて、各配信チャネル向けの適応版制作計画を作成してください：
+          
+          最適化分析: $OPTIMIZATION_ANALYSIS
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"adaptation_plan\": {
+              \"total_variants_needed\": \"必要バリエーション総数\",
+              \"priority_channels\": [\"優先チャネル\"],
+              \"adaptation_complexity\": \"low|medium|high\"
+            },
+            \"channel_variants\": [
+              {
+                \"channel_name\": \"チャネル名\",
+                \"required_formats\": [\"必要フォーマット\"],
+                \"adaptation_tasks\": [\"適応タスク\"],
+                \"estimated_effort\": \"推定作業量\",
+                \"technical_requirements\": [\"技術要件\"]
+              }
+            ],
+            \"automation_opportunities\": [
+              {
+                \"task_type\": \"自動化可能タスク\",
+                \"automation_method\": \"自動化方法\",
+                \"efficiency_gain\": \"効率向上度\"
+              }
+            ],
+            \"manual_review_points\": [\"手動確認が必要なポイント\"],
+            \"delivery_timeline\": \"配信スケジュール\"
+          }" > .logs/integration-optimization/adaptation-plan.json
+          
+          ADAPTATION_PLAN=$(cat .logs/integration-optimization/adaptation-plan.json)
+          echo "ADAPTATION_PLAN_FILE=.logs/integration-optimization/adaptation-plan.json" >> $GITHUB_ENV
+          
+          echo "🔄 Cross-media optimization completed"
+          echo "Critical issues identified: $CRITICAL_ISSUES"
+          echo "High priority optimizations: $HIGH_PRIORITY_OPT"
+
+  # === キャンペーン完成段階 ===
+  - id: "campaign-quality-assurance"
+    name: "キャンペーン品質保証・最終検証"
+    phase: "campaign_finalization"
+    github_job: "quality-assurance"
+    type: "validation"
+    implementation: "ai"
+    duration_minutes: 6
+    dependencies: ["cross-media-optimization"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Comprehensive quality assurance and final validation"
+        shell: "bash"
+        script: |
+          echo "🔍 Conducting comprehensive quality assurance..."
+          
+          mkdir -p .logs/campaign-finalization
+          
+          # 全制作成果物の統計
+          TOTAL_IMAGES=$(ls .logs/multimedia-production/images/*.json 2>/dev/null | wc -l)
+          TOTAL_VIDEOS=$(ls .logs/multimedia-production/videos/*.json 2>/dev/null | wc -l)
+          TOTAL_AUDIO=$(ls .logs/multimedia-production/audio/*.json 2>/dev/null | wc -l)
+          TOTAL_3D=$(ls .logs/multimedia-production/3d/*.json 2>/dev/null | wc -l)
+          TOTAL_ASSETS=$((TOTAL_IMAGES + TOTAL_VIDEOS + TOTAL_AUDIO + TOTAL_3D))
+          
+          # 全データの統合
+          CAMPAIGN_STRATEGY=$(cat .logs/campaign-strategy/campaign-strategy.json)
+          CREATIVE_CONCEPTS=$(cat .logs/creative-concept/creative-concepts.json)
+          PRODUCTION_PLAN=$(cat .logs/asset-planning/production-plan.json)
+          OPTIMIZATION_ANALYSIS=$(cat .logs/integration-optimization/optimization-analysis.json)
+          
+          # 包括的品質保証分析
+          claude-code --prompt "以下の情報を基に、マルチメディア広告キャンペーンの包括的な品質保証評価を実施してください：
+          
+          キャンペーン戦略: $CAMPAIGN_STRATEGY
+          クリエイティブコンセプト: $CREATIVE_CONCEPTS
+          制作計画: $PRODUCTION_PLAN
+          最適化分析: $OPTIMIZATION_ANALYSIS
+          
+          制作実績統計:
+          - 画像素材: $TOTAL_IMAGES 件
+          - 動画素材: $TOTAL_VIDEOS 件
+          - 音声素材: $TOTAL_AUDIO 件
+          - 3D素材: $TOTAL_3D 件
+          - 総素材数: $TOTAL_ASSETS 件
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"overall_assessment\": {
+              \"campaign_readiness_score\": \"1-100点での総合評価\",
+              \"strategic_alignment\": \"1-10点での戦略整合性\",
+              \"creative_excellence\": \"1-10点でのクリエイティブ品質\",
+              \"technical_quality\": \"1-10点での技術品質\",
+              \"brand_consistency\": \"1-10点でのブランド一貫性\",
+              \"market_competitiveness\": \"1-10点での市場競争力\"
+            },
+            \"quality_metrics\": {
+              \"content_completeness\": \"$TOTAL_ASSETS/$TOTAL_PLANNED_ASSETS 達成率\",
+              \"production_efficiency\": \"制作効率評価\",
+              \"innovation_level\": \"革新性レベル評価\",
+              \"scalability_potential\": \"拡張可能性評価\"
+            },
+            \"compliance_check\": {
+              \"brand_guidelines\": \"ブランドガイドライン準拠\",
+              \"technical_standards\": \"技術基準適合\",
+              \"accessibility_compliance\": \"アクセシビリティ対応\",
+              \"platform_requirements\": \"プラットフォーム要件適合\",
+              \"legal_compliance\": \"法的コンプライアンス\"
+            },
+            \"risk_assessment\": {
+              \"high_risk_factors\": [\"高リスク要因\"],
+              \"medium_risk_factors\": [\"中リスク要因\"],
+              \"mitigation_strategies\": [\"リスク軽減策\"],
+              \"contingency_plans\": [\"緊急時対応計画\"]
+            },
+            \"performance_predictions\": {
+              \"expected_engagement_rate\": \"予想エンゲージメント率\",
+              \"conversion_potential\": \"コンバージョン可能性\",
+              \"viral_potential\": \"バイラル可能性\",
+              \"brand_impact_score\": \"ブランドインパクト予測\"
+            },
+            \"launch_readiness\": {
+              \"immediate_launch\": \"即座実行可能素材\",
+              \"minor_adjustments_needed\": \"微調整必要素材\",
+              \"major_revisions_required\": \"大幅修正必要素材\",
+              \"overall_launch_status\": \"ready|almost_ready|needs_work\"
+            },
+            \"success_optimization\": {
+              \"high_impact_improvements\": [\"高インパクト改善案\"],
+              \"quick_wins\": [\"即効性改善案\"],
+              \"long_term_enhancements\": [\"長期的強化案\"],
+              \"competitive_advantages\": [\"競合優位要素\"]
+            },
+            \"measurement_framework\": {
+              \"primary_kpis\": [\"主要KPI設定\"],
+              \"tracking_implementation\": \"トラッキング実装方針\",
+              \"reporting_schedule\": \"レポーティングスケジュール\",
+              \"optimization_triggers\": [\"最適化実行トリガー\"]
+            }
+          }" > .logs/campaign-finalization/quality-assurance-report.json
+          
+          QA_REPORT=$(cat .logs/campaign-finalization/quality-assurance-report.json)
+          CAMPAIGN_READINESS=$(echo "$QA_REPORT" | jq -r '.overall_assessment.campaign_readiness_score')
+          LAUNCH_STATUS=$(echo "$QA_REPORT" | jq -r '.launch_readiness.overall_launch_status')
+          
+          echo "CAMPAIGN_READINESS_SCORE=$CAMPAIGN_READINESS" >> $GITHUB_ENV
+          echo "LAUNCH_STATUS=$LAUNCH_STATUS" >> $GITHUB_ENV
+          echo "QA_REPORT_FILE=.logs/campaign-finalization/quality-assurance-report.json" >> $GITHUB_ENV
+          
+          echo "🔍 Quality assurance completed"
+          echo "Campaign readiness score: $CAMPAIGN_READINESS/100"
+          echo "Launch status: $LAUNCH_STATUS"
+
+  - id: "final-campaign-packaging"
+    name: "最終キャンペーンパッケージ・配信準備"
+    phase: "campaign_finalization"
+    github_job: "final-packaging"
+    type: "packaging"
+    implementation: "script"
+    duration_minutes: 5
+    dependencies: ["campaign-quality-assurance"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create comprehensive campaign delivery package"
+        shell: "bash"
+        script: |
+          echo "📦 Creating comprehensive campaign delivery package..."
+          
+          mkdir -p .final-output/{strategy,creative,assets,optimization}
+          
+          # 戦略・企画ドキュメント
+          cp .logs/campaign-strategy/campaign-strategy.json .final-output/strategy/ 2>/dev/null || true
+          cp .logs/creative-concept/creative-concepts.json .final-output/creative/ 2>/dev/null || true
+          cp .logs/asset-planning/production-plan.json .final-output/strategy/ 2>/dev/null || true
+          
+          # 制作素材
+          mkdir -p .final-output/assets/{images,videos,audio,3d}
+          cp .logs/multimedia-production/images/*.json .final-output/assets/images/ 2>/dev/null || true
+          cp .logs/multimedia-production/videos/*.json .final-output/assets/videos/ 2>/dev/null || true
+          cp .logs/multimedia-production/audio/*.json .final-output/assets/audio/ 2>/dev/null || true  
+          cp .logs/multimedia-production/3d/*.json .final-output/assets/3d/ 2>/dev/null || true
+          
+          # 最適化・品質保証資料
+          cp .logs/integration-optimization/*.json .final-output/optimization/ 2>/dev/null || true
+          cp .logs/campaign-finalization/*.json .final-output/optimization/ 2>/dev/null || true
+          
+          # マスターキャンペーン情報の作成
+          cat > .final-output/campaign-master-package.json << EOF
+          {
+            "project_info": {
+              "project_name": "Multimedia Ad Campaign Creation",
+              "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "github_run_id": "${{ github.run_id }}",
+              "campaign_type": "integrated_multimedia_campaign",
+              "total_production_time": "60 minutes"
+            },
+            "campaign_overview": {
+              "campaign_readiness_score": "$CAMPAIGN_READINESS_SCORE/100",
+              "launch_status": "$LAUNCH_STATUS",
+              "total_assets_created": $TOTAL_ASSETS,
+              "multimedia_capabilities": {
+                "image_generation": $([ "$GENERATED_IMAGE_COUNT" -gt 0 ] && echo "true" || echo "false"),
+                "video_production": $([ "$PRODUCED_VIDEO_COUNT" -gt 0 ] && echo "true" || echo "false"),
+                "audio_creation": $([ "$CREATED_AUDIO_COUNT" -gt 0 ] && echo "true" || echo "false"),
+                "3d_modeling": $([ "$CREATED_3D_COUNT" -gt 0 ] && echo "true" || echo "false")
+              }
+            },
+            "deliverables": {
+              "strategy_documents": {
+                "campaign_strategy": "strategy/campaign-strategy.json",
+                "production_plan": "strategy/production-plan.json"
+              },
+              "creative_assets": {
+                "creative_concepts": "creative/creative-concepts.json",
+                "image_assets": "assets/images/",
+                "video_assets": "assets/videos/",
+                "audio_assets": "assets/audio/",
+                "3d_assets": "assets/3d/"
+              },
+              "optimization_reports": {
+                "cross_media_optimization": "optimization/optimization-analysis.json",
+                "adaptation_plan": "optimization/adaptation-plan.json",
+                "quality_assurance": "optimization/quality-assurance-report.json"
+              }
+            },
+            "asset_inventory": {
+              "images_created": $TOTAL_IMAGES,
+              "videos_produced": $TOTAL_VIDEOS,
+              "audio_files_generated": $TOTAL_AUDIO,
+              "3d_models_created": $TOTAL_3D,
+              "total_multimedia_assets": $TOTAL_ASSETS
+            },
+            "technical_capabilities": {
+              "basic_multimedia_capability": "$BASIC_CAPABILITY",
+              "advanced_multimedia_capability": "$ADVANCED_CAPABILITY",
+              "primary_image_service": "$PRIMARY_IMAGE_SERVICE",
+              "video_capability": "$VIDEO_CAPABILITY",
+              "audio_capability": "$AUDIO_CAPABILITY"
+            },
+            "campaign_execution": {
+              "immediate_deployment_ready": $([ "$LAUNCH_STATUS" = "ready" ] && echo "true" || echo "false"),
+              "critical_issues_count": "$CRITICAL_ISSUES_COUNT",
+              "high_priority_optimizations": "$HIGH_PRIORITY_OPTIMIZATIONS",
+              "recommended_next_steps": [
+                "Review quality assurance report",
+                "Implement high-priority optimizations",
+                "Conduct stakeholder approval process",
+                "Execute channel-specific adaptations",
+                "Launch measurement framework"
+              ]
+            },
+            "usage_guidelines": {
+              "asset_modification": "Assets can be modified using source JSON specifications",
+              "brand_compliance": "Ensure all modifications maintain brand consistency",
+              "platform_adaptation": "Use adaptation plan for channel-specific versions",
+              "quality_maintenance": "Follow QA checklist for any changes",
+              "performance_monitoring": "Implement measurement framework for optimization"
+            },
+            "support_resources": {
+              "troubleshooting": "Check logs/ directory for detailed generation information",
+              "asset_regeneration": "Use production-plan.json specifications to recreate assets",
+              "optimization_guidance": "Follow optimization-analysis.json recommendations",
+              "compliance_verification": "Use quality-assurance-report.json compliance checklist"
+            }
+          }
+          EOF
+          
+          # キャンペーン実行ガイドの作成
+          cat > .final-output/CAMPAIGN_EXECUTION_GUIDE.md << 'EOF'
+          # マルチメディア広告キャンペーン実行ガイド
+          
+          ## 📊 キャンペーン概要
+          - 総制作素材数: 統合的なマルチメディア素材
+          - 品質評価スコア: 総合品質評価
+          - 配信準備状況: 実行可能性レベル
+          
+          ## 🚀 実行前チェックリスト
+          - [ ] 全素材の品質確認
+          - [ ] ブランドガイドライン適合性確認
+          - [ ] 各プラットフォーム仕様適合確認
+          - [ ] 法的コンプライアンス確認
+          - [ ] 測定・トラッキング設定
+          
+          ## 🎯 配信戦略
+          - チャネル別最適化の実施
+          - クロスメディア相乗効果の活用
+          - パフォーマンス監視体制の構築
+          - 継続的最適化プロセスの実装
+          
+          ## 📈 成果測定
+          - KPI設定と監視
+          - A/Bテスト実施
+          - ROI測定
+          - 継続改善サイクル
+          
+          ## 🔧 技術的注意事項
+          - ファイル形式の互換性確認
+          - 読み込み速度の最適化
+          - モバイル対応の検証
+          - アクセシビリティ対応
+          EOF
+          
+          # ZIPパッケージ作成
+          cd .final-output && zip -r ../multimedia-campaign-package.zip . && cd ..
+          
+          echo "📦 Final campaign packaging completed"
+          echo "Package includes:"
+          echo "- Campaign strategy and creative concepts"
+          echo "- $TOTAL_ASSETS multimedia assets"
+          echo "- Cross-media optimization analysis"
+          echo "- Quality assurance report (score: $CAMPAIGN_READINESS_SCORE/100)"
+          echo "- Channel adaptation guidelines"
+          echo "- Execution and measurement framework"
+          echo "Package location: multimedia-campaign-package.zip"
+          
+    success_links:
+      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+      quality_report: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/optimization/quality-assurance-report.json"
+      campaign_strategy: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/strategy/campaign-strategy.json"
+      execution_guide: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/CAMPAIGN_EXECUTION_GUIDE.md"
+
+    validation:
+      criteria:
+        - "キャンペーン戦略が策定されている"
+        - "マルチメディア素材が制作されている"
+        - "品質保証が実施されている"
+        - "配信パッケージが作成されている"
+      validation_script: |
+        if [ ! -f ".final-output/campaign-master-package.json" ]; then
+          echo "❌ VALIDATION FAILED: Campaign package missing"
+          exit 1
+        fi
+        
+        if [ "$LAUNCH_STATUS" = "ready" ]; then
+          echo "✅ Validation passed: Campaign ready for launch"
+        elif [ "$LAUNCH_STATUS" = "almost_ready" ]; then
+          echo "⚠️ WARNING: Minor adjustments recommended before launch"
+        else
+          echo "❌ VALIDATION FAILED: Major work needed before campaign launch"
+          exit 1
+        fi

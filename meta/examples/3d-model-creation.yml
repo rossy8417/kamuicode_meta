@@ -1,0 +1,1255 @@
+# 3Dモデル生成 - 超詳細タスク分解
+name: "3d-model-creation"
+description: "2D画像から3Dモデル生成・最適化・活用準備の専門ワークフロー"
+category: "3d-content-generation"
+complexity_level: 5
+estimated_duration_minutes: 30
+
+# 人間の無意識思考プロセス
+human_process:
+  - phase: "concept_visualization"
+    description: "概念可視化段階（3D化対象・用途・スタイル・技術要件）"
+  - phase: "reference_preparation"
+    description: "参照準備段階（ソース画像・角度・品質・前処理）"
+  - phase: "3d_generation"
+    description: "3D生成段階（メッシュ生成・テクスチャマッピング・幾何学処理）"
+  - phase: "model_optimization"
+    description: "モデル最適化段階（トポロジー・UV展開・LOD・パフォーマンス）"
+  - phase: "rendering_setup"
+    description: "レンダリング設定段階（マテリアル・ライティング・カメラ・環境）"
+  - phase: "delivery_preparation"
+    description: "配信準備段階（フォーマット変換・最適化・用途別調整・品質管理）"
+
+# GitHub Actions ノード設計
+github_actions_config:
+  workflow_name: "3D Model Creation Pipeline"
+  on_triggers: ["workflow_dispatch", "issues"]
+  permissions:
+    contents: "write"
+    issues: "write"
+    actions: "read"
+  artifacts_retention_days: 30
+  max_parallel_jobs: 3
+
+# 超詳細タスク分解
+tasks:
+  # === 事前テスト段階 ===
+  - id: "3d-services-connectivity-test"
+    name: "3D生成・処理サービス接続テスト"
+    phase: "pre_validation"
+    github_job: "connectivity-test"
+    type: "validation"
+    implementation: "mcp"
+    duration_minutes: 3
+    dependencies: []
+    parallel_group: null
+    
+    github_steps:
+      - name: "Test 3D generation and processing services"
+        shell: "bash"
+        script: |
+          echo "🧊 Testing 3D generation and processing services..."
+          
+          mkdir -p .logs/connectivity-tests
+          
+          # 3Dモデル生成サービステスト（I2I3D）
+          echo "Testing 3D model generation service..."
+          if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "/tmp/test.jpg" > .logs/connectivity-tests/3d-gen-test.log 2>&1; then
+            THREED_GEN_STATUS="success"
+            echo "✅ 3D Model Generation (Hunyuan3D): Available"
+          else
+            THREED_GEN_STATUS="failed"
+            echo "❌ 3D Model Generation: Failed"
+          fi
+          
+          # 画像生成サービステスト（参照画像作成用）
+          echo "Testing image generation for reference creation..."
+          if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "3d reference object test" > .logs/connectivity-tests/ref-image-test.log 2>&1; then
+            REF_IMAGE_STATUS="success"
+            echo "✅ Reference Image Generation: Available"
+          else
+            REF_IMAGE_STATUS="failed"
+            echo "⚠️ Reference Image Generation: Not available"
+          fi
+          
+          # 画像強化サービステスト（3D生成前の前処理用）
+          echo "Testing image enhancement for preprocessing..."
+          if timeout 60 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "/tmp/test.jpg" --enhancement "3d reference optimization" > .logs/connectivity-tests/enhancement-test.log 2>&1; then
+            IMAGE_ENHANCEMENT_STATUS="success" 
+            echo "✅ Image Enhancement: Available"
+          else
+            IMAGE_ENHANCEMENT_STATUS="failed"
+            echo "⚠️ Image Enhancement: Not available"
+          fi
+          
+          # Claude Code AI テスト（3D分析・最適化用）
+          echo "Testing Claude Code for 3D analysis..."
+          if timeout 30 claude-code --prompt "Test: Analyze 3D modeling requirements for a simple cube and return '3D_AI_TEST_SUCCESS' if working." > .logs/connectivity-tests/3d-ai-test.log 2>&1; then
+            if grep -q "3D_AI_TEST_SUCCESS" .logs/connectivity-tests/3d-ai-test.log; then
+              THREED_AI_STATUS="success"
+              echo "✅ 3D AI Analysis: Available"
+            else
+              THREED_AI_STATUS="partial"
+              echo "⚠️ 3D AI Analysis: Partial response"
+            fi
+          else
+            THREED_AI_STATUS="failed"
+            echo "❌ 3D AI Analysis: Failed"
+          fi
+          
+          # 外部3D処理API テスト
+          echo "Testing external 3D processing APIs..."
+          if [ -n "${{ secrets.SKETCHFAB_API_KEY }}" ]; then
+            if timeout 30 curl -s -H "Authorization: Token ${{ secrets.SKETCHFAB_API_KEY }}" "https://api.sketchfab.com/v3/me" > .logs/connectivity-tests/sketchfab-test.log 2>&1; then
+              THREED_API_STATUS="success"
+              echo "✅ 3D Platform API: Available"
+            else
+              THREED_API_STATUS="failed"
+              echo "⚠️ 3D Platform API: Failed"
+            fi
+          else
+            THREED_API_STATUS="not_configured"
+            echo "ℹ️ 3D Platform API: Not configured"
+          fi
+          
+          # 3D処理ツールテスト
+          echo "Testing 3D processing tools..."
+          if command -v blender &> /dev/null; then
+            if timeout 10 blender --version > .logs/connectivity-tests/blender-test.log 2>&1; then
+              THREED_TOOLS_STATUS="success"
+              echo "✅ 3D Processing Tools: Available"
+            else
+              THREED_TOOLS_STATUS="limited"
+              echo "⚠️ 3D Tools: Limited functionality"
+            fi
+          else
+            THREED_TOOLS_STATUS="not_available" 
+            echo "ℹ️ 3D Processing Tools: Not installed"
+          fi
+          
+          # 3D制作能力の評価
+          BASIC_3D_CAPABILITY="none"
+          ADVANCED_3D_CAPABILITY="none"
+          
+          # 基本機能（3D生成またはAI分析）
+          if [ "$THREED_GEN_STATUS" = "success" ] || [ "$THREED_AI_STATUS" = "success" ]; then
+            BASIC_3D_CAPABILITY="available"
+          fi
+          
+          # 高度機能（3D生成+強化+分析）
+          if [ "$THREED_GEN_STATUS" = "success" ] && [ "$IMAGE_ENHANCEMENT_STATUS" = "success" ] && [ "$THREED_AI_STATUS" = "success" ]; then
+            ADVANCED_3D_CAPABILITY="available"
+          fi
+          
+          # テスト結果をJSON保存
+          cat > .logs/connectivity-tests/test-results.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "3d_services": {
+              "3d_model_generation": "$THREED_GEN_STATUS",
+              "reference_image_generation": "$REF_IMAGE_STATUS",
+              "image_enhancement": "$IMAGE_ENHANCEMENT_STATUS",
+              "3d_ai_analysis": "$THREED_AI_STATUS",
+              "3d_platform_api": "$THREED_API_STATUS",
+              "3d_processing_tools": "$THREED_TOOLS_STATUS"
+            },
+            "capability_assessment": {
+              "basic_3d_capability": "$BASIC_3D_CAPABILITY",
+              "advanced_3d_capability": "$ADVANCED_3D_CAPABILITY",
+              "workflow_can_proceed": $([ "$BASIC_3D_CAPABILITY" = "available" ] && echo "true" || echo "false"),
+              "professional_3d_production": $([ "$ADVANCED_3D_CAPABILITY" = "available" ] && echo "true" || echo "false")
+            },
+            "service_priorities": {
+              "primary_3d_service": "$([ "$THREED_GEN_STATUS" = "success" ] && echo "i2i3d-fal-hunyuan3d-v21" || echo "none")",
+              "image_preprocessing": "$([ "$IMAGE_ENHANCEMENT_STATUS" = "success" ] && echo "i2i-fal-flux-kontext-max" || echo "none")",
+              "reference_creation": "$([ "$REF_IMAGE_STATUS" = "success" ] && echo "t2i-fal-imagen4-fast" || echo "none")"
+            }
+          }
+          EOF
+          
+          # 環境変数に結果を設定
+          echo "BASIC_3D_CAPABILITY=$BASIC_3D_CAPABILITY" >> $GITHUB_ENV
+          echo "ADVANCED_3D_CAPABILITY=$ADVANCED_3D_CAPABILITY" >> $GITHUB_ENV
+          echo "THREED_GEN_AVAILABLE=$([ "$THREED_GEN_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          echo "IMAGE_ENHANCEMENT_AVAILABLE=$([ "$IMAGE_ENHANCEMENT_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          echo "REF_IMAGE_AVAILABLE=$([ "$REF_IMAGE_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          echo "THREED_AI_AVAILABLE=$([ "$THREED_AI_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          
+          echo "🧊 3D services connectivity tests completed"
+          echo "Basic capability: $BASIC_3D_CAPABILITY"
+          echo "Advanced capability: $ADVANCED_3D_CAPABILITY"
+          
+    validation:
+      criteria:
+        - "基本的な3D生成機能が利用可能"
+        - "テスト結果がJSON形式で保存されている"
+      validation_script: |
+        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
+          echo "❌ VALIDATION FAILED: Test results missing"
+          exit 1
+        fi
+        
+        WORKFLOW_CAN_PROCEED=$(jq -r '.capability_assessment.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
+        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
+          echo "✅ Validation passed: 3D production services ready"
+        else
+          echo "❌ VALIDATION FAILED: Critical 3D services unavailable"
+          exit 1
+        fi
+
+  # === 概念可視化段階 ===
+  - id: "3d-concept-development"
+    name: "3Dモデル概念・仕様設計"
+    phase: "concept_visualization"
+    github_job: "concept-development"
+    type: "planning"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["3d-services-connectivity-test"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Develop 3D model concept and specifications"
+        shell: "bash"
+        script: |
+          echo "🎯 Developing 3D model concept and specifications..."
+          
+          mkdir -p .logs/3d-concept
+          
+          # 入力から3D要件を抽出
+          MODEL_SUBJECT="${{ github.event.inputs.model_subject || github.event.issue.title || 'Product Design Object' }}"
+          MODEL_STYLE="${{ github.event.inputs.model_style || 'realistic' }}"
+          INTENDED_USE="${{ github.event.inputs.intended_use || 'product visualization' }}"
+          COMPLEXITY_LEVEL="${{ github.event.inputs.complexity_level || 'medium' }}"
+          TARGET_QUALITY="${{ github.event.inputs.target_quality || 'high' }}"
+          PLATFORM_TARGET="${{ github.event.inputs.platform_target || 'web and mobile' }}"
+          
+          echo "Model subject: $MODEL_SUBJECT"
+          echo "Style: $MODEL_STYLE"
+          echo "Intended use: $INTENDED_USE"
+          echo "Complexity: $COMPLEXITY_LEVEL"
+          echo "Quality target: $TARGET_QUALITY"
+          echo "Platform: $PLATFORM_TARGET"
+          
+          # Claude Code で3Dコンセプト設計
+          claude-code --prompt "以下の要件に基づいて、3Dモデル制作の詳細なコンセプトと技術仕様を設計してください：
+          
+          モデル対象: $MODEL_SUBJECT
+          スタイル: $MODEL_STYLE
+          用途: $INTENDED_USE
+          複雑度: $COMPLEXITY_LEVEL
+          品質目標: $TARGET_QUALITY
+          対象プラットフォーム: $PLATFORM_TARGET
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"3d_concept\": {
+              \"primary_subject\": \"主要対象物\",
+              \"conceptual_approach\": \"コンセプチュアルアプローチ\",
+              \"visual_style\": \"ビジュアルスタイル詳細\",
+              \"artistic_direction\": \"アーティスティック方向性\",
+              \"unique_characteristics\": [\"独自特徴・個性\"],
+              \"reference_inspirations\": [\"参考・インスピレーション源\"]
+            },
+            \"technical_specifications\": {
+              \"geometry_complexity\": \"幾何学的複雑度\",
+              \"polygon_budget\": \"ポリゴン予算目安\",
+              \"texture_resolution\": \"テクスチャ解像度目標\",
+              \"material_complexity\": \"マテリアル複雑度\",
+              \"animation_requirements\": \"アニメーション要件\",
+              \"optimization_priorities\": [\"最適化優先度\"]
+            },
+            \"dimensional_specifications\": {
+              \"primary_proportions\": \"主要プロポーション\",
+              \"scale_considerations\": \"スケール配慮事項\",
+              \"viewing_angles\": [\"重要視点角度\"],
+              \"detail_hierarchy\": \"詳細階層\",
+              \"geometric_features\": [\"幾何学的特徴\"]
+            },
+            \"material_design\": {
+              \"surface_characteristics\": [\"表面特性\"],
+              \"texture_types\": [\"テクスチャタイプ\"],
+              \"material_properties\": [\"マテリアル特性\"],
+              \"lighting_response\": \"ライティング応答\",
+              \"environmental_interaction\": \"環境相互作用\"
+            },
+            \"use_case_optimization\": {
+              \"platform_requirements\": [\"プラットフォーム要件\"],
+              \"performance_targets\": [\"パフォーマンス目標\"],
+              \"viewing_contexts\": [\"視聴コンテキスト\"],
+              \"interaction_methods\": [\"インタラクション方法\"],
+              \"accessibility_considerations\": [\"アクセシビリティ配慮\"]
+            },
+            \"production_strategy\": {
+              \"reference_image_requirements\": [\"参照画像要件\"],
+              \"generation_approach\": \"生成アプローチ\",
+              \"quality_validation\": \"品質検証方針\",
+              \"optimization_workflow\": \"最適化ワークフロー\",
+              \"delivery_formats\": [\"配信フォーマット\"]
+            },
+            \"quality_benchmarks\": {
+              \"visual_fidelity\": \"視覚的忠実度基準\",
+              \"technical_accuracy\": \"技術的精度基準\",
+              \"performance_efficiency\": \"パフォーマンス効率基準\",
+              \"user_experience\": \"ユーザー体験基準\",
+              \"commercial_viability\": \"商用可能性基準\"
+            }
+          }" > .logs/3d-concept/3d-concept.json
+          
+          THREED_CONCEPT=$(cat .logs/3d-concept/3d-concept.json)
+          echo "THREED_CONCEPT_FILE=.logs/3d-concept/3d-concept.json" >> $GITHUB_ENV
+          
+          # 主要パラメータを環境変数に設定
+          POLYGON_BUDGET=$(echo "$THREED_CONCEPT" | jq -r '.technical_specifications.polygon_budget' | sed 's/[^0-9]//g')
+          TEXTURE_RESOLUTION=$(echo "$THREED_CONCEPT" | jq -r '.technical_specifications.texture_resolution' | sed 's/[^0-9]//g')
+          
+          echo "POLYGON_BUDGET=${POLYGON_BUDGET:-10000}" >> $GITHUB_ENV
+          echo "TEXTURE_RESOLUTION=${TEXTURE_RESOLUTION:-1024}" >> $GITHUB_ENV
+          
+          echo "🎯 3D concept development completed"
+          echo "Polygon budget: ${POLYGON_BUDGET:-10000}"
+          echo "Texture resolution: ${TEXTURE_RESOLUTION:-1024}px"
+
+  # === 参照準備段階 ===
+  - id: "reference-image-preparation"
+    name: "参照画像生成・前処理"
+    phase: "reference_preparation"
+    github_job: "reference-preparation"
+    type: "generation"
+    implementation: "mcp"
+    tool: "image-generation"
+    duration_minutes: 5
+    dependencies: ["3d-concept-development"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Generate and prepare reference images"
+        shell: "bash"
+        script: |
+          echo "🖼️ Generating and preparing reference images..."
+          
+          mkdir -p .logs/reference-preparation
+          
+          THREED_CONCEPT=$(cat .logs/3d-concept/3d-concept.json)
+          
+          # 参照画像要件の抽出
+          REFERENCE_REQUIREMENTS=$(echo "$THREED_CONCEPT" | jq -r '.production_strategy.reference_image_requirements[]' | head -5)
+          PRIMARY_SUBJECT=$(echo "$THREED_CONCEPT" | jq -r '.3d_concept.primary_subject')
+          VISUAL_STYLE=$(echo "$THREED_CONCEPT" | jq -r '.3d_concept.visual_style')
+          
+          if [ "$REF_IMAGE_AVAILABLE" = "true" ]; then
+            echo "Reference image generation service available - creating reference images..."
+            
+            # メイン参照画像の生成
+            echo "Generating primary reference image..."
+            PRIMARY_PROMPT="$PRIMARY_SUBJECT in $VISUAL_STYLE style, perfect for 3D modeling reference, clear details, neutral background, professional product photography lighting, high resolution, multiple angles visible"
+            
+            if timeout 120 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PRIMARY_PROMPT" > .logs/reference-preparation/primary-reference.json 2>&1; then
+              echo "✅ Primary reference image generated"
+              PRIMARY_REF_STATUS="success"
+            else
+              echo "❌ Primary reference generation failed"
+              PRIMARY_REF_STATUS="failed"
+            fi
+            
+            # 多角度参照画像の生成
+            VIEWING_ANGLES=$(echo "$THREED_CONCEPT" | jq -r '.dimensional_specifications.viewing_angles[]')
+            ANGLE_INDEX=0
+            
+            while IFS= read -r angle; do
+              if [ -n "$angle" ] && [ "$angle" != "null" ]; then
+                echo "Generating reference for $angle view..."
+                ANGLE_PROMPT="$PRIMARY_SUBJECT from $angle view, $VISUAL_STYLE style, 3D modeling reference, clear geometry, neutral background, professional lighting"
+                
+                if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ANGLE_PROMPT" > .logs/reference-preparation/angle-${ANGLE_INDEX}-reference.json 2>&1; then
+                  echo "✅ $angle reference generated"
+                else
+                  echo "⚠️ $angle reference generation failed"
+                fi
+                
+                ANGLE_INDEX=$((ANGLE_INDEX + 1))
+              fi
+            done <<< "$VIEWING_ANGLES"
+            
+            # 詳細特徴参照画像の生成
+            GEOMETRIC_FEATURES=$(echo "$THREED_CONCEPT" | jq -r '.dimensional_specifications.geometric_features[]')
+            FEATURE_INDEX=0
+            
+            while IFS= read -r feature; do
+              if [ -n "$feature" ] && [ "$feature" != "null" ] && [ $FEATURE_INDEX -lt 3 ]; then
+                echo "Generating detail reference for: $feature"
+                FEATURE_PROMPT="close-up detail of $feature on $PRIMARY_SUBJECT, $VISUAL_STYLE style, high detail for 3D modeling, clear texture and geometry"
+                
+                if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FEATURE_PROMPT" > .logs/reference-preparation/feature-${FEATURE_INDEX}-detail.json 2>&1; then
+                  echo "✅ $feature detail reference generated"
+                else
+                  echo "⚠️ $feature detail reference failed"
+                fi
+                
+                FEATURE_INDEX=$((FEATURE_INDEX + 1))
+              fi
+            done <<< "$GEOMETRIC_FEATURES"
+            
+          else
+            echo "⚠️ Reference image generation not available"
+            PRIMARY_REF_STATUS="service_unavailable"
+          fi
+          
+          # 生成された参照画像の前処理・最適化
+          if [ "$IMAGE_ENHANCEMENT_AVAILABLE" = "true" ] && [ "$PRIMARY_REF_STATUS" = "success" ]; then
+            echo "Enhancing reference images for optimal 3D generation..."
+            
+            for ref_file in .logs/reference-preparation/*.json; do
+              if [ -f "$ref_file" ]; then
+                REF_NAME=$(basename "$ref_file" .json)
+                IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$ref_file" 2>/dev/null)
+                
+                if [ "$IMAGE_PATH" != "none" ]; then
+                  echo "Enhancing $REF_NAME for 3D generation..."
+                  ENHANCEMENT_PROMPT="optimize for 3D model generation, enhance edge definition, improve contrast, clarify geometric details, maintain color accuracy"
+                  
+                  if timeout 90 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --image-path "$IMAGE_PATH" --enhancement "$ENHANCEMENT_PROMPT" > .logs/reference-preparation/${REF_NAME}-enhanced.json 2>&1; then
+                    echo "✅ $REF_NAME enhanced successfully"
+                  else
+                    echo "⚠️ $REF_NAME enhancement failed"
+                  fi
+                fi
+              fi
+            done
+          fi
+          
+          # 参照画像準備結果の統計
+          GENERATED_REF_COUNT=$(ls .logs/reference-preparation/*.json 2>/dev/null | wc -l)
+          ENHANCED_COUNT=$(ls .logs/reference-preparation/*-enhanced.json 2>/dev/null | wc -l)
+          
+          # 参照準備ログ
+          cat > .logs/reference-preparation/preparation-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "reference_preparation_summary": {
+              "primary_reference_status": "$PRIMARY_REF_STATUS",
+              "total_reference_images": $GENERATED_REF_COUNT,
+              "enhanced_images": $ENHANCED_COUNT,
+              "reference_generation_available": "$REF_IMAGE_AVAILABLE",
+              "enhancement_available": "$IMAGE_ENHANCEMENT_AVAILABLE"
+            },
+            "reference_types": {
+              "primary_reference": "$([ "$PRIMARY_REF_STATUS" = "success" ] && echo "generated" || echo "unavailable")",
+              "angle_references": "$([ $GENERATED_REF_COUNT -gt 1 ] && echo "multiple_angles" || echo "single_view")",
+              "detail_references": "$([ $GENERATED_REF_COUNT -gt 3 ] && echo "feature_details" || echo "basic_only")"
+            },
+            "generated_assets": [$(ls .logs/reference-preparation/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+          }
+          EOF
+          
+          echo "REFERENCE_PREPARATION_STATUS=$PRIMARY_REF_STATUS" >> $GITHUB_ENV
+          echo "GENERATED_REF_COUNT=$GENERATED_REF_COUNT" >> $GITHUB_ENV
+          echo "ENHANCED_REF_COUNT=$ENHANCED_COUNT" >> $GITHUB_ENV
+          
+          echo "🖼️ Reference image preparation completed: $GENERATED_REF_COUNT images"
+
+  # === 3D生成段階 ===
+  - id: "primary-3d-model-generation"
+    name: "メイン3Dモデル生成"
+    phase: "3d_generation"
+    github_job: "3d-generation"
+    type: "generation"
+    implementation: "mcp"
+    tool: "3d-generation"
+    duration_minutes: 8
+    dependencies: ["reference-image-preparation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Generate primary 3D models"
+        shell: "bash"
+        script: |
+          echo "🧊 Generating primary 3D models..."
+          
+          mkdir -p .logs/3d-generation
+          
+          THREED_CONCEPT=$(cat .logs/3d-concept/3d-concept.json)
+          REFERENCE_LOG=$(cat .logs/reference-preparation/preparation-log.json)
+          
+          if [ "$THREED_GEN_AVAILABLE" = "true" ]; then
+            echo "3D model generation service available - creating models..."
+            
+            # プライマリ参照画像から3Dモデル生成
+            PRIMARY_REF_FILE=$(ls .logs/reference-preparation/primary-reference*.json 2>/dev/null | head -1)
+            
+            if [ -n "$PRIMARY_REF_FILE" ]; then
+              PRIMARY_IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$PRIMARY_REF_FILE" 2>/dev/null)
+              
+              if [ "$PRIMARY_IMAGE_PATH" != "none" ]; then
+                echo "Generating 3D model from primary reference..."
+                
+                if timeout 240 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$PRIMARY_IMAGE_PATH" > .logs/3d-generation/primary-3d-model.json 2>&1; then
+                  echo "✅ Primary 3D model generated successfully"
+                  PRIMARY_3D_STATUS="success"
+                else
+                  echo "❌ Primary 3D model generation failed"
+                  PRIMARY_3D_STATUS="failed"
+                fi
+              else
+                echo "⚠️ Primary reference image path not found"
+                PRIMARY_3D_STATUS="no_reference"
+              fi
+            else
+              echo "⚠️ No primary reference image available"
+              PRIMARY_3D_STATUS="no_reference"
+            fi
+            
+            # 強化された参照画像から3Dモデル生成（より高品質）
+            ENHANCED_REF_FILE=$(ls .logs/reference-preparation/primary-reference-enhanced.json 2>/dev/null | head -1)
+            
+            if [ -n "$ENHANCED_REF_FILE" ]; then
+              ENHANCED_IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$ENHANCED_REF_FILE" 2>/dev/null)
+              
+              if [ "$ENHANCED_IMAGE_PATH" != "none" ]; then
+                echo "Generating enhanced 3D model from optimized reference..."
+                
+                if timeout 240 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$ENHANCED_IMAGE_PATH" > .logs/3d-generation/enhanced-3d-model.json 2>&1; then
+                  echo "✅ Enhanced 3D model generated successfully"
+                  ENHANCED_3D_STATUS="success"
+                else
+                  echo "⚠️ Enhanced 3D model generation failed"
+                  ENHANCED_3D_STATUS="failed"
+                fi
+              fi
+            else
+              ENHANCED_3D_STATUS="no_enhanced_reference"
+            fi
+            
+            # 多角度参照からの3Dモデル生成（バリエーション）
+            echo "Generating angle-specific 3D models..."
+            ANGLE_3D_COUNT=0
+            
+            for angle_file in .logs/reference-preparation/angle-*-reference.json; do
+              if [ -f "$angle_file" ] && [ $ANGLE_3D_COUNT -lt 3 ]; then
+                ANGLE_NAME=$(basename "$angle_file" .json)
+                ANGLE_IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$angle_file" 2>/dev/null)
+                
+                if [ "$ANGLE_IMAGE_PATH" != "none" ]; then
+                  echo "Generating 3D model from $ANGLE_NAME..."
+                  
+                  if timeout 180 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$ANGLE_IMAGE_PATH" > .logs/3d-generation/${ANGLE_NAME}-3d-model.json 2>&1; then
+                    echo "✅ $ANGLE_NAME 3D model generated"
+                    ANGLE_3D_COUNT=$((ANGLE_3D_COUNT + 1))
+                  else
+                    echo "⚠️ $ANGLE_NAME 3D model generation failed"
+                  fi
+                fi
+              fi
+            done
+            
+            # 詳細特徴からの3Dモデル生成（詳細パーツ）
+            echo "Generating detail-specific 3D models..."
+            DETAIL_3D_COUNT=0
+            
+            for detail_file in .logs/reference-preparation/feature-*-detail.json; do
+              if [ -f "$detail_file" ] && [ $DETAIL_3D_COUNT -lt 2 ]; then
+                DETAIL_NAME=$(basename "$detail_file" .json)
+                DETAIL_IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$detail_file" 2>/dev/null)
+                
+                if [ "$DETAIL_IMAGE_PATH" != "none" ]; then
+                  echo "Generating detail 3D model from $DETAIL_NAME..."
+                  
+                  if timeout 150 claude-code --mcp-config=~/.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$DETAIL_IMAGE_PATH" > .logs/3d-generation/${DETAIL_NAME}-3d-model.json 2>&1; then
+                    echo "✅ $DETAIL_NAME detail 3D model generated"
+                    DETAIL_3D_COUNT=$((DETAIL_3D_COUNT + 1))
+                  else
+                    echo "⚠️ $DETAIL_NAME detail 3D model generation failed"
+                  fi
+                fi
+              fi
+            done
+            
+          else
+            echo "⚠️ 3D model generation service not available"
+            PRIMARY_3D_STATUS="service_unavailable"
+            
+            # 代替案の提示
+            cat > .logs/3d-generation/3d-alternatives.json << EOF
+            {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "3d_service_status": "unavailable",
+              "alternative_approaches": [
+                "Use external 3D modeling software (Blender, Maya, etc.)",
+                "Employ photogrammetry techniques",
+                "Manual 3D modeling based on reference images",
+                "Use AI-powered desktop 3D generation tools",
+                "Outsource to 3D modeling professionals"
+              ],
+              "reference_specifications": $(cat .logs/3d-concept/3d-concept.json | jq '.production_strategy'),
+              "recommended_workflow": [
+                "Export reference images and specifications",
+                "Create detailed modeling guidelines",
+                "Set up quality validation criteria",
+                "Establish optimization parameters"
+              ]
+            }
+            EOF
+          fi
+          
+          # 3D生成結果の統計
+          GENERATED_3D_COUNT=$(ls .logs/3d-generation/*.json 2>/dev/null | wc -l)
+          
+          # 3D生成ログ
+          cat > .logs/3d-generation/generation-log.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "3d_generation_summary": {
+              "primary_3d_status": "$PRIMARY_3D_STATUS",
+              "enhanced_3d_status": "${ENHANCED_3D_STATUS:-not_attempted}",
+              "total_3d_models_generated": $GENERATED_3D_COUNT,
+              "angle_variants": $ANGLE_3D_COUNT,
+              "detail_models": $DETAIL_3D_COUNT,
+              "generation_service_used": "$([ "$THREED_GEN_AVAILABLE" = "true" ] && echo "i2i3d-fal-hunyuan3d-v21" || echo "none")"
+            },
+            "model_types": {
+              "primary_model": "$([ "$PRIMARY_3D_STATUS" = "success" ] && echo "generated" || echo "unavailable")",
+              "enhanced_model": "$([ "$ENHANCED_3D_STATUS" = "success" ] && echo "generated" || echo "unavailable")",
+              "angle_variants": "$ANGLE_3D_COUNT models",
+              "detail_models": "$DETAIL_3D_COUNT models"
+            },
+            "generated_assets": [$(ls .logs/3d-generation/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+          }
+          EOF
+          
+          echo "THREED_GENERATION_STATUS=$PRIMARY_3D_STATUS" >> $GITHUB_ENV
+          echo "GENERATED_3D_COUNT=$GENERATED_3D_COUNT" >> $GITHUB_ENV
+          echo "ANGLE_3D_VARIANTS=$ANGLE_3D_COUNT" >> $GITHUB_ENV
+          echo "DETAIL_3D_MODELS=$DETAIL_3D_COUNT" >> $GITHUB_ENV
+          
+          echo "🧊 Primary 3D model generation completed: $GENERATED_3D_COUNT models"
+
+  # === モデル最適化段階 ===
+  - id: "3d-model-optimization"
+    name: "3Dモデル最適化・品質向上"
+    phase: "model_optimization"
+    github_job: "model-optimization"
+    type: "optimization"
+    implementation: "ai"
+    duration_minutes: 5
+    dependencies: ["primary-3d-model-generation"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Optimize 3D models for performance and quality"
+        shell: "bash"
+        script: |
+          echo "⚡ Optimizing 3D models for performance and quality..."
+          
+          mkdir -p .logs/model-optimization
+          
+          THREED_CONCEPT=$(cat .logs/3d-concept/3d-concept.json)
+          GENERATION_LOG=$(cat .logs/3d-generation/generation-log.json)
+          
+          # 3D最適化分析
+          claude-code --prompt "以下の3D生成結果を基に、モデル最適化と品質向上の詳細分析を行ってください：
+          
+          3Dコンセプト: $THREED_CONCEPT
+          生成ログ: $GENERATION_LOG
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"optimization_analysis\": {
+              \"current_model_quality\": {
+                \"geometric_accuracy\": \"幾何学的精度評価（1-10点）\",
+                \"topology_quality\": \"トポロジー品質評価（1-10点）\",
+                \"texture_fidelity\": \"テクスチャ忠実度評価（1-10点）\",
+                \"detail_preservation\": \"詳細保持評価（1-10点）\",
+                \"overall_quality_score\": \"総合品質スコア（1-10点）\"
+              },
+              \"performance_metrics\": {
+                \"estimated_polygon_count\": \"推定ポリゴン数\",
+                \"texture_memory_usage\": \"テクスチャメモリ使用量\",
+                \"rendering_complexity\": \"レンダリング複雑度\",
+                \"mobile_compatibility\": \"モバイル互換性\",
+                \"web_performance\": \"Web パフォーマンス\"
+              }
+            },
+            \"optimization_recommendations\": [
+              {
+                \"optimization_type\": \"geometry|texture|material|performance|quality\",
+                \"target_models\": [\"対象モデル\"],
+                \"specific_improvements\": \"具体的改善内容\",
+                \"technical_approach\": \"技術的アプローチ\",
+                \"expected_benefits\": \"期待される効果\",
+                \"implementation_priority\": \"high|medium|low\"
+              }
+            ],
+            \"lod_strategy\": {
+              \"lod_levels_needed\": \"必要LODレベル数\",
+              \"lod_specifications\": [
+                {
+                  \"lod_level\": \"LODレベル\",
+                  \"polygon_reduction\": \"ポリゴン削減率\",
+                  \"viewing_distance\": \"視距離\",
+                  \"quality_threshold\": \"品質閾値\",
+                  \"use_cases\": [\"使用場面\"]
+                }
+              ],
+              \"automatic_lod_generation\": \"自動LOD生成可能性\"
+            },
+            \"texture_optimization\": {
+              \"texture_atlas_strategy\": \"テクスチャアトラス戦略\",
+              \"compression_recommendations\": [\"圧縮推奨事項\"],
+              \"resolution_targets\": \"解像度目標設定\",
+              \"format_optimizations\": [\"フォーマット最適化\"],
+              \"memory_efficiency\": \"メモリ効率改善\"
+            },
+            \"material_enhancement\": {
+              \"pbr_workflow\": \"PBR ワークフロー最適化\",
+              \"shader_optimization\": \"シェーダー最適化\",
+              \"lighting_response\": \"ライティング応答改善\",
+              \"realistic_rendering\": \"リアリスティックレンダリング\",
+              \"performance_balance\": \"パフォーマンスバランス\"
+            },
+            \"platform_specific_optimization\": {
+              \"web_optimization\": {
+                \"file_size_targets\": \"ファイルサイズ目標\",
+                \"loading_optimization\": \"ローディング最適化\",
+                \"browser_compatibility\": \"ブラウザ互換性\",
+                \"performance_budgets\": \"パフォーマンス予算\"
+              },
+              \"mobile_optimization\": {
+                \"polygon_limits\": \"ポリゴン制限\",
+                \"texture_constraints\": \"テクスチャ制約\",
+                \"rendering_efficiency\": \"レンダリング効率\",
+                \"battery_impact\": \"バッテリー影響\"
+              },
+              \"desktop_optimization\": {
+                \"quality_enhancements\": \"品質強化\",
+                \"detail_maximization\": \"詳細最大化\",
+                \"advanced_features\": \"高度機能活用\"
+              }
+            },
+            \"quality_assurance\": {
+              \"validation_criteria\": [\"検証基準\"],
+              \"testing_scenarios\": [\"テストシナリオ\"],
+              \"performance_benchmarks\": [\"パフォーマンスベンチマーク\"],
+              \"user_experience_metrics\": [\"UX メトリクス\"]
+            },
+            \"implementation_roadmap\": {
+              \"immediate_optimizations\": [\"即座実行可能最適化\"],
+              \"advanced_processing\": [\"高度処理要件\"],
+              \"tool_requirements\": [\"必要ツール\"],
+              \"workflow_integration\": \"ワークフロー統合方針\"
+            }
+          }" > .logs/model-optimization/optimization-analysis.json
+          
+          OPTIMIZATION_ANALYSIS=$(cat .logs/model-optimization/optimization-analysis.json)
+          
+          # 最適化メトリクスの抽出
+          OVERALL_QUALITY=$(echo "$OPTIMIZATION_ANALYSIS" | jq -r '.optimization_analysis.current_model_quality.overall_quality_score')
+          HIGH_PRIORITY_OPTS=$(echo "$OPTIMIZATION_ANALYSIS" | jq '[.optimization_recommendations[] | select(.implementation_priority == "high")] | length')
+          
+          echo "CURRENT_3D_QUALITY=$OVERALL_QUALITY" >> $GITHUB_ENV
+          echo "HIGH_PRIORITY_3D_OPTS=$HIGH_PRIORITY_OPTS" >> $GITHUB_ENV
+          echo "OPTIMIZATION_ANALYSIS_FILE=.logs/model-optimization/optimization-analysis.json" >> $GITHUB_ENV
+          
+          # 実行可能な最適化の適用指針
+          echo "Creating optimization implementation guide..."
+          
+          claude-code --prompt "Based on the 3D optimization analysis, create a detailed implementation guide for the high-priority optimizations:
+          
+          Optimization Analysis: $OPTIMIZATION_ANALYSIS
+          Available 3D Models: $GENERATED_3D_COUNT
+          
+          Focus on practical steps that can be implemented and create specific parameter recommendations for 3D model enhancement." > .logs/model-optimization/implementation-guide.json 2>&1
+          
+          echo "⚡ 3D model optimization completed"
+          echo "Current quality score: $OVERALL_QUALITY/10"
+          echo "High priority optimizations identified: $HIGH_PRIORITY_OPTS"
+
+  # === レンダリング設定段階 ===
+  - id: "rendering-visualization-setup"
+    name: "レンダリング・可視化設定"
+    phase: "rendering_setup"
+    github_job: "rendering-setup"
+    type: "configuration"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["3d-model-optimization"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Setup rendering and visualization configurations"
+        shell: "bash"
+        script: |
+          echo "🎨 Setting up rendering and visualization configurations..."
+          
+          mkdir -p .logs/rendering-setup
+          
+          THREED_CONCEPT=$(cat .logs/3d-concept/3d-concept.json)
+          OPTIMIZATION_ANALYSIS=$(cat .logs/model-optimization/optimization-analysis.json)
+          
+          # レンダリング設定分析
+          claude-code --prompt "以下の3Dプロジェクト情報を基に、最適なレンダリングと可視化設定を設計してください：
+          
+          3Dコンセプト: $THREED_CONCEPT
+          最適化分析: $OPTIMIZATION_ANALYSIS
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"rendering_strategy\": {
+              \"primary_rendering_approach\": \"主要レンダリングアプローチ\",
+              \"quality_vs_performance_balance\": \"品質・パフォーマンスバランス\",
+              \"target_platforms\": [\"対象プラットフォーム\"],
+              \"rendering_pipeline\": \"レンダリングパイプライン\"
+            },
+            \"lighting_setup\": {
+              \"lighting_scheme\": \"ライティングスキーム\",
+              \"key_light_configuration\": {
+                \"type\": \"ライトタイプ\",
+                \"intensity\": \"強度\",
+                \"color_temperature\": \"色温度\",
+                \"position\": \"位置\",
+                \"shadow_settings\": \"シャドウ設定\"
+              },
+              \"fill_lights\": [
+                {
+                  \"purpose\": \"用途\",
+                  \"configuration\": \"設定詳細\",
+                  \"intensity\": \"強度\"
+                }
+              ],
+              \"environment_lighting\": {
+                \"hdri_environment\": \"HDRI環境\",
+                \"ambient_occlusion\": \"アンビエントオクルージョン\",
+                \"global_illumination\": \"グローバルイルミネーション\"
+              }
+            },
+            \"material_rendering\": {
+              \"pbr_setup\": {
+                \"albedo_configuration\": \"アルベド設定\",
+                \"metallic_settings\": \"メタリック設定\",
+                \"roughness_configuration\": \"ラフネス設定\",
+                \"normal_mapping\": \"ノーマルマッピング\",
+                \"emission_properties\": \"エミッション特性\"
+              },
+              \"shader_optimization\": \"シェーダー最適化\",
+              \"texture_filtering\": \"テクスチャフィルタリング\",
+              \"anisotropy_settings\": \"異方性設定\"
+            },
+            \"camera_configuration\": {
+              \"default_camera_setup\": {
+                \"position\": \"カメラ位置\",
+                \"target\": \"注視点\",
+                \"field_of_view\": \"視野角\",
+                \"depth_of_field\": \"被写界深度\"
+              },
+              \"presentation_angles\": [
+                {
+                  \"angle_name\": \"アングル名\",
+                  \"camera_settings\": \"カメラ設定\",
+                  \"purpose\": \"用途\"
+                }
+              ],
+              \"animation_paths\": [\"アニメーションパス\"],
+              \"interactive_controls\": \"インタラクティブ制御\"
+            },
+            \"post_processing\": {
+              \"tone_mapping\": \"トーンマッピング\",
+              \"color_grading\": \"カラーグレーディング\",
+              \"anti_aliasing\": \"アンチエイリアシング\",
+              \"bloom_effects\": \"ブルーム効果\",
+              \"depth_effects\": \"深度効果\",
+              \"screen_space_effects\": [\"スクリーンスペース効果\"]
+            },
+            \"output_specifications\": {
+              \"image_formats\": [\"画像フォーマット\"],
+              \"resolution_targets\": [\"解像度ターゲット\"],
+              \"frame_rates\": [\"フレームレート\"],
+              \"compression_settings\": \"圧縮設定\",
+              \"color_spaces\": [\"色空間\"]
+            },
+            \"platform_rendering_configs\": {
+              \"web_rendering\": {
+                \"webgl_settings\": \"WebGL設定\",
+                \"progressive_loading\": \"プログレッシブローディング\",
+                \"fallback_options\": [\"フォールバック選択肢\"]
+              },
+              \"mobile_rendering\": {
+                \"optimization_level\": \"最適化レベル\",
+                \"quality_scaling\": \"品質スケーリング\",
+                \"performance_monitoring\": \"パフォーマンス監視\"
+              },
+              \"desktop_rendering\": {
+                \"high_quality_features\": [\"高品質機能\"],
+                \"advanced_shading\": \"高度シェーディング\",
+                \"ray_tracing_options\": \"レイトレーシング選択肢\"
+              }
+            },
+            \"interactive_features\": {
+              \"user_controls\": [\"ユーザー制御\"],
+              \"animation_triggers\": [\"アニメーショントリガー\"],
+              \"customization_options\": [\"カスタマイゼーション選択肢\"],
+              \"performance_adaptivity\": \"パフォーマンス適応性\"
+            },
+            \"quality_validation\": {
+              \"visual_quality_checks\": [\"視覚品質チェック\"],
+              \"performance_benchmarks\": [\"パフォーマンスベンチマーク\"],
+              \"cross_platform_testing\": [\"クロスプラットフォームテスト\"],
+              \"user_experience_validation\": [\"UX検証\"]
+            }
+          }" > .logs/rendering-setup/rendering-configuration.json
+          
+          RENDERING_CONFIG=$(cat .logs/rendering-setup/rendering-configuration.json)
+          
+          # レンダリング設定情報を環境変数に設定
+          RENDERING_APPROACH=$(echo "$RENDERING_CONFIG" | jq -r '.rendering_strategy.primary_rendering_approach')
+          PLATFORM_COUNT=$(echo "$RENDERING_CONFIG" | jq '.rendering_strategy.target_platforms | length')
+          
+          echo "RENDERING_APPROACH=$RENDERING_APPROACH" >> $GITHUB_ENV
+          echo "TARGET_PLATFORM_COUNT=$PLATFORM_COUNT" >> $GITHUB_ENV
+          echo "RENDERING_CONFIG_FILE=.logs/rendering-setup/rendering-configuration.json" >> $GITHUB_ENV
+          
+          echo "🎨 Rendering and visualization setup completed"
+          echo "Rendering approach: $RENDERING_APPROACH"
+          echo "Target platforms: $PLATFORM_COUNT"
+
+  # === 配信準備段階 ===
+  - id: "3d-delivery-packaging"
+    name: "3D配信パッケージ・フォーマット最適化"
+    phase: "delivery_preparation"
+    github_job: "delivery-packaging"
+    type: "packaging"
+    implementation: "ai"
+    duration_minutes: 4
+    dependencies: ["rendering-visualization-setup"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create delivery package and optimize formats"
+        shell: "bash"
+        script: |
+          echo "📦 Creating 3D delivery package and optimizing formats..."
+          
+          mkdir -p .logs/delivery-packaging
+          
+          THREED_CONCEPT=$(cat .logs/3d-concept/3d-concept.json)
+          OPTIMIZATION_ANALYSIS=$(cat .logs/model-optimization/optimization-analysis.json)
+          RENDERING_CONFIG=$(cat .logs/rendering-setup/rendering-configuration.json)
+          GENERATION_LOG=$(cat .logs/3d-generation/generation-log.json)
+          
+          # 配信パッケージ戦略
+          claude-code --prompt "以下の3Dプロジェクト情報を基に、配信パッケージとフォーマット最適化戦略を設計してください：
+          
+          3Dコンセプト: $THREED_CONCEPT
+          最適化分析: $OPTIMIZATION_ANALYSIS
+          レンダリング設定: $RENDERING_CONFIG
+          生成ログ: $GENERATION_LOG
+          
+          以下の形式でJSONで回答してください：
+          {
+            \"delivery_strategy\": {
+              \"primary_use_cases\": [\"主要用途\"],
+              \"target_audiences\": [\"対象ユーザー\"],
+              \"distribution_channels\": [\"配信チャネル\"],
+              \"deployment_scenarios\": [\"デプロイメントシナリオ\"]
+            },
+            \"format_specifications\": [
+              {
+                \"format_name\": \"フォーマット名\",
+                \"file_extension\": \"ファイル拡張子\",
+                \"use_case\": \"使用用途\",
+                \"platform_compatibility\": [\"プラットフォーム互換性\"],
+                \"technical_specs\": {
+                  \"polygon_limit\": \"ポリゴン制限\",
+                  \"texture_size\": \"テクスチャサイズ\",
+                  \"compression_level\": \"圧縮レベル\",
+                  \"file_size_estimate\": \"推定ファイルサイズ\"
+                },
+                \"quality_profile\": \"品質プロファイル\",
+                \"loading_performance\": \"ローディングパフォーマンス\"
+              }
+            ],
+            \"optimization_variants\": {
+              \"high_quality\": {
+                \"description\": \"高品質版仕様\",
+                \"polygon_count\": \"ポリゴン数\",
+                \"texture_resolution\": \"テクスチャ解像度\",
+                \"target_platforms\": [\"対象プラットフォーム\"]
+              },
+              \"standard_quality\": {
+                \"description\": \"標準品質版仕様\",
+                \"optimization_level\": \"最適化レベル\",
+                \"performance_target\": \"パフォーマンス目標\"
+              },
+              \"mobile_optimized\": {
+                \"description\": \"モバイル最適化版仕様\",
+                \"constraints\": [\"制約条件\"],
+                \"optimization_techniques\": [\"最適化技法\"]
+              },
+              \"web_optimized\": {
+                \"description\": \"Web最適化版仕様\",
+                \"loading_strategy\": \"ローディング戦略\",
+                \"streaming_support\": \"ストリーミング対応\"
+              }
+            },
+            \"asset_package\": {
+              \"3d_models\": {
+                \"primary_models\": [\"メインモデル\"],
+                \"lod_variants\": [\"LODバリアント\"],
+                \"detail_models\": [\"詳細モデル\"]
+              },
+              \"textures\": {
+                \"diffuse_maps\": [\"ディフューズマップ\"],
+                \"normal_maps\": [\"ノーマルマップ\"],
+                \"pbr_textures\": [\"PBRテクスチャ\"],
+                \"environment_maps\": [\"環境マップ\"]
+              },
+              \"materials\": {
+                \"material_definitions\": [\"マテリアル定義\"],
+                \"shader_configurations\": [\"シェーダー設定\"],
+                \"rendering_parameters\": [\"レンダリングパラメータ\"]
+              },
+              \"documentation\": {
+                \"technical_specifications\": \"技術仕様書\",
+                \"usage_guidelines\": \"使用ガイドライン\",
+                \"integration_instructions\": \"統合手順書\",
+                \"troubleshooting_guide\": \"トラブルシューティング\"
+              }
+            },
+            \"metadata_package\": {
+              \"model_information\": {
+                \"model_name\": \"モデル名\",
+                \"creation_date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                \"generation_method\": \"AI-generated 3D model\",
+                \"quality_level\": \"$CURRENT_3D_QUALITY/10\",
+                \"polygon_count\": \"ポリゴン数\"
+              },
+              \"technical_metadata\": {
+                \"coordinate_system\": \"座標系\",
+                \"unit_scale\": \"単位スケール\",
+                \"pivot_point\": \"ピボットポイント\",
+                \"bounding_box\": \"バウンディングボックス\"
+              },
+              \"usage_rights\": {
+                \"license_type\": \"ライセンス種別\",
+                \"commercial_usage\": \"商用利用可否\",
+                \"modification_rights\": \"改変権限\",
+                \"attribution_requirements\": [\"クレジット要件\"]
+              }
+            },
+            \"quality_assurance\": {
+              \"validation_checklist\": [\"検証チェックリスト\"],
+              \"compatibility_tests\": [\"互換性テスト\"],
+              \"performance_benchmarks\": [\"パフォーマンスベンチマーク\"],
+              \"user_acceptance_criteria\": [\"ユーザー受容基準\"]
+            },
+            \"deployment_guidance\": {
+              \"integration_steps\": [\"統合ステップ\"],
+              \"configuration_options\": [\"設定選択肢\"],
+              \"optimization_tips\": [\"最適化のコツ\"],
+              \"maintenance_recommendations\": [\"メンテナンス推奨事項\"]
+            },
+            \"success_metrics\": {
+              \"technical_kpis\": [\"技術的KPI\"],
+              \"user_experience_metrics\": [\"UX メトリクス\"],
+              \"performance_indicators\": [\"パフォーマンス指標\"],
+              \"quality_benchmarks\": [\"品質ベンチマーク\"]
+            }
+          }" > .logs/delivery-packaging/delivery-strategy.json
+          
+          DELIVERY_STRATEGY=$(cat .logs/delivery-packaging/delivery-strategy.json)
+          
+          # 配信情報を環境変数に設定
+          FORMAT_COUNT=$(echo "$DELIVERY_STRATEGY" | jq '.format_specifications | length')
+          VARIANT_COUNT=$(echo "$DELIVERY_STRATEGY" | jq '.optimization_variants | keys | length')
+          
+          echo "DELIVERY_FORMAT_COUNT=$FORMAT_COUNT" >> $GITHUB_ENV
+          echo "OPTIMIZATION_VARIANT_COUNT=$VARIANT_COUNT" >> $GITHUB_ENV
+          echo "DELIVERY_STRATEGY_FILE=.logs/delivery-packaging/delivery-strategy.json" >> $GITHUB_ENV
+          
+          echo "📦 3D delivery packaging completed"
+          echo "Delivery formats: $FORMAT_COUNT"
+          echo "Optimization variants: $VARIANT_COUNT"
+
+  - id: "final-3d-project-packaging"
+    name: "最終3Dプロジェクトパッケージ作成"
+    phase: "delivery_preparation"
+    github_job: "final-packaging"
+    type: "packaging"
+    implementation: "script"
+    duration_minutes: 2
+    dependencies: ["3d-delivery-packaging"]
+    parallel_group: null
+    
+    github_steps:
+      - name: "Create comprehensive 3D project delivery package"
+        shell: "bash"
+        script: |
+          echo "📦 Creating comprehensive 3D project delivery package..."
+          
+          mkdir -p .final-output/{concept,generation,optimization,rendering}
+          
+          # プロジェクト文書
+          cp .logs/3d-concept/3d-concept.json .final-output/concept/ 2>/dev/null || true
+          cp .logs/reference-preparation/preparation-log.json .final-output/concept/ 2>/dev/null || true
+          
+          # 3D生成成果物
+          mkdir -p .final-output/generation/{models,references}
+          cp .logs/3d-generation/*.json .final-output/generation/models/ 2>/dev/null || true
+          cp .logs/reference-preparation/*.json .final-output/generation/references/ 2>/dev/null || true
+          
+          # 最適化・レンダリング資料
+          cp .logs/model-optimization/*.json .final-output/optimization/ 2>/dev/null || true
+          cp .logs/rendering-setup/*.json .final-output/rendering/ 2>/dev/null || true
+          cp .logs/delivery-packaging/*.json .final-output/rendering/ 2>/dev/null || true
+          
+          # マスター3Dプロジェクト情報
+          cat > .final-output/3d-project-master.json << EOF
+          {
+            "project_info": {
+              "project_name": "3D Model Creation",
+              "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "github_run_id": "${{ github.run_id }}",
+              "project_type": "3d_model_generation_and_optimization",
+              "total_production_time": "30 minutes"
+            },
+            "3d_overview": {
+              "polygon_budget": $POLYGON_BUDGET,
+              "texture_resolution": $TEXTURE_RESOLUTION,
+              "current_quality_score": "$CURRENT_3D_QUALITY/10",
+              "delivery_formats": $DELIVERY_FORMAT_COUNT,
+              "optimization_variants": $OPTIMIZATION_VARIANT_COUNT
+            },
+            "production_summary": {
+              "3d_generation_available": "$THREED_GEN_AVAILABLE",
+              "reference_generation_available": "$REF_IMAGE_AVAILABLE",
+              "image_enhancement_available": "$IMAGE_ENHANCEMENT_AVAILABLE",
+              "ai_analysis_available": "$THREED_AI_AVAILABLE",
+              "generated_3d_models": $GENERATED_3D_COUNT,
+              "reference_images": $GENERATED_REF_COUNT,
+              "angle_variants": $ANGLE_3D_VARIANTS,
+              "detail_models": $DETAIL_3D_MODELS
+            },
+            "deliverables": {
+              "concept_documents": {
+                "3d_concept": "concept/3d-concept.json",
+                "reference_preparation": "concept/preparation-log.json"
+              },
+              "3d_assets": {
+                "generated_models": "generation/models/",
+                "reference_images": "generation/references/"
+              },
+              "optimization_reports": {
+                "model_optimization": "optimization/optimization-analysis.json",
+                "rendering_configuration": "rendering/rendering-configuration.json",
+                "delivery_strategy": "rendering/delivery-strategy.json"
+              }
+            },
+            "technical_capabilities": {
+              "basic_3d_capability": "$BASIC_3D_CAPABILITY",
+              "advanced_3d_capability": "$ADVANCED_3D_CAPABILITY",
+              "primary_3d_service": "$([ "$THREED_GEN_AVAILABLE" = "true" ] && echo "i2i3d-fal-hunyuan3d-v21" || echo "none")",
+              "enhancement_services": "$([ "$IMAGE_ENHANCEMENT_AVAILABLE" = "true" ] && echo "i2i-fal-flux-kontext-max" || echo "none")"
+            },
+            "production_readiness": {
+              "3d_generation_status": "$THREED_GENERATION_STATUS",
+              "reference_preparation_status": "$REFERENCE_PREPARATION_STATUS",
+              "quality_score": "$CURRENT_3D_QUALITY/10",
+              "high_priority_optimizations": $HIGH_PRIORITY_3D_OPTS,
+              "rendering_approach": "$RENDERING_APPROACH",
+              "delivery_ready": $([ "$THREED_GENERATION_STATUS" = "success" ] && echo "true" || echo "false")
+            },
+            "usage_guidelines": {
+              "model_modification": "Generated 3D models can be further processed using specifications provided",
+              "optimization_implementation": "Follow optimization analysis recommendations for best performance",
+              "rendering_setup": "Use rendering configuration for optimal visual presentation",
+              "platform_deployment": "Reference delivery strategy for platform-specific optimizations",
+              "quality_maintenance": "Regular validation using provided quality benchmarks"
+            },
+            "support_resources": {
+              "model_regeneration": "Use 3d-concept.json specifications to recreate or modify models",
+              "optimization_guidance": "Follow optimization-analysis.json recommendations",
+              "rendering_setup": "Use rendering-configuration.json for setup guidance",
+              "troubleshooting": "Check generation logs for detailed creation information"
+            }
+          }
+          EOF
+          
+          # 3D制作プロジェクトガイドの作成
+          cat > .final-output/3D_PROJECT_GUIDE.md << 'EOF'
+          # 3Dモデル制作プロジェクトガイド
+          
+          ## 🧊 プロジェクト概要
+          - 制作手法: AI生成による3Dモデル制作
+          - 品質レベル: プロフェッショナル対応
+          - 最適化: マルチプラットフォーム対応
+          
+          ## 🎯 3Dモデル仕様
+          - ポリゴン予算と最適化レベル
+          - テクスチャ解像度と品質設定
+          - マテリアル・シェーダー設定
+          - LOD (Level of Detail) 戦略
+          
+          ## 🎨 制作成果物
+          - メイン3Dモデル
+          - 角度別バリエーション
+          - 詳細パーツモデル
+          - 参照画像素材
+          - レンダリング設定
+          
+          ## ⚡ 最適化・パフォーマンス
+          - プラットフォーム別最適化
+          - パフォーマンス目標設定
+          - 品質・効率バランス
+          - 配信フォーマット対応
+          
+          ## 🚀 配信・統合
+          - フォーマット変換ガイド
+          - プラットフォーム統合手順
+          - レンダリング設定適用
+          - 品質検証プロセス
+          
+          ## 🔧 技術的注意事項
+          - 座標系・単位の統一
+          - テクスチャ・マテリアル管理
+          - パフォーマンス監視
+          - 継続的最適化
+          EOF
+          
+          # ZIPパッケージ作成
+          cd .final-output && zip -r ../3d-model-package.zip . && cd ..
+          
+          echo "📦 Final 3D project packaging completed"
+          echo "Package includes:"
+          echo "- 3D concept and technical specifications"
+          echo "- $GENERATED_3D_COUNT generated 3D models"
+          echo "- $GENERATED_REF_COUNT reference images"
+          echo "- Quality optimization analysis (score: $CURRENT_3D_QUALITY/10)"
+          echo "- $DELIVERY_FORMAT_COUNT delivery format specifications"
+          echo "- Rendering and deployment configurations"
+          echo "Package location: 3d-model-package.zip"
+          
+    success_links:
+      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
+      optimization_analysis: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/optimization/optimization-analysis.json"
+      3d_concept: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/concept/3d-concept.json"
+      project_guide: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/3D_PROJECT_GUIDE.md"
+
+    validation:
+      criteria:
+        - "3Dコンセプトが設計されている"
+        - "参照画像が準備されている"
+        - "3Dモデルが生成されている"
+        - "最適化分析が完了している"
+        - "配信パッケージが作成されている"
+      validation_script: |
+        if [ ! -f ".final-output/3d-project-master.json" ]; then
+          echo "❌ VALIDATION FAILED: 3D project package missing"
+          exit 1
+        fi
+        
+        if [ "$THREED_GENERATION_STATUS" = "success" ]; then
+          echo "✅ Validation passed: 3D model generation completed successfully"
+        elif [ "$THREED_GENERATION_STATUS" = "service_unavailable" ]; then
+          echo "⚠️ WARNING: 3D generation service unavailable - specifications created for external use"
+        else
+          echo "❌ VALIDATION FAILED: 3D model generation failed"
+          exit 1
+        fi
