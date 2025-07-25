@@ -587,13 +587,11 @@ jobs:
             sed -i "1s/.*/name: \"Generated Composite ${COMPOSITE_DETECTED} - ${REQUEST_ID}\"/" "$GENERATED_FILE"
             
             # 複合テンプレート情報をコメントとして追加
-            cat > temp_header.txt << EOF
-# Generated Composite Workflow
-# Templates combined: ${TEMPLATES}
-# Composite type: ${COMPOSITE_DETECTED}
-# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-EOF
+            echo "# Generated Composite Workflow" > temp_header.txt
+            echo "# Templates combined: ${TEMPLATES}" >> temp_header.txt
+            echo "# Composite type: ${COMPOSITE_DETECTED}" >> temp_header.txt
+            echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> temp_header.txt
+            echo "" >> temp_header.txt
             cat temp_header.txt "$GENERATED_FILE" > temp_combined.yml
             mv temp_combined.yml "$GENERATED_FILE"
             rm temp_header.txt
@@ -992,6 +990,8 @@ EOF
           🤖 Generated with [Claude Code](https://claude.ai/code)
           Co-Authored-By: Claude <noreply@anthropic.com>" || echo "No changes to commit"
           
+          # Git push with conflict resolution
+          git pull --rebase origin main || echo "Rebase failed, but continuing..."
           git push origin main || echo "Push failed, but continuing..."
 
   # Step 5: 失敗時の自動修復・学習・Git更新
@@ -1064,6 +1064,8 @@ EOF
             🤖 Generated with [Claude Code](https://claude.ai/code)
             Co-Authored-By: Claude <noreply@anthropic.com>"
             
+            # Git push with conflict resolution
+            git pull --rebase origin main || echo "Rebase failed"
             git push origin main
             echo "✅ Auto-fixes committed and pushed to repository"
           else
@@ -1162,6 +1164,8 @@ EOF
             
             git commit -m "feat: 自動生成ワークフロー保存 🤖 Generated with Claude Code"
             
+            # Git push with conflict resolution
+            git pull --rebase origin main || echo "Rebase failed"
             git push origin main
             echo "✅ Generated workflow committed and pushed to repository"
             echo "🎯 Available at: generated/workflows/staging/$GENERATED_FILE"
