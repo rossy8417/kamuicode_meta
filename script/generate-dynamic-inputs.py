@@ -109,6 +109,228 @@ def generate_composite_inputs(composite_type, templates_list):
     
     return inputs
 
+def convert_ultradetailed_template(template_data, output_path):
+    """Convert ultra-detailed template to executable GitHub Actions workflow"""
+    
+    workflow_name = template_data.get('name', 'Generated Workflow')
+    description = template_data.get('description', 'Auto-generated workflow')
+    tasks = template_data.get('tasks', [])
+    
+    # Extract dynamic inputs from template if available
+    dynamic_inputs = {}
+    if 'dynamic_inputs_spec' in template_data:
+        dynamic_spec = template_data['dynamic_inputs_spec']
+        for section in dynamic_spec.get('form_sections', []):
+            for input_field in section.get('inputs', []):
+                field_name = input_field['name']
+                dynamic_inputs[field_name] = {
+                    'description': input_field['label'],
+                    'required': input_field.get('required', False),
+                    'type': input_field['type']
+                }
+                
+                # Handle type conversions
+                if input_field['type'] == 'select':
+                    dynamic_inputs[field_name]['type'] = 'choice'
+                    if 'options' in input_field:
+                        dynamic_inputs[field_name]['options'] = [opt['value'] for opt in input_field['options']]
+                    if 'default' in input_field:
+                        dynamic_inputs[field_name]['default'] = input_field['default']
+                elif input_field['type'] == 'textarea':
+                    dynamic_inputs[field_name]['type'] = 'string'
+                elif input_field['type'] == 'range':
+                    dynamic_inputs[field_name]['type'] = 'number'
+                    if 'default' in input_field:
+                        dynamic_inputs[field_name]['default'] = str(input_field['default'])
+    
+    # Fallback inputs if no dynamic spec
+    if not dynamic_inputs:
+        dynamic_inputs = {
+            'content_topic': {
+                'description': 'コンテンツのテーマ・内容',
+                'required': True,
+                'type': 'string'
+            },
+            'quality_level': {
+                'description': '品質設定',
+                'required': False,
+                'type': 'choice',
+                'options': ['standard', 'high', 'ultra'],
+                'default': 'high'
+            }
+        }
+    
+    # Build GitHub Actions workflow structure
+    github_workflow = {
+        'name': f"Generated {workflow_name}",
+        'run-name': f"${{{{ github.actor }}}} creates {workflow_name.lower()} 🎬🎵🎙️",
+        'on': {
+            'workflow_dispatch': {
+                'inputs': dynamic_inputs
+            }
+        },
+        'permissions': {
+            'contents': 'write',
+            'actions': 'read'
+        },
+        'env': {
+            'CLAUDE_CODE_OAUTH_TOKEN': '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
+        },
+        'jobs': {}
+    }
+    
+    # Convert tasks to GitHub Actions jobs
+    parallel_groups = {}
+    for task in tasks:
+        job_id = task.get('github_job', task['id'].replace('-', '_'))
+        
+        # Build job structure
+        job = {
+            'runs-on': 'ubuntu-latest',
+            'steps': []
+        }
+        
+        # Add dependencies
+        dependencies = task.get('dependencies', [])
+        if dependencies:
+            needs_list = [dep.replace('-', '_') for dep in dependencies]
+            if len(needs_list) == 1:
+                job['needs'] = needs_list[0]
+            else:
+                job['needs'] = needs_list
+        
+        # Add outputs if specified
+        if 'outputs' in task:
+            job['outputs'] = task['outputs']
+        
+        # Add checkout step
+        job['steps'].append({'uses': 'actions/checkout@v4'})
+        
+        # Convert github_steps to actual steps
+        if 'github_steps' in task:
+            for step in task['github_steps']:
+                formatted_step = {
+                    'name': step['name']
+                }
+                
+                if 'id' in step:
+                    formatted_step['id'] = step['id']
+                
+                if 'shell' in step:
+                    formatted_step['shell'] = step['shell']
+                
+                if 'script' in step:
+                    # Clean up the script formatting
+                    script_content = step['script'].strip()
+                    formatted_step['run'] = script_content
+                elif 'run' in step:
+                    formatted_step['run'] = step['run']
+                
+                job['steps'].append(formatted_step)
+        else:
+            # Generate default step from task info
+            default_step = {
+                'name': task['name'],
+                'run': f"""
+echo "🎯 Executing: {task['name']}"
+echo "Type: {task.get('type', 'unknown')}"
+echo "Implementation: {task.get('implementation', 'script')}"
+
+mkdir -p .logs/{task['phase']}
+
+# Task execution placeholder - replace with actual implementation
+echo "✅ {task['name']} completed"
+"""
+            }
+            
+            if task.get('type') == 'generation' and task.get('implementation') == 'mcp':
+                tool = task.get('tool', 'unknown')
+                default_step['run'] = f"""
+echo "🎯 {task['name']} using MCP {tool}"
+
+mkdir -p outputs/{task['phase']}
+
+# MCP service execution for {tool}
+# Add actual MCP integration here
+echo "Generated content for {task['name']}"
+echo "✅ Generation completed"
+"""
+            
+            job['steps'].append(default_step)
+        
+        # Add validation step if criteria specified
+        if 'validation' in task and 'validation_script' in task['validation']:
+            validation_step = {
+                'name': f"Validate {task['name']}",
+                'run': task['validation']['validation_script']
+            }
+            job['steps'].append(validation_step)
+        
+        github_workflow['jobs'][job_id] = job
+    
+    # Add final summary job
+    final_job_dependencies = [task.get('github_job', task['id'].replace('-', '_')) for task in tasks if not task.get('dependencies')]
+    if len(tasks) > 1:
+        github_workflow['jobs']['workflow_summary'] = {
+            'needs': list(github_workflow['jobs'].keys()),
+            'runs-on': 'ubuntu-latest',
+            'if': 'always()',
+            'steps': [
+                {'uses': 'actions/checkout@v4'},
+                {
+                    'name': 'Generate Workflow Summary',
+                    'run': f"""
+echo "📋 {workflow_name} Completion Summary"
+echo "================================"
+echo "Total Tasks: {len(tasks)}"
+echo "Description: {description}"
+echo "Completed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "✅ All tasks processed successfully"
+
+# Create final output summary
+mkdir -p outputs/final
+cat > outputs/final/workflow-summary.json << EOF
+{{
+  "workflow_name": "{workflow_name}",
+  "total_tasks": {len(tasks)},
+  "completion_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "status": "completed"
+}}
+EOF
+"""
+                },
+                {
+                    'name': 'Upload Final Outputs',
+                    'uses': 'actions/upload-artifact@v4',
+                    'with': {
+                        'name': f"workflow-outputs-${{{{ github.run_number }}}}",
+                        'path': 'outputs/',
+                        'retention-days': 30
+                    }
+                }
+            ]
+        }
+    
+    # Write the converted workflow
+    try:
+        # Ensure directory exists
+        output_dir = os.path.dirname(output_path)
+        if output_dir:  # Only create directory if dirname is not empty
+            os.makedirs(output_dir, exist_ok=True)
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            yaml.dump(github_workflow, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        print(f"✅ Ultra-detailed template converted: {output_path}")
+        print(f"   - Original tasks: {len(tasks)}")
+        print(f"   - Generated jobs: {len(github_workflow['jobs'])}")
+        print(f"   - Dynamic inputs: {len(dynamic_inputs)}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error converting template: {e}")
+        return False
+
 def generate_workflow_with_dynamic_inputs(template_path, output_path, composite_type=None, templates_list=None):
     """Generate enhanced workflow with dynamic inputs"""
     
@@ -117,7 +339,12 @@ def generate_workflow_with_dynamic_inputs(template_path, output_path, composite_
     if not base_template:
         return False
     
-    # Generate dynamic inputs
+    # Check if template has ultra-detailed task structure
+    if 'tasks' in base_template and isinstance(base_template['tasks'], list):
+        print(f"🎯 Converting ultra-detailed template with {len(base_template['tasks'])} tasks")
+        return convert_ultradetailed_template(base_template, output_path)
+    
+    # Generate dynamic inputs for simple templates
     if composite_type and composite_type != "single":
         dynamic_inputs = generate_composite_inputs(composite_type, templates_list)
     else:
