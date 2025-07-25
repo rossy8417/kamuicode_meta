@@ -2,17 +2,23 @@ name: Workflow Companion Monitor
 run-name: 👥 Monitoring workflow for run ${{ github.event.workflow_run.run_number || 'manual' }}
 
 on:
-  workflow_run:
-    workflows: ["Kamuicode Meta Generator (Self-Healing)"]
-    types:
-      - requested
-    # メインワークフロー開始時に監視開始
+  # workflow_run トリガーを無効化（自動起動を停止）
+  # workflow_run:
+  #   workflows: ["Kamuicode Meta Generator (Self-Healing)"]
+  #   types:
+  #     - requested
+  #   # メインワークフロー開始時に監視開始
   workflow_dispatch:
     inputs:
       target_run_id:
         description: '監視対象のワークフローRUN ID'
         required: false
         type: string
+      monitoring_enabled:
+        description: 'モニタリングを有効にする'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -27,7 +33,7 @@ jobs:
   # メインワークフロー連動監視
   companion-monitoring:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_run'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.monitoring_enabled == 'true'
     outputs:
       critical_issue: ${{ steps.monitor.outputs.critical_issue }}
       immediate_fix_needed: ${{ steps.monitor.outputs.immediate_fix_needed }}
@@ -107,15 +113,15 @@ jobs:
               echo "⚠️ Cannot check main workflow status"
             fi
             
-            # 最大監視時間の制限（30分）
-            if [ $MONITORING_DURATION -gt 1800 ]; then
-              echo "⏰ Maximum monitoring time reached (30min) - ending monitoring"
+            # 最大監視時間の制限（5分に短縮）
+            if [ $MONITORING_DURATION -gt 300 ]; then
+              echo "⏰ Maximum monitoring time reached (5min) - ending monitoring"
               break
             fi
             
-            # 30秒間隔で監視
-            echo "💤 Waiting 30 seconds before next check..."
-            sleep 30
+            # 60秒間隔で監視（負荷軽減）
+            echo "💤 Waiting 60 seconds before next check..."
+            sleep 60
             
           done
           
