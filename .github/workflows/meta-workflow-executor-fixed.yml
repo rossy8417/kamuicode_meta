@@ -87,17 +87,66 @@ jobs:
             WORKFLOW_TYPE="custom"
           fi
           
-          # 回答を抽出（成功したロジックを使用）
+          # 回答を抽出（柔軟なパターンマッチング）
           STEPBACK_ANSWERS=""
-          ANSWER_LINES=$(echo "$ISSUE_BODY" | grep "回答：" | sed 's/\*\*回答：\*\*//g' | sed 's/（//g' | sed 's/）//g')
           
+          # 様々な回答パターンに対応
+          # パターン1: **回答：** または **回答:** 
+          # パターン2: 回答： または 回答:
+          # パターン3: A: または Answer: 
+          # パターン4: Q1回答、Q2回答 など
+          
+          # 各質問セクションを抽出
           ANSWER_COUNT=0
-          while IFS= read -r line; do
-            if [ -n "$line" ] && ! echo "$line" | grep -q "ここに詳細をお書きください"; then
-              ANSWER_COUNT=$((ANSWER_COUNT + 1))
-              STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q${ANSWER_COUNT}回答:** $line\n\n"
+          
+          # Q1の回答を抽出
+          Q1_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/Q1.*構造.*アーキテクチャ/,/Q2.*品質.*パフォーマンス/p' | grep -A10 -E "回答：|回答:|Answer:|A:" | grep -v "Q2" | grep -v "ここに詳細" | tail -n +2 | head -5 | tr '\n' ' ')
+          if [ -n "$Q1_ANSWER" ] && [ ${#Q1_ANSWER} -gt 10 ]; then
+            ANSWER_COUNT=$((ANSWER_COUNT + 1))
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q1回答:** $Q1_ANSWER\n\n"
+          fi
+          
+          # Q2の回答を抽出
+          Q2_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/Q2.*品質.*パフォーマンス/,/Q3.*エラー処理/p' | grep -A10 -E "回答：|回答:|Answer:|A:" | grep -v "Q3" | grep -v "ここに詳細" | tail -n +2 | head -5 | tr '\n' ' ')
+          if [ -n "$Q2_ANSWER" ] && [ ${#Q2_ANSWER} -gt 10 ]; then
+            ANSWER_COUNT=$((ANSWER_COUNT + 1))
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q2回答:** $Q2_ANSWER\n\n"
+          fi
+          
+          # Q3の回答を抽出
+          Q3_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/Q3.*エラー処理/,/Q4.*出力.*保存/p' | grep -A10 -E "回答：|回答:|Answer:|A:" | grep -v "Q4" | grep -v "ここに詳細" | tail -n +2 | head -5 | tr '\n' ' ')
+          if [ -n "$Q3_ANSWER" ] && [ ${#Q3_ANSWER} -gt 10 ]; then
+            ANSWER_COUNT=$((ANSWER_COUNT + 1))
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q3回答:** $Q3_ANSWER\n\n"
+          fi
+          
+          # Q4の回答を抽出
+          Q4_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/Q4.*出力.*保存/,/Q5.*拡張性/p' | grep -A10 -E "回答：|回答:|Answer:|A:" | grep -v "Q5" | grep -v "ここに詳細" | tail -n +2 | head -5 | tr '\n' ' ')
+          if [ -n "$Q4_ANSWER" ] && [ ${#Q4_ANSWER} -gt 10 ]; then
+            ANSWER_COUNT=$((ANSWER_COUNT + 1))
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q4回答:** $Q4_ANSWER\n\n"
+          fi
+          
+          # Q5の回答を抽出  
+          Q5_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/Q5.*拡張性/,/---/p' | grep -A10 -E "回答：|回答:|Answer:|A:" | grep -v "---" | grep -v "ここに詳細" | tail -n +2 | head -5 | tr '\n' ' ')
+          if [ -n "$Q5_ANSWER" ] && [ ${#Q5_ANSWER} -gt 10 ]; then
+            ANSWER_COUNT=$((ANSWER_COUNT + 1))
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q5回答:** $Q5_ANSWER\n\n"
+          fi
+          
+          # フォールバック: より自由な形式での回答抽出
+          if [ $ANSWER_COUNT -eq 0 ]; then
+            echo "🔄 Using fallback extraction for flexible input formats..."
+            
+            # 任意の形式で書かれた回答を抽出
+            FLEXIBLE_ANSWERS=$(echo "$ISSUE_BODY" | grep -A3 -B1 -E "T2I|I2V|複合処理|最高品質|並列処理|エラー|即座停止|URL|プレビュー|単独完結|詳細監視" | grep -v "Q[1-5]:" | head -10 | tr '\n' ' ')
+            
+            if [ -n "$FLEXIBLE_ANSWERS" ] && [ ${#FLEXIBLE_ANSWERS} -gt 50 ]; then
+              ANSWER_COUNT=1
+              STEPBACK_ANSWERS="**柔軟抽出回答:** $FLEXIBLE_ANSWERS\n\n"
+              echo "✅ Flexible extraction successful: ${#FLEXIBLE_ANSWERS} characters found"
             fi
-          done <<< "$ANSWER_LINES"
+          fi
           
           echo "📊 Analysis Results:"
           echo "   - Workflow Type: $WORKFLOW_TYPE"
