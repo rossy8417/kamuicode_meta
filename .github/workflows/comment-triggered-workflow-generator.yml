@@ -1,0 +1,370 @@
+name: Comment-Triggered Workflow Generator
+run-name: 🚀 Processing stepback answers and generating workflow for Issue #${{ github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Issue コメント検知とステップバック回答の解析
+  detect-execution-command:
+    runs-on: ubuntu-latest
+    # Workflow Request Issues でかつ「実行開始」コメントの場合のみ実行
+    if: contains(github.event.issue.title, 'Workflow Request') && contains(github.event.comment.body, '実行開始')
+    outputs:
+      should_execute: ${{ steps.analyze.outputs.should_execute }}
+      stepback_answers: ${{ steps.analyze.outputs.stepback_answers }}
+      original_request: ${{ steps.analyze.outputs.original_request }}
+      workflow_type: ${{ steps.analyze.outputs.workflow_type }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Analyze Issue Content and Comment
+        id: analyze
+        run: |
+          echo "🔍 Analyzing Issue #${{ github.event.issue.number }} for stepback answers..."
+          
+          mkdir -p .meta/comment-analysis
+          
+          # Issue情報を取得
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          COMMENT_USER="${{ github.event.comment.user.login }}"
+          ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
+          
+          echo "📋 Issue Analysis:"
+          echo "   - Title: $ISSUE_TITLE"
+          echo "   - Comment by: $COMMENT_USER"
+          echo "   - Issue author: $ISSUE_AUTHOR"
+          echo "   - Comment contains '実行開始': $(echo "$COMMENT_BODY" | grep -q '実行開始' && echo 'YES' || echo 'NO')"
+          
+          # Issue作成者本人のコメントかチェック
+          if [ "$COMMENT_USER" != "$ISSUE_AUTHOR" ]; then
+            echo "⚠️ Comment is not from Issue author - skipping execution"
+            echo "should_execute=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Issue本文からステップバック回答を抽出
+          echo "📝 Extracting stepback answers from Issue body..."
+          
+          # Q1-Q5の回答を検索・抽出
+          STEPBACK_ANSWERS=""
+          
+          # Q1の回答を抽出
+          Q1_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q1:.*\*\*/,/\*\*Q2:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q2:/p' | sed '1d;$d' | head -10)
+          if [ -n "$Q1_ANSWER" ] && ! echo "$Q1_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q1回答:** $Q1_ANSWER\n\n"
+          fi
+          
+          # Q2の回答を抽出
+          Q2_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q2:.*\*\*/,/\*\*Q3:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q3:/p' | sed '1d;$d' | head -10)
+          if [ -n "$Q2_ANSWER" ] && ! echo "$Q2_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q2回答:** $Q2_ANSWER\n\n"
+          fi
+          
+          # Q3の回答を抽出
+          Q3_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q3:.*\*\*/,/\*\*Q4:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q4:/p' | sed '1d;$d' | head -10)
+          if [ -n "$Q3_ANSWER" ] && ! echo "$Q3_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q3回答:** $Q3_ANSWER\n\n"
+          fi
+          
+          # Q4の回答を抽出
+          Q4_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q4:.*\*\*/,/\*\*Q5:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q5:/p' | sed '1d;$d' | head -10)
+          if [ -n "$Q4_ANSWER" ] && ! echo "$Q4_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q4回答:** $Q4_ANSWER\n\n"
+          fi
+          
+          # Q5の回答を抽出
+          Q5_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q5:.*\*\*/,$p' | sed -n '/\*\*回答：\*\*/,/---/p' | sed '1d;$d' | head -10)
+          if [ -n "$Q5_ANSWER" ] && ! echo "$Q5_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
+            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q5回答:** $Q5_ANSWER\n\n"
+          fi
+          
+          # 元のリクエスト部分を抽出（ワークフローの目的・背景など）
+          ORIGINAL_REQUEST=$(echo "$ISSUE_BODY" | sed -n '1,/## 📋 ワークフロー詳細化のための質問/p' | head -20)
+          
+          # ワークフロータイプを推測
+          if echo "$ISSUE_TITLE $ISSUE_BODY" | grep -qi "video\|動画"; then
+            WORKFLOW_TYPE="video-generation"
+          elif echo "$ISSUE_TITLE $ISSUE_BODY" | grep -qi "image\|画像"; then
+            WORKFLOW_TYPE="image-generation"
+          elif echo "$ISSUE_TITLE $ISSUE_BODY" | grep -qi "audio\|music\|音楽\|音声"; then
+            WORKFLOW_TYPE="audio-generation"
+          else
+            WORKFLOW_TYPE="custom"
+          fi
+          
+          echo "📊 Analysis Results:"
+          echo "   - Workflow Type: $WORKFLOW_TYPE"
+          echo "   - Stepback Answers Length: ${#STEPBACK_ANSWERS}"
+          echo "   - Original Request Length: ${#ORIGINAL_REQUEST}"
+          
+          # 回答が十分にあるかチェック
+          if [ ${#STEPBACK_ANSWERS} -gt 50 ]; then
+            echo "✅ Sufficient stepback answers found - proceeding with workflow generation"
+            
+            # 分析結果を保存
+            cat > .meta/comment-analysis/analysis-result.md << EOF
+          # Comment-Triggered Analysis Result
+          
+          ## Original Request
+          $ORIGINAL_REQUEST
+          
+          ## Stepback Answers
+          $STEPBACK_ANSWERS
+          
+          ## Metadata
+          - Workflow Type: $WORKFLOW_TYPE
+          - Issue Number: ${{ github.event.issue.number }}
+          - Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          - Triggered by: $COMMENT_USER
+          EOF
+            
+            echo "should_execute=true" >> $GITHUB_OUTPUT
+            echo "stepback_answers<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$STEPBACK_ANSWERS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "original_request<<EOF" >> $GITHUB_OUTPUT
+            echo "$ORIGINAL_REQUEST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+            
+          else
+            echo "⚠️ Insufficient stepback answers - requesting more details"
+            echo "should_execute=false" >> $GITHUB_OUTPUT
+            
+            # 不十分な回答の場合、コメントで詳細要求
+            if command -v gh &> /dev/null; then
+              gh issue comment ${{ github.event.issue.number }} \
+                --body "⚠️ **詳細情報が不足しています**
+          
+          ワークフローを生成するには、Issue本文の📋詳細確認質問により多くの回答が必要です。
+          
+          **現在の状況:**
+          - 検出された回答: ${#STEPBACK_ANSWERS} 文字
+          - 必要な回答: 最低50文字以上
+          
+          **📝 次のステップ:**
+          1. Issue本文を編集（Editボタン）
+          2. Q1-Q5の「**回答：**」部分により詳細な情報を記入
+          3. Issue保存後、再度「実行開始」とコメント
+          
+          より詳細な回答をいただくことで、最適化されたワークフローを生成できます。
+          
+          🤖 *Comment-Triggered Workflow Generator*" \
+                2>/dev/null || echo "⚠️ Failed to post insufficient answers comment"
+            fi
+          fi
+          
+      - name: Upload Analysis Result
+        if: steps.analyze.outputs.should_execute == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: comment-analysis-${{ github.run_number }}
+          path: .meta/comment-analysis/
+          retention-days: 7
+
+  # ステップバック回答に基づくワークフロー生成
+  generate-enhanced-workflow:
+    needs: detect-execution-command
+    runs-on: ubuntu-latest
+    if: needs.detect-execution-command.outputs.should_execute == 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Analysis Result
+        uses: actions/download-artifact@v4
+        with:
+          name: comment-analysis-${{ github.run_number }}
+          path: .meta/comment-analysis/
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Generate Enhanced Workflow with Stepback Answers
+        id: generate
+        run: |
+          echo "🤖 Generating enhanced workflow based on stepback answers..."
+          
+          mkdir -p .meta/enhanced-generation
+          
+          # 分析結果を読み込み
+          if [ ! -f ".meta/comment-analysis/analysis-result.md" ]; then
+            echo "❌ Analysis result not found"
+            exit 1
+          fi
+          
+          WORKFLOW_TYPE="${{ needs.detect-execution-command.outputs.workflow_type }}"
+          
+          # 拡張ワークフロー生成プロンプトを作成
+          cat > .meta/enhanced-generation/generation-prompt.md << 'EOF'
+          # Enhanced Workflow Generation with Stepback Answers
+          
+          ユーザーがステップバック質問に回答した内容を基に、最適化されたワークフローを生成してください。
+          
+          ## 分析対象データ
+          EOF
+          
+          cat .meta/comment-analysis/analysis-result.md >> .meta/enhanced-generation/generation-prompt.md
+          
+          cat >> .meta/enhanced-generation/generation-prompt.md << 'EOF'
+          
+          ## 生成指示
+          
+          上記のユーザー回答を分析し、以下を実行してください：
+          
+          1. **回答内容の解釈**: 各質問への回答から具体的要求を抽出
+          2. **技術仕様の決定**: 品質設定、処理順序、時間制約を明確化
+          3. **最適なテンプレート選択**: 要求に最も適したワークフローテンプレートを選択
+          4. **カスタマイズ実装**: 回答内容に基づく具体的なカスタマイズ
+          
+          ## 必須出力
+          
+          以下のワークフローファイルを生成してください：
+          
+          ```bash
+          mkdir -p generated/workflows/enhanced
+          cat > generated/workflows/enhanced/stepback-enhanced-workflow.yml << 'EOFYML'
+          name: "Enhanced Workflow (Stepback Optimized)"
+          run-name: "🎯 ${{ github.actor }} executes stepback-optimized workflow"
+          
+          on:
+            workflow_dispatch:
+              inputs:
+                # ユーザー回答に基づく動的inputs
+          
+          permissions:
+            contents: write
+            actions: read
+          
+          env:
+            CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+          jobs:
+            # ユーザー回答に基づく最適化されたジョブ構成
+          
+          EOFYML
+          ```
+          
+          重要：生成したワークフローは必ず `generated/workflows/enhanced/stepback-enhanced-workflow.yml` に保存してください。
+          EOF
+          
+          # Claude Code でワークフロー生成実行
+          echo "🧠 Executing Claude Code enhanced workflow generation..."
+          
+          if claude --continue "$(cat .meta/enhanced-generation/generation-prompt.md)" --output-format text; then
+            echo "✅ Enhanced workflow generation completed"
+            
+            if [ -f "generated/workflows/enhanced/stepback-enhanced-workflow.yml" ]; then
+              echo "✅ Enhanced workflow file created successfully"
+              
+              # 生成されたワークフローの基本検証
+              if python3 -c "import yaml; yaml.safe_load(open('generated/workflows/enhanced/stepback-enhanced-workflow.yml'))" 2>/dev/null; then
+                echo "✅ Generated workflow has valid YAML syntax"
+                echo "workflow_generated=true" >> $GITHUB_OUTPUT
+                echo "workflow_path=generated/workflows/enhanced/stepback-enhanced-workflow.yml" >> $GITHUB_OUTPUT
+              else
+                echo "❌ Generated workflow has invalid YAML syntax"
+                echo "workflow_generated=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "❌ Enhanced workflow file not found"
+              echo "workflow_generated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Claude Code enhanced generation failed"
+            echo "workflow_generated=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Deploy Enhanced Workflow
+        if: steps.generate.outputs.workflow_generated == 'true'
+        run: |
+          echo "🚀 Deploying enhanced workflow to production..."
+          
+          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
+          WORKFLOW_TYPE="${{ needs.detect-execution-command.outputs.workflow_type }}"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          # 本番環境にデプロイ
+          DEPLOYED_FILE=".github/workflows/enhanced-${WORKFLOW_TYPE}-${TIMESTAMP}.yml"
+          
+          mkdir -p .github/workflows
+          cp "$WORKFLOW_FILE" "$DEPLOYED_FILE"
+          
+          # Git コミット
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add "$DEPLOYED_FILE" "generated/workflows/enhanced/"
+          git commit -m "feat: Deploy stepback-enhanced workflow ($WORKFLOW_TYPE)" || echo "No changes to commit"
+          
+          echo "✅ Enhanced workflow deployed: $DEPLOYED_FILE"
+          
+      - name: Post Success Notification
+        if: steps.generate.outputs.workflow_generated == 'true'
+        run: |
+          echo "💬 Posting success notification to Issue #${{ github.event.issue.number }}..."
+          
+          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
+          DEPLOYED_FILE=".github/workflows/enhanced-${{ needs.detect-execution-command.outputs.workflow_type }}-$(date +%Y%m%d-%H%M%S).yml"
+          
+          if command -v gh &> /dev/null; then
+            gh issue comment ${{ github.event.issue.number }} \
+              --body "🎉 **ワークフロー生成完了！**
+          
+          あなたのステップバック質問への回答を分析し、最適化されたワークフローを生成・配置しました。
+          
+          **📊 生成結果:**
+          - **ワークフロータイプ**: ${{ needs.detect-execution-command.outputs.workflow_type }}
+          - **生成方式**: ステップバック回答最適化
+          - **配置先**: \`.github/workflows/\` (本番環境)
+          - **ファイル名**: \`$(basename "$DEPLOYED_FILE")\`
+          
+          **🎯 カスタマイズ内容:**
+          あなたの回答に基づき以下が最適化されました：
+          - Q1-Q5の詳細要求を反映
+          - 品質・処理フロー・技術仕様の個別調整
+          - 統合・連携方針の実装
+          
+          **🚀 実行方法:**
+          1. **Actions タブ**に移動
+          2. 生成されたワークフローを選択
+          3. **Run workflow** で実行開始
+          
+          **⏱️ 予想実行時間:** 回答内容に基づき最適化済み
+          
+          ---
+          
+          🤖 **Comment-Triggered Workflow Generator v5** で生成
+          📝 ステップバック回答解析により高精度カスタマイズを実現" \
+              2>/dev/null || echo "⚠️ Failed to post success notification"
+          fi
+          
+          echo "✅ Comment-triggered workflow generation completed successfully"
+          
+      - name: Upload Enhanced Workflow
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: enhanced-workflow-${{ github.run_number }}
+          path: generated/workflows/enhanced/
+          retention-days: 30
