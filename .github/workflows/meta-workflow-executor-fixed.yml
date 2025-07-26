@@ -1478,21 +1478,20 @@ jobs:
             exit 1
           fi
           
-          # 評価結果の保存
-          cat > .meta/evaluation/selected-workflow.json << EOF
-          {
-            "selected_approach": "$SELECTED_APPROACH",
-            "selected_file": "$FINAL_WORKFLOW",
-            "evaluation_score": $BEST_SCORE,
-            "comparison": {
-              "approach_1": {"name": "$APPROACH_1", "score": $SCORE_1},
-              "approach_2": {"name": "$APPROACH_2", "score": $SCORE_2},
-              "approach_3": {"name": "$APPROACH_3", "score": $SCORE_3}
-            },
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "issue_number": ${{ github.event.issue.number }}
-          }
-          EOF
+          # 評価結果の保存（echo版でYAML安全）
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          echo '{' > .meta/evaluation/selected-workflow.json
+          echo "  \"selected_approach\": \"$SELECTED_APPROACH\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"selected_file\": \"$FINAL_WORKFLOW\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"evaluation_score\": $BEST_SCORE," >> .meta/evaluation/selected-workflow.json
+          echo "  \"comparison\": {" >> .meta/evaluation/selected-workflow.json
+          echo "    \"approach_1\": {\"name\": \"$APPROACH_1\", \"score\": $SCORE_1}," >> .meta/evaluation/selected-workflow.json
+          echo "    \"approach_2\": {\"name\": \"$APPROACH_2\", \"score\": $SCORE_2}," >> .meta/evaluation/selected-workflow.json
+          echo "    \"approach_3\": {\"name\": \"$APPROACH_3\", \"score\": $SCORE_3}" >> .meta/evaluation/selected-workflow.json
+          echo "  }," >> .meta/evaluation/selected-workflow.json
+          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"issue_number\": $ISSUE_NUMBER" >> .meta/evaluation/selected-workflow.json
+          echo '}' >> .meta/evaluation/selected-workflow.json
           
           echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
           echo "selected_workflow_path=$FINAL_WORKFLOW" >> $GITHUB_OUTPUT
