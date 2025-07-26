@@ -90,38 +90,20 @@ jobs:
           # Issue本文からステップバック回答を抽出
           echo "📝 Extracting stepback answers from Issue body..."
           
-          # Q1-Q5の回答を検索・抽出
+          # 全ての回答を順次抽出 - シンプルなパターンマッチング
           STEPBACK_ANSWERS=""
           
-          # Q1の回答を抽出 - より柔軟なパターンマッチング
-          Q1_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q1.*回答：" | grep -v "Q1.*回答：" | head -3 | tr '\n' ' ')
-          if [ -n "$Q1_ANSWER" ] && ! echo "$Q1_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
-            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q1回答:** $Q1_ANSWER\n\n"
-          fi
+          # 回答：で始まる行を全て抽出してQ1-Q5として分類
+          ANSWER_LINES=$(echo "$ISSUE_BODY" | grep "回答：" | sed 's/\*\*回答：\*\*//g' | sed 's/（//g' | sed 's/）//g')
           
-          # Q2の回答を抽出
-          Q2_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q2.*回答：" | grep -v "Q2.*回答：" | head -3 | tr '\n' ' ')
-          if [ -n "$Q2_ANSWER" ] && ! echo "$Q2_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
-            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q2回答:** $Q2_ANSWER\n\n"
-          fi
-          
-          # Q3の回答を抽出
-          Q3_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q3.*回答：" | grep -v "Q3.*回答：" | head -3 | tr '\n' ' ')
-          if [ -n "$Q3_ANSWER" ] && ! echo "$Q3_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
-            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q3回答:** $Q3_ANSWER\n\n"
-          fi
-          
-          # Q4の回答を抽出
-          Q4_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q4.*回答：" | grep -v "Q4.*回答：" | head -3 | tr '\n' ' ')
-          if [ -n "$Q4_ANSWER" ] && ! echo "$Q4_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
-            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q4回答:** $Q4_ANSWER\n\n"
-          fi
-          
-          # Q5の回答を抽出
-          Q5_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q5.*回答：" | grep -v "Q5.*回答：" | head -3 | tr '\n' ' ')
-          if [ -n "$Q5_ANSWER" ] && ! echo "$Q5_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
-            STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q5回答:** $Q5_ANSWER\n\n"
-          fi
+          # 回答行を配列に変換
+          ANSWER_COUNT=0
+          while IFS= read -r line; do
+            if [ -n "$line" ] && ! echo "$line" | grep -q "ここに詳細をお書きください"; then
+              ANSWER_COUNT=$((ANSWER_COUNT + 1))
+              STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q${ANSWER_COUNT}回答:** $line\n\n"
+            fi
+          done <<< "$ANSWER_LINES"
           
           # 元のリクエスト部分を抽出（ワークフローの目的・背景など）
           ORIGINAL_REQUEST=$(echo "$ISSUE_BODY" | sed -n '1,/## 📋 ワークフロー詳細化のための質問/p' | head -20)
