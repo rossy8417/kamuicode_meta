@@ -1428,52 +1428,126 @@ EOF
           # 選択されたワークフローファイルをコピー
           FINAL_WORKFLOW="generated/workflows/selected/best-workflow.yml"
           
-          # 複数の可能なファイルパスをチェック
+          echo "🔍 Searching for selected workflow file..."
+          echo "Expected path: $SELECTED_FILE"
+          echo "Selected approach: $SELECTED_APPROACH"
+          
+          # 利用可能なファイルを詳細確認
+          echo "📁 Current directory structure:"
+          find . -name "*.yml" -type f | sort
+          
+          # artifactから正しいファイルを検索
           FOUND_FILE=""
           
-          # パターン1: 期待されるパス
+          # Step 1: 期待されるパスを確認
           if [ -f "$SELECTED_FILE" ]; then
             FOUND_FILE="$SELECTED_FILE"
-          # パターン2: アーティファクトの直接的なパス
-          elif [ -f "$(basename "$SELECTED_FILE")" ]; then
-            FOUND_FILE="$(basename "$SELECTED_FILE")"
-          # パターン3: ディレクトリを検索
+            echo "✅ Found at expected path: $FOUND_FILE"
           else
+            echo "⚠️ Expected path not found: $SELECTED_FILE"
+            
+            # Step 2: GitHub Actions形式のファイルを検索（重要：タスク定義テンプレートを除外）
             case "$SELECTED_APPROACH" in
               "approach-1-template")
-                for possible in "template-based-workflow.yml" "approach-1.yml" "*.yml"; do
-                  if [ -f "$possible" ]; then
-                    FOUND_FILE="$possible"
-                    break
+                # approach-1の生成ファイルを検索
+                for search_path in \
+                  "template-based-workflow.yml" \
+                  "approach-1/template-based-workflow.yml" \
+                  "generated/workflows/staging/approach-1/template-based-workflow.yml" \
+                  "./*/template-based-workflow.yml" \
+                  "./approach-1*"; do
+                  
+                  if [ -f "$search_path" ]; then
+                    # GitHub Actions形式かどうかチェック（'on:'と'jobs:'があるか）
+                    if grep -q "^on:" "$search_path" && grep -q "^jobs:" "$search_path"; then
+                      FOUND_FILE="$search_path"
+                      echo "✅ Found GitHub Actions workflow: $FOUND_FILE"
+                      break
+                    else
+                      echo "⚠️ Skipping task template (not GitHub Actions): $search_path"
+                    fi
                   fi
                 done
                 ;;
               "approach-2-dynamic")
-                for possible in "dynamic-workflow.yml" "approach-2.yml" "*.yml"; do
-                  if [ -f "$possible" ]; then
-                    FOUND_FILE="$possible"
-                    break
+                # approach-2の生成ファイルを検索
+                for search_path in \
+                  "dynamic-workflow.yml" \
+                  "approach-2/dynamic-workflow.yml" \
+                  "generated/workflows/staging/approach-2/dynamic-workflow.yml" \
+                  "./*/dynamic-workflow.yml" \
+                  "./approach-2*"; do
+                  
+                  if [ -f "$search_path" ]; then
+                    # GitHub Actions形式かどうかチェック
+                    if grep -q "^on:" "$search_path" && grep -q "^jobs:" "$search_path"; then
+                      FOUND_FILE="$search_path"
+                      echo "✅ Found GitHub Actions workflow: $FOUND_FILE"
+                      break
+                    else
+                      echo "⚠️ Skipping task template (not GitHub Actions): $search_path"
+                    fi
                   fi
                 done
                 ;;
               "approach-3-hybrid")
-                for possible in "hybrid-workflow.yml" "approach-3.yml" "*.yml"; do
-                  if [ -f "$possible" ]; then
-                    FOUND_FILE="$possible"
-                    break
+                # approach-3の生成ファイルを検索
+                for search_path in \
+                  "hybrid-workflow.yml" \
+                  "approach-3/hybrid-workflow.yml" \
+                  "generated/workflows/staging/approach-3/hybrid-workflow.yml" \
+                  "./*/hybrid-workflow.yml" \
+                  "./approach-3*"; do
+                  
+                  if [ -f "$search_path" ]; then
+                    # GitHub Actions形式かどうかチェック
+                    if grep -q "^on:" "$search_path" && grep -q "^jobs:" "$search_path"; then
+                      FOUND_FILE="$search_path"
+                      echo "✅ Found GitHub Actions workflow: $FOUND_FILE"
+                      break
+                    else
+                      echo "⚠️ Skipping task template (not GitHub Actions): $search_path"
+                    fi
                   fi
                 done
                 ;;
             esac
           fi
           
+          # Step 3: 最後の手段として、GitHub Actions形式のファイルを汎用検索
+          if [ -z "$FOUND_FILE" ]; then
+            echo "🔍 Performing generic search for GitHub Actions workflows..."
+            
+            for yml_file in $(find . -name "*.yml" -type f | grep -v "meta/examples" | head -20); do
+              if [ -f "$yml_file" ] && grep -q "^on:" "$yml_file" && grep -q "^jobs:" "$yml_file"; then
+                echo "🎯 Found GitHub Actions workflow: $yml_file"
+                FOUND_FILE="$yml_file"
+                break
+              fi
+            done
+          fi
+          
+          # ファイルコピーと検証
           if [ -n "$FOUND_FILE" ] && [ -f "$FOUND_FILE" ]; then
             cp "$FOUND_FILE" "$FINAL_WORKFLOW"
             echo "✅ Best workflow copied from: $FOUND_FILE → $FINAL_WORKFLOW"
+            
+            # コピーされたファイルがGitHub Actions形式かどうか最終確認
+            if grep -q "^on:" "$FINAL_WORKFLOW" && grep -q "^jobs:" "$FINAL_WORKFLOW"; then
+              echo "✅ Verified: Selected file is proper GitHub Actions workflow"
+            else
+              echo "❌ WARNING: Selected file may not be GitHub Actions format"
+              echo "First 10 lines of selected file:"
+              head -10 "$FINAL_WORKFLOW"
+            fi
           else
-            echo "❌ Selected workflow file not found"
-            echo "🔍 Available files:"
-            find . -name "*.yml" -type f | head -10
+            echo "❌ No suitable GitHub Actions workflow file found"
+            echo "🔍 Available YAML files:"
+            find . -name "*.yml" -type f | head -20
+            echo "📋 Files with 'on:' field:"
+            grep -l "^on:" $(find . -name "*.yml" -type f) 2>/dev/null || echo "None found"
+            echo "📋 Files with 'jobs:' field:"
+            grep -l "^jobs:" $(find . -name "*.yml" -type f) 2>/dev/null || echo "None found"
             exit 1
           fi
           
