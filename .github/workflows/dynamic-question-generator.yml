@@ -1,0 +1,377 @@
+name: Dynamic Question Generator
+run-name: 🤖 Generating dynamic stepback questions for Issue #${{ github.event.issue.number }}
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Phase 1: Issue検証と要求抽出
+  validate-issue-format:
+    runs-on: ubuntu-latest
+    # ワークフロー要求Issueの場合のみ実行
+    if: contains(github.event.issue.title, 'Workflow Request')
+    outputs:
+      is_valid: ${{ steps.validate.outputs.is_valid }}
+      request_summary: ${{ steps.validate.outputs.request_summary }}
+    
+    steps:
+      - name: Validate Issue Format
+        id: validate
+        run: |
+          echo "🔍 Validating Issue format and extracting basic info..."
+          
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          
+          # Issue形式の基本検証
+          if echo "$ISSUE_TITLE" | grep -q "Workflow Request"; then
+            echo "✅ Valid workflow request Issue detected"
+            
+            # 基本的な要求サマリーを抽出（最初の200文字）
+            SUMMARY=$(echo "$ISSUE_BODY" | head -5 | tr '\n' ' ' | cut -c1-200)
+            echo "📝 Request summary: $SUMMARY"
+            
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+            echo "request_summary=$SUMMARY" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Not a workflow request Issue - skipping"
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+          fi
+
+  extract-user-request:
+    needs: validate-issue-format
+    runs-on: ubuntu-latest
+    if: needs.validate-issue-format.outputs.is_valid == 'true'
+    outputs:
+      request_file: ${{ steps.extract.outputs.request_file }}
+      workflow_type: ${{ steps.extract.outputs.workflow_type }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Extract and Structure User Request
+        id: extract
+        run: |
+          echo "📥 Extracting detailed user request from Issue..."
+          
+          mkdir -p .meta/dynamic-requests
+          
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          REQUEST_ID="req-$(date +%Y%m%d-%H%M%S)-${{ github.event.issue.number }}"
+          REQUEST_FILE=".meta/dynamic-requests/${REQUEST_ID}.md"
+          
+          # ワークフロータイプの推測
+          if echo "$ISSUE_BODY" | grep -qi "video\|動画"; then
+            WORKFLOW_TYPE="video-generation"
+          elif echo "$ISSUE_BODY" | grep -qi "image\|画像"; then
+            WORKFLOW_TYPE="image-generation"
+          elif echo "$ISSUE_BODY" | grep -qi "audio\|music\|音楽\|音声"; then
+            WORKFLOW_TYPE="audio-generation"
+          else
+            WORKFLOW_TYPE="custom"
+          fi
+          
+          # 構造化されたリクエストファイルを作成
+          cat > "$REQUEST_FILE" << EOF
+          # Dynamic Workflow Request
+          
+          **Issue Number:** #${{ github.event.issue.number }}
+          **Workflow Type:** $WORKFLOW_TYPE
+          **Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          ## Original User Request
+          
+          $ISSUE_BODY
+          
+          ## Analysis Metadata
+          - Request ID: $REQUEST_ID
+          - Estimated complexity: TBD
+          - Required clarifications: TBD
+          EOF
+          
+          echo "✅ User request extracted and structured"
+          echo "📁 Request file: $REQUEST_FILE"
+          echo "🎯 Workflow type: $WORKFLOW_TYPE"
+          
+          echo "request_file=$REQUEST_FILE" >> $GITHUB_OUTPUT
+          echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+
+  check-mcp-config:
+    needs: extract-user-request
+    runs-on: ubuntu-latest
+    outputs:
+      mcp_ready: ${{ steps.check.outputs.mcp_ready }}
+      required_services: ${{ steps.check.outputs.required_services }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Check MCP Configuration
+        id: check
+        run: |
+          echo "🔧 Checking MCP configuration for AI generation services..."
+          
+          WORKFLOW_TYPE="${{ needs.extract-user-request.outputs.workflow_type }}"
+          
+          # MCPが必要なワークフロータイプかチェック
+          if [[ "$WORKFLOW_TYPE" =~ ^(video|image|audio) ]]; then
+            echo "🎯 AI generation workflow detected - checking MCP config"
+            
+            # MCP設定ファイルの確認
+            if [ -f ".claude/mcp-kamuicode.json" ]; then
+              echo "✅ MCP configuration found"
+              
+              # 利用可能なサービスを確認
+              SERVICES=$(jq -r '.mcpServers | keys[]' .claude/mcp-kamuicode.json 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+              echo "📋 Available MCP services: $SERVICES"
+              
+              echo "mcp_ready=true" >> $GITHUB_OUTPUT
+              echo "required_services=$SERVICES" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ MCP configuration not found - AI generation may be limited"
+              echo "mcp_ready=false" >> $GITHUB_OUTPUT
+              echo "required_services=none" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ℹ️ Text-only workflow - MCP not required"
+            echo "mcp_ready=true" >> $GITHUB_OUTPUT
+            echo "required_services=none" >> $GITHUB_OUTPUT
+          fi
+
+  generate-dynamic-questions:
+    needs: [extract-user-request, check-mcp-config]
+    runs-on: ubuntu-latest
+    outputs:
+      questions_generated: ${{ steps.generate.outputs.questions_generated }}
+      questions_file: ${{ steps.generate.outputs.questions_file }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Generate Dynamic Stepback Questions
+        id: generate
+        run: |
+          echo "🤖 Generating dynamic stepback questions with AI..."
+          
+          mkdir -p .meta/dynamic-questions
+          
+          REQUEST_FILE="${{ needs.extract-user-request.outputs.request_file }}"
+          WORKFLOW_TYPE="${{ needs.extract-user-request.outputs.workflow_type }}"
+          
+          if [ ! -f "$REQUEST_FILE" ]; then
+            echo "❌ Request file not found: $REQUEST_FILE"
+            exit 1
+          fi
+          
+          # 動的質問生成プロンプトの準備
+          cat > .meta/dynamic-questions/generation-prompt.md << 'EOF'
+          # Dynamic Stepback Question Generation
+          
+          以下のユーザーワークフロー要求を分析し、より精密なワークフロー生成のために必要な具体的質問を3-5個生成してください。
+          
+          ## 分析対象のユーザー要求
+          EOF
+          
+          cat "$REQUEST_FILE" >> .meta/dynamic-questions/generation-prompt.md
+          
+          cat >> .meta/dynamic-questions/generation-prompt.md << 'EOF'
+          
+          ## 質問生成指示
+          
+          以下の観点から、ユーザー要求の不足している情報や曖昧な部分を特定し、具体的な質問を生成してください：
+          
+          1. **出力品質・形式** - 解像度、品質設定、ファイル形式
+          2. **処理フロー・順序** - 処理順序、依存関係、並列処理
+          3. **技術仕様・制約** - MCPサービス、実行時間、リソース
+          4. **コンテンツ仕様** - スタイル、長さ、テーマ
+          5. **統合・連携** - 出力活用方法、最終成果物構成
+          
+          ## 必須出力形式
+          
+          以下の形式で質問を生成し、必ずファイルに保存してください：
+          
+          ```bash
+          mkdir -p .meta/dynamic-questions
+          cat > .meta/dynamic-questions/generated-questions.md << 'EOFQ'
+          ## 📋 ワークフロー詳細化のための質問
+          
+          より正確で最適化されたワークフローを生成するために、以下の質問にお答えください：
+          
+          **Q1: [カテゴリ名]**
+          [具体的な質問文]
+          - 選択肢やガイドを含める
+          **回答：**（ここに詳細をお書きください）
+          
+          **Q2: [カテゴリ名]**
+          [具体的な質問文]
+          **回答：**（ここに詳細をお書きください）
+          
+          **Q3: [カテゴリ名]**
+          [具体的な質問文]
+          **回答：**（ここに詳細をお書きください）
+          
+          [必要に応じてQ4, Q5を追加]
+          
+          ---
+          
+          ### 📝 回答後の手順
+          1. 上記の質問に回答を記入
+          2. このIssueの本文を編集して回答を追加
+          3. 回答完了後、「**start**」とコメントしてワークフロー生成を開始
+          
+          🤖 *Generated by Dynamic Stepback Question System*
+          EOFQ
+          ```
+          
+          重要: 生成した質問は必ず上記の形式で .meta/dynamic-questions/generated-questions.md に保存してください。
+          EOF
+          
+          # Claude Code で動的質問生成を実行
+          echo "🧠 Executing Claude Code for dynamic question generation..."
+          
+          if claude --continue "$(cat .meta/dynamic-questions/generation-prompt.md)" --output-format text; then
+            echo "✅ Dynamic question generation completed"
+            
+            # 生成された質問ファイルの確認
+            if [ -f ".meta/dynamic-questions/generated-questions.md" ]; then
+              echo "✅ Generated questions file created successfully"
+              echo "questions_generated=true" >> $GITHUB_OUTPUT
+              echo "questions_file=.meta/dynamic-questions/generated-questions.md" >> $GITHUB_OUTPUT
+              
+              # 生成された質問の概要を表示
+              QUESTION_COUNT=$(grep -c "^**Q[0-9]" .meta/dynamic-questions/generated-questions.md || echo "0")
+              echo "📊 Generated $QUESTION_COUNT dynamic questions"
+            else
+              echo "❌ Generated questions file not found"
+              echo "questions_generated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Claude Code dynamic question generation failed"
+            echo "questions_generated=false" >> $GITHUB_OUTPUT
+          fi
+
+  update-issue-body:
+    needs: [generate-dynamic-questions]
+    runs-on: ubuntu-latest
+    if: needs.generate-dynamic-questions.outputs.questions_generated == 'true'
+    outputs:
+      update_success: ${{ steps.update.outputs.update_success }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install GitHub CLI
+        run: |
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        
+      - name: Update Issue with Dynamic Questions
+        id: update
+        run: |
+          echo "📝 Updating Issue #${{ github.event.issue.number }} with generated questions..."
+          
+          QUESTIONS_FILE="${{ needs.generate-dynamic-questions.outputs.questions_file }}"
+          
+          if [ ! -f "$QUESTIONS_FILE" ]; then
+            echo "❌ Questions file not found"
+            exit 1
+          fi
+          
+          # 現在のIssue本文を取得
+          CURRENT_BODY=$(gh issue view ${{ github.event.issue.number }} --json body --jq '.body')
+          
+          # 動的質問を Issue 本文に追加
+          cat > .meta/updated-issue-body.md << EOF
+          $CURRENT_BODY
+          
+          ---
+          
+          EOF
+          
+          cat "$QUESTIONS_FILE" >> .meta/updated-issue-body.md
+          
+          # Issue本文を更新
+          if gh issue edit ${{ github.event.issue.number }} --body-file .meta/updated-issue-body.md; then
+            echo "✅ Issue updated with dynamic questions"
+            echo "update_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to update Issue"
+            echo "update_success=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  add-response-labels:
+    needs: [update-issue-body]
+    runs-on: ubuntu-latest
+    if: needs.update-issue-body.outputs.update_success == 'true'
+    
+    steps:
+      - name: Add Awaiting Response Labels
+        run: |
+          echo "🏷️ Adding response labels to Issue #${{ github.event.issue.number }}..."
+          
+          # GitHub CLIのインストール
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+          
+          # ラベル追加
+          if gh issue edit ${{ github.event.issue.number }} \
+             --add-label "dynamic-questions,awaiting-user-response,stepback-analysis"; then
+            echo "✅ Labels added successfully"
+          else
+            echo "⚠️ Failed to add labels (labels may not exist)"
+          fi
+          
+          # 完了通知コメント
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "🤖 **動的ステップバック質問を生成しました！**
+
+          あなたのワークフロー要求を分析し、最適化のための詳細質問を上記に追加しました。
+
+          **📝 次のステップ:**
+          1. 上記の質問に詳細な回答を記入してください
+          2. 回答完了後、「**start**」とコメントしてください
+          3. 自動的にカスタマイズされたワークフローが生成されます
+
+          🎯 **より詳細な回答をいただくほど、精密で最適化されたワークフローを生成できます。**
+
+          ---
+          🤖 *Dynamic Question Generator v1.0*" \
+            2>/dev/null || echo "⚠️ Failed to post completion comment"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          
+      - name: Upload Generation Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamic-questions-${{ github.run_number }}
+          path: .meta/dynamic-questions/
+          retention-days: 30
