@@ -95,6 +95,77 @@ class DynamicWorkflowAssembler:
         
         return workflow
     
+    def create_workflow_from_requirements_enhanced(self, 
+                                                 requirements: List[str], 
+                                                 enhanced_context: dict = None,
+                                                 workflow_name: str = "dynamic-enhanced-workflow",
+                                                 description: str = "Enhanced dynamically generated workflow") -> Dict[str, Any]:
+        """強化されたコンテクストを使用してワークフローを動的生成"""
+        
+        print(f"🚀 Creating enhanced workflow: {workflow_name}")
+        if enhanced_context:
+            clarity_score = enhanced_context.get('clarity_score', 7)
+            print(f"📊 Enhanced context: clarity={clarity_score}/10")
+        
+        # 強化されたコンテクストでノード選択
+        selected_nodes = self.find_nodes_for_requirements(requirements, enhanced_context)
+        execution_stages = self.generate_dependency_order(selected_nodes)
+        
+        print(f"📋 Selected {len(selected_nodes)} task nodes")
+        print(f"⚡ {len(execution_stages)} execution stages")
+        
+        # ワークフロー基本構造（既存と同じ）
+        workflow = {
+            'name': workflow_name,
+            'on': {
+                'workflow_dispatch': {
+                    'inputs': {
+                        'user_prompt': {
+                            'description': 'User requirements for multimedia generation',
+                            'required': True,
+                            'type': 'string',
+                            'default': ' | '.join(requirements)
+                        }
+                    }
+                },
+                'issues': {
+                    'types': ['opened', 'edited']
+                }
+            },
+            'permissions': {
+                'contents': 'write',
+                'actions': 'write',
+                'issues': 'write',
+                'pull-requests': 'write'
+            },
+            'env': {
+                'WORKFLOW_TYPE': 'dynamic-enhanced',
+                'GENERATED_AT': '$(date -u +"%Y-%m-%dT%H:%M:%SZ")',
+                'REQUIREMENTS': ' | '.join(requirements),
+                'CLARITY_SCORE': str(enhanced_context.get('clarity_score', 7) if enhanced_context else 7)
+            },
+            'jobs': {}
+        }
+        
+        # 各ステージをジョブとして生成（既存ロジック使用）
+        for stage_idx, stage_nodes in enumerate(execution_stages):
+            stage_name = f"stage_{stage_idx + 1}"
+            
+            if len(stage_nodes) > 1 and all(self.task_nodes[node_id].get('parallel', False) for node_id in stage_nodes):
+                # 並列ジョブ生成
+                for node_idx, node_id in enumerate(stage_nodes):
+                    job_name = f"{stage_name}_parallel_{node_idx + 1}"
+                    workflow['jobs'][job_name] = self.create_job_from_node(node_id, stage_idx)
+            else:
+                # シーケンシャルジョブ生成
+                workflow['jobs'][stage_name] = self.create_combined_job_from_nodes(stage_nodes, stage_idx)
+        
+        # オートフィックス・モニタリング統合
+        workflow['jobs']['autofix_integration'] = self.create_autofix_job()
+        workflow['jobs']['monitor_integration'] = self.create_monitor_job()
+        
+        return workflow
+    
     def create_job_from_node(self, node_id: str, stage_idx: int) -> Dict[str, Any]:
         """単一ノードからジョブを生成"""
         node = self.task_nodes[node_id]

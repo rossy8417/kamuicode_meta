@@ -303,9 +303,26 @@ jobs:
           # Claude Code でステップバック分析実行
           if npm install -g @anthropic-ai/claude-code 2>/dev/null; then
             echo "✅ Claude Code installed"
+          else
+            echo "⚠️ Claude Code installation failed - using basic analysis"
           fi
           
-          if claude --continue "$(cat .meta/clarification/stepback-prompt.md)" --output-format text 2>/dev/null; then
+          # Claude Code 実行（エラーハンドリング強化）
+          CLAUDE_SUCCESS=false
+          if command -v claude &> /dev/null; then
+            echo "🤖 Executing Claude Code stepback analysis..."
+            if claude --continue "$(cat .meta/clarification/stepback-prompt.md)" --output-format text 2>claude_error.log; then
+              CLAUDE_SUCCESS=true
+              echo "✅ Claude Code stepback analysis completed successfully"
+            else
+              echo "❌ Claude Code analysis failed:"
+              cat claude_error.log || echo "No error details available"
+            fi
+          else
+            echo "⚠️ Claude Code not available - skipping AI-powered analysis"
+          fi
+          
+          if [ "$CLAUDE_SUCCESS" = "true" ]; then
             echo "✅ Claude Code stepback analysis completed"
             
             if [ -f ".meta/clarification/stepback-analysis.json" ]; then
@@ -357,6 +374,18 @@ jobs:
           EOF
                     
                     echo "📝 User-friendly questions prepared for potential clarification"
+                    
+                    # GitHub Issues の場合、質問をコメントとして投稿
+                    if [ "${{ github.event_name }}" == "issues" ] && [ "$QUESTION_COUNT" -gt "0" ]; then
+                      echo "💬 Posting stepback questions as Issue comment..."
+                      
+                      if command -v gh &> /dev/null; then
+                        gh issue comment ${{ github.event.issue.number }} \
+                          --body-file .meta/clarification/questions-for-user.md \
+                          2>/dev/null || echo "⚠️ Failed to post comment - continuing with workflow generation"
+                        echo "✅ Stepback questions posted to Issue #${{ github.event.issue.number }}"
+                      fi
+                    fi
                   fi
                 else
                   echo "✅ Sufficient clarity - proceeding with workflow generation"
@@ -382,6 +411,25 @@ jobs:
             fi
           else
             echo "⚠️ Claude Code stepback analysis failed - proceeding with basic workflow generation"
+            
+            # 基本的なフォールバック分析を作成
+            cat > .meta/clarification/stepback-analysis.json << 'EOF'
+          {
+            "needs_clarification": false,
+            "clarity_score": 5,
+            "confidence_level": "low",
+            "missing_information": ["Detailed requirements analysis not available"],
+            "stepback_questions": [],
+            "proceed_without_clarification": true,
+            "fallback_assumptions": [
+              "Using standard quality settings",
+              "Applying basic processing flow",
+              "Including standard error handling"
+            ],
+            "analysis_mode": "fallback"
+          }
+          EOF
+            
             echo "stepback_questions_available=0" >> $GITHUB_OUTPUT
             echo "clarity_score=5" >> $GITHUB_OUTPUT
             echo "needs_clarification=false" >> $GITHUB_OUTPUT
