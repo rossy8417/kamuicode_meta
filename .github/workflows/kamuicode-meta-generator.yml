@@ -235,14 +235,13 @@ jobs:
           path: .meta/requests/
           retention-days: 30
 
-  # Step 2: 超詳細タスク分解（Claude Code）
-  ultra-detailed-decomposition:
+  # Step 2: タスク分解（自己修復機能付き）
+  decompose-tasks:
     needs: [self-diagnostic, analyze-request]
     runs-on: ubuntu-latest
     outputs:
-      task_plan: ${{ steps.decompose.outputs.task_plan }}
-      complexity: ${{ steps.decompose.outputs.complexity }}
       task_count: ${{ steps.decompose.outputs.task_count }}
+      complexity: ${{ steps.decompose.outputs.complexity }}
     
     steps:
       - name: Checkout repository
@@ -267,191 +266,96 @@ jobs:
           echo "🔧 Setting up Claude Code for direct text generation..."
           # MCPは不要 - Claude Code GitHub Actionsで直接テキスト生成を実行
           
-      - name: Ultra-Detailed Task Decomposition
+      - name: Decompose Tasks with Fallback
         id: decompose
         run: |
           set -e
           
-          echo "🧠 Starting ultra-detailed task decomposition with human thought process simulation..."
+          echo "🔄 Starting task decomposition..."
           
-          # 超詳細分解プロンプトファイルの確認と作成
-          PROMPT_FILE="meta/prompts/ultra-detailed-decomposition.md"
+          # プロンプトファイルの確認と代替処理
+          PROMPT_FILE="meta/prompts/task-decomposition.md"
           
           if [ ! -f "$PROMPT_FILE" ]; then
-            echo "📝 Creating ultra-detailed decomposition prompt..."
+            echo "⚠️ Prompt file not found, creating fallback..."
             mkdir -p meta/prompts
             cat > "$PROMPT_FILE" << 'EOF'
-# Ultra-Detailed Task Decomposition Prompt
-
-あなたは、人間の無意識思考プロセスをシミュレートして、ユーザー要求を**実行可能な最小単位**まで分解する専門家です。
-
-## 分解原則
-
-1. **人間の思考プロセス模倣**: 人間がこのタスクを実行する際の無意識的な手順を明示化
-2. **AI/MCP/外部API実行可能**: 各タスクは単一のMCPサービス、スクリプト、または外部APIで完結
-3. **依存関係の明確化**: 前のタスクの出力が次のタスクの入力になる連鎖を設計
-4. **並列実行の最適化**: 依存関係のないタスクは並列実行グループとして定義
-5. **エラーハンドリング**: 各タスクに失敗時のフォールバック戦略を含める
-
-## 出力形式
-
-必ず以下のJSON形式で保存してください：
-
-```json
-{
-  "request_analysis": {
-    "original_request": "元の要求",
-    "inferred_intent": "推定された意図",
-    "complexity_assessment": "複雑度評価",
-    "required_capabilities": ["必要な機能リスト"]
-  },
-  "human_thought_simulation": {
-    "unconscious_steps": ["人間が無意識に行う手順"],
-    "decision_points": ["判断が必要な箇所"],
-    "quality_checks": ["品質確認ポイント"]
-  },
-  "ultra_detailed_tasks": [
-    {
-      "id": "task-001",
-      "name": "具体的なタスク名",
-      "description": "詳細な説明",
-      "type": "mcp_service|script|external_api|validation",
-      "stage": 1,
-      "parallel_group": "group-a",
-      "implementation": {
-        "method": "mcp|script|api",
-        "service_name": "t2i-fal-imagen4-ultra",
-        "input_requirements": ["前段階からの入力"],
-        "expected_output": {
-          "type": "file|json|text",
-          "format": "具体的フォーマット",
-          "file_path": "outputs/step1_result.png"
-        }
-      },
-      "validation_criteria": "成功判定基準",
-      "fallback_strategy": "失敗時の対処法",
-      "estimated_duration_minutes": 5,
-      "dependencies": ["前段階タスクID"],
-      "human_equivalent": "人間ならどうするか"
-    }
-  ],
-  "execution_flow": {
-    "stages": [
-      {
-        "stage_id": 1,
-        "parallel_groups": [
+          # Task Decomposition Prompt (Fallback)
+          
+          Please decompose the user request into executable tasks and save as .meta/tasks/task-plan.json:
+          
+          ```json
           {
-            "group_id": "group-a",
-            "tasks": ["task-001", "task-002"],
-            "can_run_parallel": true
+            "complexity_level": 2,
+            "estimated_duration_minutes": 30,
+            "tasks": [
+              {
+                "id": "task-001",
+                "name": "Basic workflow generation",
+                "description": "Generate basic workflow structure",
+                "type": "generation"
+              }
+            ]
           }
-        ]
-      }
-    ],
-    "total_estimated_minutes": 45,
-    "critical_path": ["最も時間のかかる依存チェーン"]
-  },
-  "mcp_service_mapping": {
-    "required_services": ["使用するMCPサービス"],
-    "fallback_apis": ["MCP失敗時の外部API"]
-  }
-}
-```
-
-## 重要指示
-
-分解完了後、**必ず**以下のコマンドを実行してJSONファイルを保存してください：
-
-```bash
-mkdir -p .meta/tasks
-cat > .meta/tasks/ultra-detailed-plan.json << 'EOFJSON'
-{生成したJSONデータを完全に貼り付け}
-EOFJSON
-```
-EOF
+          ```
+          EOF
           fi
           
           # プロンプトに要求内容を追加
           cat $PROMPT_FILE > .meta/decompose-prompt.md
           echo "" >> .meta/decompose-prompt.md
-          echo "## ユーザー要求分析:" >> .meta/decompose-prompt.md
+          echo "## User Request:" >> .meta/decompose-prompt.md
           cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
-          echo "" >> .meta/decompose-prompt.md
-          echo "## 利用可能なMCPサービス:" >> .meta/decompose-prompt.md
-          echo "- t2i-google-imagen3, t2i-fal-imagen4-ultra, t2i-fal-imagen4-fast" >> .meta/decompose-prompt.md
-          echo "- t2v-fal-veo3-fast, i2v-fal-hailuo-02-pro" >> .meta/decompose-prompt.md
-          echo "- t2m-google-lyria, v2a-fal-metavoice-v1, v2v-fal-cogvideo-1_5" >> .meta/decompose-prompt.md
-          echo "- i2i3d-fal-hunyuan3d-v21" >> .meta/decompose-prompt.md
           
-          # Claude Code実行（超詳細分解）
-          echo "🤖 Executing Claude Code ultra-detailed decomposition..."
+          # Claude Code タスク分解の実行（ファイル保存指示付き）
+          echo "🔄 Executing Claude Code task decomposition with file save instruction..."
+          
+          # 明確なファイル保存指示をプロンプトに追加
+          echo "" >> .meta/decompose-prompt.md
+          echo "## 重要：必須実行指示" >> .meta/decompose-prompt.md
+          echo "分解完了後、必ず以下のコマンドを実行してJSONファイルを保存してください：" >> .meta/decompose-prompt.md
+          echo "\`\`\`bash" >> .meta/decompose-prompt.md
+          echo "mkdir -p .meta/tasks" >> .meta/decompose-prompt.md  
+          echo "cat > .meta/tasks/task-plan.json << 'EOFJSON'" >> .meta/decompose-prompt.md
+          echo "{あなたが生成したJSONデータをここに完全に貼り付け}" >> .meta/decompose-prompt.md
+          echo "EOFJSON" >> .meta/decompose-prompt.md
+          echo "\`\`\`" >> .meta/decompose-prompt.md
+          
+          # Claude Code実行（ファイル保存指示付き）
           if claude --continue "$(cat .meta/decompose-prompt.md)" --output-format text; then
-            echo "✅ Claude Code ultra-detailed decomposition completed"
+            echo "✅ Claude Code decomposition completed"
             
-            # 超詳細プランファイルが作成されたか確認
-            if [ ! -f ".meta/tasks/ultra-detailed-plan.json" ]; then
-              echo "⚠️ Claude Code did not create ultra-detailed plan file, using fallback..."
+            # JSONファイルが作成されたか確認
+            if [ ! -f ".meta/tasks/task-plan.json" ]; then
+              echo "⚠️ Claude Code did not create JSON file, using fallback..."
               
-              # フォールバック用超詳細タスクプラン作成
+              # フォールバック用基本タスクプラン作成
               mkdir -p .meta/tasks
-              cat > .meta/tasks/ultra-detailed-plan.json << EOF
+              cat > .meta/tasks/task-plan.json << EOF
           {
-            "request_analysis": {
-              "original_request": "${{ needs.analyze-request.outputs.workflow_type }}",
-              "inferred_intent": "Create multimedia generation workflow",
-              "complexity_assessment": "medium",
-              "required_capabilities": ["template_selection", "workflow_generation"]
-            },
-            "human_thought_simulation": {
-              "unconscious_steps": ["Analyze requirement", "Select approach", "Generate workflow"],
-              "decision_points": ["Which template to use", "What customizations needed"],
-              "quality_checks": ["YAML validity", "GitHub Actions structure"]
-            },
-            "ultra_detailed_tasks": [
+            "complexity_level": 3,
+            "estimated_duration_minutes": 45,
+            "tasks": [
               {
-                "id": "fallback-001",
-                "name": "Basic Requirement Analysis",
-                "description": "Analyze user requirement for workflow generation",
-                "type": "script",
-                "stage": 1,
-                "parallel_group": "analysis",
-                "implementation": {
-                  "method": "script",
-                  "service_name": "requirement_analyzer",
-                  "input_requirements": ["user_request"],
-                  "expected_output": {
-                    "type": "json",
-                    "format": "analysis_result",
-                    "file_path": "outputs/requirement_analysis.json"
-                  }
-                },
-                "validation_criteria": "Analysis JSON contains required fields",
-                "fallback_strategy": "Use basic template selection",
-                "estimated_duration_minutes": 5,
+                "id": "task-001",
+                "name": "Template-Based Workflow Generation",
+                "description": "Generate ${{ needs.analyze-request.outputs.workflow_type }} workflow from existing template",
+                "type": "template_generation",
                 "dependencies": [],
-                "human_equivalent": "Read and understand the request"
+                "required_tools": ["template_system"],
+                "implementation_details": {
+                  "template_file": "meta/examples/video-content-creation.yml",
+                  "expected_output": {
+                    "type": "file", 
+                    "format": "yaml",
+                    "location": ".github/workflows/generated-${{ needs.analyze-request.outputs.workflow_type }}.yml"
+                  }
+                }
               }
             ],
-            "execution_flow": {
-              "stages": [
-                {
-                  "stage_id": 1,
-                  "parallel_groups": [
-                    {
-                      "group_id": "analysis",
-                      "tasks": ["fallback-001"],
-                      "can_run_parallel": false
-                    }
-                  ]
-                }
-              ],
-              "total_estimated_minutes": 15,
-              "critical_path": ["fallback-001"]
-            },
-            "mcp_service_mapping": {
-              "required_services": [],
-              "fallback_apis": ["template_system"]
-            },
+            "execution_flow": [
+              {"stage": 1, "parallel": false, "tasks": ["task-001"]}
+            ],
             "fallback_mode": true
           }
           EOF
@@ -491,53 +395,49 @@ EOF
           EOF
           fi
           
-          # 生成された超詳細タスクプランの検証
-          if [ -f ".meta/tasks/ultra-detailed-plan.json" ]; then
+          # 生成されたタスクプランの検証
+          if [ -f ".meta/tasks/task-plan.json" ]; then
             if command -v jq &> /dev/null; then
-              TASK_COUNT=$(jq '.ultra_detailed_tasks | length' .meta/tasks/ultra-detailed-plan.json 2>/dev/null || echo "1")
-              COMPLEXITY=$(jq -r '.request_analysis.complexity_assessment' .meta/tasks/ultra-detailed-plan.json 2>/dev/null || echo "medium")
-              TOTAL_MINUTES=$(jq -r '.execution_flow.total_estimated_minutes' .meta/tasks/ultra-detailed-plan.json 2>/dev/null || echo "15")
+              TASK_COUNT=$(jq '.tasks | length' .meta/tasks/task-plan.json 2>/dev/null || echo "2")
+              COMPLEXITY=$(jq -r '.complexity_level' .meta/tasks/task-plan.json 2>/dev/null || echo "2")
             else
-              TASK_COUNT="1"
-              COMPLEXITY="medium"
-              TOTAL_MINUTES="15"
+              TASK_COUNT="2"
+              COMPLEXITY="2"
             fi
             
-            echo "task_plan=.meta/tasks/ultra-detailed-plan.json" >> $GITHUB_OUTPUT
             echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
             echo "complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
-            echo "total_minutes=$TOTAL_MINUTES" >> $GITHUB_OUTPUT
             
-            echo "✅ Ultra-detailed decomposition complete: $TASK_COUNT tasks, complexity: $COMPLEXITY, estimated: ${TOTAL_MINUTES}min"
+            echo "✅ Task decomposition complete: $TASK_COUNT tasks, complexity level $COMPLEXITY"
           else
             echo "❌ Task decomposition failed completely"
             exit 1
           fi
           
-      - name: Upload Ultra-Detailed Task Plan
+      - name: Upload Task Plan
         uses: actions/upload-artifact@v4
         with:
-          name: ultra-detailed-plan-${{ github.run_number }}
+          name: task-plan-${{ github.run_number }}
           path: .meta/tasks/
           retention-days: 30
 
-  # Step 3A: Template Selection Approach
-  approach-1-template-selection:
-    needs: [ultra-detailed-decomposition]
+  # Step 2.5: 動的ワークフロー組み立て（タスクノード抽出システム使用）
+  dynamic-workflow-assembly:
+    needs: [decompose-tasks]
     runs-on: ubuntu-latest
+    if: needs.decompose-tasks.result == 'success'
     outputs:
-      workflow_path: ${{ steps.generate.outputs.workflow_path }}
-      confidence_score: ${{ steps.evaluate.outputs.score }}
-      approach_name: ${{ steps.evaluate.outputs.approach_name }}
+      dynamic_workflow_path: ${{ steps.assemble.outputs.workflow_path }}
+      task_nodes_used: ${{ steps.assemble.outputs.task_nodes_used }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Download Ultra-Detailed Plan
+      - name: Download Task Plan
         uses: actions/download-artifact@v4
         with:
-          name: ultra-detailed-plan-${{ github.run_number }}
+          name: task-plan-${{ github.run_number }}
           path: .meta/tasks/
           
       - name: Setup Python Environment
@@ -549,515 +449,68 @@ EOF
         run: |
           pip install pyyaml requests
           
-      - name: Template Selection Generation
-        id: generate
+      - name: Dynamic Workflow Assembly
+        id: assemble
         run: |
-          echo "🎯 Approach 1: Template Selection based on ultra-detailed plan..."
+          echo "🔧 Assembling dynamic workflow using task node extraction system..."
           
-          mkdir -p generated/workflows/staging/approach-1
-          
-          # 超詳細プランに基づいてテンプレート選択
-          if [ -f ".meta/tasks/ultra-detailed-plan.json" ]; then
-            echo "📋 Analyzing ultra-detailed plan for template matching..."
+          # 要求の分析（decompose-tasksからの情報を使用）
+          if [ -f ".meta/tasks/task-plan.json" ]; then
+            echo "📋 Found task plan from decomposition step"
             
-            # 必要な機能を抽出
-            REQUIRED_CAPABILITIES=$(jq -r '.request_analysis.required_capabilities[]' .meta/tasks/ultra-detailed-plan.json 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-            echo "Required capabilities: $REQUIRED_CAPABILITIES"
-            
-            # テンプレート選択ロジック
-            SELECTED_TEMPLATE=""
-            if echo "$REQUIRED_CAPABILITIES" | grep -q "text_to_image.*video.*music.*audio"; then
-              SELECTED_TEMPLATE="meta/examples/multimedia-ad-campaign.yml"
-            elif echo "$REQUIRED_CAPABILITIES" | grep -q "video\|animation"; then
-              SELECTED_TEMPLATE="meta/examples/video-content-creation.yml"  
-            elif echo "$REQUIRED_CAPABILITIES" | grep -q "image\|visual"; then
-              SELECTED_TEMPLATE="meta/examples/image-generation.yml"
-            elif echo "$REQUIRED_CAPABILITIES" | grep -q "audio\|music"; then
-              SELECTED_TEMPLATE="meta/examples/audio-music-creation.yml"
-            else
-              SELECTED_TEMPLATE="meta/examples/multimedia-ad-campaign.yml"
-            fi
-            
-            echo "📄 Selected template: $SELECTED_TEMPLATE"
-            
-            # テンプレートをコピーしてカスタマイズ
-            OUTPUT_FILE="generated/workflows/staging/approach-1/template-based-workflow.yml"
-            cp "$SELECTED_TEMPLATE" "$OUTPUT_FILE"
-            
-            # 基本的なカスタマイズ
-            sed -i 's/^name:.*/name: "Template-Based Generated Workflow"/' "$OUTPUT_FILE"
-            
-            echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
-            echo "✅ Template-based workflow generated"
-          else
-            echo "❌ Ultra-detailed plan not found"
-            exit 1
-          fi
-          
-      - name: Evaluate Template Approach
-        id: evaluate
-        run: |
-          echo "📊 Evaluating template selection approach..."
-          
-          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
-          SCORE=0
-          
-          # 評価基準
-          # 1. YAML構文有効性 (25点)
-          if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null; then
-            SCORE=$((SCORE + 25))
-            echo "✅ YAML syntax: 25/25"
-          else
-            echo "❌ YAML syntax: 0/25"
-          fi
-          
-          # 2. GitHub Actions構造 (25点)
-          if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
-            SCORE=$((SCORE + 25))
-            echo "✅ GitHub Actions structure: 25/25"
-          else
-            echo "❌ GitHub Actions structure: 0/25"
-          fi
-          
-          # 3. 要求適合度 (30点) - テンプレートベースなので高い適合度
-          SCORE=$((SCORE + 25))
-          echo "✅ Requirement match: 25/30"
-          
-          # 4. 実行可能性 (20点) - 実証済みテンプレートなので高い
-          SCORE=$((SCORE + 20))
-          echo "✅ Executability: 20/20"
-          
-          echo "score=$SCORE" >> $GITHUB_OUTPUT
-          echo "approach_name=template-selection" >> $GITHUB_OUTPUT
-          
-          echo "🎯 Template Selection Score: $SCORE/100"
-          
-      - name: Upload Template Approach Result
-        uses: actions/upload-artifact@v4
-        with:
-          name: approach-1-result-${{ github.run_number }}
-          path: generated/workflows/staging/approach-1/
-          retention-days: 7
-
-  # Step 3B: Dynamic Node Assembly Approach  
-  approach-2-node-assembly:
-    needs: [ultra-detailed-decomposition]
-    runs-on: ubuntu-latest
-    outputs:
-      workflow_path: ${{ steps.generate.outputs.workflow_path }}
-      confidence_score: ${{ steps.evaluate.outputs.score }}
-      approach_name: ${{ steps.evaluate.outputs.approach_name }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Download Ultra-Detailed Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: ultra-detailed-plan-${{ github.run_number }}
-          path: .meta/tasks/
-          
-      - name: Setup Python Environment
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          
-      - name: Install Dependencies
-        run: |
-          pip install pyyaml requests
-          
-      - name: Dynamic Node Assembly Generation
-        id: generate
-        run: |
-          echo "🔧 Approach 2: Dynamic Node Assembly based on ultra-detailed plan..."
-          
-          mkdir -p generated/workflows/staging/approach-2
-          
-          # 動的ワークフロー組み立てスクリプトを実行
-          if [ -f "script/dynamic-workflow-assembler.py" ]; then
-            echo "🐍 Using dynamic workflow assembler..."
-            
-            # 超詳細プランから要求を抽出
-            REQUIREMENTS=$(jq -r '.request_analysis.required_capabilities[]' .meta/tasks/ultra-detailed-plan.json 2>/dev/null | tr '\n' ' ')
+            # タスクプランから要求を抽出
+            REQUIREMENTS=$(jq -r '.tasks[] | .description' .meta/tasks/task-plan.json 2>/dev/null | tr '\n' ',' | sed 's/,$//')
             echo "Extracted requirements: $REQUIREMENTS"
             
-            # 動的組み立て実行
-            OUTPUT_FILE="generated/workflows/staging/approach-2/node-based-workflow.yml"
-            python3 script/dynamic-workflow-assembler.py \
-              --requirements "$REQUIREMENTS" \
-              --task-plan ".meta/tasks/ultra-detailed-plan.json" \
-              --output "$OUTPUT_FILE"
+            # 動的ワークフロー組み立てスクリプトを実行
+            if [ -f "script/dynamic-workflow-assembler.py" ]; then
+              echo "🐍 Running dynamic workflow assembler..."
               
-            if [ -f "$OUTPUT_FILE" ]; then
-              echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
-              echo "✅ Node-based workflow generated"
+              # 要求を動的ワークフローシステムに適用
+              python3 script/dynamic-workflow-assembler.py > assembly_log.txt 2>&1
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ Dynamic workflow assembly completed"
+                
+                # 生成されたワークフローパスを取得
+                GENERATED_PATH=$(find generated/workflows/staging -name "*.yml" -type f | head -1)
+                if [ -n "$GENERATED_PATH" ]; then
+                  echo "workflow_path=$GENERATED_PATH" >> $GITHUB_OUTPUT
+                  
+                  # 使用されたタスクノード数を取得
+                  TASK_NODES=$(grep -o "Selected.*nodes" assembly_log.txt | grep -o "[0-9]\+" | head -1)
+                  echo "task_nodes_used=${TASK_NODES:-0}" >> $GITHUB_OUTPUT
+                  
+                  echo "📊 Generated dynamic workflow: $GENERATED_PATH"
+                  echo "🎯 Task nodes used: ${TASK_NODES:-0}"
+                else
+                  echo "❌ No dynamic workflow generated"
+                  exit 1
+                fi
+              else
+                echo "❌ Dynamic workflow assembly failed"
+                cat assembly_log.txt
+                exit 1
+              fi
             else
-              echo "❌ Dynamic assembly failed, creating fallback"
-              # フォールバック: 基本的なワークフロー生成
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Dynamic Node-Based Generated Workflow"
-on:
-  workflow_dispatch:
-    inputs:
-      user_requirements:
-        description: 'User requirements'
-        required: true
-        type: string
-jobs:
-  node-based-generation:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Node-based execution
-      run: echo "Node-based workflow generated from ultra-detailed plan"
-EOF
-              echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+              echo "❌ Dynamic workflow assembler script not found"
+              exit 1
             fi
           else
-            echo "⚠️ Dynamic assembler not found, creating basic node-based workflow"
-            OUTPUT_FILE="generated/workflows/staging/approach-2/node-based-workflow.yml"
-            cat > "$OUTPUT_FILE" << 'EOF'
-name: "Dynamic Node-Based Generated Workflow (Fallback)"
-on:
-  workflow_dispatch:
-jobs:
-  fallback-generation:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Fallback execution
-      run: echo "Fallback node-based workflow"
-EOF
-            echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
-          fi
-          
-      - name: Evaluate Node Assembly Approach
-        id: evaluate
-        run: |
-          echo "📊 Evaluating dynamic node assembly approach..."
-          
-          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
-          SCORE=0
-          
-          # 評価基準
-          # 1. YAML構文有効性 (25点)
-          if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null; then
-            SCORE=$((SCORE + 25))
-            echo "✅ YAML syntax: 25/25"
-          else
-            echo "❌ YAML syntax: 0/25"
-          fi
-          
-          # 2. GitHub Actions構造 (25点)
-          if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
-            SCORE=$((SCORE + 25))
-            echo "✅ GitHub Actions structure: 25/25"
-          else
-            echo "❌ GitHub Actions structure: 0/25"
-          fi
-          
-          # 3. 要求適合度 (30点) - 動的生成なので中程度
-          SCORE=$((SCORE + 20))
-          echo "✅ Requirement match: 20/30"
-          
-          # 4. 革新性 (20点) - 動的組み立ては革新的
-          SCORE=$((SCORE + 18))
-          echo "✅ Innovation: 18/20"
-          
-          echo "score=$SCORE" >> $GITHUB_OUTPUT
-          echo "approach_name=node-assembly" >> $GITHUB_OUTPUT
-          
-          echo "🎯 Node Assembly Score: $SCORE/100"
-          
-      - name: Upload Node Assembly Result
-        uses: actions/upload-artifact@v4
-        with:
-          name: approach-2-result-${{ github.run_number }}
-          path: generated/workflows/staging/approach-2/
-          retention-days: 7
-
-  # Step 3C: Hybrid Generation Approach
-  approach-3-hybrid:
-    needs: [ultra-detailed-decomposition]
-    runs-on: ubuntu-latest
-    outputs:
-      workflow_path: ${{ steps.generate.outputs.workflow_path }}
-      confidence_score: ${{ steps.evaluate.outputs.score }}
-      approach_name: ${{ steps.evaluate.outputs.approach_name }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Download Ultra-Detailed Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: ultra-detailed-plan-${{ github.run_number }}
-          path: .meta/tasks/
-          
-      - name: Setup Python Environment
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          
-      - name: Install Dependencies
-        run: |
-          pip install pyyaml requests
-          
-      - name: Hybrid Generation
-        id: generate
-        run: |
-          echo "🔀 Approach 3: Hybrid (Template + Dynamic) based on ultra-detailed plan..."
-          
-          mkdir -p generated/workflows/staging/approach-3
-          
-          # ハイブリッド生成: テンプレート選択 + 動的カスタマイズ
-          if [ -f ".meta/tasks/ultra-detailed-plan.json" ]; then
-            echo "📋 Analyzing plan for hybrid approach..."
-            
-            # 複雑度に基づいてアプローチを決定
-            COMPLEXITY=$(jq -r '.request_analysis.complexity_assessment' .meta/tasks/ultra-detailed-plan.json 2>/dev/null || echo "medium")
-            TASK_COUNT=$(jq '.ultra_detailed_tasks | length' .meta/tasks/ultra-detailed-plan.json 2>/dev/null || echo "1")
-            
-            echo "Complexity: $COMPLEXITY, Task count: $TASK_COUNT"
-            
-            OUTPUT_FILE="generated/workflows/staging/approach-3/hybrid-workflow.yml"
-            
-            if [ "$COMPLEXITY" = "high" ] || [ "$TASK_COUNT" -gt 10 ]; then
-              echo "🎯 High complexity detected - using template base with dynamic enhancement"
-              # 複雑な場合はテンプレートベース + 動的拡張
-              cp "meta/examples/multimedia-ad-campaign.yml" "$OUTPUT_FILE"
-              
-              # 動的カスタマイズを追加
-              sed -i 's/^name:.*/name: "Hybrid Generated Workflow (Template+Dynamic)"/' "$OUTPUT_FILE"
-              
-            else
-              echo "🎯 Medium/Low complexity - using dynamic generation with template snippets"
-              # 単純な場合は動的生成 + テンプレート部品
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Hybrid Generated Workflow (Dynamic+Template)"
-on:
-  workflow_dispatch:
-    inputs:
-      requirements:
-        description: 'Workflow requirements'
-        required: true
-        type: string
-jobs:
-  hybrid-generation:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Hybrid execution approach
-      run: |
-        echo "Hybrid workflow combining template reliability with dynamic flexibility"
-        echo "Based on ultra-detailed plan analysis"
-EOF
-            fi
-            
-            echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
-            echo "✅ Hybrid workflow generated"
-          else
-            echo "❌ Ultra-detailed plan not found"
+            echo "❌ No task plan found from decomposition step"
             exit 1
           fi
           
-      - name: Evaluate Hybrid Approach
-        id: evaluate
-        run: |
-          echo "📊 Evaluating hybrid generation approach..."
-          
-          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
-          SCORE=0
-          
-          # 評価基準
-          # 1. YAML構文有効性 (25点)
-          if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null; then
-            SCORE=$((SCORE + 25))
-            echo "✅ YAML syntax: 25/25"
-          else
-            echo "❌ YAML syntax: 0/25"
-          fi
-          
-          # 2. GitHub Actions構造 (25点)
-          if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
-            SCORE=$((SCORE + 25))
-            echo "✅ GitHub Actions structure: 25/25"
-          else
-            echo "❌ GitHub Actions structure: 0/25"
-          fi
-          
-          # 3. バランス (30点) - ハイブリッドのバランス性
-          SCORE=$((SCORE + 28))
-          echo "✅ Balance score: 28/30"
-          
-          # 4. 適応性 (20点) - 状況に応じた適応
-          SCORE=$((SCORE + 19))
-          echo "✅ Adaptability: 19/20"
-          
-          echo "score=$SCORE" >> $GITHUB_OUTPUT
-          echo "approach_name=hybrid" >> $GITHUB_OUTPUT
-          
-          echo "🎯 Hybrid Approach Score: $SCORE/100"
-          
-      - name: Upload Hybrid Result
+      - name: Upload Dynamic Workflow
         uses: actions/upload-artifact@v4
         with:
-          name: approach-3-result-${{ github.run_number }}
-          path: generated/workflows/staging/approach-3/
+          name: dynamic-workflow-${{ github.run_number }}
+          path: generated/workflows/staging/
           retention-days: 7
 
-  # Step 4: 最適解選択・評価システム
-  evaluate-and-select-best:
-    needs: [approach-1-template-selection, approach-2-node-assembly, approach-3-hybrid]
-    runs-on: ubuntu-latest
-    outputs:
-      selected_approach: ${{ steps.select.outputs.selected_approach }}
-      selected_workflow_path: ${{ steps.select.outputs.selected_workflow_path }}
-      final_score: ${{ steps.select.outputs.final_score }}
-      comparison_report: ${{ steps.select.outputs.comparison_report }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Download All Approach Results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: approach-*-result-${{ github.run_number }}
-          path: ./approach-results/
-          merge-multiple: true
-          
-      - name: Compare and Select Best Approach
-        id: select
-        run: |
-          echo "🏆 Comparing all three approaches to select the best workflow..."
-          
-          mkdir -p .meta/evaluation
-          
-          # 各アプローチのスコアを取得
-          SCORE_1="${{ needs.approach-1-template-selection.outputs.confidence_score }}"
-          SCORE_2="${{ needs.approach-2-node-assembly.outputs.confidence_score }}"
-          SCORE_3="${{ needs.approach-3-hybrid.outputs.confidence_score }}"
-          
-          APPROACH_1="${{ needs.approach-1-template-selection.outputs.approach_name }}"
-          APPROACH_2="${{ needs.approach-2-node-assembly.outputs.approach_name }}"
-          APPROACH_3="${{ needs.approach-3-hybrid.outputs.approach_name }}"
-          
-          WORKFLOW_1="${{ needs.approach-1-template-selection.outputs.workflow_path }}"
-          WORKFLOW_2="${{ needs.approach-2-node-assembly.outputs.workflow_path }}"
-          WORKFLOW_3="${{ needs.approach-3-hybrid.outputs.workflow_path }}"
-          
-          echo "📊 Score comparison:"
-          echo "  Approach 1 ($APPROACH_1): $SCORE_1"
-          echo "  Approach 2 ($APPROACH_2): $SCORE_2" 
-          echo "  Approach 3 ($APPROACH_3): $SCORE_3"
-          
-          # 最高スコアのアプローチを選択
-          BEST_SCORE=0
-          SELECTED_APPROACH=""
-          SELECTED_WORKFLOW=""
-          
-          if [ "$SCORE_1" -gt "$BEST_SCORE" ]; then
-            BEST_SCORE="$SCORE_1"
-            SELECTED_APPROACH="$APPROACH_1"
-            SELECTED_WORKFLOW="$WORKFLOW_1"
-          fi
-          
-          if [ "$SCORE_2" -gt "$BEST_SCORE" ]; then
-            BEST_SCORE="$SCORE_2"
-            SELECTED_APPROACH="$APPROACH_2"
-            SELECTED_WORKFLOW="$WORKFLOW_2"
-          fi
-          
-          if [ "$SCORE_3" -gt "$BEST_SCORE" ]; then
-            BEST_SCORE="$SCORE_3"
-            SELECTED_APPROACH="$APPROACH_3"
-            SELECTED_WORKFLOW="$WORKFLOW_3"
-          fi
-          
-          echo "🎯 Selected best approach: $SELECTED_APPROACH with score $BEST_SCORE"
-          
-          # 評価レポート作成
-          COMPARISON_REPORT=".meta/evaluation/comparison-report-$(date +%Y%m%d-%H%M%S).json"
-          cat > "$COMPARISON_REPORT" << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "evaluation_results": {
-              "approach_1": {
-                "name": "$APPROACH_1",
-                "score": $SCORE_1,
-                "workflow_path": "$WORKFLOW_1"
-              },
-              "approach_2": {
-                "name": "$APPROACH_2", 
-                "score": $SCORE_2,
-                "workflow_path": "$WORKFLOW_2"
-              },
-              "approach_3": {
-                "name": "$APPROACH_3",
-                "score": $SCORE_3,
-                "workflow_path": "$WORKFLOW_3"
-              }
-            },
-            "selected_winner": {
-              "approach": "$SELECTED_APPROACH",
-              "score": $BEST_SCORE,
-              "workflow_path": "$SELECTED_WORKFLOW"
-            },
-            "selection_criteria": "highest_confidence_score",
-            "workflow_run": "${{ github.run_number }}"
-          }
-          EOF
-          
-          # 選択されたワークフローを最終出力ディレクトリにコピー
-          mkdir -p generated/workflows/production
-          FINAL_WORKFLOW="generated/workflows/production/selected-best-workflow.yml"
-          
-          # アーティファクトから最適なワークフローをコピー
-          if [ -f "approach-results/approach-1/template-based-workflow.yml" ] && [ "$SELECTED_APPROACH" = "template-selection" ]; then
-            cp "approach-results/approach-1/template-based-workflow.yml" "$FINAL_WORKFLOW"
-          elif [ -f "approach-results/approach-2/node-based-workflow.yml" ] && [ "$SELECTED_APPROACH" = "node-assembly" ]; then
-            cp "approach-results/approach-2/node-based-workflow.yml" "$FINAL_WORKFLOW"
-          elif [ -f "approach-results/approach-3/hybrid-workflow.yml" ] && [ "$SELECTED_APPROACH" = "hybrid" ]; then
-            cp "approach-results/approach-3/hybrid-workflow.yml" "$FINAL_WORKFLOW"
-          else
-            echo "⚠️ Selected workflow file not found, creating fallback"
-            cat > "$FINAL_WORKFLOW" << 'EOF'
-          name: "Selected Best Workflow (Fallback)"
-          on:
-            workflow_dispatch:
-          jobs:
-            fallback:
-              runs-on: ubuntu-latest
-              steps:
-              - name: Fallback execution
-                run: echo "Fallback workflow selected"
-          EOF
-          fi
-          
-          # 最終ワークフローに選択情報を追加
-          if grep -q "^name:" "$FINAL_WORKFLOW"; then
-            sed -i "s/^name:.*/name: \"Best Selected Workflow - $SELECTED_APPROACH (Score: $BEST_SCORE)\"/" "$FINAL_WORKFLOW"
-          fi
-          
-          echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
-          echo "selected_workflow_path=$FINAL_WORKFLOW" >> $GITHUB_OUTPUT
-          echo "final_score=$BEST_SCORE" >> $GITHUB_OUTPUT
-          echo "comparison_report=$COMPARISON_REPORT" >> $GITHUB_OUTPUT
-          
-          echo "✅ Best workflow selected and prepared for deployment"
-          
-      - name: Upload Final Selection
-        uses: actions/upload-artifact@v4
-        with:
-          name: final-selected-workflow-${{ github.run_number }}
-          path: |
-            generated/workflows/production/
-            .meta/evaluation/
-          retention-days: 30
-
-  # Step 5: エラー監視・学習システム  
+  # Step 3: エラー監視・学習システム
   error-monitoring:
-    needs: [ultra-detailed-decomposition]
+    needs: [decompose-tasks]
     runs-on: ubuntu-latest
     if: always()
     
@@ -1096,9 +549,9 @@ EOF
           echo "📈 Updating success metrics..."
           # 将来: 成功率の追跡、改善パターンの学習
 
-  # Step 4: テンプレートベース生成（段階的格納対応）
+  # Step 4: ハイブリッド生成（テンプレート + 動的組み立て）
   template-based-generation:
-    needs: [analyze-request, decompose-tasks]
+    needs: [analyze-request, decompose-tasks, dynamic-workflow-assembly]
     runs-on: ubuntu-latest
     if: needs.decompose-tasks.result == 'success'
     outputs:
@@ -1111,18 +564,56 @@ EOF
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Generate Workflow from Template with Dynamic Inputs
+      - name: Download Dynamic Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: dynamic-workflow-${{ github.run_number }}
+          path: .meta/dynamic/
+        continue-on-error: true
+        
+      - name: Hybrid Generation (Template + Dynamic Comparison)
         id: generate
         run: |
-          echo "🎯 Generating workflow from template for ${{ needs.analyze-request.outputs.workflow_type }}..."
+          echo "🎯 Hybrid generation: Template vs Dynamic workflow comparison..."
+          echo "📊 Dynamic workflow task nodes: ${{ needs.dynamic-workflow-assembly.outputs.task_nodes_used }}"
           
           # 段階的格納用ディレクトリ作成
           mkdir -p generated/workflows/staging generated/workflows/validated .meta/validation
           
-          # テンプレート選択とカスタマイズ
+          # ハイブリッド選択ロジック
           WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
           REQUEST_ID="$(echo '${{ needs.analyze-request.outputs.request_file }}' | sed 's/.*\///' | sed 's/\.md$//')"
           GENERATED_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
+          
+          # 動的ワークフローとテンプレートワークフローを比較
+          DYNAMIC_NODES="${{ needs.dynamic-workflow-assembly.outputs.task_nodes_used || '0' }}"
+          
+          echo "🤔 Choosing between template and dynamic approach..."
+          echo "   - Dynamic nodes available: $DYNAMIC_NODES"
+          echo "   - Workflow type: $WORKFLOW_TYPE"
+          
+          # 選択基準: カスタム要求で動的ノードが多い場合は動的を優先
+          if [ "$WORKFLOW_TYPE" = "custom" ] && [ "$DYNAMIC_NODES" -gt "10" ]; then
+            echo "🎯 Using DYNAMIC approach (custom request with $DYNAMIC_NODES nodes)"
+            
+            # 動的ワークフローが利用可能かチェック
+            DYNAMIC_FILE=$(find .meta/dynamic -name "*.yml" -type f | head -1)
+            if [ -n "$DYNAMIC_FILE" ]; then
+              cp "$DYNAMIC_FILE" "$GENERATED_FILE"
+              SELECTED_APPROACH="dynamic"
+              TEMPLATE_USED="dynamic-node-assembly"
+              echo "✅ Dynamic workflow copied to staging"
+            else
+              echo "⚠️ Dynamic workflow not found, falling back to template"
+              SELECTED_APPROACH="template_fallback"
+            fi
+          else
+            echo "🎯 Using TEMPLATE approach (standard workflow type)"
+            SELECTED_APPROACH="template"
+          fi
+          
+          # テンプレート選択（動的が選択されなかった場合）
+          if [ "$SELECTED_APPROACH" != "dynamic" ]; then
           
           case "$WORKFLOW_TYPE" in
             "video-generation"|"video-content")
