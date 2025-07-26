@@ -1,0 +1,285 @@
+name: Stepback Response Handler
+run-name: 🔄 Processing stepback response from Issue #${{ github.event.issue.number }}
+
+on:
+  issues:
+    types: [edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Issue編集検知とステップバック回答の解析
+  detect-stepback-response:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'stepback-questions') || contains(github.event.issue.labels.*.name, 'awaiting-user-response')
+    outputs:
+      is_stepback_response: ${{ steps.detect.outputs.is_stepback_response }}
+      user_answers: ${{ steps.detect.outputs.user_answers }}
+      original_request: ${{ steps.detect.outputs.original_request }}
+      workflow_type: ${{ steps.detect.outputs.workflow_type }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Detect Stepback Response in Same Issue
+        id: detect
+        run: |
+          echo "🔍 Checking if this Issue contains stepback response..."
+          
+          # Issueの内容とラベルを確認
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          ISSUE_LABELS="${{ join(github.event.issue.labels.*.name, ',') }}"
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          
+          echo "Issue #${{ github.event.issue.number }}: $ISSUE_TITLE"
+          echo "Issue Labels: $ISSUE_LABELS"
+          
+          # ステップバック質問対応Issueかどうかを確認
+          if echo "$ISSUE_LABELS" | grep -q -E "(stepback-questions|awaiting-user-response)"; then
+            echo "✅ This Issue has stepback questions labels"
+            
+            # Issue本文からユーザー回答部分を検索
+            if echo "$ISSUE_BODY" | grep -q "## 📋 ステップバック質問への回答"; then
+              echo "✅ User answers section found in Issue body"
+              
+              # ユーザー回答部分を抽出
+              USER_ANSWERS=$(echo "$ISSUE_BODY" | sed -n '/## 📋 ステップバック質問への回答/,$p')
+              
+              # 回答が空でないかチェック（プレースホルダーテキストではない）
+              if echo "$USER_ANSWERS" | grep -q -v "（ここに回答をお書きください）" && \
+                 echo "$USER_ANSWERS" | grep -q -E "(質問[0-9]+への回答|への回答)" && \
+                 ! echo "$USER_ANSWERS" | grep -q -E "^\s*$"; then
+                echo "✅ Valid user answers detected"
+                
+                # 元のリクエスト部分も抽出
+                ORIGINAL_REQUEST=$(echo "$ISSUE_BODY" | sed -n '1,/## 📋 ステップバック質問への回答/p' | head -20)
+                
+                # ワークフロータイプを推測（Issueタイトルや内容から）
+                if echo "$ISSUE_TITLE $ISSUE_BODY" | grep -qi "video\|動画"; then
+                  WORKFLOW_TYPE="video-generation"
+                elif echo "$ISSUE_TITLE $ISSUE_BODY" | grep -qi "image\|画像"; then
+                  WORKFLOW_TYPE="image-generation"
+                elif echo "$ISSUE_TITLE $ISSUE_BODY" | grep -qi "audio\|music\|音楽"; then
+                  WORKFLOW_TYPE="audio-generation"
+                else
+                  WORKFLOW_TYPE="custom"
+                fi
+                
+                echo "is_stepback_response=true" >> $GITHUB_OUTPUT
+                echo "user_answers<<EOF" >> $GITHUB_OUTPUT
+                echo "$USER_ANSWERS" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+                echo "original_request<<EOF" >> $GITHUB_OUTPUT
+                echo "$ORIGINAL_REQUEST" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+                echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+                
+                echo "🎯 Stepback response detected in same Issue - preparing to resume workflow"
+              else
+                echo "⚠️ User answers section is empty or contains placeholder text"
+                echo "is_stepback_response=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "ℹ️ User answers section not found - checking if answers are in comments"
+              
+              # コメントでの回答も確認（将来の拡張用）
+              echo "is_stepback_response=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "ℹ️ This Issue is not related to stepback questions"
+            echo "is_stepback_response=false" >> $GITHUB_OUTPUT
+          fi
+
+  # ユーザー回答の解析とワークフロー生成
+  process-stepback-response:
+    needs: detect-stepback-response
+    runs-on: ubuntu-latest
+    if: needs.detect-stepback-response.outputs.is_stepback_response == 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Process User Answers with Claude Code
+        id: process
+        run: |
+          echo "🤖 Processing user answers with Claude Code..."
+          
+          mkdir -p .meta/stepback-response
+          
+          # 元リクエストとユーザー回答を保存
+          cat > .meta/stepback-response/original-request.md << 'EOF'
+          ${{ needs.detect-stepback-response.outputs.original_request }}
+          EOF
+          
+          cat > .meta/stepback-response/user-answers.md << 'EOF'
+          ${{ needs.detect-stepback-response.outputs.user_answers }}
+          EOF
+          
+          # 回答解析プロンプトを作成
+          cat > .meta/stepback-response/analysis-prompt.md << 'EOF'
+          # ユーザー回答の解析と詳細化要求生成
+          
+          元のリクエストに対してユーザーから追加の詳細情報が提供されました。
+          これらの情報を統合して、ワークフロー生成に必要な詳細化された要求を作成してください。
+          
+          ## 元のリクエスト
+          EOF
+          
+          cat .meta/stepback-response/original-request.md >> .meta/stepback-response/analysis-prompt.md
+          
+          cat >> .meta/stepback-response/analysis-prompt.md << 'EOF'
+          
+          ## ユーザーからの追加回答
+          EOF
+          
+          cat .meta/stepback-response/user-answers.md >> .meta/stepback-response/analysis-prompt.md
+          
+          cat >> .meta/stepback-response/analysis-prompt.md << 'EOF'
+          
+          ## 解析指示
+          
+          1. **回答内容の解釈**: 各質問への回答を理解し、意図を明確化
+          2. **詳細化要求の生成**: 回答に基づいて具体的な要求を構成
+          3. **技術仕様の抽出**: 品質設定、形式、処理フローなどを明確化
+          4. **フォールバック処理**: 不明な部分は合理的な仮定で補完
+          
+          ## 必須出力
+          
+          以下のJSONファイルを作成してください：
+          
+          ```bash
+          mkdir -p .meta/stepback-response
+          cat > .meta/stepback-response/enhanced-requirements.json << 'EOFJSON'
+          {
+            "enhanced_request": "詳細化されたワークフロー要求",
+            "technical_specs": {
+              "image_quality": "high/medium/fast",
+              "video_format": "MP4/AVI/etc",
+              "audio_format": "MP3/WAV/etc",
+              "processing_priority": "quality/speed/balanced"
+            },
+            "processing_flow": [
+              "step1: テキスト→画像生成",
+              "step2: 画像→動画生成",
+              "step3: テキスト→音楽生成",
+              "step4: 動画→音声抽出"
+            ],
+            "user_preferences": {
+              "quality_vs_speed": "quality/speed/balanced",
+              "output_formats": ["format1", "format2"],
+              "special_requirements": ["req1", "req2"]
+            },
+            "confidence_level": "high/medium/low"
+          }
+          EOFJSON
+          ```
+          EOF
+          
+          # Claude Code で回答解析実行
+          if claude --continue "$(cat .meta/stepback-response/analysis-prompt.md)" --output-format text; then
+            echo "✅ User answer analysis completed"
+            
+            if [ -f ".meta/stepback-response/enhanced-requirements.json" ]; then
+              echo "✅ Enhanced requirements generated"
+              
+              # 生成された詳細化要求を表示
+              echo "📋 Enhanced Requirements:"
+              cat .meta/stepback-response/enhanced-requirements.json | jq '.'
+              
+              echo "enhanced_requirements_available=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Enhanced requirements not generated - using fallback"
+              echo "enhanced_requirements_available=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ User answer analysis failed"
+            echo "enhanced_requirements_available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger Enhanced Workflow Generation
+        id: trigger
+        run: |
+          echo "🚀 Triggering enhanced workflow generation..."
+          
+          WORKFLOW_TYPE="${{ needs.detect-stepback-response.outputs.workflow_type }}"
+          
+          # 詳細化された要求を使用してメタワークフローを再実行
+          if [ -f ".meta/stepback-response/enhanced-requirements.json" ]; then
+            ENHANCED_DESC=$(jq -r '.enhanced_request' .meta/stepback-response/enhanced-requirements.json)
+            
+            echo "🎯 Triggering meta workflow with enhanced requirements..."
+            
+            if command -v gh &> /dev/null; then
+              gh workflow run kamuicode-meta-generator.yml \
+                --field workflow_type="$WORKFLOW_TYPE" \
+                --field description="$ENHANCED_DESC (Enhanced by Stepback Response)" \
+                --field retry_mode=false
+              
+              echo "✅ Enhanced workflow generation triggered"
+              
+              # 同一Issue内に進捗コメントを投稿
+              gh issue comment ${{ github.event.issue.number }} \
+                --body "🚀 **ワークフロー生成を再開しました**
+
+          あなたの回答を分析し、詳細化された要求でワークフローを生成中です。
+
+          **📊 処理状況の更新:**
+          - [x] 初期分析完了  
+          - [x] ステップバック質問生成完了
+          - [x] ユーザー回答受信完了 ✨
+          - [x] 回答内容解析完了 ✨
+          - [x] 詳細化要求生成完了 ✨
+          - [x] ワークフロー生成開始 👈 **現在ここ**
+          - [ ] ワークフロー完成・配置
+
+          **🎯 詳細化された要求:**
+          \`\`\`
+          $ENHANCED_DESC
+          \`\`\`
+
+          **⏱️ 予想完了時間:** 5-10分程度
+
+          生成完了後、結果を再度このIssueにご報告いたします。
+
+          🤖 *Meta Workflow Generator - Enhanced by Stepback Response*" \
+                2>/dev/null || echo "⚠️ Failed to post progress comment"
+              
+            else
+              echo "⚠️ gh CLI not available"
+            fi
+          else
+            echo "⚠️ Enhanced requirements not available - using basic retry"
+          fi
+
+      - name: Update Issue Status
+        run: |
+          echo "📝 Updating Issue status..."
+          
+          # Issueのラベルを更新（処理中を示す）
+          if command -v gh &> /dev/null; then
+            gh issue edit ${{ github.event.issue.number }} \
+              --add-label "processing,workflow-generation,enhanced-by-stepback" \
+              --remove-label "awaiting-user-response" \
+              2>/dev/null || echo "⚠️ Failed to update labels"
+              
+            echo "✅ Issue labels updated to show processing status"
+          fi
+          
+          echo "✅ Stepback response processing completed for same Issue"
