@@ -57,7 +57,13 @@ jobs:
           echo "   - Title: $ISSUE_TITLE"
           echo "   - Comment by: $COMMENT_USER"
           echo "   - Issue author: $ISSUE_AUTHOR"
-          echo "   - Comment contains '実行開始': $(echo "$COMMENT_BODY" | grep -q '実行開始' && echo 'YES' || echo 'NO')"
+          # Check if comment contains execution trigger
+          if echo "$COMMENT_BODY" | grep -q '実行開始'; then
+            CONTAINS_TRIGGER="YES"
+          else
+            CONTAINS_TRIGGER="NO"
+          fi
+          echo "   - Comment contains '実行開始': $CONTAINS_TRIGGER"
           
           # Issue作成者本人のコメントかチェック
           if [ "$COMMENT_USER" != "$ISSUE_AUTHOR" ]; then
