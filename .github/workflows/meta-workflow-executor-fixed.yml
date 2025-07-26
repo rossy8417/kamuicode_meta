@@ -326,9 +326,12 @@ jobs:
               mv "enhanced-requirements.json" ".meta/requirement-analysis/enhanced-requirements.json"
               JSON_FILE=".meta/requirement-analysis/enhanced-requirements.json"
             else
-              echo "❌ Enhanced requirements file not found, creating fallback"
-              # フォールバック JSON を作成
-              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+              echo "❌ Enhanced requirements file not found, creating dynamic fallback"
+              # ワークフロータイプに応じた動的フォールバック JSON を作成
+              WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+              
+              if [ "$WORKFLOW_TYPE" = "video-generation" ]; then
+                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 8,
   "workflow_type": "video-generation",
@@ -353,8 +356,89 @@ jobs:
   }
 }
 EOFJSON
+              elif [ "$WORKFLOW_TYPE" = "image-generation" ]; then
+                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "image-generation",
+  "quality_requirements": {
+    "image_resolution": "1920x1080",
+    "video_quality": "none",
+    "audio_quality": "none"
+  },
+  "content_specifications": {
+    "style": "photorealistic",
+    "duration": "none",
+    "genre": "general"
+  },
+  "processing_requirements": {
+    "sequence": "T2I→processing→output",
+    "parallel_processing": "none",
+    "integration_method": "single"
+  },
+  "constraints": {
+    "time_limit": "30 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+              elif [ "$WORKFLOW_TYPE" = "audio-generation" ]; then
+                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "audio-generation",
+  "quality_requirements": {
+    "image_resolution": "none",
+    "video_quality": "none",
+    "audio_quality": "high"
+  },
+  "content_specifications": {
+    "style": "instrumental",
+    "duration": "30-60 seconds",
+    "genre": "general"
+  },
+  "processing_requirements": {
+    "sequence": "T2M→processing→output",
+    "parallel_processing": "none",
+    "integration_method": "single"
+  },
+  "constraints": {
+    "time_limit": "30 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+              else
+                # カスタムまたは不明なワークフロータイプ
+                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 7,
+  "workflow_type": "custom",
+  "quality_requirements": {
+    "image_resolution": "standard",
+    "video_quality": "standard",
+    "audio_quality": "standard"
+  },
+  "content_specifications": {
+    "style": "general",
+    "duration": "flexible",
+    "genre": "general"
+  },
+  "processing_requirements": {
+    "sequence": "adaptive",
+    "parallel_processing": "adaptive",
+    "integration_method": "adaptive"
+  },
+  "constraints": {
+    "time_limit": "45 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+              fi
+              
               JSON_FILE=".meta/requirement-analysis/enhanced-requirements.json"
-              echo "📄 Fallback JSON created"
+              echo "📄 Dynamic fallback JSON created for workflow type: $WORKFLOW_TYPE"
             fi
             
             # clarity_scoreを抽出
@@ -365,9 +449,12 @@ EOFJSON
             echo "enhanced_request=$JSON_FILE" >> $GITHUB_OUTPUT
             echo "analysis_ready=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ Claude Code requirement analysis failed, creating fallback"
-            # Claude Code が失敗した場合のフォールバック
-            cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+            echo "❌ Claude Code requirement analysis failed, creating dynamic fallback"
+            # Claude Code が失敗した場合の動的フォールバック
+            WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+            
+            if [ "$WORKFLOW_TYPE" = "video-generation" ]; then
+              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 7,
   "workflow_type": "video-generation",
@@ -392,7 +479,88 @@ EOFJSON
   }
 }
 EOFJSON
-            echo "📄 Fallback JSON created due to Claude Code failure"
+            elif [ "$WORKFLOW_TYPE" = "image-generation" ]; then
+              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 7,
+  "workflow_type": "image-generation",
+  "quality_requirements": {
+    "image_resolution": "1920x1080",
+    "video_quality": "none",
+    "audio_quality": "none"
+  },
+  "content_specifications": {
+    "style": "photorealistic",
+    "duration": "none",
+    "genre": "general"
+  },
+  "processing_requirements": {
+    "sequence": "T2I→processing→output",
+    "parallel_processing": "none",
+    "integration_method": "single"
+  },
+  "constraints": {
+    "time_limit": "30 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+            elif [ "$WORKFLOW_TYPE" = "audio-generation" ]; then
+              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 7,
+  "workflow_type": "audio-generation",
+  "quality_requirements": {
+    "image_resolution": "none",
+    "video_quality": "none",
+    "audio_quality": "high"
+  },
+  "content_specifications": {
+    "style": "instrumental",
+    "duration": "30-60 seconds",
+    "genre": "general"
+  },
+  "processing_requirements": {
+    "sequence": "T2M→processing→output",
+    "parallel_processing": "none",
+    "integration_method": "single"
+  },
+  "constraints": {
+    "time_limit": "30 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+            else
+              # カスタムまたは不明なワークフロータイプ
+              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 6,
+  "workflow_type": "custom",
+  "quality_requirements": {
+    "image_resolution": "standard",
+    "video_quality": "standard",
+    "audio_quality": "standard"
+  },
+  "content_specifications": {
+    "style": "general",
+    "duration": "flexible",
+    "genre": "general"
+  },
+  "processing_requirements": {
+    "sequence": "adaptive",
+    "parallel_processing": "adaptive",
+    "integration_method": "adaptive"
+  },
+  "constraints": {
+    "time_limit": "45 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+            fi
+            
+            echo "📄 Dynamic fallback JSON created for workflow type: $WORKFLOW_TYPE (Claude Code failed)"
             echo "clarity_score=7" >> $GITHUB_OUTPUT
             echo "enhanced_request=.meta/requirement-analysis/enhanced-requirements.json" >> $GITHUB_OUTPUT
             echo "analysis_ready=true" >> $GITHUB_OUTPUT
