@@ -76,13 +76,25 @@ jobs:
           # ファイルから読み込み
           ISSUE_BODY=$(cat .meta/stepback-analysis/issue-body.txt)
           
-          # ワークフロータイプの推測
-          if echo "$ISSUE_BODY" | grep -qi "video\|動画"; then
+          # ワークフロータイプの推測（全examplesタイプに対応）
+          if echo "$ISSUE_BODY" | grep -qi "video\|動画\|映像\|youtube\|プロモーション"; then
             WORKFLOW_TYPE="video-generation"
-          elif echo "$ISSUE_BODY" | grep -qi "image\|画像"; then
+          elif echo "$ISSUE_BODY" | grep -qi "3d\|model\|モデル\|立体"; then
+            WORKFLOW_TYPE="3d-model-creation"
+          elif echo "$ISSUE_BODY" | grep -qi "image\|画像\|イラスト\|写真"; then
             WORKFLOW_TYPE="image-generation"
-          elif echo "$ISSUE_BODY" | grep -qi "audio\|music\|音楽\|音声"; then
+          elif echo "$ISSUE_BODY" | grep -qi "audio\|music\|音楽\|音声\|bgm"; then
             WORKFLOW_TYPE="audio-generation"
+          elif echo "$ISSUE_BODY" | grep -qi "presentation\|slide\|プレゼン\|スライド\|資料"; then
+            WORKFLOW_TYPE="presentation-creation"
+          elif echo "$ISSUE_BODY" | grep -qi "data\|analysis\|分析\|レポート\|統計\|グラフ"; then
+            WORKFLOW_TYPE="data-analysis"
+          elif echo "$ISSUE_BODY" | grep -qi "news\|ニュース\|記事\|要約\|まとめ"; then
+            WORKFLOW_TYPE="news-summarization"
+          elif echo "$ISSUE_BODY" | grep -qi "blog\|article\|ブログ\|執筆\|コンテンツ"; then
+            WORKFLOW_TYPE="blog-creation"
+          elif echo "$ISSUE_BODY" | grep -qi "campaign\|ad\|広告\|キャンペーン\|マルチメディア"; then
+            WORKFLOW_TYPE="multimedia-campaign"
           else
             WORKFLOW_TYPE="custom"
           fi
@@ -330,8 +342,9 @@ jobs:
               # ワークフロータイプに応じた動的フォールバック JSON を作成
               WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
               
-              if [ "$WORKFLOW_TYPE" = "video-generation" ]; then
-                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+              case "$WORKFLOW_TYPE" in
+                "video-generation")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 8,
   "workflow_type": "video-generation",
@@ -356,8 +369,36 @@ jobs:
   }
 }
 EOFJSON
-              elif [ "$WORKFLOW_TYPE" = "image-generation" ]; then
-                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+                  ;;
+                "3d-model-creation")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "3d-model-creation",
+  "quality_requirements": {
+    "image_resolution": "1920x1080",
+    "video_quality": "none",
+    "audio_quality": "none"
+  },
+  "content_specifications": {
+    "style": "realistic",
+    "duration": "none",
+    "genre": "3d-model"
+  },
+  "processing_requirements": {
+    "sequence": "T2I→I2I3D→optimization→output",
+    "parallel_processing": "none",
+    "integration_method": "3d-pipeline"
+  },
+  "constraints": {
+    "time_limit": "30 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+                  ;;
+                "image-generation")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 8,
   "workflow_type": "image-generation",
@@ -377,13 +418,14 @@ EOFJSON
     "integration_method": "single"
   },
   "constraints": {
-    "time_limit": "30 minutes",
+    "time_limit": "20 minutes",
     "resource_limit": "standard"
   }
 }
 EOFJSON
-              elif [ "$WORKFLOW_TYPE" = "audio-generation" ]; then
-                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+                  ;;
+                "audio-generation")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 8,
   "workflow_type": "audio-generation",
@@ -403,14 +445,150 @@ EOFJSON
     "integration_method": "single"
   },
   "constraints": {
-    "time_limit": "30 minutes",
+    "time_limit": "35 minutes",
     "resource_limit": "standard"
   }
 }
 EOFJSON
-              else
-                # カスタムまたは不明なワークフロータイプ
-                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+                  ;;
+                "presentation-creation")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "presentation-creation",
+  "quality_requirements": {
+    "image_resolution": "1920x1080",
+    "video_quality": "none",
+    "audio_quality": "none"
+  },
+  "content_specifications": {
+    "style": "business",
+    "duration": "none",
+    "genre": "presentation"
+  },
+  "processing_requirements": {
+    "sequence": "content→design→slides→output",
+    "parallel_processing": "partial",
+    "integration_method": "slide-compilation"
+  },
+  "constraints": {
+    "time_limit": "40 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+                  ;;
+                "data-analysis")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "data-analysis",
+  "quality_requirements": {
+    "image_resolution": "1920x1080",
+    "video_quality": "none",
+    "audio_quality": "none"
+  },
+  "content_specifications": {
+    "style": "analytical",
+    "duration": "none",
+    "genre": "data-visualization"
+  },
+  "processing_requirements": {
+    "sequence": "collect→analyze→visualize→report",
+    "parallel_processing": "partial",
+    "integration_method": "dashboard"
+  },
+  "constraints": {
+    "time_limit": "45 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+                  ;;
+                "news-summarization")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "news-summarization",
+  "quality_requirements": {
+    "image_resolution": "none",
+    "video_quality": "none",
+    "audio_quality": "none"
+  },
+  "content_specifications": {
+    "style": "informative",
+    "duration": "none",
+    "genre": "news"
+  },
+  "processing_requirements": {
+    "sequence": "collect→filter→summarize→format",
+    "parallel_processing": "partial",
+    "integration_method": "text-compilation"
+  },
+  "constraints": {
+    "time_limit": "25 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+                  ;;
+                "blog-creation")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "blog-creation",
+  "quality_requirements": {
+    "image_resolution": "1920x1080",
+    "video_quality": "none",
+    "audio_quality": "none"
+  },
+  "content_specifications": {
+    "style": "editorial",
+    "duration": "none",
+    "genre": "blog-article"
+  },
+  "processing_requirements": {
+    "sequence": "research→write→image→optimize→publish",
+    "parallel_processing": "partial",
+    "integration_method": "content-management"
+  },
+  "constraints": {
+    "time_limit": "35 minutes",
+    "resource_limit": "standard"
+  }
+}
+EOFJSON
+                  ;;
+                "multimedia-campaign")
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+{
+  "clarity_score": 8,
+  "workflow_type": "multimedia-campaign",
+  "quality_requirements": {
+    "image_resolution": "1920x1080",
+    "video_quality": "high",
+    "audio_quality": "high"
+  },
+  "content_specifications": {
+    "style": "advertising",
+    "duration": "varies",
+    "genre": "campaign"
+  },
+  "processing_requirements": {
+    "sequence": "strategy→content→multimedia→optimize→deploy",
+    "parallel_processing": "extensive",
+    "integration_method": "cross-platform"
+  },
+  "constraints": {
+    "time_limit": "60 minutes",
+    "resource_limit": "high"
+  }
+}
+EOFJSON
+                  ;;
+                *)
+                  # カスタムまたは不明なワークフロータイプ
+                  cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 7,
   "workflow_type": "custom",
@@ -435,7 +613,8 @@ EOFJSON
   }
 }
 EOFJSON
-              fi
+                  ;;
+              esac
               
               JSON_FILE=".meta/requirement-analysis/enhanced-requirements.json"
               echo "📄 Dynamic fallback JSON created for workflow type: $WORKFLOW_TYPE"
@@ -453,87 +632,40 @@ EOFJSON
             # Claude Code が失敗した場合の動的フォールバック
             WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
             
-            if [ "$WORKFLOW_TYPE" = "video-generation" ]; then
-              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+            # より包括的にすべてのワークフロータイプに対応（clarity_score=7で統一）
+            case "$WORKFLOW_TYPE" in
+              "video-generation"|"3d-model-creation"|"image-generation"|"audio-generation"|"presentation-creation"|"data-analysis"|"news-summarization"|"blog-creation"|"multimedia-campaign")
+                # examplesと同じ構造だが、clarity_score=7に下げる
+                # すべてのタイプで前のfallbackと同じ構造を使用（簡潔化のため）
+                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 7,
-  "workflow_type": "video-generation",
+  "workflow_type": "'"$WORKFLOW_TYPE"'",
   "quality_requirements": {
     "image_resolution": "1920x1080",
-    "video_quality": "high",
+    "video_quality": "standard",
     "audio_quality": "standard"
   },
   "content_specifications": {
-    "style": "photorealistic",
-    "duration": "10-15 seconds",
+    "style": "general",
+    "duration": "flexible",
     "genre": "general"
   },
   "processing_requirements": {
-    "sequence": "T2I→I2V→T2M→integration",
-    "parallel_processing": "partial",
-    "integration_method": "composite"
+    "sequence": "adaptive",
+    "parallel_processing": "adaptive",
+    "integration_method": "adaptive"
   },
   "constraints": {
-    "time_limit": "60 minutes",
+    "time_limit": "45 minutes",
     "resource_limit": "standard"
   }
 }
 EOFJSON
-            elif [ "$WORKFLOW_TYPE" = "image-generation" ]; then
-              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
-{
-  "clarity_score": 7,
-  "workflow_type": "image-generation",
-  "quality_requirements": {
-    "image_resolution": "1920x1080",
-    "video_quality": "none",
-    "audio_quality": "none"
-  },
-  "content_specifications": {
-    "style": "photorealistic",
-    "duration": "none",
-    "genre": "general"
-  },
-  "processing_requirements": {
-    "sequence": "T2I→processing→output",
-    "parallel_processing": "none",
-    "integration_method": "single"
-  },
-  "constraints": {
-    "time_limit": "30 minutes",
-    "resource_limit": "standard"
-  }
-}
-EOFJSON
-            elif [ "$WORKFLOW_TYPE" = "audio-generation" ]; then
-              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
-{
-  "clarity_score": 7,
-  "workflow_type": "audio-generation",
-  "quality_requirements": {
-    "image_resolution": "none",
-    "video_quality": "none",
-    "audio_quality": "high"
-  },
-  "content_specifications": {
-    "style": "instrumental",
-    "duration": "30-60 seconds",
-    "genre": "general"
-  },
-  "processing_requirements": {
-    "sequence": "T2M→processing→output",
-    "parallel_processing": "none",
-    "integration_method": "single"
-  },
-  "constraints": {
-    "time_limit": "30 minutes",
-    "resource_limit": "standard"
-  }
-}
-EOFJSON
-            else
-              # カスタムまたは不明なワークフロータイプ
-              cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
+                ;;
+              *)
+                # カスタムまたは不明なワークフロータイプ
+                cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
 {
   "clarity_score": 6,
   "workflow_type": "custom",
@@ -558,7 +690,8 @@ EOFJSON
   }
 }
 EOFJSON
-            fi
+                ;;
+            esac
             
             echo "📄 Dynamic fallback JSON created for workflow type: $WORKFLOW_TYPE (Claude Code failed)"
             echo "clarity_score=7" >> $GITHUB_OUTPUT
