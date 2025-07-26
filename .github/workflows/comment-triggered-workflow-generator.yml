@@ -93,32 +93,32 @@ jobs:
           # Q1-Q5の回答を検索・抽出
           STEPBACK_ANSWERS=""
           
-          # Q1の回答を抽出
-          Q1_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q1:.*\*\*/,/\*\*Q2:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q2:/p' | sed '1d;$d' | head -10)
+          # Q1の回答を抽出 - より柔軟なパターンマッチング
+          Q1_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q1.*回答：" | grep -v "Q1.*回答：" | head -3 | tr '\n' ' ')
           if [ -n "$Q1_ANSWER" ] && ! echo "$Q1_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
             STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q1回答:** $Q1_ANSWER\n\n"
           fi
           
           # Q2の回答を抽出
-          Q2_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q2:.*\*\*/,/\*\*Q3:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q3:/p' | sed '1d;$d' | head -10)
+          Q2_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q2.*回答：" | grep -v "Q2.*回答：" | head -3 | tr '\n' ' ')
           if [ -n "$Q2_ANSWER" ] && ! echo "$Q2_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
             STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q2回答:** $Q2_ANSWER\n\n"
           fi
           
           # Q3の回答を抽出
-          Q3_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q3:.*\*\*/,/\*\*Q4:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q4:/p' | sed '1d;$d' | head -10)
+          Q3_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q3.*回答：" | grep -v "Q3.*回答：" | head -3 | tr '\n' ' ')
           if [ -n "$Q3_ANSWER" ] && ! echo "$Q3_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
             STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q3回答:** $Q3_ANSWER\n\n"
           fi
           
           # Q4の回答を抽出
-          Q4_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q4:.*\*\*/,/\*\*Q5:/p' | sed -n '/\*\*回答：\*\*/,/\*\*Q5:/p' | sed '1d;$d' | head -10)
+          Q4_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q4.*回答：" | grep -v "Q4.*回答：" | head -3 | tr '\n' ' ')
           if [ -n "$Q4_ANSWER" ] && ! echo "$Q4_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
             STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q4回答:** $Q4_ANSWER\n\n"
           fi
           
           # Q5の回答を抽出
-          Q5_ANSWER=$(echo "$ISSUE_BODY" | sed -n '/\*\*Q5:.*\*\*/,$p' | sed -n '/\*\*回答：\*\*/,/---/p' | sed '1d;$d' | head -10)
+          Q5_ANSWER=$(echo "$ISSUE_BODY" | grep -A 5 -i "Q5.*回答：" | grep -v "Q5.*回答：" | head -3 | tr '\n' ' ')
           if [ -n "$Q5_ANSWER" ] && ! echo "$Q5_ANSWER" | grep -q "（ここに詳細をお書きください）"; then
             STEPBACK_ANSWERS="${STEPBACK_ANSWERS}**Q5回答:** $Q5_ANSWER\n\n"
           fi
