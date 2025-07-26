@@ -1,0 +1,259 @@
+name: Dynamic Stepback Question Generator
+run-name: 🤖 Analyzing request and generating custom questions for Issue #${{ github.event.issue.number }}
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Issue作成時の動的質問生成
+  generate-stepback-questions:
+    runs-on: ubuntu-latest
+    # workflow-request ラベルがある、または Workflow Request がタイトルに含まれる場合のみ実行
+    if: contains(github.event.issue.title, 'Workflow Request') || contains(github.event.issue.title, '[Workflow Request]')
+    outputs:
+      questions_generated: ${{ steps.generate.outputs.questions_generated }}
+      issue_updated: ${{ steps.update.outputs.issue_updated }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+        
+      - name: Analyze User Request and Generate Custom Questions
+        id: generate
+        run: |
+          echo "🤖 Analyzing user request for Issue #${{ github.event.issue.number }}..."
+          
+          mkdir -p .meta/dynamic-questions
+          
+          # Issue内容を取得
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          
+          echo "📋 Issue Title: $ISSUE_TITLE"
+          echo "📝 Issue Body length: ${#ISSUE_BODY} characters"
+          
+          # ユーザー要求をプロンプト用に整理
+          cat > .meta/dynamic-questions/user-request.md << EOF
+          # User Request Analysis
+          
+          **Title:** $ISSUE_TITLE
+          
+          **Body:** 
+          $ISSUE_BODY
+          EOF
+          
+          # プロンプトファイルの存在確認
+          PROMPT_FILE="meta/prompts/stepback-question-generator.md"
+          if [ ! -f "$PROMPT_FILE" ]; then
+            echo "❌ Prompt file not found: $PROMPT_FILE"
+            exit 1
+          fi
+          
+          echo "✅ Using prompt file: $PROMPT_FILE"
+          
+          # プロンプトファイルを読み込み、ユーザー要求を置換
+          cat "$PROMPT_FILE" | sed "s|{{USER_REQUEST}}|$(cat .meta/dynamic-questions/user-request.md)|g" > .meta/dynamic-questions/full-prompt.md
+          
+          echo "🧠 Executing Claude Code with dynamic question generation prompt..."
+          
+          # Claude Code で動的質問生成実行
+          CLAUDE_SUCCESS=false
+          if command -v claude &> /dev/null; then
+            if claude --continue "$(cat .meta/dynamic-questions/full-prompt.md)" --output-format text 2>.meta/dynamic-questions/claude-error.log; then
+              CLAUDE_SUCCESS=true
+              echo "✅ Claude Code question generation completed"
+            else
+              echo "❌ Claude Code failed:"
+              cat .meta/dynamic-questions/claude-error.log || echo "No error details"
+            fi
+          else
+            echo "⚠️ Claude Code not available"
+          fi
+          
+          # 生成された質問ファイルを確認
+          if [ "$CLAUDE_SUCCESS" = "true" ] && [ -f ".meta/dynamic-questions/generated-questions.md" ]; then
+            echo "✅ Dynamic questions generated successfully"
+            
+            # 生成された質問の内容を確認
+            QUESTIONS_CONTENT=$(cat .meta/dynamic-questions/generated-questions.md)
+            QUESTION_COUNT=$(echo "$QUESTIONS_CONTENT" | grep -c "**Q[0-9]" || echo "0")
+            
+            echo "📊 Generated $QUESTION_COUNT questions"
+            echo "📋 Questions preview:"
+            echo "$QUESTIONS_CONTENT" | head -20
+            
+            if [ "$QUESTION_COUNT" -gt "0" ]; then
+              echo "questions_generated=true" >> $GITHUB_OUTPUT
+              echo "question_count=$QUESTION_COUNT" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ No valid questions found in generated content"
+              echo "questions_generated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Question generation failed - creating fallback questions"
+            
+            # フォールバック質問を生成
+            cat > .meta/dynamic-questions/generated-questions.md << 'EOF'
+          ## 📋 ワークフロー詳細化のための質問（基本版）
+          
+          より正確で最適化されたワークフローを生成するために、以下の質問にお答えください：
+          
+          **Q1: 出力品質・形式**
+          生成する画像/動画/音声の品質設定や形式について教えてください。
+          - 画像解像度：1920x1080 / 1280x720 / その他（　　　）
+          - 品質優先度：最高品質 / バランス / 高速処理
+          回答：（ここに詳細をお書きください）
+          
+          **Q2: 処理フロー・順序**
+          複数のメディア生成がある場合の処理方法について教えてください。
+          - 処理順序：特定の順序が必要 / 並列処理可能 / お任せ
+          - 依存関係：前段階の出力を次で使用 / 独立して生成
+          回答：（ここに詳細をお書きください）
+          
+          **Q3: 技術仕様・制約**
+          技術的な要件や制約について教えてください。
+          - 実行時間：品質重視（時間不問） / 60分以内 / 30分以内
+          - MCPサービス：特定サービス希望 / 推奨設定でOK
+          回答：（ここに詳細をお書きください）
+          
+          ---
+          
+          ### 📝 回答後の手順
+          1. 上記の質問に回答を記入
+          2. このIssueの本文を編集して、回答部分を追加
+          3. Issue保存後、自動的にワークフロー生成が開始されます
+          
+          🤖 *Generated by Dynamic Stepback Question System (Fallback)*
+          EOF
+            
+            echo "questions_generated=true" >> $GITHUB_OUTPUT
+            echo "question_count=3" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Issue with Generated Questions
+        id: update
+        run: |
+          echo "📝 Updating Issue #${{ github.event.issue.number }} with generated questions..."
+          
+          if [ ! -f ".meta/dynamic-questions/generated-questions.md" ]; then
+            echo "❌ Generated questions file not found"
+            exit 1
+          fi
+          
+          # 現在のIssue本文を取得
+          CURRENT_BODY="${{ github.event.issue.body }}"
+          
+          # 生成された質問を読み込み
+          GENERATED_QUESTIONS=$(cat .meta/dynamic-questions/generated-questions.md)
+          
+          # Issue本文の「詳細確認質問（自動生成待ち）」部分を置換
+          # プレースホルダーを探して置換
+          if echo "$CURRENT_BODY" | grep -q "詳細確認質問（自動生成待ち）"; then
+            echo "✅ Found placeholder section - replacing with generated questions"
+            
+            # 置換処理（複雑なので一時ファイル使用）
+            echo "$CURRENT_BODY" > .meta/dynamic-questions/current-body.md
+            
+            # プレースホルダー部分を置換
+            sed -i '/## 📋 詳細確認質問（自動生成待ち）/,/🔄 \*\*処理状況:\*\*/c\
+          '$GENERATED_QUESTIONS'' .meta/dynamic-questions/current-body.md
+            
+            UPDATED_BODY=$(cat .meta/dynamic-questions/current-body.md)
+            
+            # GitHub CLI でIssue本文を更新
+            if command -v gh &> /dev/null; then
+              echo "📤 Updating Issue body with generated questions..."
+              
+              # Issue body をファイルから更新
+              echo "$UPDATED_BODY" > .meta/dynamic-questions/new-body.md
+              
+              if gh issue edit ${{ github.event.issue.number }} --body-file .meta/dynamic-questions/new-body.md 2>/dev/null; then
+                echo "✅ Issue #${{ github.event.issue.number }} updated successfully"
+                
+                # ラベルを追加
+                gh issue edit ${{ github.event.issue.number }} \
+                  --add-label "stepback-questions,awaiting-user-response,dynamic-generated" \
+                  2>/dev/null || echo "⚠️ Failed to add labels"
+                
+                echo "issue_updated=true" >> $GITHUB_OUTPUT
+              else
+                echo "❌ Failed to update Issue body"
+                echo "issue_updated=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "⚠️ GitHub CLI not available"
+              echo "issue_updated=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Placeholder section not found in Issue body"
+            echo "issue_updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post Completion Comment
+        if: steps.update.outputs.issue_updated == 'true'
+        run: |
+          echo "💬 Posting completion notification..."
+          
+          if command -v gh &> /dev/null; then
+            gh issue comment ${{ github.event.issue.number }} \
+              --body "🤖 **AI分析完了 - カスタム質問を生成しました**
+
+          あなたのワークフロー要求を分析し、最適化のために必要な詳細確認質問を生成しました。
+
+          **📊 生成結果:**
+          - 質問数: ${{ steps.generate.outputs.question_count }}個
+          - 分析方式: 動的カスタム生成
+          - プロンプトファイル: \`meta/prompts/stepback-question-generator.md\`
+
+          **📝 次のステップ:**
+          1. **Issue本文を確認** → 生成された質問をご覧ください
+          2. **Issue本文を編集** → 「Edit」ボタンで質問に回答
+          3. **Issue保存** → 自動的にワークフロー生成が開始されます
+
+          **⏱️ 予想時間:** 質問回答後、5-10分でワークフロー生成完了
+
+          ---
+
+          🎯 **重要:** 質問に回答いただくまで、ワークフロー生成は開始されません。
+          より詳細な回答ほど、最適化されたワークフローが生成されます。
+
+          🤖 *Dynamic Stepback Question Generator v4*" \
+              2>/dev/null || echo "⚠️ Failed to post comment"
+          fi
+          
+          echo "✅ Dynamic stepback question generation completed"
+
+      - name: Prevent Main Workflow Execution
+        run: |
+          echo "🛑 Blocking main workflow execution until user response"
+          
+          # メインワークフローが実行されないようにファイルマーカーを作成
+          mkdir -p .meta/workflow-control
+          cat > .meta/workflow-control/waiting-for-stepback-response.json << EOF
+          {
+            "issue_number": ${{ github.event.issue.number }},
+            "status": "waiting_for_user_response",
+            "questions_generated": true,
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "next_trigger": "issue_edited_with_answers"
+          }
+          EOF
+          
+          echo "📋 Main workflow execution blocked - waiting for user answers"

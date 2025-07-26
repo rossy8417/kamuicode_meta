@@ -3,7 +3,7 @@ run-name: ${{ github.actor }} generates workflow for "${{ github.event.issue.tit
 
 on:
   issues:
-    types: [opened, edited]
+    types: [edited]  # Issue作成時の自動実行を無効化（質問生成後の回答時のみ実行）
   workflow_dispatch:
     inputs:
       workflow_type:
@@ -135,10 +135,12 @@ jobs:
           path: .meta/diagnostics/
           retention-days: 30
 
-  # Step 1: 要求の初期分析（エラーハンドリング強化）
+  # Step 1: 要求の初期分析（ステップバック回答検証付き）
   analyze-request:
     needs: self-diagnostic
     runs-on: ubuntu-latest
+    # ステップバック質問への回答があるIssueのみ実行
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'awaiting-user-response'))
     outputs:
       workflow_type: ${{ steps.analyze.outputs.workflow_type }}
       branch_name: ${{ steps.analyze.outputs.branch_name }}
