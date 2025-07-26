@@ -407,6 +407,13 @@ jobs:
             echo "enhanced_request=.meta/requirement-analysis/enhanced-requirements.json" >> $GITHUB_OUTPUT
             echo "analysis_ready=true" >> $GITHUB_OUTPUT
           fi
+          
+      - name: Upload Enhanced Requirements
+        uses: actions/upload-artifact@v4
+        with:
+          name: enhanced-requirements
+          path: .meta/requirement-analysis/
+          retention-days: 1
 
   decompose-tasks:
     needs: analyze-requirements
@@ -419,6 +426,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        
+      - name: Download Enhanced Requirements
+        uses: actions/download-artifact@v4
+        with:
+          name: enhanced-requirements
+          path: .meta/requirement-analysis/
         
       - name: Setup Node.js
         uses: actions/setup-node@v4
