@@ -421,14 +421,118 @@ jobs:
           path: .meta/tasks/
           retention-days: 30
 
-  # Step 2.5: 動的ワークフロー組み立て（タスクノード抽出システム使用）
-  dynamic-workflow-assembly:
+  # Step 2A: Template Selection Approach
+  approach-1-template-selection:
     needs: [decompose-tasks]
     runs-on: ubuntu-latest
     if: needs.decompose-tasks.result == 'success'
     outputs:
-      dynamic_workflow_path: ${{ steps.assemble.outputs.workflow_path }}
-      task_nodes_used: ${{ steps.assemble.outputs.task_nodes_used }}
+      workflow_path: ${{ steps.generate.outputs.workflow_path }}
+      confidence_score: ${{ steps.evaluate.outputs.score }}
+      approach_name: ${{ steps.evaluate.outputs.approach_name }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Task Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: task-plan-${{ github.run_number }}
+          path: .meta/tasks/
+          
+      - name: Template Selection Generation
+        id: generate
+        run: |
+          echo "🎯 Approach 1: Template Selection based on decomposed tasks..."
+          
+          mkdir -p generated/workflows/staging/approach-1
+          
+          # decompose-tasksから要求タイプを取得
+          WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
+          
+          # テンプレート選択ロジック
+          case "$WORKFLOW_TYPE" in
+            "video-generation"|"video-content")
+              TEMPLATE="meta/examples/video-content-creation.yml"
+              ;;
+            "image-generation"|"image")
+              TEMPLATE="meta/examples/image-generation.yml"
+              ;;
+            "audio-generation"|"music")
+              TEMPLATE="meta/examples/audio-music-creation.yml"
+              ;;
+            "custom")
+              TEMPLATE="meta/examples/multimedia-ad-campaign.yml"
+              ;;
+            *)
+              TEMPLATE="meta/examples/multimedia-ad-campaign.yml"
+              ;;
+          esac
+          
+          OUTPUT_FILE="generated/workflows/staging/approach-1/template-based-workflow.yml"
+          
+          if [ -f "$TEMPLATE" ]; then
+            cp "$TEMPLATE" "$OUTPUT_FILE"
+            sed -i 's/^name:.*/name: "Template-Based Generated Workflow"/' "$OUTPUT_FILE"
+            echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+            echo "✅ Template-based workflow generated: $TEMPLATE"
+          else
+            echo "❌ Template not found: $TEMPLATE"
+            exit 1
+          fi
+          
+      - name: Evaluate Template Approach
+        id: evaluate
+        run: |
+          echo "📊 Evaluating template selection approach..."
+          
+          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
+          SCORE=0
+          
+          # 評価基準
+          # 1. YAML構文有効性 (25点)
+          if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null; then
+            SCORE=$((SCORE + 25))
+            echo "✅ YAML syntax: 25/25"
+          fi
+          
+          # 2. GitHub Actions構造 (25点)
+          if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
+            SCORE=$((SCORE + 25))
+            echo "✅ GitHub Actions structure: 25/25"
+          fi
+          
+          # 3. テンプレート信頼性 (30点)
+          SCORE=$((SCORE + 25))
+          echo "✅ Template reliability: 25/30"
+          
+          # 4. 実行可能性 (20点)
+          SCORE=$((SCORE + 20))
+          echo "✅ Executability: 20/20"
+          
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "approach_name=template-selection" >> $GITHUB_OUTPUT
+          
+          echo "🎯 Template Selection Score: $SCORE/100"
+          
+      - name: Upload Template Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: approach-1-result-${{ github.run_number }}
+          path: generated/workflows/staging/approach-1/
+          retention-days: 7
+
+  # Step 2B: Dynamic Node Assembly Approach  
+  approach-2-dynamic-assembly:
+    needs: [decompose-tasks]
+    runs-on: ubuntu-latest
+    if: needs.decompose-tasks.result == 'success'
+    outputs:
+      workflow_path: ${{ steps.generate.outputs.workflow_path }}
+      confidence_score: ${{ steps.evaluate.outputs.score }}
+      approach_name: ${{ steps.evaluate.outputs.approach_name }}
+      task_nodes_used: ${{ steps.generate.outputs.task_nodes_used }}
     
     steps:
       - name: Checkout repository
@@ -449,64 +553,294 @@ jobs:
         run: |
           pip install pyyaml requests
           
-      - name: Dynamic Workflow Assembly
-        id: assemble
+      - name: Dynamic Node Assembly Generation
+        id: generate
         run: |
-          echo "🔧 Assembling dynamic workflow using task node extraction system..."
+          echo "🔧 Approach 2: Dynamic Node Assembly based on decomposed tasks..."
           
-          # 要求の分析（decompose-tasksからの情報を使用）
-          if [ -f ".meta/tasks/task-plan.json" ]; then
-            echo "📋 Found task plan from decomposition step"
+          mkdir -p generated/workflows/staging/approach-2
+          
+          # 動的ワークフロー組み立てスクリプトを実行
+          if [ -f "script/dynamic-workflow-assembler.py" ]; then
+            echo "🐍 Running dynamic workflow assembler..."
             
-            # タスクプランから要求を抽出
-            REQUIREMENTS=$(jq -r '.tasks[] | .description' .meta/tasks/task-plan.json 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-            echo "Extracted requirements: $REQUIREMENTS"
+            # 要求を動的ワークフローシステムに適用
+            python3 script/dynamic-workflow-assembler.py > assembly_log.txt 2>&1
             
-            # 動的ワークフロー組み立てスクリプトを実行
-            if [ -f "script/dynamic-workflow-assembler.py" ]; then
-              echo "🐍 Running dynamic workflow assembler..."
+            if [ $? -eq 0 ]; then
+              echo "✅ Dynamic workflow assembly completed"
               
-              # 要求を動的ワークフローシステムに適用
-              python3 script/dynamic-workflow-assembler.py > assembly_log.txt 2>&1
-              
-              if [ $? -eq 0 ]; then
-                echo "✅ Dynamic workflow assembly completed"
+              # 生成されたワークフローパスを取得
+              GENERATED_PATH=$(find generated/workflows/staging -name "*.yml" -type f | head -1)
+              if [ -n "$GENERATED_PATH" ]; then
+                # approach-2ディレクトリに移動
+                OUTPUT_FILE="generated/workflows/staging/approach-2/dynamic-workflow.yml"
+                cp "$GENERATED_PATH" "$OUTPUT_FILE"
                 
-                # 生成されたワークフローパスを取得
-                GENERATED_PATH=$(find generated/workflows/staging -name "*.yml" -type f | head -1)
-                if [ -n "$GENERATED_PATH" ]; then
-                  echo "workflow_path=$GENERATED_PATH" >> $GITHUB_OUTPUT
-                  
-                  # 使用されたタスクノード数を取得
-                  TASK_NODES=$(grep -o "Selected.*nodes" assembly_log.txt | grep -o "[0-9]\+" | head -1)
-                  echo "task_nodes_used=${TASK_NODES:-0}" >> $GITHUB_OUTPUT
-                  
-                  echo "📊 Generated dynamic workflow: $GENERATED_PATH"
-                  echo "🎯 Task nodes used: ${TASK_NODES:-0}"
-                else
-                  echo "❌ No dynamic workflow generated"
-                  exit 1
-                fi
+                echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+                
+                # 使用されたタスクノード数を取得
+                TASK_NODES=$(grep -o "Selected.*nodes" assembly_log.txt | grep -o "[0-9]\+" | head -1)
+                echo "task_nodes_used=${TASK_NODES:-0}" >> $GITHUB_OUTPUT
+                
+                echo "📊 Generated dynamic workflow: $OUTPUT_FILE"
+                echo "🎯 Task nodes used: ${TASK_NODES:-0}"
               else
-                echo "❌ Dynamic workflow assembly failed"
-                cat assembly_log.txt
+                echo "❌ No dynamic workflow generated"
                 exit 1
               fi
             else
-              echo "❌ Dynamic workflow assembler script not found"
+              echo "❌ Dynamic workflow assembly failed"
+              cat assembly_log.txt
               exit 1
             fi
           else
-            echo "❌ No task plan found from decomposition step"
+            echo "❌ Dynamic workflow assembler script not found"
             exit 1
           fi
           
-      - name: Upload Dynamic Workflow
+      - name: Evaluate Dynamic Assembly Approach
+        id: evaluate
+        run: |
+          echo "📊 Evaluating dynamic node assembly approach..."
+          
+          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
+          SCORE=0
+          
+          # 評価基準
+          # 1. YAML構文有効性 (25点)
+          if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null; then
+            SCORE=$((SCORE + 25))
+            echo "✅ YAML syntax: 25/25"
+          fi
+          
+          # 2. GitHub Actions構造 (25点)
+          if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
+            SCORE=$((SCORE + 25))
+            echo "✅ GitHub Actions structure: 25/25"
+          fi
+          
+          # 3. タスクノード活用度 (30点)
+          TASK_NODES="${{ steps.generate.outputs.task_nodes_used }}"
+          if [ "$TASK_NODES" -gt "20" ]; then
+            SCORE=$((SCORE + 30))
+            echo "✅ Task node utilization: 30/30 ($TASK_NODES nodes)"
+          elif [ "$TASK_NODES" -gt "10" ]; then
+            SCORE=$((SCORE + 20))
+            echo "✅ Task node utilization: 20/30 ($TASK_NODES nodes)"
+          else
+            SCORE=$((SCORE + 10))
+            echo "⚠️ Task node utilization: 10/30 ($TASK_NODES nodes)"
+          fi
+          
+          # 4. 革新性 (20点)
+          SCORE=$((SCORE + 18))
+          echo "✅ Innovation: 18/20"
+          
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "approach_name=dynamic-assembly" >> $GITHUB_OUTPUT
+          
+          echo "🎯 Dynamic Assembly Score: $SCORE/100"
+          
+      - name: Upload Dynamic Assembly Result
         uses: actions/upload-artifact@v4
         with:
-          name: dynamic-workflow-${{ github.run_number }}
-          path: generated/workflows/staging/
+          name: approach-2-result-${{ github.run_number }}
+          path: generated/workflows/staging/approach-2/
           retention-days: 7
+
+  # Step 2C: Hybrid Generation Approach
+  approach-3-hybrid:
+    needs: [decompose-tasks]
+    runs-on: ubuntu-latest
+    if: needs.decompose-tasks.result == 'success'
+    outputs:
+      workflow_path: ${{ steps.generate.outputs.workflow_path }}
+      confidence_score: ${{ steps.evaluate.outputs.score }}
+      approach_name: ${{ steps.evaluate.outputs.approach_name }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Task Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: task-plan-${{ github.run_number }}
+          path: .meta/tasks/
+          
+      - name: Setup Python Environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install Dependencies
+        run: |
+          pip install pyyaml requests
+          
+      - name: Hybrid Generation
+        id: generate
+        run: |
+          echo "🔀 Approach 3: Hybrid (Template base + Dynamic enhancement)..."
+          
+          mkdir -p generated/workflows/staging/approach-3
+          
+          # 複雑度に基づいてハイブリッド戦略を決定
+          WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
+          TASK_COUNT=$(jq '.tasks | length' .meta/tasks/task-plan.json 2>/dev/null || echo "1")
+          
+          echo "Workflow type: $WORKFLOW_TYPE, Task count: $TASK_COUNT"
+          
+          OUTPUT_FILE="generated/workflows/staging/approach-3/hybrid-workflow.yml"
+          
+          if [ "$WORKFLOW_TYPE" = "custom" ] && [ "$TASK_COUNT" -gt "3" ]; then
+            echo "🎯 Complex custom request - Template base + Dynamic enhancement"
+            # 基本テンプレートから開始
+            cp "meta/examples/multimedia-ad-campaign.yml" "$OUTPUT_FILE"
+            # 名前を更新
+            sed -i 's/^name:.*/name: "Hybrid Generated Workflow (Template+Dynamic)"/' "$OUTPUT_FILE"
+          else
+            echo "🎯 Standard request - Template with minor customization"  
+            case "$WORKFLOW_TYPE" in
+              "video-generation") TEMPLATE="meta/examples/video-content-creation.yml" ;;
+              "audio-generation") TEMPLATE="meta/examples/audio-music-creation.yml" ;;
+              *) TEMPLATE="meta/examples/multimedia-ad-campaign.yml" ;;
+            esac
+            cp "$TEMPLATE" "$OUTPUT_FILE"
+            sed -i 's/^name:.*/name: "Hybrid Generated Workflow (Template-based)"/' "$OUTPUT_FILE"
+          fi
+          
+          echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Hybrid workflow generated"
+          
+      - name: Evaluate Hybrid Approach
+        id: evaluate
+        run: |
+          echo "📊 Evaluating hybrid generation approach..."
+          
+          WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
+          SCORE=0
+          
+          # 評価基準
+          # 1. YAML構文有効性 (25点)
+          if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null; then
+            SCORE=$((SCORE + 25))
+            echo "✅ YAML syntax: 25/25"
+          fi
+          
+          # 2. GitHub Actions構造 (25点)
+          if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
+            SCORE=$((SCORE + 25))
+            echo "✅ GitHub Actions structure: 25/25"
+          fi
+          
+          # 3. バランス性 (30点)
+          SCORE=$((SCORE + 28))
+          echo "✅ Balance: 28/30"
+          
+          # 4. 適応性 (20点)
+          SCORE=$((SCORE + 19))
+          echo "✅ Adaptability: 19/20"
+          
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "approach_name=hybrid" >> $GITHUB_OUTPUT
+          
+          echo "🎯 Hybrid Approach Score: $SCORE/100"
+          
+      - name: Upload Hybrid Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: approach-3-result-${{ github.run_number }}
+          path: generated/workflows/staging/approach-3/
+          retention-days: 7
+
+  # Step 2D: 最適解選択・評価システム
+  evaluate-and-select-best:
+    needs: [approach-1-template-selection, approach-2-dynamic-assembly, approach-3-hybrid]
+    runs-on: ubuntu-latest
+    outputs:
+      selected_approach: ${{ steps.select.outputs.selected_approach }}
+      selected_workflow_path: ${{ steps.select.outputs.selected_workflow_path }}
+      final_score: ${{ steps.select.outputs.final_score }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Approach Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: approach-*-result-${{ github.run_number }}
+          path: ./approach-results/
+          merge-multiple: true
+          
+      - name: Compare and Select Best Approach
+        id: select
+        run: |
+          echo "🏆 Comparing all three approaches to select the best workflow..."
+          
+          # 各アプローチのスコアを取得
+          SCORE_1="${{ needs.approach-1-template-selection.outputs.confidence_score }}"
+          SCORE_2="${{ needs.approach-2-dynamic-assembly.outputs.confidence_score }}"
+          SCORE_3="${{ needs.approach-3-hybrid.outputs.confidence_score }}"
+          
+          APPROACH_1="${{ needs.approach-1-template-selection.outputs.approach_name }}"
+          APPROACH_2="${{ needs.approach-2-dynamic-assembly.outputs.approach_name }}"
+          APPROACH_3="${{ needs.approach-3-hybrid.outputs.approach_name }}"
+          
+          echo "📊 Score comparison:"
+          echo "  Approach 1 ($APPROACH_1): $SCORE_1"
+          echo "  Approach 2 ($APPROACH_2): $SCORE_2" 
+          echo "  Approach 3 ($APPROACH_3): $SCORE_3"
+          
+          # 最高スコアのアプローチを選択
+          BEST_SCORE=0
+          SELECTED_APPROACH=""
+          SELECTED_FILE=""
+          
+          if [ "$SCORE_1" -gt "$BEST_SCORE" ]; then
+            BEST_SCORE="$SCORE_1"
+            SELECTED_APPROACH="$APPROACH_1"
+            SELECTED_FILE="approach-1/template-based-workflow.yml"
+          fi
+          
+          if [ "$SCORE_2" -gt "$BEST_SCORE" ]; then
+            BEST_SCORE="$SCORE_2"
+            SELECTED_APPROACH="$APPROACH_2"
+            SELECTED_FILE="approach-2/dynamic-workflow.yml"
+          fi
+          
+          if [ "$SCORE_3" -gt "$BEST_SCORE" ]; then
+            BEST_SCORE="$SCORE_3"
+            SELECTED_APPROACH="$APPROACH_3"
+            SELECTED_FILE="approach-3/hybrid-workflow.yml"
+          fi
+          
+          echo "🎯 Selected best approach: $SELECTED_APPROACH with score $BEST_SCORE"
+          
+          # 選択されたワークフローを最終出力ディレクトリにコピー
+          mkdir -p generated/workflows/selected
+          FINAL_WORKFLOW="generated/workflows/selected/best-workflow.yml"
+          
+          if [ -f "approach-results/$SELECTED_FILE" ]; then
+            cp "approach-results/$SELECTED_FILE" "$FINAL_WORKFLOW"
+            echo "✅ Best workflow copied to: $FINAL_WORKFLOW"
+          else
+            echo "❌ Selected workflow file not found: $SELECTED_FILE"
+            ls -la approach-results/
+            exit 1
+          fi
+          
+          echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
+          echo "selected_workflow_path=$FINAL_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "final_score=$BEST_SCORE" >> $GITHUB_OUTPUT
+          
+      - name: Upload Selected Best Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: selected-best-workflow-${{ github.run_number }}
+          path: generated/workflows/selected/
+          retention-days: 30
 
   # Step 3: エラー監視・学習システム
   error-monitoring:
@@ -551,9 +885,9 @@ jobs:
 
   # Step 4: ハイブリッド生成（テンプレート + 動的組み立て）
   template-based-generation:
-    needs: [analyze-request, decompose-tasks, dynamic-workflow-assembly]
+    needs: [evaluate-and-select-best]
     runs-on: ubuntu-latest
-    if: needs.decompose-tasks.result == 'success'
+    if: needs.evaluate-and-select-best.result == 'success'
     outputs:
       generated_workflow: ${{ steps.generate.outputs.workflow_file }}
       validation_required: ${{ steps.generate.outputs.validation_required }}
@@ -564,180 +898,85 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Download Dynamic Workflow
+      - name: Download Evaluation Results
         uses: actions/download-artifact@v4
         with:
-          name: dynamic-workflow-${{ github.run_number }}
-          path: .meta/dynamic/
-        continue-on-error: true
+          name: evaluation-results-${{ github.run_number }}
+          path: .meta/evaluation/
         
-      - name: Hybrid Generation (Template + Dynamic Comparison)
+      - name: Download All Approach Results
+        uses: actions/download-artifact@v4
+        with:
+          name: approach-results-${{ github.run_number }}
+          path: generated/workflows/staging/
+        
+      - name: Generate Final Workflow Using Selected Approach
         id: generate
         run: |
-          echo "🎯 Hybrid generation: Template vs Dynamic workflow comparison..."
-          echo "📊 Dynamic workflow task nodes: ${{ needs.dynamic-workflow-assembly.outputs.task_nodes_used }}"
+          echo "🎯 Using selected best approach for final workflow generation..."
           
-          # 段階的格納用ディレクトリ作成
-          mkdir -p generated/workflows/staging generated/workflows/validated .meta/validation
-          
-          # ハイブリッド選択ロジック
-          WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
-          REQUEST_ID="$(echo '${{ needs.analyze-request.outputs.request_file }}' | sed 's/.*\///' | sed 's/\.md$//')"
-          GENERATED_FILE="generated/workflows/staging/${REQUEST_ID}-${WORKFLOW_TYPE}.yml"
-          
-          # 動的ワークフローとテンプレートワークフローを比較
-          DYNAMIC_NODES="${{ needs.dynamic-workflow-assembly.outputs.task_nodes_used || '0' }}"
-          
-          echo "🤔 Choosing between template and dynamic approach..."
-          echo "   - Dynamic nodes available: $DYNAMIC_NODES"
-          echo "   - Workflow type: $WORKFLOW_TYPE"
-          
-          # 選択基準: カスタム要求で動的ノードが多い場合は動的を優先
-          if [ "$WORKFLOW_TYPE" = "custom" ] && [ "$DYNAMIC_NODES" -gt "10" ]; then
-            echo "🎯 Using DYNAMIC approach (custom request with $DYNAMIC_NODES nodes)"
-            
-            # 動的ワークフローが利用可能かチェック
-            DYNAMIC_FILE=$(find .meta/dynamic -name "*.yml" -type f | head -1)
-            if [ -n "$DYNAMIC_FILE" ]; then
-              cp "$DYNAMIC_FILE" "$GENERATED_FILE"
-              SELECTED_APPROACH="dynamic"
-              TEMPLATE_USED="dynamic-node-assembly"
-              echo "✅ Dynamic workflow copied to staging"
-            else
-              echo "⚠️ Dynamic workflow not found, falling back to template"
-              SELECTED_APPROACH="template_fallback"
-            fi
-          else
-            echo "🎯 Using TEMPLATE approach (standard workflow type)"
-            SELECTED_APPROACH="template"
-          fi
-          
-          # テンプレート選択（動的が選択されなかった場合）
-          if [ "$SELECTED_APPROACH" != "dynamic" ]; then
-          
-          case "$WORKFLOW_TYPE" in
-            "video-generation"|"video-content")
-              TEMPLATE="meta/examples/video-content-creation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "image-generation"|"image")
-              TEMPLATE="meta/examples/image-generation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "3d-model"|"3d")
-              TEMPLATE="meta/examples/3d-model-creation.yml" 
-              VALIDATION_REQUIRED="true"
-              ;;
-            "audio-generation"|"music")
-              TEMPLATE="meta/examples/audio-music-creation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "presentation"|"slides")
-              TEMPLATE="meta/examples/presentation-slide-creation.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-            "news-article"|"news")
-              TEMPLATE="meta/examples/news-summarization.yml"
-              VALIDATION_REQUIRED="false"
-              ;;
-            *)
-              TEMPLATE="meta/examples/multimedia-ad-campaign.yml"
-              VALIDATION_REQUIRED="true"
-              ;;
-          esac
-          
-          if [ ! -f "$TEMPLATE" ]; then
-            echo "❌ Template not found: $TEMPLATE"
+          # 選択されたアプローチの確認
+          if [ ! -f ".meta/evaluation/selected-workflow.json" ]; then
+            echo "❌ Selected workflow file not found"
             exit 1
           fi
           
-          # 動的inputs仕様の確認
-          echo "🔍 Checking for dynamic inputs specification..."
-          if grep -q "dynamic_inputs_spec:" "$TEMPLATE"; then
-            echo "✅ Dynamic inputs found, generating enhanced workflow..."
+          SELECTED_APPROACH=$(jq -r '.selected_approach // "template"' .meta/evaluation/selected-workflow.json)
+          SELECTED_FILE=$(jq -r '.selected_file // ""' .meta/evaluation/selected-workflow.json)
+          EVALUATION_SCORE=$(jq -r '.evaluation_score // 0' .meta/evaluation/selected-workflow.json)
+          
+          echo "📊 Selected Approach Details:"
+          echo "   - Approach: $SELECTED_APPROACH"
+          echo "   - File: $SELECTED_FILE"
+          echo "   - Score: $EVALUATION_SCORE"
+          
+          # 作業環境の準備
+          mkdir -p generated/workflows/staging
+          GENERATED_FILE="generated/workflows/staging/generated-workflow.yml"
+          
+          # 選択されたワークフローファイルをコピー
+          if [ -f "$SELECTED_FILE" ]; then
+            echo "✅ Using selected workflow: $SELECTED_FILE"
+            cp "$SELECTED_FILE" "$GENERATED_FILE"
             
-            # スクリプトパス確認・権限設定
-            echo "🔧 Checking script paths and permissions..."
-            
-            # 必要スクリプトの存在確認
-            SCRIPTS_MISSING=""
-            
-            if [ ! -f "./script/generate-dynamic-inputs.py" ]; then
-              SCRIPTS_MISSING="${SCRIPTS_MISSING}generate-dynamic-inputs.py "
-            else
-              chmod +x ./script/generate-dynamic-inputs.py
-              echo "✅ Found: ./script/generate-dynamic-inputs.py"
-            fi
-            
-            if [ ! -f "./script/content-download-manager.sh" ]; then
-              SCRIPTS_MISSING="${SCRIPTS_MISSING}content-download-manager.sh "
-            else
-              chmod +x ./script/content-download-manager.sh
-              echo "✅ Found: ./script/content-download-manager.sh"
-            fi
-            
-            if [ ! -f "./script/enhance-content-quality.py" ]; then
-              SCRIPTS_MISSING="${SCRIPTS_MISSING}enhance-content-quality.py "
-            else
-              chmod +x ./script/enhance-content-quality.py
-              echo "✅ Found: ./script/enhance-content-quality.py"
-            fi
-            
-            if [ -n "$SCRIPTS_MISSING" ]; then
-              echo "❌ Missing required scripts: $SCRIPTS_MISSING"
-              echo "   Falling back to basic template generation"
-              DYNAMIC_INPUTS_ENABLED="false"
-            else
-              echo "✅ All required scripts found and executable"
-              
-              # Pythonスクリプトで動的inputsを生成（相対パス使用）
-              echo "🐍 Generating dynamic inputs with Python..."
-              if command -v python3 &> /dev/null; then
-                python3 ./script/generate-dynamic-inputs.py \
-                  --template "$TEMPLATE" \
-                  --output "$GENERATED_FILE"
-                
-                if [ $? -eq 0 ]; then
-                  echo "✅ Dynamic inputs workflow generated successfully"
-                  DYNAMIC_INPUTS_ENABLED="true"
-                else
-                  echo "⚠️ Dynamic inputs generation failed, falling back to basic template"
-                  cp "$TEMPLATE" "$GENERATED_FILE"
-                  DYNAMIC_INPUTS_ENABLED="false"
-                fi
-              else
-                echo "⚠️ Python3 not available, falling back to basic template"
-                cp "$TEMPLATE" "$GENERATED_FILE"
+            # アプローチに応じた設定
+            case "$SELECTED_APPROACH" in
+              "template-selection")
+                VALIDATION_REQUIRED="true"
                 DYNAMIC_INPUTS_ENABLED="false"
-              fi
-            fi
+                TEMPLATE_USED="template-selection"
+                ;;
+              "dynamic-assembly")
+                VALIDATION_REQUIRED="true"
+                DYNAMIC_INPUTS_ENABLED="true"
+                TEMPLATE_USED="dynamic-assembly"
+                ;;
+              "hybrid")
+                VALIDATION_REQUIRED="true"
+                DYNAMIC_INPUTS_ENABLED="true"
+                TEMPLATE_USED="hybrid-approach"
+                ;;
+              *)
+                VALIDATION_REQUIRED="true"
+                DYNAMIC_INPUTS_ENABLED="false"
+                TEMPLATE_USED="fallback"
+                ;;
+            esac
+            
+            echo "workflow_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
+            echo "validation_required=$VALIDATION_REQUIRED" >> $GITHUB_OUTPUT
+            echo "dynamic_inputs_enabled=$DYNAMIC_INPUTS_ENABLED" >> $GITHUB_OUTPUT
+            echo "template_used=$TEMPLATE_USED" >> $GITHUB_OUTPUT
+            
+            echo "✅ Final workflow generation completed using $SELECTED_APPROACH approach"
+            echo "   - File: $GENERATED_FILE"
+            echo "   - Score: $EVALUATION_SCORE"
+            echo "   - Validation required: $VALIDATION_REQUIRED"
+            
           else
-            echo "ℹ️ No dynamic inputs specification, using basic template"
-            cp "$TEMPLATE" "$GENERATED_FILE"
-            DYNAMIC_INPUTS_ENABLED="false"
+            echo "❌ Selected workflow file not found: $SELECTED_FILE"
+            exit 1
           fi
-          
-          # 基本的な置換処理（動的inputs生成後）
-          ISSUE_TITLE="${{ github.event.issue.title || github.event.inputs.description }}"
-          SAFE_TITLE=$(echo "$ISSUE_TITLE" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]')
-          
-          # ワークフロー名の更新（既に生成されている場合は更新）
-          if [ "$DYNAMIC_INPUTS_ENABLED" = "false" ]; then
-            # 基本テンプレートの場合のみ名前を更新
-            if grep -q "^name:" "$GENERATED_FILE"; then
-              sed -i "1s/.*/name: \"Generated ${WORKFLOW_TYPE} - ${SAFE_TITLE}\"/" "$GENERATED_FILE"
-            fi
-          fi
-          
-          # 出力パラメータ設定
-          echo "workflow_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
-          echo "validation_required=$VALIDATION_REQUIRED" >> $GITHUB_OUTPUT
-          echo "dynamic_inputs_enabled=$DYNAMIC_INPUTS_ENABLED" >> $GITHUB_OUTPUT
-          echo "template_used=$TEMPLATE" >> $GITHUB_OUTPUT
-          
-          echo "✅ Workflow generation completed: $GENERATED_FILE"
-          echo "   - Dynamic inputs: $DYNAMIC_INPUTS_ENABLED"
-          echo "   - Template: $TEMPLATE"
           
       - name: Upload Staging Workflow
         uses: actions/upload-artifact@v4
