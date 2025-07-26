@@ -252,7 +252,7 @@ jobs:
           
           ```bash
           mkdir -p .meta/requirement-analysis
-          # JSON構造の例：
+          cat > .meta/requirement-analysis/enhanced-requirements.json << 'EOFJSON'
           {
             "clarity_score": 1-10,
             "workflow_type": "推測されるワークフロータイプ",
@@ -276,9 +276,10 @@ jobs:
               "resource_limit": "リソース制約"
             }
           }
+          EOFJSON
           ```
           
-          重要: 必ず enhanced-requirements.json ファイルを作成してください。
+          重要: 必ず上記のJSONファイルを作成してください。
           EOF
           
           # Claude Code で要求分析実行
@@ -617,109 +618,181 @@ jobs:
           # GitHub Actions形式のワークフローを生成（テンプレートベース）
           echo "🎯 Generating template-based GitHub Actions workflow for $WORKFLOW_TYPE"
           
-          # シンプルな文字列生成でHEREDOC問題を回避
-          if [ "$WORKFLOW_TYPE" = "video-generation" ] || [ "$WORKFLOW_TYPE" = "video-content" ]; then
-            echo 'name: "Template-Based Video Generation Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'on:' >> "$OUTPUT_FILE"
-            echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
-            echo '    inputs:' >> "$OUTPUT_FILE"
-            echo '      video_topic:' >> "$OUTPUT_FILE"
-            echo '        description: "Video content topic"' >> "$OUTPUT_FILE"
-            echo '        required: true' >> "$OUTPUT_FILE"
-            echo '        default: "promotional content"' >> "$OUTPUT_FILE"
-            echo '      video_style:' >> "$OUTPUT_FILE"
-            echo '        description: "Video style preference"' >> "$OUTPUT_FILE"
-            echo '        required: true' >> "$OUTPUT_FILE"
-            echo '        type: choice' >> "$OUTPUT_FILE"
-            echo '        options:' >> "$OUTPUT_FILE"
-            echo '        - cinematic' >> "$OUTPUT_FILE"
-            echo '        - commercial' >> "$OUTPUT_FILE"
-            echo '        - documentary' >> "$OUTPUT_FILE"
-            echo '        - educational' >> "$OUTPUT_FILE"
-            echo '      quality_setting:' >> "$OUTPUT_FILE"
-            echo '        description: "Quality setting"' >> "$OUTPUT_FILE"
-            echo '        required: true' >> "$OUTPUT_FILE"
-            echo '        type: choice' >> "$OUTPUT_FILE"
-            echo '        options:' >> "$OUTPUT_FILE"
-            echo '        - ultra_hd' >> "$OUTPUT_FILE"
-            echo '        - high_def' >> "$OUTPUT_FILE"
-            echo '        - standard' >> "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'permissions:' >> "$OUTPUT_FILE"
-            echo '  contents: write' >> "$OUTPUT_FILE"
-            echo '  issues: read' >> "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'jobs:' >> "$OUTPUT_FILE"
-            echo '  video-generation:' >> "$OUTPUT_FILE"
-            echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
-            echo '    steps:' >> "$OUTPUT_FILE"
-            echo '      - name: Checkout repository' >> "$OUTPUT_FILE"
-            echo '        uses: actions/checkout@v4' >> "$OUTPUT_FILE"
-            echo '      - name: Setup MCP Environment' >> "$OUTPUT_FILE"
-            echo '        run: |' >> "$OUTPUT_FILE"
-            echo '          echo "🎬 Setting up video generation environment..."' >> "$OUTPUT_FILE"
-            echo '          npm install -g @anthropic-ai/claude-code' >> "$OUTPUT_FILE"
-            echo '      - name: Generate Video Content' >> "$OUTPUT_FILE"
-            echo '        env:' >> "$OUTPUT_FILE"
-            echo '          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' >> "$OUTPUT_FILE"
-            echo '        run: |' >> "$OUTPUT_FILE"
-            echo '          echo "🎥 Generating video content: ${{ github.event.inputs.video_topic }}"' >> "$OUTPUT_FILE"
-            echo '          echo "Style: ${{ github.event.inputs.video_style }}"' >> "$OUTPUT_FILE"
-            echo '          echo "Quality: ${{ github.event.inputs.quality_setting }}"' >> "$OUTPUT_FILE"
-            echo '          mkdir -p .generated/video' >> "$OUTPUT_FILE"
-            echo '          echo "Video Topic: ${{ github.event.inputs.video_topic }}" > .generated/video/video-config.txt' >> "$OUTPUT_FILE"
-            echo '          echo "Style: ${{ github.event.inputs.video_style }}" >> .generated/video/video-config.txt' >> "$OUTPUT_FILE"
-            echo '          echo "Quality: ${{ github.event.inputs.quality_setting }}" >> .generated/video/video-config.txt' >> "$OUTPUT_FILE"
-            echo '          echo "Generated at: $(date)" >> .generated/video/video-config.txt' >> "$OUTPUT_FILE"
-            echo '          echo "✅ Video generation completed"' >> "$OUTPUT_FILE"
-            echo '      - name: Upload Video Output' >> "$OUTPUT_FILE"
-            echo '        uses: actions/upload-artifact@v4' >> "$OUTPUT_FILE"
-            echo '        with:' >> "$OUTPUT_FILE"
-            echo '          name: video-generation-output' >> "$OUTPUT_FILE"
-            echo '          path: .generated/video/' >> "$OUTPUT_FILE"
-            echo '          retention-days: 7' >> "$OUTPUT_FILE"
-          elif [ "$WORKFLOW_TYPE" = "image-generation" ] || [ "$WORKFLOW_TYPE" = "image" ]; then
-            echo 'name: "Template-Based Image Generation Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'on:' >> "$OUTPUT_FILE"
-            echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
-            echo '    inputs:' >> "$OUTPUT_FILE"
-            echo '      image_prompt:' >> "$OUTPUT_FILE"
-            echo '        description: "Image generation prompt"' >> "$OUTPUT_FILE"
-            echo '        required: true' >> "$OUTPUT_FILE"
-            echo '        default: "beautiful landscape"' >> "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'permissions:' >> "$OUTPUT_FILE"
-            echo '  contents: write' >> "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'jobs:' >> "$OUTPUT_FILE"
-            echo '  image-generation:' >> "$OUTPUT_FILE"
-            echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
-            echo '    steps:' >> "$OUTPUT_FILE"
-            echo '      - name: Checkout repository' >> "$OUTPUT_FILE"
-            echo '        uses: actions/checkout@v4' >> "$OUTPUT_FILE"
-            echo '      - name: Generate Image' >> "$OUTPUT_FILE"
-            echo '        run: echo "Image generation for ${{ github.event.inputs.image_prompt }}"' >> "$OUTPUT_FILE"
-          else
-            # デフォルトワークフロー
-            echo 'name: "Template-Based General Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'on:' >> "$OUTPUT_FILE"
-            echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'permissions:' >> "$OUTPUT_FILE"
-            echo '  contents: write' >> "$OUTPUT_FILE"
-            echo '' >> "$OUTPUT_FILE"
-            echo 'jobs:' >> "$OUTPUT_FILE"
-            echo '  general-processing:' >> "$OUTPUT_FILE"
-            echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
-            echo '    steps:' >> "$OUTPUT_FILE"
-            echo '      - name: Checkout repository' >> "$OUTPUT_FILE"
-            echo '        uses: actions/checkout@v4' >> "$OUTPUT_FILE"
-            echo '      - name: Process Content' >> "$OUTPUT_FILE"
-            echo '        run: echo "Processing general content"' >> "$OUTPUT_FILE"
-          fi
+          case "$WORKFLOW_TYPE" in
+            "video-generation"|"video-content")
+              cat > "$OUTPUT_FILE" << 'EOF'
+name: "Template-Based Video Generation Workflow (Stepback Optimized)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_topic:
+        description: 'Video content topic'
+        required: true
+        default: 'promotional content'
+      video_style:
+        description: 'Video style preference'
+        required: true
+        type: choice
+        options:
+        - cinematic
+        - commercial
+        - documentary
+        - educational
+      quality_setting:
+        description: 'Quality setting'
+        required: true
+        type: choice
+        options:
+        - ultra_hd
+        - high_def
+        - standard
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  video-generation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup MCP Environment
+        run: |
+          echo "🎬 Setting up video generation environment..."
+          npm install -g @anthropic-ai/claude-code
+          
+      - name: Generate Video Content
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎥 Generating video content: ${{ github.event.inputs.video_topic }}"
+          echo "Style: ${{ github.event.inputs.video_style }}"
+          echo "Quality: ${{ github.event.inputs.quality_setting }}"
+          
+          mkdir -p .generated/video
+          
+          # Video generation workflow
+          echo "Video Topic: ${{ github.event.inputs.video_topic }}" > .generated/video/video-config.txt
+          echo "Style: ${{ github.event.inputs.video_style }}" >> .generated/video/video-config.txt
+          echo "Quality: ${{ github.event.inputs.quality_setting }}" >> .generated/video/video-config.txt
+          echo "Generated at: $(date)" >> .generated/video/video-config.txt
+          
+          echo "✅ Video generation completed"
+          
+      - name: Upload Video Output
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-generation-output
+          path: .generated/video/
+          retention-days: 7
+EOF
+              ;;
+            "image-generation"|"image")
+              cat > "$OUTPUT_FILE" << 'EOF'
+name: "Template-Based Image Generation Workflow (Stepback Optimized)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_prompt:
+        description: 'Image description or prompt'
+        required: true
+        default: 'professional image'
+      image_style:
+        description: 'Image style'
+        required: true
+        type: choice
+        options:
+        - photorealistic
+        - artistic
+        - commercial
+        - abstract
+      resolution:
+        description: 'Image resolution'
+        required: true
+        type: choice
+        options:
+        - '1920x1080'
+        - '1280x720'
+        - '3840x2160'
+
+permissions:
+  contents: write
+
+jobs:
+  image-generation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Generate Image Content
+        run: |
+          echo "🎨 Generating image: ${{ github.event.inputs.image_prompt }}"
+          echo "Style: ${{ github.event.inputs.image_style }}"
+          echo "Resolution: ${{ github.event.inputs.resolution }}"
+          
+          mkdir -p .generated/image
+          echo "Image generated successfully" > .generated/image/result.txt
+          
+      - name: Upload Image Output
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-generation-output
+          path: .generated/image/
+          retention-days: 7
+EOF
+              ;;
+            *)
+              cat > "$OUTPUT_FILE" << 'EOF'
+name: "Template-Based General Workflow (Stepback Optimized)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      content_type:
+        description: 'Content type to generate'
+        required: true
+        default: 'general content'
+      quality_level:
+        description: 'Quality level'
+        required: true
+        type: choice
+        options:
+        - high
+        - medium
+        - standard
+
+permissions:
+  contents: write
+
+jobs:
+  content-generation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Generate Content
+        run: |
+          echo "🔧 Generating content: ${{ github.event.inputs.content_type }}"
+          echo "Quality: ${{ github.event.inputs.quality_level }}"
+          
+          mkdir -p .generated/content
+          echo "Content generated successfully" > .generated/content/result.txt
+          
+      - name: Upload Content Output
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-generation-output
+          path: .generated/content/
+          retention-days: 7
+EOF
+              ;;
+          esac
           
           echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
           echo "✅ Template-based GitHub Actions workflow generated"
@@ -967,21 +1040,23 @@ jobs:
           mkdir -p .outputs/dynamic-workflow/final
           cp -r .outputs/dynamic-workflow/content/* .outputs/dynamic-workflow/final/
           
-          # Generate metadata (using simple echo to avoid HEREDOC issues)
-          echo '{' > .outputs/dynamic-workflow/final/metadata.json
-          echo '  "project_id": "${{ needs.setup-environment.outputs.project_id }}",' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '  "timestamp": "${{ needs.setup-environment.outputs.timestamp }}",' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '  "workflow_type": "dynamic-assembly",' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '  "inputs": {' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '    "content_topic": "${{ inputs.content_topic }}",' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '    "quality_setting": "${{ inputs.quality_setting }}",' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '    "output_format": "${{ inputs.output_format }}"' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '  },' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '  "processing": {' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '    "complexity": "${{ needs.task-analysis.outputs.task_complexity }}",' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '    "strategy": "${{ needs.task-analysis.outputs.processing_strategy }}"' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '  }' >> .outputs/dynamic-workflow/final/metadata.json
-          echo '}' >> .outputs/dynamic-workflow/final/metadata.json
+          # Generate metadata
+          cat > .outputs/dynamic-workflow/final/metadata.json << EOFMETA
+{
+  "project_id": "${{ needs.setup-environment.outputs.project_id }}",
+  "timestamp": "${{ needs.setup-environment.outputs.timestamp }}",
+  "workflow_type": "dynamic-assembly",
+  "inputs": {
+    "content_topic": "${{ inputs.content_topic }}",
+    "quality_setting": "${{ inputs.quality_setting }}",
+    "output_format": "${{ inputs.output_format }}"
+  },
+  "processing": {
+    "complexity": "${{ needs.task-analysis.outputs.task_complexity }}",
+    "strategy": "${{ needs.task-analysis.outputs.processing_strategy }}"
+  }
+}
+EOFMETA
           
           echo "✅ Dynamic workflow output finalized"
           
@@ -991,9 +1066,8 @@ jobs:
           name: dynamic-workflow-final-${{ needs.setup-environment.outputs.project_id }}
           path: .outputs/dynamic-workflow/final/
           retention-days: 30
+EOF
           
-      - name: Complete Dynamic Assembly
-        run: |
           echo "✅ Dynamic GitHub Actions workflow generated"
           echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
           
@@ -1240,9 +1314,8 @@ jobs:
           name: final-package
           path: .final-output/
           retention-days: 30
+EOF
           
-      - name: Complete Hybrid Generation
-        run: |
           echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
           echo "✅ Hybrid workflow generated"
           
@@ -1355,143 +1428,71 @@ jobs:
           # 選択されたワークフローファイルをコピー
           FINAL_WORKFLOW="generated/workflows/selected/best-workflow.yml"
           
-          echo "🔍 Searching for selected workflow file..."
-          echo "Expected path: $SELECTED_FILE"
-          echo "Selected approach: $SELECTED_APPROACH"
-          
-          # 利用可能なファイルを詳細確認
-          echo "📁 Current directory structure:"
-          find . -name "*.yml" -type f | sort
-          
-          # artifactから正しいファイルを検索
+          # 複数の可能なファイルパスをチェック
           FOUND_FILE=""
           
-          # Step 1: 期待されるパスを確認
+          # パターン1: 期待されるパス
           if [ -f "$SELECTED_FILE" ]; then
             FOUND_FILE="$SELECTED_FILE"
-            echo "✅ Found at expected path: $FOUND_FILE"
+          # パターン2: アーティファクトの直接的なパス
+          elif [ -f "$(basename "$SELECTED_FILE")" ]; then
+            FOUND_FILE="$(basename "$SELECTED_FILE")"
+          # パターン3: ディレクトリを検索
           else
-            echo "⚠️ Expected path not found: $SELECTED_FILE"
-            
-            # Step 2: GitHub Actions形式のファイルを検索（重要：タスク定義テンプレートを除外）
             case "$SELECTED_APPROACH" in
               "approach-1-template")
-                # approach-1の生成ファイルを検索
-                for search_path in \
-                  "template-based-workflow.yml" \
-                  "approach-1/template-based-workflow.yml" \
-                  "generated/workflows/staging/approach-1/template-based-workflow.yml" \
-                  "./*/template-based-workflow.yml" \
-                  "./approach-1*"; do
-                  
-                  if [ -f "$search_path" ]; then
-                    # GitHub Actions形式かどうかチェック（'on:'と'jobs:'があるか）
-                    if grep -q "^on:" "$search_path" && grep -q "^jobs:" "$search_path"; then
-                      FOUND_FILE="$search_path"
-                      echo "✅ Found GitHub Actions workflow: $FOUND_FILE"
-                      break
-                    else
-                      echo "⚠️ Skipping task template (not GitHub Actions): $search_path"
-                    fi
+                for possible in "template-based-workflow.yml" "approach-1.yml" "*.yml"; do
+                  if [ -f "$possible" ]; then
+                    FOUND_FILE="$possible"
+                    break
                   fi
                 done
                 ;;
               "approach-2-dynamic")
-                # approach-2の生成ファイルを検索
-                for search_path in \
-                  "dynamic-workflow.yml" \
-                  "approach-2/dynamic-workflow.yml" \
-                  "generated/workflows/staging/approach-2/dynamic-workflow.yml" \
-                  "./*/dynamic-workflow.yml" \
-                  "./approach-2*"; do
-                  
-                  if [ -f "$search_path" ]; then
-                    # GitHub Actions形式かどうかチェック
-                    if grep -q "^on:" "$search_path" && grep -q "^jobs:" "$search_path"; then
-                      FOUND_FILE="$search_path"
-                      echo "✅ Found GitHub Actions workflow: $FOUND_FILE"
-                      break
-                    else
-                      echo "⚠️ Skipping task template (not GitHub Actions): $search_path"
-                    fi
+                for possible in "dynamic-workflow.yml" "approach-2.yml" "*.yml"; do
+                  if [ -f "$possible" ]; then
+                    FOUND_FILE="$possible"
+                    break
                   fi
                 done
                 ;;
               "approach-3-hybrid")
-                # approach-3の生成ファイルを検索
-                for search_path in \
-                  "hybrid-workflow.yml" \
-                  "approach-3/hybrid-workflow.yml" \
-                  "generated/workflows/staging/approach-3/hybrid-workflow.yml" \
-                  "./*/hybrid-workflow.yml" \
-                  "./approach-3*"; do
-                  
-                  if [ -f "$search_path" ]; then
-                    # GitHub Actions形式かどうかチェック
-                    if grep -q "^on:" "$search_path" && grep -q "^jobs:" "$search_path"; then
-                      FOUND_FILE="$search_path"
-                      echo "✅ Found GitHub Actions workflow: $FOUND_FILE"
-                      break
-                    else
-                      echo "⚠️ Skipping task template (not GitHub Actions): $search_path"
-                    fi
+                for possible in "hybrid-workflow.yml" "approach-3.yml" "*.yml"; do
+                  if [ -f "$possible" ]; then
+                    FOUND_FILE="$possible"
+                    break
                   fi
                 done
                 ;;
             esac
           fi
           
-          # Step 3: 最後の手段として、GitHub Actions形式のファイルを汎用検索
-          if [ -z "$FOUND_FILE" ]; then
-            echo "🔍 Performing generic search for GitHub Actions workflows..."
-            
-            for yml_file in $(find . -name "*.yml" -type f | grep -v "meta/examples" | head -20); do
-              if [ -f "$yml_file" ] && grep -q "^on:" "$yml_file" && grep -q "^jobs:" "$yml_file"; then
-                echo "🎯 Found GitHub Actions workflow: $yml_file"
-                FOUND_FILE="$yml_file"
-                break
-              fi
-            done
-          fi
-          
-          # ファイルコピーと検証
           if [ -n "$FOUND_FILE" ] && [ -f "$FOUND_FILE" ]; then
             cp "$FOUND_FILE" "$FINAL_WORKFLOW"
             echo "✅ Best workflow copied from: $FOUND_FILE → $FINAL_WORKFLOW"
-            
-            # コピーされたファイルがGitHub Actions形式かどうか最終確認
-            if grep -q "^on:" "$FINAL_WORKFLOW" && grep -q "^jobs:" "$FINAL_WORKFLOW"; then
-              echo "✅ Verified: Selected file is proper GitHub Actions workflow"
-            else
-              echo "❌ WARNING: Selected file may not be GitHub Actions format"
-              echo "First 10 lines of selected file:"
-              head -10 "$FINAL_WORKFLOW"
-            fi
           else
-            echo "❌ No suitable GitHub Actions workflow file found"
-            echo "🔍 Available YAML files:"
-            find . -name "*.yml" -type f | head -20
-            echo "📋 Files with 'on:' field:"
-            grep -l "^on:" $(find . -name "*.yml" -type f) 2>/dev/null || echo "None found"
-            echo "📋 Files with 'jobs:' field:"
-            grep -l "^jobs:" $(find . -name "*.yml" -type f) 2>/dev/null || echo "None found"
+            echo "❌ Selected workflow file not found"
+            echo "🔍 Available files:"
+            find . -name "*.yml" -type f | head -10
             exit 1
           fi
           
-          # 評価結果の保存（echo版でYAML安全）
+          # 評価結果の保存
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          echo '{' > .meta/evaluation/selected-workflow.json
-          echo "  \"selected_approach\": \"$SELECTED_APPROACH\"," >> .meta/evaluation/selected-workflow.json
-          echo "  \"selected_file\": \"$FINAL_WORKFLOW\"," >> .meta/evaluation/selected-workflow.json
-          echo "  \"evaluation_score\": $BEST_SCORE," >> .meta/evaluation/selected-workflow.json
-          echo "  \"comparison\": {" >> .meta/evaluation/selected-workflow.json
-          echo "    \"approach_1\": {\"name\": \"$APPROACH_1\", \"score\": $SCORE_1}," >> .meta/evaluation/selected-workflow.json
-          echo "    \"approach_2\": {\"name\": \"$APPROACH_2\", \"score\": $SCORE_2}," >> .meta/evaluation/selected-workflow.json
-          echo "    \"approach_3\": {\"name\": \"$APPROACH_3\", \"score\": $SCORE_3}" >> .meta/evaluation/selected-workflow.json
-          echo "  }," >> .meta/evaluation/selected-workflow.json
-          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> .meta/evaluation/selected-workflow.json
-          echo "  \"issue_number\": $ISSUE_NUMBER" >> .meta/evaluation/selected-workflow.json
-          echo '}' >> .meta/evaluation/selected-workflow.json
+          cat > .meta/evaluation/selected-workflow.json << EOF
+          {
+            "selected_approach": "$SELECTED_APPROACH",
+            "selected_file": "$FINAL_WORKFLOW",
+            "evaluation_score": $BEST_SCORE,
+            "comparison": {
+              "approach_1": {"name": "$APPROACH_1", "score": $SCORE_1},
+              "approach_2": {"name": "$APPROACH_2", "score": $SCORE_2},
+              "approach_3": {"name": "$APPROACH_3", "score": $SCORE_3}
+            },
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "issue_number": $ISSUE_NUMBER
+          }
+          EOF
           
           echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
           echo "selected_workflow_path=$FINAL_WORKFLOW" >> $GITHUB_OUTPUT
