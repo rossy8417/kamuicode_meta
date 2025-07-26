@@ -821,9 +821,13 @@ jobs:
           
           # 動的ワークフロー組み立てスクリプトを実行
           if [ -f "script/dynamic-workflow-assembler.py" ]; then
-            echo "🐍 Running dynamic workflow assembler..."
+            echo "🐍 Running enhanced dynamic workflow assembler..."
             
-            # 要求を動的ワークフローシステムに適用
+            # ステップバック分析結果を環境変数として渡す
+            export ENHANCED_CONTEXT_FILE=".meta/clarification/stepback-analysis.json"
+            export WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
+            
+            # 要求を動的ワークフローシステムに適用（強化コンテクスト付き）
             python3 script/dynamic-workflow-assembler.py > assembly_log.txt 2>&1
             
             if [ $? -eq 0 ]; then

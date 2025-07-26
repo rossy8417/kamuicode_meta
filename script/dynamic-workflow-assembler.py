@@ -456,30 +456,70 @@ class DynamicWorkflowAssembler:
         return ordered_stages
 
 def main():
-    """メイン実行関数"""
+    """メイン実行関数（環境変数からコンテクストを読み込み）"""
+    import os
+    import json
+    
     assembler = DynamicWorkflowAssembler()
     
-    # テスト要求
-    test_requirements = [
-        "テキストから画像生成",
-        "画像から動画生成", 
-        "テキストから音楽生成",
-        "動画から音声抽出"
-    ]
+    # 環境変数から強化コンテクストを読み込み
+    enhanced_context_file = os.getenv('ENHANCED_CONTEXT_FILE')
+    workflow_type = os.getenv('WORKFLOW_TYPE', 'custom')
     
-    print("🚀 Creating dynamic multimedia workflow...")
-    workflow = assembler.create_workflow_from_requirements(
-        requirements=test_requirements,
-        workflow_name="dynamic-multimedia-generation",
-        description="Dynamically assembled multimedia generation workflow"
+    enhanced_context = {}
+    if enhanced_context_file and os.path.exists(enhanced_context_file):
+        try:
+            with open(enhanced_context_file, 'r', encoding='utf-8') as f:
+                enhanced_context = json.load(f)
+            print(f"✅ Loaded enhanced context from {enhanced_context_file}")
+            print(f"📊 Clarity Score: {enhanced_context.get('clarity_score', 'N/A')}/10")
+        except Exception as e:
+            print(f"⚠️ Failed to load enhanced context: {e}")
+    
+    # ワークフロータイプに基づく要求設定
+    if workflow_type == "custom":
+        # デフォルト要求（テスト用）
+        requirements = [
+            "テキストから画像生成",
+            "画像から動画生成", 
+            "テキストから音楽生成",
+            "動画から音声抽出"
+        ]
+    else:
+        # ワークフロータイプ別の要求マッピング
+        type_mapping = {
+            "image-generation": ["テキストから画像生成", "画像品質向上"],
+            "video-generation": ["テキストから画像生成", "画像から動画生成"],
+            "audio-generation": ["テキストから音楽生成", "音声品質向上"],
+            "news-article": ["ニュース分析", "記事生成"],
+            "news-video": ["ニュース分析", "画像生成", "動画生成"],
+            "social-integration": ["コンテンツ生成", "SNS最適化"]
+        }
+        requirements = type_mapping.get(workflow_type, ["基本ワークフロー生成"])
+    
+    print(f"🚀 Creating dynamic {workflow_type} workflow...")
+    print(f"📋 Requirements: {', '.join(requirements)}")
+    
+    # 強化されたコンテクストでワークフロー生成
+    workflow = assembler.create_workflow_from_requirements_enhanced(
+        requirements=requirements,
+        enhanced_context=enhanced_context,
+        workflow_name=f"dynamic-{workflow_type}-generation",
+        description=f"Dynamically assembled {workflow_type} workflow with enhanced context"
     )
     
     # ステージング環境に保存
-    output_path = "generated/workflows/staging/dynamic-multimedia-generation.yml"
+    output_path = f"generated/workflows/staging/dynamic-{workflow_type}-generation.yml"
     assembler.save_workflow(workflow, output_path)
     
     print(f"🎯 Generated workflow with {len(workflow['jobs'])} jobs")
     print(f"📁 Saved to: {output_path}")
+    
+    # 使用したノード数を出力（GitHub Actionsで解析用）
+    if 'jobs' in workflow:
+        job_count = len([job for job_name, job in workflow['jobs'].items() 
+                        if not job_name.startswith(('autofix', 'monitor'))])
+        print(f"Selected {job_count} task nodes")
 
 if __name__ == "__main__":
     main()
