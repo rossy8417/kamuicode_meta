@@ -416,16 +416,14 @@ jobs:
           else
             echo "❌ Template not found: $TEMPLATE"
             # フォールバック用の基本ワークフローを作成
-            cat > "$OUTPUT_FILE" << 'EOF'
-name: "Fallback Template Workflow"
-on:
-  workflow_dispatch:
-jobs:
-  fallback:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Fallback workflow - template not found"
-EOF
+            echo 'name: "Fallback Template Workflow"' > "$OUTPUT_FILE"
+            echo 'on:' >> "$OUTPUT_FILE"
+            echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+            echo 'jobs:' >> "$OUTPUT_FILE"
+            echo '  fallback:' >> "$OUTPUT_FILE"
+            echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+            echo '    steps:' >> "$OUTPUT_FILE"
+            echo '      - run: echo "Fallback workflow - template not found"' >> "$OUTPUT_FILE"
             echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
             echo "⚠️ Using fallback workflow"
           fi
@@ -578,16 +576,14 @@ EOF
             else
               echo "❌ Dynamic workflow file not found"
               # フォールバック
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Fallback Dynamic Workflow"
-on:
-  workflow_dispatch:
-jobs:
-  fallback:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Fallback dynamic workflow"
-EOF
+              echo 'name: "Fallback Dynamic Workflow"' > "$OUTPUT_FILE"
+              echo 'on:' >> "$OUTPUT_FILE"
+              echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+              echo 'jobs:' >> "$OUTPUT_FILE"
+              echo '  fallback:' >> "$OUTPUT_FILE"
+              echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+              echo '    steps:' >> "$OUTPUT_FILE"
+              echo '      - run: echo "Fallback dynamic workflow"' >> "$OUTPUT_FILE"
               echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
               echo "task_nodes_used=0" >> $GITHUB_OUTPUT
             fi
@@ -685,16 +681,14 @@ EOF
               cp "meta/examples/multimedia-ad-campaign.yml" "$OUTPUT_FILE"
             else
               # フォールバック
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Hybrid Generated Workflow (Template+Dynamic)"
-on:
-  workflow_dispatch:
-jobs:
-  hybrid:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Hybrid workflow approach"
-EOF
+              echo 'name: "Hybrid Generated Workflow (Template+Dynamic)"' > "$OUTPUT_FILE"
+              echo 'on:' >> "$OUTPUT_FILE"
+              echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+              echo 'jobs:' >> "$OUTPUT_FILE"
+              echo '  hybrid:' >> "$OUTPUT_FILE"
+              echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+              echo '    steps:' >> "$OUTPUT_FILE"
+              echo '      - run: echo "Hybrid workflow approach"' >> "$OUTPUT_FILE"
             fi
             sed -i 's/^name:.*/name: "Hybrid Generated Workflow (Template+Dynamic)"/' "$OUTPUT_FILE"
           else
@@ -719,16 +713,14 @@ EOF
               sed -i 's/^name:.*/name: "Hybrid Optimized Workflow (Stepback Enhanced)"/' "$OUTPUT_FILE"
             else
               # フォールバック
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Hybrid Optimized Workflow (Stepback Enhanced)"
-on:
-  workflow_dispatch:
-jobs:
-  hybrid:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Hybrid optimized workflow"
-EOF
+              echo 'name: "Hybrid Optimized Workflow (Stepback Enhanced)"' > "$OUTPUT_FILE"
+              echo 'on:' >> "$OUTPUT_FILE"
+              echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+              echo 'jobs:' >> "$OUTPUT_FILE"
+              echo '  hybrid:' >> "$OUTPUT_FILE"
+              echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+              echo '    steps:' >> "$OUTPUT_FILE"
+              echo '      - run: echo "Hybrid optimized workflow"' >> "$OUTPUT_FILE"
             fi
           fi
           
@@ -1035,14 +1027,14 @@ EOF
             git config --local user.name "GitHub Action"
             git add "$DEPLOYED_FILE"
             git commit -m "feat: Deploy stepback-optimized workflow ($WORKFLOW_TYPE, $SELECTED_APPROACH)
-
-Generated from Issue #${{ github.event.issue.number }}
-Selected approach: $SELECTED_APPROACH
-Evaluation score: ${{ needs.evaluate-and-select-best.outputs.final_score }}
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>" || echo "No changes to commit"
+            
+            Generated from Issue #${{ github.event.issue.number }}
+            Selected approach: $SELECTED_APPROACH
+            Evaluation score: ${{ needs.evaluate-and-select-best.outputs.final_score }}
+            
+            🤖 Generated with [Claude Code](https://claude.ai/code)
+            
+            Co-Authored-By: Claude <noreply@anthropic.com>" || echo "No changes to commit"
             
             echo "✅ Workflow deployed successfully to production"
             
