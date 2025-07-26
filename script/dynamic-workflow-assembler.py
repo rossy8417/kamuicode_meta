@@ -223,14 +223,24 @@ class DynamicWorkflowAssembler:
                     echo "Job: {job_description}"
                     
                     # MCP サービス使用
-                    if [ -n "{','.join(mcp_services)}" ]; then
-                        echo "Using MCP services: {','.join(mcp_services)}"
-                        claude-code --mcp {mcp_services[0] if mcp_services else 't2i-fal-imagen4-ultra'} \\
-                            --prompt "Generate image: ${{{{ inputs.user_prompt || env.REQUIREMENTS }}}}" \\
-                            --output "outputs/generated_image_${{{{ github.run_number }}}}.png"
+                    MCP_SERVICE="{mcp_services[0] if mcp_services else 't2i-fal-imagen4-ultra'}"
+                    echo "Using MCP service: $MCP_SERVICE"
+                    
+                    # Claude Code + MCP で画像生成
+                    claude --continue "テキストから画像を生成してください: ${{{{ inputs.user_prompt || env.REQUIREMENTS }}}}" \\
+                        --mcp "$MCP_SERVICE" \\
+                        --output-format json > outputs/image_generation_result.json
+                    
+                    # 生成結果から画像パスを抽出
+                    IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' outputs/image_generation_result.json 2>/dev/null)
+                    
+                    if [ "$IMAGE_PATH" != "none" ]; then
+                        echo "✅ Image generated: $IMAGE_PATH"
+                        echo "$IMAGE_PATH" > outputs/generated_image_path.txt
+                        echo "IMAGE_PATH=$IMAGE_PATH" >> $GITHUB_ENV
                     else
-                        echo "No MCP service available, using external API..."
-                        # フォールバック実装
+                        echo "❌ Image generation failed"
+                        exit 1
                     fi
                 '''
             }
@@ -346,45 +356,78 @@ class DynamicWorkflowAssembler:
         
         print(f"✅ Dynamic workflow saved: {output_path}")
     
-    def find_nodes_for_requirements(self, requirements: List[str]) -> List[str]:
-        """要求に基づいて適切なタスクノードを選択"""
+    def find_nodes_for_requirements(self, requirements: List[str], enhanced_context: dict = None) -> List[str]:
+        """要求に基づいて適切なタスクノードを選択（強化されたコンテクスト対応）"""
         selected_nodes = []
         
-        # 要求キーワードマップ（日本語→英語機能）
-        requirement_mapping = {
-            'テキストから画像': 'text_to_image',
-            'テキストから画像生成': 'text_to_image', 
-            '画像生成': 'text_to_image',
-            '画像から動画': 'image_to_video',
-            '画像から動画生成': 'image_to_video',
-            '動画生成': 'image_to_video',
-            'テキストから音楽': 'text_to_music',
-            'テキストから音楽生成': 'text_to_music',
-            '音楽生成': 'text_to_music',
-            'BGM': 'text_to_music',
-            '動画から音声': 'video_to_audio',
-            '動画から音声抽出': 'video_to_audio',
-            '音声抽出': 'video_to_audio',
-            'ナレーション': 'video_to_audio',
-            'セリフ': 'video_to_audio',
-            'SE': 'video_to_audio'
-        }
+        # 強化されたコンテキストを考慮
+        clarity_score = 7
+        fallback_assumptions = []
+        if enhanced_context:
+            clarity_score = enhanced_context.get('clarity_score', 7)
+            fallback_assumptions = enhanced_context.get('fallback_assumptions', [])
+            print(f"📊 Using enhanced context: clarity={clarity_score}/10, assumptions={len(fallback_assumptions)}")
+        
+        # 論理フロー重視の要求分析マッピング
+        requirement_flow_mapping = [
+            # Stage 1: テキスト処理・画像生成
+            (['テキストから画像', '画像生成', 'text.*image', 'テキスト.*画像'], 'text_to_image', 1),
+            
+            # Stage 2: 画像から動画生成  
+            (['画像から動画', '動画生成', 'image.*video', '画像.*動画'], 'image_to_video', 2),
+            
+            # Stage 3: 音楽・オーディオ生成（並行可能）
+            (['テキストから音楽', '音楽生成', 'BGM', 'text.*music', 'テキスト.*音楽'], 'text_to_music', 3),
+            
+            # Stage 4: 動画から音声抽出
+            (['動画から音声', '音声抽出', 'video.*audio', '動画.*音声', 'ナレーション', 'セリフ'], 'video_to_audio', 4)
+        ]
+        
+        # 要求を論理フロー順に分析
+        matched_stages = {}
         
         for requirement in requirements:
             req_lower = requirement.lower()
             
-            # 直接マッピングチェック
-            matched_capability = None
-            for req_key, capability in requirement_mapping.items():
-                if req_key.lower() in req_lower:
-                    matched_capability = capability
-                    break
-            
-            if matched_capability and matched_capability in self.capabilities_index:
-                selected_nodes.extend(self.capabilities_index[matched_capability])
-                print(f"🎯 '{requirement}' → {matched_capability} → {len(self.capabilities_index[matched_capability])} nodes")
+            for keywords, capability, stage in requirement_flow_mapping:
+                for keyword in keywords:
+                    if keyword.lower() in req_lower or (len(keyword.split('.*')) == 2 and 
+                        all(part in req_lower for part in keyword.split('.*'))):
+                        
+                        if stage not in matched_stages:
+                            matched_stages[stage] = []
+                        
+                        if capability in self.capabilities_index:
+                            stage_nodes = self.capabilities_index[capability]
+                            matched_stages[stage].extend(stage_nodes)
+                            print(f"🎯 Stage {stage}: '{requirement}' → {capability} → {len(stage_nodes)} nodes")
+                        break
         
-        # 重複除去と優先度ソート
+        # 論理フロー順（stage順）でノードを選択
+        for stage in sorted(matched_stages.keys()):
+            stage_nodes = list(set(matched_stages[stage]))  # 重複除去
+            
+            # 明確度が低い場合は安全なノードのみ選択
+            if clarity_score < 6:
+                # 複雑度の低いノードを優先
+                stage_nodes = sorted(stage_nodes, key=lambda n: (
+                    self.task_nodes[n]['complexity'],
+                    self.task_nodes[n]['duration_estimate']
+                ))[:3]  # 最大3ノードに制限
+                print(f"⚠️ Low clarity: limiting stage {stage} to {len(stage_nodes)} safe nodes")
+            
+            selected_nodes.extend(stage_nodes)
+        
+        # フォールバック仮定に基づく追加ノード選択
+        if fallback_assumptions and len(selected_nodes) < 5:
+            print("🔧 Applying fallback assumptions for node enhancement...")
+            for assumption in fallback_assumptions:
+                if '標準品質' in assumption and 'text_to_image' in self.capabilities_index:
+                    additional_nodes = self.capabilities_index['text_to_image'][:2]
+                    selected_nodes.extend(additional_nodes)
+                    print(f"🎯 Fallback: Added {len(additional_nodes)} standard quality nodes")
+        
+        # 最終的な重複除去と優先度ソート
         unique_nodes = list(set(selected_nodes))
         sorted_nodes = sorted(unique_nodes, key=lambda n: (
             self.task_nodes[n]['stage'],
@@ -392,6 +435,7 @@ class DynamicWorkflowAssembler:
             self.task_nodes[n]['duration_estimate']
         ))
         
+        print(f"✅ Selected {len(sorted_nodes)} nodes across {len(matched_stages)} stages")
         return sorted_nodes
     
     def generate_dependency_order(self, selected_nodes: List[str]) -> List[List[str]]:

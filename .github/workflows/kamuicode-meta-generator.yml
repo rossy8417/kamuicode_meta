@@ -228,11 +228,181 @@ jobs:
           
           echo "✅ Request analysis completed: Type=$WORKFLOW_TYPE"
           
+      - name: Generate Stepback Questions with Claude Code
+        id: stepback
+        run: |
+          echo "🤖 Generating stepback questions for requirement clarification..."
+          
+          # Claude Code による初期分析とステップバック質問生成
+          mkdir -p .meta/clarification
+          
+          WORKFLOW_TYPE="${{ steps.analyze.outputs.workflow_type }}"
+          REQUEST_FILE="${{ steps.analyze.outputs.request_file }}"
+          
+          # ステップバック質問生成プロンプトの作成
+          cat > .meta/clarification/stepback-prompt.md << 'EOF'
+          # ステップバック質問生成
+          
+          以下のユーザー要求を分析し、より正確で詳細なワークフローを生成するために必要な追加情報を特定してください。
+          
+          ## 分析対象要求
+          EOF
+          
+          cat "$REQUEST_FILE" >> .meta/clarification/stepback-prompt.md
+          
+          cat >> .meta/clarification/stepback-prompt.md << 'EOF'
+          
+          ## 分析指示
+          
+          1. **要求の明確度評価**: この要求の明確度を1-10で評価
+          2. **不足情報の特定**: ワークフロー生成に必要だが不足している情報
+          3. **ステップバック質問生成**: 不足情報を得るための質問を3-5個生成
+          4. **重要度の判定**: 各質問の重要度（high/medium/low）
+          
+          ## 必須出力
+          
+          以下のJSONファイルを必ず作成してください：
+          
+          ```bash
+          mkdir -p .meta/clarification
+          cat > .meta/clarification/stepback-analysis.json << 'EOFJSON'
+          {
+            "needs_clarification": true/false,
+            "clarity_score": 1-10,
+            "confidence_level": "要求理解の信頼度(high/medium/low)",
+            "missing_information": [
+              "不足している情報1",
+              "不足している情報2"
+            ],
+            "stepback_questions": [
+              {
+                "id": "q1",
+                "category": "出力形式・品質",
+                "question": "生成する画像/動画の解像度、品質設定、ファイル形式について具体的な要求はありますか？",
+                "importance": "high",
+                "why_needed": "出力品質の設定に必要"
+              },
+              {
+                "id": "q2", 
+                "category": "処理フロー",
+                "question": "複数のメディアファイルを生成する場合、処理の順序や並列実行の希望はありますか？",
+                "importance": "medium",
+                "why_needed": "ワークフロー実行順序の最適化"
+              }
+            ],
+            "proceed_without_clarification": true/false,
+            "fallback_assumptions": [
+              "仮定1: 標準品質設定を使用",
+              "仮定2: 基本的な処理フローを適用"
+            ]
+          }
+          EOFJSON
+          ```
+          EOF
+          
+          # Claude Code でステップバック分析実行
+          if npm install -g @anthropic-ai/claude-code 2>/dev/null; then
+            echo "✅ Claude Code installed"
+          fi
+          
+          if claude --continue "$(cat .meta/clarification/stepback-prompt.md)" --output-format text 2>/dev/null; then
+            echo "✅ Claude Code stepback analysis completed"
+            
+            if [ -f ".meta/clarification/stepback-analysis.json" ]; then
+              echo "✅ Stepback analysis result created"
+              
+              # 分析結果から重要な情報を抽出
+              if command -v jq &> /dev/null; then
+                NEEDS_CLARIFICATION=$(jq -r '.needs_clarification // false' .meta/clarification/stepback-analysis.json)
+                CLARITY_SCORE=$(jq -r '.clarity_score // 7' .meta/clarification/stepback-analysis.json)
+                PROCEED_WITHOUT=$(jq -r '.proceed_without_clarification // true' .meta/clarification/stepback-analysis.json)
+                QUESTION_COUNT=$(jq '.stepback_questions | length' .meta/clarification/stepback-analysis.json 2>/dev/null || echo "0")
+                
+                echo "📊 Analysis Results:"
+                echo "   - Clarity Score: $CLARITY_SCORE/10"
+                echo "   - Needs Clarification: $NEEDS_CLARIFICATION"
+                echo "   - Can Proceed: $PROCEED_WITHOUT"
+                echo "   - Questions Generated: $QUESTION_COUNT"
+                
+                # 低明確度でもワークフロー生成を継続するかの判定
+                if [ "$CLARITY_SCORE" -lt "6" ] && [ "$NEEDS_CLARIFICATION" = "true" ] && [ "$PROCEED_WITHOUT" = "false" ]; then
+                  echo "⚠️ Low clarity score ($CLARITY_SCORE) - questions may be needed"
+                  
+                  # GitHub Issues コメント用の質問フォーマット生成
+                  if [ "$QUESTION_COUNT" -gt "0" ]; then
+                    cat > .meta/clarification/questions-for-user.md << 'EOF'
+          ## 📋 ワークフロー生成のための詳細確認
+          
+          より正確で最適化されたワークフローを生成するために、以下についてお聞かせください：
+          
+          EOF
+                    
+                    # 質問を整理してユーザーフレンドリーな形式に変換
+                    jq -r '.stepback_questions[] | "### " + .category + " (" + .importance + ")\n\n**" + .question + "**\n\n*なぜ必要？* " + .why_needed + "\n"' .meta/clarification/stepback-analysis.json >> .meta/clarification/questions-for-user.md
+                    
+                    cat >> .meta/clarification/questions-for-user.md << 'EOF'
+          
+          ### 📝 回答方法
+          
+          1. このIssueにコメントで回答していただくか
+          2. Issue内容を編集して詳細を追加してください
+          
+          **回答いただき次第、自動的にワークフロー生成を再開します。**
+          
+          ---
+          
+          ℹ️ *質問に回答いただけない場合も、可能な範囲で推測してワークフローを生成いたします。*
+          
+          🤖 *Generated by Meta Workflow Generator*
+          EOF
+                    
+                    echo "📝 User-friendly questions prepared for potential clarification"
+                  fi
+                else
+                  echo "✅ Sufficient clarity - proceeding with workflow generation"
+                fi
+                
+                echo "stepback_questions_available=$QUESTION_COUNT" >> $GITHUB_OUTPUT
+                echo "clarity_score=$CLARITY_SCORE" >> $GITHUB_OUTPUT
+                echo "needs_clarification=$NEEDS_CLARIFICATION" >> $GITHUB_OUTPUT
+                echo "proceed_without_clarification=$PROCEED_WITHOUT" >> $GITHUB_OUTPUT
+              else
+                echo "⚠️ jq not available - proceeding with basic analysis"
+                echo "stepback_questions_available=0" >> $GITHUB_OUTPUT
+                echo "clarity_score=7" >> $GITHUB_OUTPUT
+                echo "needs_clarification=false" >> $GITHUB_OUTPUT
+                echo "proceed_without_clarification=true" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "⚠️ Claude Code did not create stepback analysis - proceeding without questions"
+              echo "stepback_questions_available=0" >> $GITHUB_OUTPUT
+              echo "clarity_score=6" >> $GITHUB_OUTPUT
+              echo "needs_clarification=false" >> $GITHUB_OUTPUT
+              echo "proceed_without_clarification=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Claude Code stepback analysis failed - proceeding with basic workflow generation"
+            echo "stepback_questions_available=0" >> $GITHUB_OUTPUT
+            echo "clarity_score=5" >> $GITHUB_OUTPUT
+            echo "needs_clarification=false" >> $GITHUB_OUTPUT
+            echo "proceed_without_clarification=true" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "✅ Stepback question generation completed"
+          
       - name: Upload Request Artifact
         uses: actions/upload-artifact@v4
         with:
           name: request-${{ github.run_number }}
           path: .meta/requests/
+          retention-days: 30
+          
+      - name: Upload Clarification Analysis
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clarification-${{ github.run_number }}
+          path: .meta/clarification/
           retention-days: 30
 
   # Step 2: タスク分解（自己修復機能付き）
@@ -253,6 +423,13 @@ jobs:
           name: request-${{ github.run_number }}
           path: .meta/requests/
           
+      - name: Download Clarification Analysis
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: clarification-${{ github.run_number }}
+          path: .meta/clarification/
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -266,12 +443,84 @@ jobs:
           echo "🔧 Setting up Claude Code for direct text generation..."
           # MCPは不要 - Claude Code GitHub Actionsで直接テキスト生成を実行
           
-      - name: Decompose Tasks with Fallback
+      - name: Enhanced Request Analysis with Stepback Integration
+        id: enhance
+        run: |
+          echo "🔍 Enhancing request analysis with stepback information..."
+          
+          mkdir -p .meta/enhanced
+          
+          # 元のリクエストファイルを確認
+          REQUEST_FILE=$(find .meta/requests -name "*.md" | head -1)
+          if [ -z "$REQUEST_FILE" ]; then
+            echo "❌ Request file not found"
+            exit 1
+          fi
+          
+          # ステップバック分析結果を確認
+          STEPBACK_FILE=".meta/clarification/stepback-analysis.json"
+          if [ -f "$STEPBACK_FILE" ]; then
+            echo "✅ Stepback analysis available - integrating insights"
+            
+            # 分析結果から詳細化情報を抽出
+            if command -v jq &> /dev/null; then
+              CLARITY_SCORE=$(jq -r '.clarity_score // 7' "$STEPBACK_FILE")
+              MISSING_INFO=$(jq -r '.missing_information[]?' "$STEPBACK_FILE" | tr '\n' ',' | sed 's/,$//')
+              FALLBACK_ASSUMPTIONS=$(jq -r '.fallback_assumptions[]?' "$STEPBACK_FILE" | tr '\n' ',' | sed 's/,$//')
+              
+              echo "📊 Clarity Score: $CLARITY_SCORE/10"
+              echo "⚠️ Missing Information: $MISSING_INFO"
+              echo "🔧 Fallback Assumptions: $FALLBACK_ASSUMPTIONS"
+              
+              # 拡張リクエストファイルを作成
+              cat > .meta/enhanced/enhanced-request.md << EOF
+          # Enhanced Request Analysis
+          
+          ## Original Request
+          EOF
+              cat "$REQUEST_FILE" >> .meta/enhanced/enhanced-request.md
+              
+              cat >> .meta/enhanced/enhanced-request.md << EOF
+          
+          ## Analysis Enhancement
+          
+          **Clarity Score:** $CLARITY_SCORE/10
+          
+          **Identified Missing Information:**
+          $MISSING_INFO
+          
+          **Fallback Assumptions Applied:**
+          $FALLBACK_ASSUMPTIONS
+          
+          **Enhancement Note:** 
+          Based on stepback analysis, the following assumptions will be applied for workflow generation to ensure completeness despite any missing details.
+          
+          ## Processing Instructions
+          
+          - Use standard quality settings where specific requirements are not provided
+          - Apply logical processing flow: text→image→video→audio extraction
+          - Implement error handling and fallback strategies
+          - Include monitoring and validation steps
+          EOF
+              
+              echo "✅ Enhanced request created with stepback insights"
+            else
+              echo "⚠️ jq not available - using original request"
+              cp "$REQUEST_FILE" .meta/enhanced/enhanced-request.md
+            fi
+          else
+            echo "ℹ️ No stepback analysis available - using original request"
+            cp "$REQUEST_FILE" .meta/enhanced/enhanced-request.md
+          fi
+          
+          echo "enhanced_request_file=.meta/enhanced/enhanced-request.md" >> $GITHUB_OUTPUT
+          
+      - name: Decompose Tasks with Enhanced Context
         id: decompose
         run: |
           set -e
           
-          echo "🔄 Starting task decomposition..."
+          echo "🔄 Starting enhanced task decomposition..."
           
           # プロンプトファイルの確認と代替処理
           PROMPT_FILE="meta/prompts/task-decomposition.md"
@@ -301,11 +550,21 @@ jobs:
           EOF
           fi
           
-          # プロンプトに要求内容を追加
+          # Enhanced request を使用してプロンプトを作成
+          ENHANCED_REQUEST="${{ steps.enhance.outputs.enhanced_request_file }}"
+          
           cat $PROMPT_FILE > .meta/decompose-prompt.md
           echo "" >> .meta/decompose-prompt.md
-          echo "## User Request:" >> .meta/decompose-prompt.md
-          cat ${{ needs.analyze-request.outputs.request_file }} >> .meta/decompose-prompt.md
+          echo "## Enhanced User Request with Analysis Context:" >> .meta/decompose-prompt.md
+          cat "$ENHANCED_REQUEST" >> .meta/decompose-prompt.md
+          
+          echo "" >> .meta/decompose-prompt.md
+          echo "## Task Decomposition Instructions:" >> .meta/decompose-prompt.md
+          echo "Based on the enhanced analysis above, please create a detailed task decomposition that:" >> .meta/decompose-prompt.md
+          echo "1. Addresses any missing information with reasonable assumptions" >> .meta/decompose-prompt.md
+          echo "2. Follows logical processing flow (text→image→video→audio if applicable)" >> .meta/decompose-prompt.md
+          echo "3. Includes error handling and validation steps" >> .meta/decompose-prompt.md
+          echo "4. Accounts for the clarity score and applies fallback strategies as needed" >> .meta/decompose-prompt.md
           
           # Claude Code タスク分解の実行（ファイル保存指示付き）
           echo "🔄 Executing Claude Code task decomposition with file save instruction..."
@@ -607,35 +866,87 @@ jobs:
           WORKFLOW_FILE="${{ steps.generate.outputs.workflow_path }}"
           SCORE=0
           
-          # 評価基準
-          # 1. YAML構文有効性 (25点)
+          # 評価基準（改良版：論理フローと実行可能性重視）
+          # 1. YAML構文有効性 (15点)
           if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null; then
-            SCORE=$((SCORE + 25))
-            echo "✅ YAML syntax: 25/25"
+            SCORE=$((SCORE + 15))
+            echo "✅ YAML syntax: 15/15"
           fi
           
-          # 2. GitHub Actions構造 (25点)
+          # 2. GitHub Actions構造 (15点)
           if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
-            SCORE=$((SCORE + 25))
-            echo "✅ GitHub Actions structure: 25/25"
+            SCORE=$((SCORE + 15))
+            echo "✅ GitHub Actions structure: 15/15"
           fi
           
-          # 3. タスクノード活用度 (30点)
-          TASK_NODES="${{ steps.generate.outputs.task_nodes_used }}"
-          if [ "$TASK_NODES" -gt "20" ]; then
-            SCORE=$((SCORE + 30))
-            echo "✅ Task node utilization: 30/30 ($TASK_NODES nodes)"
-          elif [ "$TASK_NODES" -gt "10" ]; then
-            SCORE=$((SCORE + 20))
-            echo "✅ Task node utilization: 20/30 ($TASK_NODES nodes)"
+          # 3. タスク論理フロー・依存関係 (35点)
+          USER_REQUEST="${{ needs.analyze-request.outputs.workflow_type }}"
+          TASK_FLOW_SCORE=0
+          
+          # テキスト→画像→動画→音楽→音声抽出の論理順序をチェック
+          if grep -q "text.*image" "$WORKFLOW_FILE" || grep -q "テキスト.*画像" "$WORKFLOW_FILE"; then
+            TASK_FLOW_SCORE=$((TASK_FLOW_SCORE + 8))
+            echo "✅ Text-to-Image flow detected: 8/8"
+          fi
+          
+          if grep -q "image.*video" "$WORKFLOW_FILE" || grep -q "画像.*動画" "$WORKFLOW_FILE"; then
+            TASK_FLOW_SCORE=$((TASK_FLOW_SCORE + 8))
+            echo "✅ Image-to-Video flow detected: 8/8"
+          fi
+          
+          if grep -q "music\|audio" "$WORKFLOW_FILE" || grep -q "音楽\|音声" "$WORKFLOW_FILE"; then
+            TASK_FLOW_SCORE=$((TASK_FLOW_SCORE + 8))
+            echo "✅ Audio/Music generation detected: 8/8"
+          fi
+          
+          if grep -q "video.*audio" "$WORKFLOW_FILE" || grep -q "動画.*音声" "$WORKFLOW_FILE"; then
+            TASK_FLOW_SCORE=$((TASK_FLOW_SCORE + 6))
+            echo "✅ Video-to-Audio extraction detected: 6/6"
+          fi
+          
+          # 依存関係の論理性チェック（stage順序など）
+          if grep -q "stage_1\|stage_2\|stage_3" "$WORKFLOW_FILE"; then
+            TASK_FLOW_SCORE=$((TASK_FLOW_SCORE + 5))
+            echo "✅ Multi-stage workflow detected: 5/5"
+          fi
+          
+          SCORE=$((SCORE + TASK_FLOW_SCORE))
+          echo "🔗 Task logical flow: $TASK_FLOW_SCORE/35"
+          
+          # 4. 実行可能性・MCP統合 (25点)
+          MCP_INTEGRATION_SCORE=0
+          
+          # MCP呼び出し実装チェック
+          if grep -q "claude.*--mcp\|mcp.*call" "$WORKFLOW_FILE"; then
+            MCP_INTEGRATION_SCORE=$((MCP_INTEGRATION_SCORE + 15))
+            echo "✅ MCP integration implemented: 15/15"
           else
-            SCORE=$((SCORE + 10))
-            echo "⚠️ Task node utilization: 10/30 ($TASK_NODES nodes)"
+            echo "⚠️ No MCP integration found: 0/15"
           fi
           
-          # 4. 革新性 (20点)
-          SCORE=$((SCORE + 18))
-          echo "✅ Innovation: 18/20"
+          # ファイル受け渡し実装チェック
+          if grep -q "upload-artifact\|download-artifact" "$WORKFLOW_FILE"; then
+            MCP_INTEGRATION_SCORE=$((MCP_INTEGRATION_SCORE + 10))
+            echo "✅ File handling implemented: 10/10"
+          else
+            echo "⚠️ No file handling found: 0/10"
+          fi
+          
+          SCORE=$((SCORE + MCP_INTEGRATION_SCORE))
+          echo "⚙️ Execution feasibility: $MCP_INTEGRATION_SCORE/25"
+          
+          # 5. タスクノード活用効率性 (10点)
+          TASK_NODES="${{ steps.generate.outputs.task_nodes_used }}"
+          if [ "$TASK_NODES" -gt "0" ]; then
+            # 31ノードの場合は適切なサイズとして10点
+            if [ "$TASK_NODES" -le "40" ] && [ "$TASK_NODES" -ge "10" ]; then
+              SCORE=$((SCORE + 10))
+              echo "✅ Task node efficiency: 10/10 ($TASK_NODES nodes - optimal)"
+            else
+              SCORE=$((SCORE + 5))
+              echo "⚠️ Task node efficiency: 5/10 ($TASK_NODES nodes - suboptimal)"
+            fi
+          fi
           
           echo "score=$SCORE" >> $GITHUB_OUTPUT
           echo "approach_name=dynamic-assembly" >> $GITHUB_OUTPUT
@@ -913,7 +1224,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN || github.token }}
+          token: ${{ github.token }}
+          persist-credentials: true
         
       - name: Download Selected Best Workflow
         uses: actions/download-artifact@v4
@@ -952,13 +1264,20 @@ jobs:
           
           # 選択されたワークフローファイルの配置
           if [ -f "$SELECTED_FILE" ]; then
-            DEPLOYED_FILE=".github/workflows/generated-$(date +%Y%m%d-%H%M%S).yml"
+            # 本番ワークフローファイル名の生成
+            WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            DEPLOYED_FILE=".github/workflows/generated-${WORKFLOW_TYPE}-${TIMESTAMP}.yml"
             
             echo "✅ Deploying workflow: $SELECTED_FILE → $DEPLOYED_FILE"
+            
+            # .github/workflows/ディレクトリが存在することを確認
+            mkdir -p .github/workflows
             cp "$SELECTED_FILE" "$DEPLOYED_FILE"
             
             # バックアップコピーも作成
-            cp "$SELECTED_FILE" "generated/workflows/validated/final-workflow.yml"
+            mkdir -p generated/workflows/validated
+            cp "$SELECTED_FILE" "generated/workflows/validated/final-workflow-${TIMESTAMP}.yml"
             
             # Git設定とコミット
             git config --local user.email "action@github.com"
