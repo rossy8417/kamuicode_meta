@@ -235,13 +235,14 @@ jobs:
           path: .meta/requests/
           retention-days: 30
 
-  # Step 2: タスク分解（自己修復機能付き）
-  decompose-tasks:
+  # Step 2: 超詳細タスク分解（Claude Code）
+  ultra-detailed-decomposition:
     needs: [self-diagnostic, analyze-request]
     runs-on: ubuntu-latest
     outputs:
-      task_count: ${{ steps.decompose.outputs.task_count }}
+      task_plan: ${{ steps.decompose.outputs.task_plan }}
       complexity: ${{ steps.decompose.outputs.complexity }}
+      task_count: ${{ steps.decompose.outputs.task_count }}
     
     steps:
       - name: Checkout repository
