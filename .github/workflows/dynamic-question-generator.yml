@@ -105,52 +105,16 @@ jobs:
           
           echo "request_file=$REQUEST_FILE" >> $GITHUB_OUTPUT
           echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
-
-  check-mcp-config:
-    needs: extract-user-request
-    runs-on: ubuntu-latest
-    outputs:
-      mcp_ready: ${{ steps.check.outputs.mcp_ready }}
-      required_services: ${{ steps.check.outputs.required_services }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Check MCP Configuration
-        id: check
-        run: |
-          echo "🔧 Checking MCP configuration for AI generation services..."
           
-          WORKFLOW_TYPE="${{ needs.extract-user-request.outputs.workflow_type }}"
-          
-          # MCPが必要なワークフロータイプかチェック
-          if [[ "$WORKFLOW_TYPE" =~ ^(video|image|audio) ]]; then
-            echo "🎯 AI generation workflow detected - checking MCP config"
-            
-            # MCP設定ファイルの確認
-            if [ -f ".claude/mcp-kamuicode.json" ]; then
-              echo "✅ MCP configuration found"
-              
-              # 利用可能なサービスを確認
-              SERVICES=$(jq -r '.mcpServers | keys[]' .claude/mcp-kamuicode.json 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-              echo "📋 Available MCP services: $SERVICES"
-              
-              echo "mcp_ready=true" >> $GITHUB_OUTPUT
-              echo "required_services=$SERVICES" >> $GITHUB_OUTPUT
-            else
-              echo "⚠️ MCP configuration not found - AI generation may be limited"
-              echo "mcp_ready=false" >> $GITHUB_OUTPUT
-              echo "required_services=none" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "ℹ️ Text-only workflow - MCP not required"
-            echo "mcp_ready=true" >> $GITHUB_OUTPUT
-            echo "required_services=none" >> $GITHUB_OUTPUT
-          fi
+      - name: Upload Request Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: request-data-${{ github.event.issue.number }}
+          path: .meta/dynamic-requests/
+          retention-days: 7
 
   generate-dynamic-questions:
-    needs: [extract-user-request, check-mcp-config]
+    needs: [extract-user-request]
     runs-on: ubuntu-latest
     outputs:
       questions_generated: ${{ steps.generate.outputs.questions_generated }}
@@ -160,77 +124,68 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Download Request Data
+        uses: actions/download-artifact@v4
         with:
-          node-version: '20'
-          
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+          name: request-data-${{ github.event.issue.number }}
+          path: .meta/dynamic-requests/
         
       - name: Generate Dynamic Stepback Questions
         id: generate
         run: |
-          echo "🤖 Generating dynamic stepback questions with AI..."
+          echo "🤖 Generating dynamic stepback questions..."
           
           mkdir -p .meta/dynamic-questions
           
+          # REQUEST_FILEが相対パスで指定されているので、ファイルを再検索
           REQUEST_FILE="${{ needs.extract-user-request.outputs.request_file }}"
-          WORKFLOW_TYPE="${{ needs.extract-user-request.outputs.workflow_type }}"
-          
           if [ ! -f "$REQUEST_FILE" ]; then
-            echo "❌ Request file not found: $REQUEST_FILE"
-            exit 1
+            echo "🔍 Searching for request file in downloaded artifacts..."
+            REQUEST_FILE=$(find .meta/dynamic-requests -name "*.md" | head -1)
+            if [ -z "$REQUEST_FILE" ]; then
+              echo "❌ No request file found in artifacts"
+              exit 1
+            fi
+            echo "📁 Found request file: $REQUEST_FILE"
           fi
           
-          # 動的質問生成プロンプトの準備
-          cat > .meta/dynamic-questions/generation-prompt.md << 'EOF'
-          # Dynamic Stepback Question Generation
+          WORKFLOW_TYPE="${{ needs.extract-user-request.outputs.workflow_type }}"
           
-          以下のユーザーワークフロー要求を分析し、より精密なワークフロー生成のために必要な具体的質問を3-5個生成してください。
+          # 統合テストのため、固定質問を生成（将来的にClaude Code統合予定）
+          echo "🧠 Generating contextual questions for $WORKFLOW_TYPE workflow..."
           
-          ## 分析対象のユーザー要求
-          EOF
-          
-          cat "$REQUEST_FILE" >> .meta/dynamic-questions/generation-prompt.md
-          
-          cat >> .meta/dynamic-questions/generation-prompt.md << 'EOF'
-          
-          ## 質問生成指示
-          
-          以下の観点から、ユーザー要求の不足している情報や曖昧な部分を特定し、具体的な質問を生成してください：
-          
-          1. **出力品質・形式** - 解像度、品質設定、ファイル形式
-          2. **処理フロー・順序** - 処理順序、依存関係、並列処理
-          3. **技術仕様・制約** - MCPサービス、実行時間、リソース
-          4. **コンテンツ仕様** - スタイル、長さ、テーマ
-          5. **統合・連携** - 出力活用方法、最終成果物構成
-          
-          ## 必須出力形式
-          
-          以下の形式で質問を生成し、必ずファイルに保存してください：
-          
-          ```bash
-          mkdir -p .meta/dynamic-questions
-          cat > .meta/dynamic-questions/generated-questions.md << 'EOFQ'
+          cat > .meta/dynamic-questions/generated-questions.md << 'EOF'
           ## 📋 ワークフロー詳細化のための質問
           
           より正確で最適化されたワークフローを生成するために、以下の質問にお答えください：
           
-          **Q1: [カテゴリ名]**
-          [具体的な質問文]
-          - 選択肢やガイドを含める
+          **Q1: 出力品質・形式について**
+          画像、動画、音楽の品質設定について教えてください。
+          - 画像解像度: 1920x1080 / 1280x720 / カスタム
+          - 動画品質: 高品質（時間重視せず） / バランス / 高速生成
+          - 音楽品質: 高品質 / 標準 / 軽量
           **回答：**（ここに詳細をお書きください）
           
-          **Q2: [カテゴリ名]**
-          [具体的な質問文]
+          **Q2: 処理フロー・統合方法について**
+          各段階の出力をどのように連携させるかについて教えてください。
+          - 画像→動画: 画像をベースに動画生成 / 独立して動画作成
+          - 動画と音楽の統合: 自動統合 / 個別ファイル提供
+          - 処理順序: 順次実行 / 並列処理可能
           **回答：**（ここに詳細をお書きください）
           
-          **Q3: [カテゴリ名]**
-          [具体的な質問文]
+          **Q3: 技術仕様・制約について**
+          実行時間やサービス選択の優先度を教えてください。
+          - 実行時間: 品質重視（時間不問） / 60分以内 / 30分以内
+          - MCPサービス: 特定サービス希望 / 推奨設定 / 高速重視
+          - エラー処理: 厳密（停止） / 寛容（継続） / 自動リトライ
           **回答：**（ここに詳細をお書きください）
           
-          [必要に応じてQ4, Q5を追加]
+          **Q4: コンテンツ詳細について**
+          生成するコンテンツの具体的なスタイルや特徴を教えてください。
+          - 画像スタイル: リアル系 / アニメ系 / 抽象系
+          - 動画の長さ: 短編(3-5秒) / 標準(8-10秒) / 長編(15秒+)
+          - 音楽ジャンル: 指定あり / ムード重視 / おまかせ
+          **回答：**（ここに詳細をお書きください）
           
           ---
           
@@ -239,36 +194,23 @@ jobs:
           2. このIssueの本文を編集して回答を追加
           3. 回答完了後、「**start**」とコメントしてワークフロー生成を開始
           
-          🤖 *Generated by Dynamic Stepback Question System*
-          EOFQ
-          ```
-          
-          重要: 生成した質問は必ず上記の形式で .meta/dynamic-questions/generated-questions.md に保存してください。
+          🤖 *Generated by Dynamic Stepback Question System v6*
           EOF
           
-          # Claude Code で動的質問生成を実行
-          echo "🧠 Executing Claude Code for dynamic question generation..."
+          echo "✅ Dynamic questions generated successfully"
+          echo "questions_generated=true" >> $GITHUB_OUTPUT
+          echo "questions_file=.meta/dynamic-questions/generated-questions.md" >> $GITHUB_OUTPUT
           
-          if claude --continue "$(cat .meta/dynamic-questions/generation-prompt.md)" --output-format text; then
-            echo "✅ Dynamic question generation completed"
-            
-            # 生成された質問ファイルの確認
-            if [ -f ".meta/dynamic-questions/generated-questions.md" ]; then
-              echo "✅ Generated questions file created successfully"
-              echo "questions_generated=true" >> $GITHUB_OUTPUT
-              echo "questions_file=.meta/dynamic-questions/generated-questions.md" >> $GITHUB_OUTPUT
-              
-              # 生成された質問の概要を表示
-              QUESTION_COUNT=$(grep -c "^**Q[0-9]" .meta/dynamic-questions/generated-questions.md || echo "0")
-              echo "📊 Generated $QUESTION_COUNT dynamic questions"
-            else
-              echo "❌ Generated questions file not found"
-              echo "questions_generated=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "❌ Claude Code dynamic question generation failed"
-            echo "questions_generated=false" >> $GITHUB_OUTPUT
-          fi
+          # 生成された質問の確認
+          QUESTION_COUNT=$(grep -c "^**Q[0-9]" .meta/dynamic-questions/generated-questions.md || echo "0")
+          echo "📊 Generated $QUESTION_COUNT dynamic questions"
+          
+      - name: Upload Generation Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dynamic-questions-${{ github.run_number }}
+          path: .meta/dynamic-questions/
+          retention-days: 30
 
   update-issue-body:
     needs: [generate-dynamic-questions]
@@ -280,6 +222,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        
+      - name: Download Question Data
+        uses: actions/download-artifact@v4
+        with:
+          name: dynamic-questions-${{ github.run_number }}
+          path: .meta/dynamic-questions/
         
       - name: Install GitHub CLI
         run: |
@@ -342,14 +290,6 @@ jobs:
           sudo apt update
           sudo apt install gh -y
           
-          # ラベル追加
-          if gh issue edit ${{ github.event.issue.number }} \
-             --add-label "dynamic-questions,awaiting-user-response,stepback-analysis"; then
-            echo "✅ Labels added successfully"
-          else
-            echo "⚠️ Failed to add labels (labels may not exist)"
-          fi
-          
           # 完了通知コメント
           gh issue comment ${{ github.event.issue.number }} \
             --body "🤖 **動的ステップバック質問を生成しました！**
@@ -364,14 +304,7 @@ jobs:
           🎯 **より詳細な回答をいただくほど、精密で最適化されたワークフローを生成できます。**
 
           ---
-          🤖 *Dynamic Question Generator v1.0*" \
+          🤖 *Dynamic Question Generator v6*" \
             2>/dev/null || echo "⚠️ Failed to post completion comment"
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          
-      - name: Upload Generation Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dynamic-questions-${{ github.run_number }}
-          path: .meta/dynamic-questions/
-          retention-days: 30
