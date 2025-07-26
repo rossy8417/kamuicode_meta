@@ -1023,30 +1023,72 @@ jobs:
           if [ "$SCORE_1" -gt "$BEST_SCORE" ]; then
             BEST_SCORE=$SCORE_1
             SELECTED_APPROACH="approach-1-template"
-            SELECTED_FILE="approach-1/template-based-workflow.yml"
+            SELECTED_FILE="generated/workflows/staging/approach-1/template-based-workflow.yml"
           fi
           
           if [ "$SCORE_2" -gt "$BEST_SCORE" ]; then
             BEST_SCORE=$SCORE_2
             SELECTED_APPROACH="approach-2-dynamic"
-            SELECTED_FILE="approach-2/dynamic-workflow.yml"
+            SELECTED_FILE="generated/workflows/staging/approach-2/dynamic-workflow.yml"
           fi
           
           if [ "$SCORE_3" -gt "$BEST_SCORE" ]; then
             BEST_SCORE=$SCORE_3
             SELECTED_APPROACH="approach-3-hybrid"
-            SELECTED_FILE="approach-3/hybrid-workflow.yml"
+            SELECTED_FILE="generated/workflows/staging/approach-3/hybrid-workflow.yml"
           fi
           
           echo "🎯 Selected Best Approach: $SELECTED_APPROACH (Score: $BEST_SCORE)"
           
           # 選択されたワークフローファイルをコピー
           FINAL_WORKFLOW="generated/workflows/selected/best-workflow.yml"
+          
+          # 複数の可能なファイルパスをチェック
+          FOUND_FILE=""
+          
+          # パターン1: 期待されるパス
           if [ -f "$SELECTED_FILE" ]; then
-            cp "$SELECTED_FILE" "$FINAL_WORKFLOW"
-            echo "✅ Best workflow copied to: $FINAL_WORKFLOW"
+            FOUND_FILE="$SELECTED_FILE"
+          # パターン2: アーティファクトの直接的なパス
+          elif [ -f "$(basename "$SELECTED_FILE")" ]; then
+            FOUND_FILE="$(basename "$SELECTED_FILE")"
+          # パターン3: ディレクトリを検索
           else
-            echo "❌ Selected workflow file not found: $SELECTED_FILE"
+            case "$SELECTED_APPROACH" in
+              "approach-1-template")
+                for possible in "template-based-workflow.yml" "approach-1.yml" "*.yml"; do
+                  if [ -f "$possible" ]; then
+                    FOUND_FILE="$possible"
+                    break
+                  fi
+                done
+                ;;
+              "approach-2-dynamic")
+                for possible in "dynamic-workflow.yml" "approach-2.yml" "*.yml"; do
+                  if [ -f "$possible" ]; then
+                    FOUND_FILE="$possible"
+                    break
+                  fi
+                done
+                ;;
+              "approach-3-hybrid")
+                for possible in "hybrid-workflow.yml" "approach-3.yml" "*.yml"; do
+                  if [ -f "$possible" ]; then
+                    FOUND_FILE="$possible"
+                    break
+                  fi
+                done
+                ;;
+            esac
+          fi
+          
+          if [ -n "$FOUND_FILE" ] && [ -f "$FOUND_FILE" ]; then
+            cp "$FOUND_FILE" "$FINAL_WORKFLOW"
+            echo "✅ Best workflow copied from: $FOUND_FILE → $FINAL_WORKFLOW"
+          else
+            echo "❌ Selected workflow file not found"
+            echo "🔍 Available files:"
+            find . -name "*.yml" -type f | head -10
             exit 1
           fi
           
