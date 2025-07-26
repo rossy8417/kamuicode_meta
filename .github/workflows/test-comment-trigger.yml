@@ -1,0 +1,34 @@
+name: Test Comment Trigger
+run-name: 🧪 Testing comment trigger for Issue #${{ github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test-trigger:
+    runs-on: ubuntu-latest
+    if: contains(github.event.comment.body, 'test')
+    
+    steps:
+      - name: Test Comment Processing
+        run: |
+          echo "🧪 Comment trigger test successful!"
+          echo "Issue #${{ github.event.issue.number }}"
+          echo "Comment by: ${{ github.event.comment.user.login }}"
+          echo "Comment body: ${{ github.event.comment.body }}"
+          
+      - name: Comment Success
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ Comment trigger test successful! The issue comment workflow is working.'
+            });
