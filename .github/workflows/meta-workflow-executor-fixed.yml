@@ -618,181 +618,109 @@ jobs:
           # GitHub Actions形式のワークフローを生成（テンプレートベース）
           echo "🎯 Generating template-based GitHub Actions workflow for $WORKFLOW_TYPE"
           
-          case "$WORKFLOW_TYPE" in
-            "video-generation"|"video-content")
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Template-Based Video Generation Workflow (Stepback Optimized)"
-
-on:
-  workflow_dispatch:
-    inputs:
-      video_topic:
-        description: 'Video content topic'
-        required: true
-        default: 'promotional content'
-      video_style:
-        description: 'Video style preference'
-        required: true
-        type: choice
-        options:
-        - cinematic
-        - commercial
-        - documentary
-        - educational
-      quality_setting:
-        description: 'Quality setting'
-        required: true
-        type: choice
-        options:
-        - ultra_hd
-        - high_def
-        - standard
-
-permissions:
-  contents: write
-  issues: read
-
-jobs:
-  video-generation:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Setup MCP Environment
-        run: |
-          echo "🎬 Setting up video generation environment..."
-          npm install -g @anthropic-ai/claude-code
-          
-      - name: Generate Video Content
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          echo "🎥 Generating video content: ${{ github.event.inputs.video_topic }}"
-          echo "Style: ${{ github.event.inputs.video_style }}"
-          echo "Quality: ${{ github.event.inputs.quality_setting }}"
-          
-          mkdir -p .generated/video
-          
-          # Video generation workflow
-          echo "Video Topic: ${{ github.event.inputs.video_topic }}" > .generated/video/video-config.txt
-          echo "Style: ${{ github.event.inputs.video_style }}" >> .generated/video/video-config.txt
-          echo "Quality: ${{ github.event.inputs.quality_setting }}" >> .generated/video/video-config.txt
-          echo "Generated at: $(date)" >> .generated/video/video-config.txt
-          
-          echo "✅ Video generation completed"
-          
-      - name: Upload Video Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: video-generation-output
-          path: .generated/video/
-          retention-days: 7
-EOF
-              ;;
-            "image-generation"|"image")
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Template-Based Image Generation Workflow (Stepback Optimized)"
-
-on:
-  workflow_dispatch:
-    inputs:
-      image_prompt:
-        description: 'Image description or prompt'
-        required: true
-        default: 'professional image'
-      image_style:
-        description: 'Image style'
-        required: true
-        type: choice
-        options:
-        - photorealistic
-        - artistic
-        - commercial
-        - abstract
-      resolution:
-        description: 'Image resolution'
-        required: true
-        type: choice
-        options:
-        - '1920x1080'
-        - '1280x720'
-        - '3840x2160'
-
-permissions:
-  contents: write
-
-jobs:
-  image-generation:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Generate Image Content
-        run: |
-          echo "🎨 Generating image: ${{ github.event.inputs.image_prompt }}"
-          echo "Style: ${{ github.event.inputs.image_style }}"
-          echo "Resolution: ${{ github.event.inputs.resolution }}"
-          
-          mkdir -p .generated/image
-          echo "Image generated successfully" > .generated/image/result.txt
-          
-      - name: Upload Image Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: image-generation-output
-          path: .generated/image/
-          retention-days: 7
-EOF
-              ;;
-            *)
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Template-Based General Workflow (Stepback Optimized)"
-
-on:
-  workflow_dispatch:
-    inputs:
-      content_type:
-        description: 'Content type to generate'
-        required: true
-        default: 'general content'
-      quality_level:
-        description: 'Quality level'
-        required: true
-        type: choice
-        options:
-        - high
-        - medium
-        - standard
-
-permissions:
-  contents: write
-
-jobs:
-  content-generation:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Generate Content
-        run: |
-          echo "🔧 Generating content: ${{ github.event.inputs.content_type }}"
-          echo "Quality: ${{ github.event.inputs.quality_level }}"
-          
-          mkdir -p .generated/content
-          echo "Content generated successfully" > .generated/content/result.txt
-          
-      - name: Upload Content Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: content-generation-output
-          path: .generated/content/
-          retention-days: 7
-EOF
-              ;;
-          esac
+          # シンプルな文字列生成でHEREDOC問題を回避
+          if [ "$WORKFLOW_TYPE" = "video-generation" ] || [ "$WORKFLOW_TYPE" = "video-content" ]; then
+            echo 'name: "Template-Based Video Generation Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'on:' >> "$OUTPUT_FILE"
+            echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+            echo '    inputs:' >> "$OUTPUT_FILE"
+            echo '      video_topic:' >> "$OUTPUT_FILE"
+            echo '        description: "Video content topic"' >> "$OUTPUT_FILE"
+            echo '        required: true' >> "$OUTPUT_FILE"
+            echo '        default: "promotional content"' >> "$OUTPUT_FILE"
+            echo '      video_style:' >> "$OUTPUT_FILE"
+            echo '        description: "Video style preference"' >> "$OUTPUT_FILE"
+            echo '        required: true' >> "$OUTPUT_FILE"
+            echo '        type: choice' >> "$OUTPUT_FILE"
+            echo '        options:' >> "$OUTPUT_FILE"
+            echo '        - cinematic' >> "$OUTPUT_FILE"
+            echo '        - commercial' >> "$OUTPUT_FILE"
+            echo '        - documentary' >> "$OUTPUT_FILE"
+            echo '        - educational' >> "$OUTPUT_FILE"
+            echo '      quality_setting:' >> "$OUTPUT_FILE"
+            echo '        description: "Quality setting"' >> "$OUTPUT_FILE"
+            echo '        required: true' >> "$OUTPUT_FILE"
+            echo '        type: choice' >> "$OUTPUT_FILE"
+            echo '        options:' >> "$OUTPUT_FILE"
+            echo '        - ultra_hd' >> "$OUTPUT_FILE"
+            echo '        - high_def' >> "$OUTPUT_FILE"
+            echo '        - standard' >> "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'permissions:' >> "$OUTPUT_FILE"
+            echo '  contents: write' >> "$OUTPUT_FILE"
+            echo '  issues: read' >> "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'jobs:' >> "$OUTPUT_FILE"
+            echo '  video-generation:' >> "$OUTPUT_FILE"
+            echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+            echo '    steps:' >> "$OUTPUT_FILE"
+            echo '      - name: Checkout repository' >> "$OUTPUT_FILE"
+            echo '        uses: actions/checkout@v4' >> "$OUTPUT_FILE"
+            echo '      - name: Setup MCP Environment' >> "$OUTPUT_FILE"
+            echo '        run: |' >> "$OUTPUT_FILE"
+            echo '          echo "🎬 Setting up video generation environment..."' >> "$OUTPUT_FILE"
+            echo '          npm install -g @anthropic-ai/claude-code' >> "$OUTPUT_FILE"
+            echo '      - name: Generate Video Content' >> "$OUTPUT_FILE"
+            echo '        env:' >> "$OUTPUT_FILE"
+            echo '          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' >> "$OUTPUT_FILE"
+            echo '        run: |' >> "$OUTPUT_FILE"
+            echo '          echo "🎥 Generating video content: ${{ github.event.inputs.video_topic }}"' >> "$OUTPUT_FILE"
+            echo '          echo "Style: ${{ github.event.inputs.video_style }}"' >> "$OUTPUT_FILE"
+            echo '          echo "Quality: ${{ github.event.inputs.quality_setting }}"' >> "$OUTPUT_FILE"
+            echo '          mkdir -p .generated/video' >> "$OUTPUT_FILE"
+            echo '          echo "Video Topic: ${{ github.event.inputs.video_topic }}" > .generated/video/video-config.txt' >> "$OUTPUT_FILE"
+            echo '          echo "Style: ${{ github.event.inputs.video_style }}" >> .generated/video/video-config.txt' >> "$OUTPUT_FILE"
+            echo '          echo "Quality: ${{ github.event.inputs.quality_setting }}" >> .generated/video/video-config.txt' >> "$OUTPUT_FILE"
+            echo '          echo "Generated at: $(date)" >> .generated/video/video-config.txt' >> "$OUTPUT_FILE"
+            echo '          echo "✅ Video generation completed"' >> "$OUTPUT_FILE"
+            echo '      - name: Upload Video Output' >> "$OUTPUT_FILE"
+            echo '        uses: actions/upload-artifact@v4' >> "$OUTPUT_FILE"
+            echo '        with:' >> "$OUTPUT_FILE"
+            echo '          name: video-generation-output' >> "$OUTPUT_FILE"
+            echo '          path: .generated/video/' >> "$OUTPUT_FILE"
+            echo '          retention-days: 7' >> "$OUTPUT_FILE"
+          elif [ "$WORKFLOW_TYPE" = "image-generation" ] || [ "$WORKFLOW_TYPE" = "image" ]; then
+            echo 'name: "Template-Based Image Generation Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'on:' >> "$OUTPUT_FILE"
+            echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+            echo '    inputs:' >> "$OUTPUT_FILE"
+            echo '      image_prompt:' >> "$OUTPUT_FILE"
+            echo '        description: "Image generation prompt"' >> "$OUTPUT_FILE"
+            echo '        required: true' >> "$OUTPUT_FILE"
+            echo '        default: "beautiful landscape"' >> "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'permissions:' >> "$OUTPUT_FILE"
+            echo '  contents: write' >> "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'jobs:' >> "$OUTPUT_FILE"
+            echo '  image-generation:' >> "$OUTPUT_FILE"
+            echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+            echo '    steps:' >> "$OUTPUT_FILE"
+            echo '      - name: Checkout repository' >> "$OUTPUT_FILE"
+            echo '        uses: actions/checkout@v4' >> "$OUTPUT_FILE"
+            echo '      - name: Generate Image' >> "$OUTPUT_FILE"
+            echo '        run: echo "Image generation for ${{ github.event.inputs.image_prompt }}"' >> "$OUTPUT_FILE"
+          else
+            # デフォルトワークフロー
+            echo 'name: "Template-Based General Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'on:' >> "$OUTPUT_FILE"
+            echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'permissions:' >> "$OUTPUT_FILE"
+            echo '  contents: write' >> "$OUTPUT_FILE"
+            echo '' >> "$OUTPUT_FILE"
+            echo 'jobs:' >> "$OUTPUT_FILE"
+            echo '  general-processing:' >> "$OUTPUT_FILE"
+            echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+            echo '    steps:' >> "$OUTPUT_FILE"
+            echo '      - name: Checkout repository' >> "$OUTPUT_FILE"
+            echo '        uses: actions/checkout@v4' >> "$OUTPUT_FILE"
+            echo '      - name: Process Content' >> "$OUTPUT_FILE"
+            echo '        run: echo "Processing general content"' >> "$OUTPUT_FILE"
+          fi
           
           echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
           echo "✅ Template-based GitHub Actions workflow generated"
@@ -1040,23 +968,21 @@ jobs:
           mkdir -p .outputs/dynamic-workflow/final
           cp -r .outputs/dynamic-workflow/content/* .outputs/dynamic-workflow/final/
           
-          # Generate metadata
-          cat > .outputs/dynamic-workflow/final/metadata.json << EOFMETA
-{
-  "project_id": "${{ needs.setup-environment.outputs.project_id }}",
-  "timestamp": "${{ needs.setup-environment.outputs.timestamp }}",
-  "workflow_type": "dynamic-assembly",
-  "inputs": {
-    "content_topic": "${{ inputs.content_topic }}",
-    "quality_setting": "${{ inputs.quality_setting }}",
-    "output_format": "${{ inputs.output_format }}"
-  },
-  "processing": {
-    "complexity": "${{ needs.task-analysis.outputs.task_complexity }}",
-    "strategy": "${{ needs.task-analysis.outputs.processing_strategy }}"
-  }
-}
-EOFMETA
+          # Generate metadata (using simple echo to avoid HEREDOC issues)
+          echo '{' > .outputs/dynamic-workflow/final/metadata.json
+          echo '  "project_id": "${{ needs.setup-environment.outputs.project_id }}",' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '  "timestamp": "${{ needs.setup-environment.outputs.timestamp }}",' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '  "workflow_type": "dynamic-assembly",' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '  "inputs": {' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '    "content_topic": "${{ inputs.content_topic }}",' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '    "quality_setting": "${{ inputs.quality_setting }}",' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '    "output_format": "${{ inputs.output_format }}"' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '  },' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '  "processing": {' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '    "complexity": "${{ needs.task-analysis.outputs.task_complexity }}",' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '    "strategy": "${{ needs.task-analysis.outputs.processing_strategy }}"' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '  }' >> .outputs/dynamic-workflow/final/metadata.json
+          echo '}' >> .outputs/dynamic-workflow/final/metadata.json
           
           echo "✅ Dynamic workflow output finalized"
           
@@ -1066,8 +992,9 @@ EOFMETA
           name: dynamic-workflow-final-${{ needs.setup-environment.outputs.project_id }}
           path: .outputs/dynamic-workflow/final/
           retention-days: 30
-EOF
           
+      - name: Complete Dynamic Assembly
+        run: |
           echo "✅ Dynamic GitHub Actions workflow generated"
           echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
           
@@ -1314,8 +1241,9 @@ jobs:
           name: final-package
           path: .final-output/
           retention-days: 30
-EOF
           
+      - name: Complete Hybrid Generation
+        run: |
           echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
           echo "✅ Hybrid workflow generated"
           
