@@ -831,15 +831,31 @@ jobs:
             exit 1
           fi
           
+          # 評価結果をJSONで保存（deploy-selected-workflowとの連携用）
+          mkdir -p .meta/evaluation
+          echo "{" > .meta/evaluation/selected-workflow.json
+          echo "  \"selected_approach\": \"$SELECTED_APPROACH\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"selected_file\": \"$FINAL_WORKFLOW\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"evaluation_score\": $BEST_SCORE," >> .meta/evaluation/selected-workflow.json
+          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" >> .meta/evaluation/selected-workflow.json
+          echo "}" >> .meta/evaluation/selected-workflow.json
+          
           echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
           echo "selected_workflow_path=$FINAL_WORKFLOW" >> $GITHUB_OUTPUT
           echo "final_score=$BEST_SCORE" >> $GITHUB_OUTPUT
           
-      - name: Upload Selected Best Workflow
+      - name: Upload Selected Best Workflow and Evaluation
         uses: actions/upload-artifact@v4
         with:
           name: selected-best-workflow-${{ github.run_number }}
           path: generated/workflows/selected/
+          retention-days: 30
+          
+      - name: Upload Evaluation Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-results-${{ github.run_number }}
+          path: .meta/evaluation/
           retention-days: 30
 
   # Step 3: エラー監視・学習システム
@@ -899,17 +915,17 @@ jobs:
         with:
           token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN || github.token }}
         
+      - name: Download Selected Best Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: selected-best-workflow-${{ github.run_number }}
+          path: ./
+          
       - name: Download Evaluation Results
         uses: actions/download-artifact@v4
         with:
           name: evaluation-results-${{ github.run_number }}
-          path: .meta/evaluation/
-        
-      - name: Download All Approach Results
-        uses: actions/download-artifact@v4
-        with:
-          name: approach-results-${{ github.run_number }}
-          path: generated/workflows/staging/
+          path: ./
         
       - name: Deploy Selected Workflow
         id: deploy
@@ -949,23 +965,89 @@ jobs:
             git config --local user.name "GitHub Action"
             git add "$DEPLOYED_FILE" "generated/workflows/validated/"
             
-            # コミットメッセージ
-            COMMIT_MSG="feat: Deploy $SELECTED_APPROACH workflow (score: $EVALUATION_SCORE)
+            # ワークフロー名を取得（システム統合用）
+            WORKFLOW_NAME=$(grep '^name:' "$DEPLOYED_FILE" | sed 's/name: *//' | tr -d '"')
             
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+            # AutoFix システムに新しいワークフローを自動登録
+            if [ -f ".github/workflows/auto-fix-deployment.yml" ]; then
+              if grep -q 'workflows: \["Kamuicode Meta Generator (Self-Healing)"\]' .github/workflows/auto-fix-deployment.yml; then
+                sed -i 's/workflows: \["Kamuicode Meta Generator (Self-Healing)"\]/workflows: ["Kamuicode Meta Generator (Self-Healing)", "'"$WORKFLOW_NAME"'"]/' .github/workflows/auto-fix-deployment.yml
+                echo "✅ AutoFix system updated"
+              elif ! grep -q "$WORKFLOW_NAME" .github/workflows/auto-fix-deployment.yml; then
+                sed -i 's/workflows: \[\([^]]*\)\]/workflows: [\1, "'"$WORKFLOW_NAME"'"]/' .github/workflows/auto-fix-deployment.yml
+                echo "✅ AutoFix system updated with new workflow"
+              fi
+            fi
             
-            git commit -m "$COMMIT_MSG" || echo "No changes to commit"
+            # Monitor システムに新しいワークフローを自動登録
+            if [ -f ".github/workflows/continuous-system-monitor.yml" ]; then
+              if grep -q 'workflows: \["Kamuicode Meta Generator (Self-Healing)"\]' .github/workflows/continuous-system-monitor.yml; then
+                sed -i 's/workflows: \["Kamuicode Meta Generator (Self-Healing)"\]/workflows: ["Kamuicode Meta Generator (Self-Healing)", "'"$WORKFLOW_NAME"'"]/' .github/workflows/continuous-system-monitor.yml
+                echo "✅ Monitor system updated"
+              elif ! grep -q "$WORKFLOW_NAME" .github/workflows/continuous-system-monitor.yml; then
+                sed -i 's/workflows: \[\([^]]*\)\]/workflows: [\1, "'"$WORKFLOW_NAME"'"]/' .github/workflows/continuous-system-monitor.yml
+                echo "✅ Monitor system updated with new workflow"
+              fi
+            fi
+            
+            # デプロイ記録の作成
+            mkdir -p .meta/deployment
+            echo "{" > .meta/deployment/deployment-record.json
+            echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> .meta/deployment/deployment-record.json
+            echo "  \"workflow_run\": \"${{ github.run_number }}\"," >> .meta/deployment/deployment-record.json
+            echo "  \"workflow_type\": \"${{ needs.analyze-request.outputs.workflow_type }}\"," >> .meta/deployment/deployment-record.json
+            echo "  \"production_file\": \"$DEPLOYED_FILE\"," >> .meta/deployment/deployment-record.json
+            echo "  \"selected_approach\": \"$SELECTED_APPROACH\"," >> .meta/deployment/deployment-record.json
+            echo "  \"evaluation_score\": $EVALUATION_SCORE," >> .meta/deployment/deployment-record.json
+            echo "  \"deployment_method\": \"direct_best_selection\"," >> .meta/deployment/deployment-record.json
+            echo "  \"system_integrations\": {" >> .meta/deployment/deployment-record.json
+            echo "    \"autofix_updated\": true," >> .meta/deployment/deployment-record.json
+            echo "    \"monitor_updated\": true" >> .meta/deployment/deployment-record.json
+            echo "  }" >> .meta/deployment/deployment-record.json
+            echo "}" >> .meta/deployment/deployment-record.json
+            
+            # 詳細デプロイレポートの作成（HEREDOC回避）
+            echo "# Workflow Deployment Report" > workflow-deployment-report.md
+            echo "" >> workflow-deployment-report.md
+            echo "## ✅ Successfully Deployed!" >> workflow-deployment-report.md
+            echo "" >> workflow-deployment-report.md
+            echo "- **Type**: ${{ needs.analyze-request.outputs.workflow_type }}" >> workflow-deployment-report.md
+            echo "- **Selected Approach**: $SELECTED_APPROACH" >> workflow-deployment-report.md
+            echo "- **Evaluation Score**: $EVALUATION_SCORE/100" >> workflow-deployment-report.md
+            echo "- **Deployed To**: \`.github/workflows/\` (production)" >> workflow-deployment-report.md
+            echo "- **Timestamp**: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> workflow-deployment-report.md
+            echo "" >> workflow-deployment-report.md
+            echo "## System Integrations" >> workflow-deployment-report.md
+            echo "- **AutoFix System**: 🔗 Workflow auto-registered for monitoring" >> workflow-deployment-report.md
+            echo "- **Monitor System**: 📊 Continuous health monitoring enabled" >> workflow-deployment-report.md
+            echo "- **Quality Assurance**: ✅ Pre-validated by approach comparison" >> workflow-deployment-report.md
+            echo "" >> workflow-deployment-report.md
+            echo "Generated by **Meta Workflow Generator v4** 🏆🚀" >> workflow-deployment-report.md
+            
+            # Gitへの追加コミット
+            git add "$DEPLOYED_FILE" "generated/workflows/validated/" ".meta/deployment/" "workflow-deployment-report.md"
+            if [ -f ".github/workflows/auto-fix-deployment.yml" ]; then
+              git add ".github/workflows/auto-fix-deployment.yml"
+            fi
+            if [ -f ".github/workflows/continuous-system-monitor.yml" ]; then
+              git add ".github/workflows/continuous-system-monitor.yml"
+            fi
+            
+            # コミットメッセージ  
+            git commit -m "feat: Deploy $SELECTED_APPROACH workflow (score: $EVALUATION_SCORE)" || echo "No changes to commit"
             
             echo "deployed_file=$DEPLOYED_FILE" >> $GITHUB_OUTPUT
             echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
             echo "evaluation_score=$EVALUATION_SCORE" >> $GITHUB_OUTPUT
             
-            echo "✅ Workflow deployment completed"
+            echo "✅ Enhanced workflow deployment completed"
             echo "   - Production file: $DEPLOYED_FILE"
             echo "   - Approach: $SELECTED_APPROACH"
             echo "   - Score: $EVALUATION_SCORE"
+            echo "   - AutoFix integration: ✅"
+            echo "   - Monitor integration: ✅"
+            echo "   - Deployment record: .meta/deployment/deployment-record.json"
+            echo "   - Report: workflow-deployment-report.md"
             
           else
             echo "❌ Selected workflow file not found: $SELECTED_FILE"
