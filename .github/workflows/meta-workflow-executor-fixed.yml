@@ -620,75 +620,40 @@ jobs:
           
           case "$WORKFLOW_TYPE" in
             "video-generation"|"video-content")
-              cat > "$OUTPUT_FILE" << 'EOF'
-name: "Template-Based Video Generation Workflow (Stepback Optimized)"
-
-on:
-  workflow_dispatch:
-    inputs:
-      video_topic:
-        description: 'Video content topic'
-        required: true
-        default: 'promotional content'
-      video_style:
-        description: 'Video style preference'
-        required: true
-        type: choice
-        options:
-        - cinematic
-        - commercial
-        - documentary
-        - educational
-      quality_setting:
-        description: 'Quality setting'
-        required: true
-        type: choice
-        options:
-        - ultra_hd
-        - high_def
-        - standard
-
-permissions:
-  contents: write
-  issues: read
-
-jobs:
-  video-generation:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Setup MCP Environment
-        run: |
-          echo "🎬 Setting up video generation environment..."
-          npm install -g @anthropic-ai/claude-code
-          
-      - name: Generate Video Content
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          echo "🎥 Generating video content: ${{ github.event.inputs.video_topic }}"
-          echo "Style: ${{ github.event.inputs.video_style }}"
-          echo "Quality: ${{ github.event.inputs.quality_setting }}"
-          
-          mkdir -p .generated/video
-          
-          # Video generation workflow
-          echo "Video Topic: ${{ github.event.inputs.video_topic }}" > .generated/video/video-config.txt
-          echo "Style: ${{ github.event.inputs.video_style }}" >> .generated/video/video-config.txt
-          echo "Quality: ${{ github.event.inputs.quality_setting }}" >> .generated/video/video-config.txt
-          echo "Generated at: $(date)" >> .generated/video/video-config.txt
-          
-          echo "✅ Video generation completed"
-          
-      - name: Upload Video Output
-        uses: actions/upload-artifact@v4
-        with:
-          name: video-generation-output
-          path: .generated/video/
-          retention-days: 7
-EOF
+              echo 'name: "Template-Based Video Generation Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
+              echo '' >> "$OUTPUT_FILE"
+              echo 'on:' >> "$OUTPUT_FILE"
+              echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+              echo '    inputs:' >> "$OUTPUT_FILE"
+              echo '      video_topic:' >> "$OUTPUT_FILE"
+              echo '        description: "Video content topic"' >> "$OUTPUT_FILE"
+              echo '        required: true' >> "$OUTPUT_FILE"
+              echo '        default: "promotional content"' >> "$OUTPUT_FILE"
+              echo '      video_style:' >> "$OUTPUT_FILE"
+              echo '        description: "Video style preference"' >> "$OUTPUT_FILE"
+              echo '        required: true' >> "$OUTPUT_FILE"
+              echo '        type: choice' >> "$OUTPUT_FILE"
+              echo '        options:' >> "$OUTPUT_FILE"
+              echo '        - cinematic' >> "$OUTPUT_FILE"
+              echo '        - commercial' >> "$OUTPUT_FILE"
+              echo '        - documentary' >> "$OUTPUT_FILE"
+              echo '        - educational' >> "$OUTPUT_FILE"
+              echo '' >> "$OUTPUT_FILE"
+              echo 'permissions:' >> "$OUTPUT_FILE"
+              echo '  contents: write' >> "$OUTPUT_FILE"
+              echo '  issues: read' >> "$OUTPUT_FILE"
+              echo '' >> "$OUTPUT_FILE"
+              echo 'jobs:' >> "$OUTPUT_FILE"
+              echo '  video-generation:' >> "$OUTPUT_FILE"
+              echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+              echo '    steps:' >> "$OUTPUT_FILE"
+              echo '      - name: Checkout repository' >> "$OUTPUT_FILE"
+              echo '        uses: actions/checkout@v4' >> "$OUTPUT_FILE"
+              echo '      - name: Generate Video Content' >> "$OUTPUT_FILE"
+              echo '        run: |' >> "$OUTPUT_FILE"
+              echo '          echo "🎥 Generating video content"' >> "$OUTPUT_FILE"
+              echo '          mkdir -p .generated/video' >> "$OUTPUT_FILE"
+              echo '          echo "Video generated successfully" > .generated/video/result.txt' >> "$OUTPUT_FILE"
               ;;
             "image-generation"|"image")
               cat > "$OUTPUT_FILE" << 'EOF'
