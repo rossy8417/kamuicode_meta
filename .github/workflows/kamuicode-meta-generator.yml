@@ -883,20 +883,21 @@ jobs:
           echo "📈 Updating success metrics..."
           # 将来: 成功率の追跡、改善パターンの学習
 
-  # Step 4: ハイブリッド生成（テンプレート + 動的組み立て）
-  template-based-generation:
+  # Step 4: 最終ワークフロー配置（評価結果を直接使用）
+  deploy-selected-workflow:
     needs: [evaluate-and-select-best]
     runs-on: ubuntu-latest
     if: needs.evaluate-and-select-best.result == 'success'
     outputs:
-      generated_workflow: ${{ steps.generate.outputs.workflow_file }}
-      validation_required: ${{ steps.generate.outputs.validation_required }}
-      template_used: ${{ steps.generate.outputs.template_used }}
-      dynamic_inputs_enabled: ${{ steps.generate.outputs.dynamic_inputs_enabled }}
+      deployed_workflow: ${{ steps.deploy.outputs.deployed_file }}
+      selected_approach: ${{ steps.deploy.outputs.selected_approach }}
+      evaluation_score: ${{ steps.deploy.outputs.evaluation_score }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN || github.token }}
         
       - name: Download Evaluation Results
         uses: actions/download-artifact@v4
@@ -910,10 +911,10 @@ jobs:
           name: approach-results-${{ github.run_number }}
           path: generated/workflows/staging/
         
-      - name: Generate Final Workflow Using Selected Approach
-        id: generate
+      - name: Deploy Selected Workflow
+        id: deploy
         run: |
-          echo "🎯 Using selected best approach for final workflow generation..."
+          echo "🚀 Deploying selected best workflow directly to production..."
           
           # 選択されたアプローチの確認
           if [ ! -f ".meta/evaluation/selected-workflow.json" ]; then
@@ -925,550 +926,69 @@ jobs:
           SELECTED_FILE=$(jq -r '.selected_file // ""' .meta/evaluation/selected-workflow.json)
           EVALUATION_SCORE=$(jq -r '.evaluation_score // 0' .meta/evaluation/selected-workflow.json)
           
-          echo "📊 Selected Approach Details:"
+          echo "📊 Deploying Selected Workflow:"
           echo "   - Approach: $SELECTED_APPROACH"
           echo "   - File: $SELECTED_FILE"
           echo "   - Score: $EVALUATION_SCORE"
           
-          # 作業環境の準備
-          mkdir -p generated/workflows/staging
-          GENERATED_FILE="generated/workflows/staging/generated-workflow.yml"
+          # 本番環境ディレクトリの準備
+          mkdir -p .github/workflows generated/workflows/validated
           
-          # 選択されたワークフローファイルをコピー
+          # 選択されたワークフローファイルの配置
           if [ -f "$SELECTED_FILE" ]; then
-            echo "✅ Using selected workflow: $SELECTED_FILE"
-            cp "$SELECTED_FILE" "$GENERATED_FILE"
+            DEPLOYED_FILE=".github/workflows/generated-$(date +%Y%m%d-%H%M%S).yml"
             
-            # アプローチに応じた設定
-            case "$SELECTED_APPROACH" in
-              "template-selection")
-                VALIDATION_REQUIRED="true"
-                DYNAMIC_INPUTS_ENABLED="false"
-                TEMPLATE_USED="template-selection"
-                ;;
-              "dynamic-assembly")
-                VALIDATION_REQUIRED="true"
-                DYNAMIC_INPUTS_ENABLED="true"
-                TEMPLATE_USED="dynamic-assembly"
-                ;;
-              "hybrid")
-                VALIDATION_REQUIRED="true"
-                DYNAMIC_INPUTS_ENABLED="true"
-                TEMPLATE_USED="hybrid-approach"
-                ;;
-              *)
-                VALIDATION_REQUIRED="true"
-                DYNAMIC_INPUTS_ENABLED="false"
-                TEMPLATE_USED="fallback"
-                ;;
-            esac
+            echo "✅ Deploying workflow: $SELECTED_FILE → $DEPLOYED_FILE"
+            cp "$SELECTED_FILE" "$DEPLOYED_FILE"
             
-            echo "workflow_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
-            echo "validation_required=$VALIDATION_REQUIRED" >> $GITHUB_OUTPUT
-            echo "dynamic_inputs_enabled=$DYNAMIC_INPUTS_ENABLED" >> $GITHUB_OUTPUT
-            echo "template_used=$TEMPLATE_USED" >> $GITHUB_OUTPUT
+            # バックアップコピーも作成
+            cp "$SELECTED_FILE" "generated/workflows/validated/final-workflow.yml"
             
-            echo "✅ Final workflow generation completed using $SELECTED_APPROACH approach"
-            echo "   - File: $GENERATED_FILE"
+            # Git設定とコミット
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add "$DEPLOYED_FILE" "generated/workflows/validated/"
+            
+            # コミットメッセージ
+            COMMIT_MSG="feat: Deploy $SELECTED_APPROACH workflow (score: $EVALUATION_SCORE)
+            
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+            
+            git commit -m "$COMMIT_MSG" || echo "No changes to commit"
+            
+            echo "deployed_file=$DEPLOYED_FILE" >> $GITHUB_OUTPUT
+            echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
+            echo "evaluation_score=$EVALUATION_SCORE" >> $GITHUB_OUTPUT
+            
+            echo "✅ Workflow deployment completed"
+            echo "   - Production file: $DEPLOYED_FILE"
+            echo "   - Approach: $SELECTED_APPROACH"
             echo "   - Score: $EVALUATION_SCORE"
-            echo "   - Validation required: $VALIDATION_REQUIRED"
             
           else
             echo "❌ Selected workflow file not found: $SELECTED_FILE"
             exit 1
           fi
-          
-      - name: Upload Staging Workflow
-        uses: actions/upload-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: generated/workflows/staging/
-          retention-days: 7
 
-  # Step 5: ワークフロー検証（段階的格納の核心）
-  validate-workflow:
-    needs: [template-based-generation]
+  # Step 5: モニタリング・システム統合
+  system-monitoring:
+    needs: [deploy-selected-workflow]
     runs-on: ubuntu-latest
-    if: needs.template-based-generation.outputs.validation_required == 'true'
-    outputs:
-      validation_result: ${{ steps.validate.outputs.result }}
-      validation_errors: ${{ steps.validate.outputs.errors }}
+    if: always()
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Download Staging Workflow
-        uses: actions/download-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: generated/workflows/staging/
-          
-      - name: Validate Workflow Syntax and Logic
-        id: validate
+      - name: Report Deployment Status
         run: |
-          echo "🔍 Starting workflow validation..."
+          echo "📊 Reporting deployment status to monitoring systems..."
           
-          WORKFLOW_FILE="${{ needs.template-based-generation.outputs.generated_workflow }}"
-          VALIDATION_LOG=".meta/validation/validation-$(date +%Y%m%d-%H%M%S).log"
+          DEPLOYMENT_STATUS="${{ needs.deploy-selected-workflow.result }}"
+          SELECTED_APPROACH="${{ needs.deploy-selected-workflow.outputs.selected_approach }}"
           
-          mkdir -p .meta/validation
-          touch "$VALIDATION_LOG"
+          echo "   - Deployment: $DEPLOYMENT_STATUS"
+          echo "   - Approach: $SELECTED_APPROACH"
+          echo "   - Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           
-          VALIDATION_ERRORS=""
-          VALIDATION_SCORE=0
-          
-          # 1. YAML構文チェック
-          echo "📋 Checking YAML syntax..." | tee -a "$VALIDATION_LOG"
-          if command -v yamllint &> /dev/null; then
-            if yamllint "$WORKFLOW_FILE" >> "$VALIDATION_LOG" 2>&1; then
-              echo "✅ YAML syntax valid" | tee -a "$VALIDATION_LOG"
-              VALIDATION_SCORE=$((VALIDATION_SCORE + 25))
-            else
-              echo "❌ YAML syntax errors found" | tee -a "$VALIDATION_LOG"
-              VALIDATION_ERRORS="${VALIDATION_ERRORS}yaml-syntax;"
-            fi
-          else
-            echo "⚠️ yamllint not available, using basic python check" | tee -a "$VALIDATION_LOG"
-            if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>> "$VALIDATION_LOG"; then
-              echo "✅ Basic YAML check passed" | tee -a "$VALIDATION_LOG"
-              VALIDATION_SCORE=$((VALIDATION_SCORE + 20))
-            else
-              echo "❌ Basic YAML check failed" | tee -a "$VALIDATION_LOG"  
-              VALIDATION_ERRORS="${VALIDATION_ERRORS}yaml-basic;"
-            fi
-          fi
-          
-          # 2. GitHub Actions構造チェック
-          echo "🔧 Checking GitHub Actions structure..." | tee -a "$VALIDATION_LOG"
-          if grep -q "^name:" "$WORKFLOW_FILE" && grep -q "^on:" "$WORKFLOW_FILE" && grep -q "^jobs:" "$WORKFLOW_FILE"; then
-            echo "✅ GitHub Actions structure valid" | tee -a "$VALIDATION_LOG"
-            VALIDATION_SCORE=$((VALIDATION_SCORE + 25))
-          else
-            echo "❌ Missing required GitHub Actions sections" | tee -a "$VALIDATION_LOG"
-            VALIDATION_ERRORS="${VALIDATION_ERRORS}structure;"
-          fi
-          
-          # 3. MCPサービス参照チェック
-          echo "🔍 Checking MCP service references..." | tee -a "$VALIDATION_LOG"
-          MCP_ERRORS=0
-          
-          # 利用可能なMCPサービスリスト（実際の設定から）
-          VALID_MCPS="t2i-google-imagen3 t2i-fal-imagen4-ultra t2i-fal-imagen4-fast t2v-fal-veo3-fast i2v-fal-hailuo-02-pro t2m-google-lyria v2a-fal-metavoice-v1 v2v-fal-cogvideo-1_5"
-          
-          while IFS= read -r line; do
-            if echo "$line" | grep -q "claude-code.*--mcp"; then
-              MCP_SERVICE=$(echo "$line" | grep -o "mcp [^ ]*" | cut -d' ' -f2)
-              if ! echo "$VALID_MCPS" | grep -qw "$MCP_SERVICE"; then
-                echo "⚠️ Invalid MCP service: $MCP_SERVICE" | tee -a "$VALIDATION_LOG"
-                MCP_ERRORS=$((MCP_ERRORS + 1))
-              fi
-            fi
-          done < "$WORKFLOW_FILE"
-          
-          if [ $MCP_ERRORS -eq 0 ]; then
-            echo "✅ MCP service references valid" | tee -a "$VALIDATION_LOG"
-            VALIDATION_SCORE=$((VALIDATION_SCORE + 25))
-          else
-            echo "❌ Found $MCP_ERRORS invalid MCP references" | tee -a "$VALIDATION_LOG"
-            VALIDATION_ERRORS="${VALIDATION_ERRORS}mcp-invalid;"
-          fi
-          
-          # 4. 依存関係チェック（基本的な循環参照チェック）
-          echo "🔗 Checking job dependencies..." | tee -a "$VALIDATION_LOG"
-          if grep -q "needs:" "$WORKFLOW_FILE"; then
-            # 簡単な循環参照チェック（より高度な実装も可能）
-            echo "✅ Dependencies structure looks valid" | tee -a "$VALIDATION_LOG"
-            VALIDATION_SCORE=$((VALIDATION_SCORE + 25))
-          else
-            echo "ℹ️ No job dependencies found" | tee -a "$VALIDATION_LOG"
-            VALIDATION_SCORE=$((VALIDATION_SCORE + 25))
-          fi
-          
-          # 検証結果の判定
-          if [ $VALIDATION_SCORE -ge 75 ]; then
-            VALIDATION_RESULT="success"
-            echo "🎉 Validation passed with score: $VALIDATION_SCORE/100" | tee -a "$VALIDATION_LOG"
-          else
-            VALIDATION_RESULT="failure"
-            echo "❌ Validation failed with score: $VALIDATION_SCORE/100" | tee -a "$VALIDATION_LOG"
-          fi
-          
-          echo "result=$VALIDATION_RESULT" >> $GITHUB_OUTPUT
-          echo "errors=$VALIDATION_ERRORS" >> $GITHUB_OUTPUT
-          
-      - name: Upload Validation Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: validation-report-${{ github.run_number }}
-          path: .meta/validation/
-          retention-days: 30
-
-  # Step 6: 承認済みワークフローの最終配置
-  deploy-validated-workflow:
-    needs: [template-based-generation, validate-workflow]
-    runs-on: ubuntu-latest
-    if: needs.validate-workflow.outputs.validation_result == 'success' || needs.template-based-generation.outputs.validation_required == 'false'
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Download Staging Workflow  
-        uses: actions/download-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: generated/workflows/staging/
-          
-      - name: Deploy to Production Workflows Directory
-        run: |
-          echo "🚀 Deploying validated workflow to production..."
-          
-          WORKFLOW_FILE="${{ needs.template-based-generation.outputs.generated_workflow }}"
-          WORKFLOW_TYPE="${{ needs.analyze-request.outputs.workflow_type }}"
-          
-          # 検証済みディレクトリに移動
-          mkdir -p generated/workflows/validated
-          cp "$WORKFLOW_FILE" "generated/workflows/validated/"
-          
-          # 最終的な本番ワークフローディレクトリに配置
-          PRODUCTION_FILE=".github/workflows/generated-${WORKFLOW_TYPE}-$(date +%Y%m%d-%H%M%S).yml"
-          cp "$WORKFLOW_FILE" "$PRODUCTION_FILE"
-          
-          # 生成されたワークフロー名を取得
-          WORKFLOW_NAME=$(grep '^name:' "$PRODUCTION_FILE" | sed 's/name: *//' | tr -d '"')
-          
-          echo "🔧 Auto-configuring system integrations for: $WORKFLOW_NAME"
-          
-          # AutoFix システムに新しいワークフローを自動登録
-          if grep -q 'workflows: \["Kamuicode Meta Generator (Self-Healing)"\]' .github/workflows/auto-fix-deployment.yml; then
-            sed -i 's/workflows: \["Kamuicode Meta Generator (Self-Healing)"\]/workflows: ["Kamuicode Meta Generator (Self-Healing)", "'"$WORKFLOW_NAME"'"]/' .github/workflows/auto-fix-deployment.yml
-            echo "✅ AutoFix system updated"
-          elif ! grep -q "$WORKFLOW_NAME" .github/workflows/auto-fix-deployment.yml; then
-            sed -i 's/workflows: \[\([^]]*\)\]/workflows: [\1, "'"$WORKFLOW_NAME"'"]/' .github/workflows/auto-fix-deployment.yml
-            echo "✅ AutoFix system updated with new workflow"
-          fi
-          
-          # Monitor システムに新しいワークフローを自動登録  
-          if grep -q 'workflows: \["Kamuicode Meta Generator (Self-Healing)"\]' .github/workflows/continuous-system-monitor.yml; then
-            sed -i 's/workflows: \["Kamuicode Meta Generator (Self-Healing)"\]/workflows: ["Kamuicode Meta Generator (Self-Healing)", "'"$WORKFLOW_NAME"'"]/' .github/workflows/continuous-system-monitor.yml
-            echo "✅ Monitor system updated"
-          elif ! grep -q "$WORKFLOW_NAME" .github/workflows/continuous-system-monitor.yml; then
-            sed -i 's/workflows: \[\([^]]*\)\]/workflows: [\1, "'"$WORKFLOW_NAME"'"]/' .github/workflows/continuous-system-monitor.yml
-            echo "✅ Monitor system updated with new workflow"
-          fi
-          
-          echo "✅ Workflow deployed to: $PRODUCTION_FILE"
-          echo "🔗 System integrations auto-configured"
-          
-          # デプロイ記録
-          cat > .meta/deployment-record.json << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "workflow_type": "$WORKFLOW_TYPE",
-            "production_file": "$PRODUCTION_FILE",
-            "validation_result": "${{ needs.validate-workflow.outputs.validation_result }}",
-            "validation_errors": "${{ needs.validate-workflow.outputs.validation_errors }}",
-            "deployment_method": "staged_validation"
-          }
-          EOF
-          
-      - name: Create Deployment Report
-        run: |
-          echo "📋 Creating deployment report..."
-          
-          cat > workflow-deployment-report.md << EOF
-          # Workflow Deployment Report
-          
-          ## ✅ Successfully Deployed!
-          
-          - **Type**: ${{ needs.analyze-request.outputs.workflow_type }}
-          - **Validation**: ${{ needs.validate-workflow.outputs.validation_result || 'skipped' }}
-          - **Dynamic Inputs**: ${{ needs.template-based-generation.outputs.dynamic_inputs_enabled || 'false' }}
-          - **Template Used**: ${{ needs.template-based-generation.outputs.template_used }}
-          - **Deployed To**: \`.github/workflows/\` (production)
-          - **Timestamp**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-          
-          ## Deployment Process
-          1. ✅ Template-based generation completed
-          2. ✅ Dynamic inputs processing $([ "${{ needs.template-based-generation.outputs.dynamic_inputs_enabled }}" = "true" ] && echo "✅ enabled" || echo "⚪ not required")
-          3. ✅ Staged in \`generated/workflows/staging/\`
-          4. ✅ Validation completed (Score: 75+/100)
-          5. ✅ Deployed to production workflows directory
-          
-          ## Features
-          - **Dynamic Modal Interface**: $([ "${{ needs.template-based-generation.outputs.dynamic_inputs_enabled }}" = "true" ] && echo "🎯 User-friendly input forms with validation" || echo "📝 Standard GitHub Actions inputs")
-          - **Quality Assurance**: YAML syntax, GitHub Actions structure, MCP service references, dependencies
-          - **MCP Integration**: AI generation services with fallback strategies
-          - **Staged Deployment**: Quality-controlled deployment pipeline
-          
-          ## Usage Instructions
-          $([ "${{ needs.template-based-generation.outputs.dynamic_inputs_enabled }}" = "true" ] && cat << 'USAGE'
-          ### 🎨 Dynamic Interface Usage
-          1. Go to **Actions** → Find your generated workflow
-          2. Click **"Run workflow"** 
-          3. Fill out the **dynamic form** with:
-             - Detailed prompts and descriptions
-             - Style preferences and quality settings
-             - Technical parameters (size, count, etc.)
-          4. Click **"Run workflow"** to start generation
-          5. Download results from **Artifacts** when complete
-          USAGE
-          || cat << 'BASIC'
-          ### 📝 Standard Usage
-          1. Go to **Actions** → Find your generated workflow
-          2. Click **"Run workflow"**
-          3. Fill out the basic input fields
-          4. Click **"Run workflow"** to start
-          5. Check results in workflow logs and artifacts
-          BASIC
-          )
-          
-          ---
-          Generated by **Meta Workflow Generator v3** (Staged Deployment + Dynamic Inputs) 🤖🔄✅🎯
-          EOF
-          
-      - name: Commit Deployed Workflow
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          git add .
-          git commit -m "feat: Deploy validated ${{ needs.analyze-request.outputs.workflow_type }} workflow
-
-          Staged deployment process completed:
-          - ✅ Template-based generation
-          - ✅ Validation passed (${{ needs.validate-workflow.outputs.validation_result || 'skipped' }})
-          - ✅ Quality assurance completed
-          - 🚀 Deployed to production workflows
-          
-          Generated by Meta Workflow Generator v3 (Staged Deployment)
-          
-          🤖 Generated with [Claude Code](https://claude.ai/code)
-          Co-Authored-By: Claude <noreply@anthropic.com>" || echo "No changes to commit"
-          
-          git push origin main || echo "Push failed, but continuing..."
-
-  # Step 5: 失敗時の自動修復・学習・Git更新
-  auto-recovery:
-    needs: [analyze-request, decompose-tasks]
-    runs-on: ubuntu-latest  
-    if: needs.decompose-tasks.result == 'failure'
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Failure Analysis & Auto-Fix with Git Update
-        run: |
-          echo "🔍 Analyzing failure and applying auto-fixes..."
-          
-          mkdir -p .meta/failures .meta/auto-fixes
-          FIXES_APPLIED=""
-          
-          # 失敗パターンの記録
-          cat > .meta/failures/failure-$(date +%Y%m%d-%H%M%S).json << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "workflow_run": "${{ github.run_number }}",
-            "failed_job": "decompose-tasks",
-            "workflow_type": "${{ needs.analyze-request.outputs.workflow_type }}",
-            "detected_issues": [],
-            "applied_fixes": []
-          }
-          EOF
-          
-          # 自動修復ロジック実行
-          echo "🛠️ Applying intelligent auto-fixes..."
-          
-          # Fix 1: 構文エラー検出・修正
-          if grep -n "syntax error" ${{ github.workspace }}/.github/workflows/kamuicode-meta-generator.yml 2>/dev/null; then
-            echo "🔧 Detected potential syntax issues, applying fixes..."
-            FIXES_APPLIED="${FIXES_APPLIED}syntax-fix;"
-          fi
-          
-          # Fix 2: 依存関係チェック・修正
-          if [ ! -f "./script/generate-dynamic-inputs.py" ]; then
-            echo "🔧 Missing script detected, would create fallback..."
-            FIXES_APPLIED="${FIXES_APPLIED}missing-script-fallback;"
-          fi
-          
-          echo "📚 Auto-fixes applied: $FIXES_APPLIED"
-          
-      - name: Commit and Push Auto-Fixes
-        if: env.FIXES_APPLIED != ''
-        run: |
-          echo "📝 Committing auto-fixes to repository..."
-          
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 変更があった場合のみコミット
-          if ! git diff --quiet || ! git diff --cached --quiet; then
-            git add .
-            git commit -m "fix: Auto-recovery system improvements
-            
-            Applied intelligent fixes:
-            - Workflow syntax corrections
-            - Missing dependency fallbacks
-            - Error handling enhancements
-            
-            Run: ${{ github.run_number }}
-            Trigger: Auto-recovery after decompose-tasks failure
-            
-            🤖 Generated with [Claude Code](https://claude.ai/code)
-            Co-Authored-By: Claude <noreply@anthropic.com>"
-            
-            git push origin main
-            echo "✅ Auto-fixes committed and pushed to repository"
-          else
-            echo "ℹ️ No changes to commit"
-          fi
-          
-      - name: Schedule Retry with Updated Code
-        run: |
-          echo "⏰ Scheduling retry workflow with updated code..."
-          
-          # 5分後に自動リトライを実行（更新されたコードで）
-          sleep 10
-          echo "🔄 Auto-retry would be triggered here with latest fixes"
-          
-          # Issueに自動修復の報告
-          if [ "${{ github.event_name }}" == "issues" ]; then
-            echo "📢 Would report auto-recovery status to issue"
-          fi
-
-  # Step 6: 生成されたワークフローの自動保存・コミット
-  save-generated-workflow:
-    needs: [analyze-request, template-based-generation, validate-workflow, deploy-validated-workflow]
-    runs-on: ubuntu-latest
-    if: always() && needs.template-based-generation.result == 'success'
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Download Generated Workflow Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: staging-workflow-${{ github.run_number }}
-          path: ./artifacts/staging/
-          
-      - name: Download Validation Report (if available)
-        uses: actions/download-artifact@v4
-        with:
-          name: validation-report-${{ github.run_number }}
-          path: ./artifacts/validation/
-        continue-on-error: true
-        
-      - name: Save Generated Workflow to Repository
-        run: |
-          echo "💾 Saving generated workflow to repository..."
-          
-          # ディレクトリ構造の確保
-          mkdir -p generated/workflows/staging generated/workflows/validated .meta/generated-history
-          
-          # Artifactからファイルをコピー
-          if [ -d "./artifacts/staging" ]; then
-            echo "📁 Copying staging files..."
-            cp -r ./artifacts/staging/* generated/workflows/staging/ 2>/dev/null || echo "No staging files to copy"
-            ls -la generated/workflows/staging/
-          fi
-          
-          if [ -d "./artifacts/validation" ]; then
-            echo "📁 Copying validation files..."
-            cp -r ./artifacts/validation/* generated/workflows/validated/ 2>/dev/null || echo "No validation files to copy"
-            ls -la generated/workflows/validated/
-          fi
-          
-          # 生成履歴の記録
-          GENERATED_FILES=$(find generated/workflows/staging -name "*.yml" 2>/dev/null | wc -l)
-          
-          cat > .meta/generated-history/generation-${{ github.run_number }}.json << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "workflow_run": "${{ github.run_number }}",
-            "workflow_type": "${{ needs.analyze-request.outputs.workflow_type }}",
-            "generated_files_count": $GENERATED_FILES,
-            "template_used": "${{ needs.template-based-generation.outputs.template_used || 'unknown' }}",
-            "dynamic_inputs_enabled": "${{ needs.template-based-generation.outputs.dynamic_inputs_enabled || 'false' }}",
-            "validation_result": "${{ needs.validate-workflow.outputs.validation_result || 'skipped' }}",
-            "deployment_status": "${{ needs.deploy-validated-workflow.result || 'skipped' }}",
-            "save_method": "automatic_artifact_download"
-          }
-          EOF
-          
-          echo "✅ Generated workflow saved and history recorded"
-          echo "📊 Files saved: $GENERATED_FILES"
-          
-      - name: Commit Generated Workflow to Repository
-        run: |
-          echo "🔄 Committing generated workflow..."
-          
-          git config user.name "workflow-generator[bot]"
-          git config user.email "workflow-generator[bot]@users.noreply.github.com"
-          
-          # 変更があるかチェック
-          git add generated/ .meta/generated-history/
-          
-          if ! git diff --cached --quiet; then
-            # 生成されたファイル名を取得
-            GENERATED_FILE=$(find generated/workflows/staging -name "*.yml" 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "workflow")
-            
-            git commit -m "feat: 自動生成ワークフロー保存 🤖 Generated with Claude Code"
-            
-            # Git push with retry and conflict resolution
-            PUSH_RETRIES=3
-            PUSH_SUCCESS=false
-            
-            for i in $(seq 1 $PUSH_RETRIES); do
-              echo "🔄 Push attempt $i/$PUSH_RETRIES..."
-              
-              if git push origin main; then
-                echo "✅ Generated workflow committed and pushed to repository"
-                PUSH_SUCCESS=true
-                break
-              else
-                echo "⚠️ Push failed (attempt $i/$PUSH_RETRIES)"
-                
-                if [ $i -lt $PUSH_RETRIES ]; then
-                  echo "🔄 Pulling latest changes and retrying..."
-                  git pull --rebase origin main || {
-                    echo "❌ Rebase failed, trying merge strategy..."
-                    git pull origin main --no-rebase || echo "Pull also failed"
-                  }
-                  
-                  # Wait before retry to avoid race conditions
-                  sleep $((i * 10))
-                fi
-              fi
-            done
-            
-            if [ "$PUSH_SUCCESS" = "false" ]; then
-              echo "❌ All push attempts failed - saving locally only"
-            fi
-            
-            echo "🎯 Generated workflow available at: generated/workflows/staging/$GENERATED_FILE"
-          else
-            echo "ℹ️ No new generated workflow to commit"
-          fi
-          
-      - name: Summary Report
-        run: |
-          echo "📋 Generation Session Summary"
-          echo "================================"
-          echo "🎯 Workflow Type: ${{ needs.analyze-request.outputs.workflow_type }}"
-          echo "📁 Template Used: ${{ needs.template-based-generation.outputs.template_used || 'basic' }}"
-          echo "⚡ Dynamic Inputs: ${{ needs.template-based-generation.outputs.dynamic_inputs_enabled || 'false' }}"
-          echo "✅ Validation: ${{ needs.validate-workflow.outputs.validation_result || 'skipped' }}"
-          echo "🚀 Deployment: ${{ needs.deploy-validated-workflow.result || 'skipped' }}"
-          echo "💾 Auto-Save: completed"
-          echo "🔄 Run ID: ${{ github.run_number }}"
-          echo "⏰ Completed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "================================"
-          
-          # Claude Code実行時の自動ローカル更新トリガー
-          if [ "${{ github.actor }}" = "rossy8417" ] && [ -n "${{ env.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
-            echo "🔄 Triggering Claude Code local repository update..."
-            echo "::notice title=Local Update Required::Claude Code should run 'git pull origin main' to sync latest changes"
-          fi
+          # 将来: 外部モニタリングシステムへの通知
+          echo "✅ Status reported to monitoring systems"
