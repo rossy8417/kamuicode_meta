@@ -1,296 +1,123 @@
-# AIニュース要約・分析 - 超詳細タスク分解
-name: "ai-news-summarization"
-description: "複数ソースからニュースを収集・分析・要約してレポート作成"
-category: "content-analysis-reporting"
-complexity_level: 4
-estimated_duration_minutes: 35
+name: "AI News Summarization Workflow"
+run-name: "📰 Analyzing news: ${{ github.event.inputs.news_topic || 'News Analysis' }}"
 
-# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
-dynamic_inputs_spec:
-  modal_title: "AIニュース要約・分析設定"
-  modal_description: "ニュース収集・分析・要約の詳細設定を入力してください"
-  form_sections:
-    - section_name: "ニュース収集設定"
-      section_description: "収集するニュースの範囲と対象を設定"
-      inputs:
-        - name: "news_topic"
-          label: "分析対象トピック・キーワード"
-          type: "textarea"
-          required: true
-          placeholder: "例: AI技術の進展、暗号通貨市場動向、気候変動対策、経済政策"
-          description: "分析したいニュースのテーマやキーワードを入力してください"
-          validation:
-            min_length: 5
-            max_length: 200
-            
-        - name: "news_sources"
-          label: "ニュースソース"
-          type: "select"
-          required: true
-          description: "優先的に収集するニュースソースの種類"
-          options:
-            - value: "major_media"
-              label: "📺 主要メディア"
-              description: "大手新聞社、テレビ局、通信社"
-            - value: "tech_media"
-              label: "💻 テック系メディア"
-              description: "技術専門誌、IT系ニュースサイト"
-            - value: "business_media"
-              label: "💼 ビジネス系メディア"
-              description: "経済紙、ビジネス専門メディア"
-            - value: "international"
-              label: "🌍 国際メディア"
-              description: "海外の主要ニュースソース"
-            - value: "comprehensive"
-              label: "🔍 包括的収集"
-              description: "幅広いソースから収集"
-            - value: "specialized"
-              label: "🎯 専門メディア"
-              description: "特定分野の専門メディア"
-              
-        - name: "geographic_focus"
-          label: "地域的焦点"
-          type: "select"
-          required: true
-          description: "ニュース収集の地域的な重点を選択"
-          options:
-            - value: "global"
-              label: "🌎 グローバル"
-              description: "世界全体のニュース"
-            - value: "japan"
-              label: "🇯🇵 日本"
-              description: "日本国内のニュース中心"
-            - value: "asia_pacific"
-              label: "🌏 アジア太平洋"
-              description: "アジア太平洋地域"
-            - value: "north_america"
-              label: "🇺🇸 北米"
-              description: "米国・カナダ中心"
-            - value: "europe"
-              label: "🇪🇺 ヨーロッパ"
-              description: "ヨーロッパ地域"
+on:
+  workflow_dispatch:
+    inputs:
+      news_topic:
+        description: '分析対象トピック・キーワード'
+        required: true
+        default: 'AI技術の進展、暗号通貨市場動向、気候変動対策、経済政策'
+        type: string
+      news_sources:
+        description: 'ニュースソース'
+        required: true
+        type: choice
+        options:
+        - major_media
+        - tech_media
+        - business_media
+        - international
+        - comprehensive
+        - specialized
+        default: 'comprehensive'
+      geographic_focus:
+        description: '地域的焦点'
+        required: true
+        type: choice
+        options:
+        - global
+        - japan
+        - asia_pacific
+        - north_america
+        - europe
+        default: 'global'
+      analysis_period:
+        description: '分析対象期間'
+        required: true
+        type: choice
+        options:
+        - 24hours
+        - 3days
+        - 1week
+        - 2weeks
+        - 1month
+        default: '1week'
+      summary_length:
+        description: '要約の詳細度'
+        required: true
+        type: choice
+        options:
+        - brief
+        - standard
+        - detailed
+        - comprehensive
+        default: 'standard'
+      analysis_focus:
+        description: '分析の焦点'
+        required: true
+        type: choice
+        options:
+        - trend_analysis
+        - sentiment_analysis
+        - impact_analysis
+        - stakeholder_analysis
+        - comparative_analysis
+        default: 'trend_analysis'
+      output_format:
+        description: 'メイン出力形式'
+        required: true
+        type: choice
+        options:
+        - executive_summary
+        - detailed_report
+        - newsletter
+        - bullet_points
+        - timeline
+        default: 'detailed_report'
+      urgency_level:
+        description: '緊急度・重要度フィルタ（1-5）'
+        required: true
+        default: '3'
+        type: choice
+        options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+        - '5'
+      include_sources:
+        description: '情報源の表示'
+        required: false
+        type: choice
+        options:
+        - full_citations
+        - source_names
+        - minimal
+        - none
+        default: 'source_names'
 
-    - section_name: "分析・要約設定"
-      section_description: "ニュース分析と要約の詳細設定"
-      inputs:
-        - name: "analysis_period"
-          label: "分析対象期間"
-          type: "select"
-          required: true
-          description: "ニュース収集・分析の対象期間"
-          options:
-            - value: "24hours"
-              label: "📅 過去24時間"
-              description: "最新の24時間"
-            - value: "3days"
-              label: "📅 過去3日間"
-              description: "直近3日間のニュース"
-            - value: "1week"
-              label: "📅 過去1週間"
-              description: "1週間分のニュース"
-            - value: "2weeks"
-              label: "📅 過去2週間"
-              description: "2週間分のトレンド分析"
-            - value: "1month"
-              label: "📅 過去1ヶ月"
-              description: "月次トレンド分析"
-              
-        - name: "summary_length"
-          label: "要約の詳細度"
-          type: "select"
-          required: true
-          description: "生成する要約レポートの長さ・詳細度"
-          options:
-            - value: "brief"
-              label: "📋 簡潔版 (5-10要点)"
-              description: "要点のみの短い要約"
-            - value: "standard"
-              label: "📄 標準版 (10-20要点)"
-              description: "バランスの取れた要約"
-            - value: "detailed"
-              label: "📚 詳細版 (20-40要点)"
-              description: "包括的で詳細な分析"
-            - value: "comprehensive"
-              label: "📖 包括版 (40+要点)"
-              description: "網羅的な分析レポート"
-              
-        - name: "analysis_focus"
-          label: "分析の焦点"
-          type: "select"
-          required: true
-          description: "特に重点を置く分析の観点"
-          options:
-            - value: "trend_analysis"
-              label: "📈 トレンド分析"
-              description: "時系列での変化とトレンド"
-            - value: "sentiment_analysis"
-              label: "😊 感情・論調分析"
-              description: "世論や感情の傾向分析"
-            - value: "impact_analysis"
-              label: "💥 影響度分析"
-              description: "社会・経済への影響評価"
-            - value: "stakeholder_analysis"
-              label: "👥 関係者分析"
-              description: "関係者・組織の動向分析"
-            - value: "comparative_analysis"
-              label: "⚖️ 比較分析"
-              description: "異なる視点・意見の対比"
+permissions:
+  contents: write
+  issues: read
+  actions: read
 
-    - section_name: "出力・配信設定"
-      section_description: "レポート出力形式と配信に関する設定"
-      inputs:
-        - name: "output_format"
-          label: "メイン出力形式"
-          type: "select"
-          required: true
-          description: "要約レポートの主要な出力形式"
-          options:
-            - value: "executive_summary"
-              label: "📊 エグゼクティブサマリー"
-              description: "経営層向けの簡潔な要約"
-            - value: "detailed_report"
-              label: "📄 詳細レポート"
-              description: "包括的な分析レポート"
-            - value: "newsletter"
-              label: "📰 ニュースレター"
-              description: "読みやすいニュースレター形式"
-            - value: "bullet_points"
-              label: "🔸 箇条書き要約"
-              description: "要点を箇条書きで整理"
-            - value: "timeline"
-              label: "⏰ タイムライン形式"
-              description: "時系列での出来事整理"
-              
-        - name: "urgency_level"
-          label: "緊急度・重要度フィルタ"
-          type: "range"
-          required: true
-          description: "含めるニュースの最低重要度レベル"
-          min: 1
-          max: 5
-          default: 3
-          step: 1
-          labels:
-            1: "全ニュース"
-            3: "中重要度以上"
-            5: "最重要のみ"
-            
-        - name: "include_sources"
-          label: "情報源の表示"
-          type: "select"
-          required: false
-          description: "要約に情報源を含めるかどうか"
-          options:
-            - value: "full_citations"
-              label: "📚 完全な引用"
-              description: "記事タイトル、メディア名、URL"
-            - value: "source_names"
-              label: "📝 ソース名のみ"
-              description: "メディア名のみ表示"
-            - value: "minimal"
-              label: "📋 最小限"
-              description: "主要ソースのみ"
-            - value: "none"
-              label: "❌ 表示しない"
-              description: "情報源を非表示"
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-  # GitHub Actions 入力マッピングプレビュー
-  github_inputs_mapping:
-    news_topic:
-      input_name: "news_topic"  
-      description: "分析対象トピック・キーワード"
-      required: true
-      type: "string"
-    news_sources:
-      input_name: "news_sources"
-      description: "ニュースソース"
-      required: true
-      type: "choice"
-      options: ["major_media", "tech_media", "business_media", "international", "comprehensive", "specialized"]
-    geographic_focus:
-      input_name: "geographic_focus"
-      description: "地域的焦点"
-      required: true
-      type: "choice"
-      options: ["global", "japan", "asia_pacific", "north_america", "europe"]
-    analysis_period:
-      input_name: "analysis_period"
-      description: "分析対象期間"
-      required: true
-      type: "choice"
-      options: ["24hours", "3days", "1week", "2weeks", "1month"]
-    summary_length:
-      input_name: "summary_length"
-      description: "要約の詳細度"
-      required: true
-      type: "choice"
-      options: ["brief", "standard", "detailed", "comprehensive"]
-    analysis_focus:
-      input_name: "analysis_focus"
-      description: "分析の焦点"
-      required: true
-      type: "choice"
-      options: ["trend_analysis", "sentiment_analysis", "impact_analysis", "stakeholder_analysis", "comparative_analysis"]
-    output_format:
-      input_name: "output_format"
-      description: "メイン出力形式"
-      required: true
-      type: "choice"
-      options: ["executive_summary", "detailed_report", "newsletter", "bullet_points", "timeline"]
-    urgency_level:
-      input_name: "urgency_level"
-      description: "緊急度・重要度フィルタ（1-5）"
-      required: true
-      type: "string"
-      default: "3"
-    include_sources:
-      input_name: "include_sources"
-      description: "情報源の表示"
-      required: false
-      type: "choice"
-      options: ["full_citations", "source_names", "minimal", "none"]
-
-# 人間の無意識思考プロセス
-human_process:
-  - phase: "information_gathering"
-    description: "情報収集段階（ソース選定・データ取得）"
-  - phase: "content_filtering" 
-    description: "コンテンツフィルタリング段階（関連性・信頼性判定）"
-  - phase: "analysis_processing"
-    description: "分析処理段階（内容理解・パターン認識）"
-  - phase: "synthesis_summarization"
-    description: "統合要約段階（情報統合・要点抽出）"
-  - phase: "report_creation"
-    description: "レポート作成段階（構造化・可視化・配信準備）"
-
-# GitHub Actions ノード設計
-github_actions_config:
-  workflow_name: "AI News Summarization & Analysis"
-  on_triggers: ["workflow_dispatch", "schedule", "issues"]
-  permissions:
-    contents: "write"
-    issues: "write"
-    actions: "read"
-  artifacts_retention_days: 30
-  max_parallel_jobs: 4
-
-# 超詳細タスク分解
-tasks:
-  # === 事前テスト段階 ===
-  - id: "mcp-api-connectivity-test"
-    name: "ニュース収集用MCP・API接続テスト"
-    phase: "pre_validation"
-    github_job: "connectivity-test"
-    type: "validation"
-    implementation: "mcp"
-    duration_minutes: 3
-    dependencies: []
-    parallel_group: null
-    
-    github_steps:
-      - name: "Test news collection services"
-        shell: "bash"
-        script: |
+jobs:
+  # Phase 1: 事前テスト段階
+  connectivity-test:
+    runs-on: ubuntu-latest
+    outputs:
+      services_ready: ${{ steps.test.outputs.services_ready }}
+      web_search_available: ${{ steps.test.outputs.web_search_available }}
+      rss_available: ${{ steps.test.outputs.rss_available }}
+      ai_analysis_available: ${{ steps.test.outputs.ai_analysis_available }}
+    steps:
+      - name: Test news collection services
+        id: test
+        run: |
           echo "📰 Testing news collection and analysis services..."
           
           mkdir -p .logs/connectivity-tests
@@ -388,131 +215,65 @@ tasks:
           echo "ENHANCED_COLLECTION=$([ "$NEWS_API_STATUS" = "success" ] || [ "$RSS_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
           echo "ADVANCED_ANALYSIS=$([ "$SENTIMENT_API_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
           
-          echo "📰 News service connectivity tests completed"
+          # Set outputs
+          echo "services_ready=true" >> $GITHUB_OUTPUT
+          echo "web_search_available=$WEB_SEARCH_STATUS" >> $GITHUB_OUTPUT
+          echo "rss_available=$RSS_STATUS" >> $GITHUB_OUTPUT
+          echo "ai_analysis_available=$AI_ANALYSIS_STATUS" >> $GITHUB_OUTPUT
           
-    validation:
-      criteria:
-        - "Web Search APIが利用可能（必須）"
-        - "少なくとも1つのニュース収集方法が利用可能"
-        - "テスト結果がJSON形式で保存されている"
-      validation_script: |
-        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
-          echo "❌ VALIDATION FAILED: Test results missing"
-          exit 1
-        fi
-        
-        WORKFLOW_CAN_PROCEED=$(jq -r '.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
-        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
-          echo "✅ Validation passed: News collection services ready"
-        else
-          echo "❌ VALIDATION FAILED: Critical news services unavailable"
-          exit 1
-        fi
-        
-    error_handling:
-      retry_count: 2
-      retry_delay_seconds: 20
-      fallback_strategy: "web_search_only"
-      fallback_script: |
-        echo "⚠️ Using fallback: Web search only mode"
-        cat > .logs/connectivity-tests/test-results.json << EOF
-        {
-          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-          "required_for_workflow": {
-            "web_search_api": "assumed_available",
-            "rss_parser": "failed",
-            "ai_analysis": "failed",
-            "news_api": "failed",
-            "sentiment_api": "failed"
-          },
-          "overall_status": "fallback_mode",
-          "critical_services_available": true,
-          "workflow_can_proceed": true,
-          "enhanced_features_available": false
-        }
-        EOF
-        echo "CONNECTIVITY_STATUS=fallback_mode" >> $GITHUB_ENV
-        echo "ENHANCED_COLLECTION=false" >> $GITHUB_ENV
-        echo "ADVANCED_ANALYSIS=false" >> $GITHUB_ENV
-        
-    progress_links:
-      log_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-      test_results: ".logs/connectivity-tests/test-results.json"
+          echo "📰 News service connectivity tests completed"
 
-  # === 情報収集段階 ===
-  - id: "topic-keyword-extraction"
-    name: "分析対象トピック・キーワード抽出"
-    phase: "information_gathering"
-    github_job: "topic-extraction"
-    type: "analysis"
-    implementation: "ai"
-    duration_minutes: 2
-    dependencies: ["mcp-api-connectivity-test"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Extract analysis topics and keywords"
-        shell: "bash"
-        script: |
+  # Phase 2: 情報収集段階
+  topic-extraction:
+    needs: connectivity-test
+    runs-on: ubuntu-latest
+    outputs:
+      keywords_ready: ${{ steps.extract.outputs.keywords_ready }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Extract analysis topics and keywords
+        id: extract
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🔍 Extracting analysis topics and keywords..."
           
           mkdir -p .logs/information-gathering
           
           # 入力されたトピックまたはイシューから分析対象を抽出
-          INPUT_TOPIC="${{ github.event.inputs.news_topic || github.event.issue.title || 'latest technology news' }}"
-          ANALYSIS_PERIOD="${{ github.event.inputs.analysis_period || '24 hours' }}"
+          INPUT_TOPIC="${{ github.event.inputs.news_topic }}"
+          ANALYSIS_PERIOD="${{ github.event.inputs.analysis_period }}"
           
           echo "Input topic: $INPUT_TOPIC"
           echo "Analysis period: $ANALYSIS_PERIOD"
           
           # Claude Code でトピック分析・キーワード抽出
-          claude-code --prompt "以下のニュース分析要求からトピックとキーワードを抽出してください：
+          claude-code --prompt "以下のニュース分析要求からトピックとキーワードを抽出してJSON形式で回答してください：
           
           分析対象: $INPUT_TOPIC
           期間: $ANALYSIS_PERIOD
+          地域焦点: ${{ github.event.inputs.geographic_focus }}
+          ニュースソース: ${{ github.event.inputs.news_sources }}
           
-          以下の形式でJSONで回答してください：
-          {
-            \"primary_topic\": \"メインの分析トピック\",
-            \"sub_topics\": [\"関連するサブトピック\"],
-            \"search_keywords\": [\"検索用キーワードリスト\"],
-            \"related_terms\": [\"関連用語・類義語\"],
-            \"exclusion_keywords\": [\"除外したいキーワード\"],
-            \"news_categories\": [\"対象ニュースカテゴリ\"],
-            \"geographic_focus\": \"地域的焦点（global|regional|local）\",
-            \"analysis_scope\": {
-              \"depth\": \"high|medium|low\",
-              \"breadth\": \"comprehensive|focused|specific\",
-              \"time_sensitivity\": \"breaking|recent|trend_analysis\"
-            },
-            \"source_priorities\": [\"優先すべき情報源タイプ\"],
-            \"expected_volume\": \"予想される記事数の範囲\"
-          }" > .logs/information-gathering/topic-analysis.json
+          JSON形式で検索キーワードと分析方針を返してください。" > .logs/information-gathering/topic-analysis.json
           
-          TOPIC_ANALYSIS=$(cat .logs/information-gathering/topic-analysis.json)
-          echo "TOPIC_ANALYSIS=$TOPIC_ANALYSIS" >> $GITHUB_ENV
-          
-          # 検索キーワードを環境変数に設定
-          SEARCH_KEYWORDS=$(echo "$TOPIC_ANALYSIS" | jq -r '.search_keywords | join(" ")')
-          echo "SEARCH_KEYWORDS=$SEARCH_KEYWORDS" >> $GITHUB_ENV
-          
+          echo "keywords_ready=true" >> $GITHUB_OUTPUT
           echo "✅ Topic and keyword extraction completed"
 
-  - id: "multi-source-news-collection"
-    name: "マルチソースニュース収集"
-    phase: "information_gathering"
-    github_job: "news-collection"
-    type: "collection"
-    implementation: "api"
-    tool: "web-search-api"
-    duration_minutes: 5
-    dependencies: ["topic-keyword-extraction"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Collect news from multiple sources"
-        shell: "bash"
-        script: |
+  # Phase 3: ニュース収集段階
+  news-collection:
+    needs: topic-extraction
+    runs-on: ubuntu-latest
+    outputs:
+      collection_ready: ${{ steps.collect.outputs.collection_ready }}
+    steps:
+      - name: Collect news from multiple sources
+        id: collect
+    env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "📰 Collecting news from multiple sources..."
           
           mkdir -p .logs/information-gathering/sources
@@ -586,1212 +347,126 @@ tasks:
           }" > .logs/information-gathering/consolidated-news.json
           
           CONSOLIDATED_NEWS=$(cat .logs/information-gathering/consolidated-news.json)
-          echo "CONSOLIDATED_NEWS_FILE=.logs/information-gathering/consolidated-news.json" >> $GITHUB_ENV
-          
+          echo "collection_ready=true" >> $GITHUB_OUTPUT
           echo "📰 Multi-source news collection completed"
-          
-    validation:
-      criteria:
-        - "少なくとも5件のニュース記事が収集されている"
-        - "複数の情報源からデータが収集されている"
-        - "統合されたデータがJSON形式で保存されている"
-      validation_script: |
-        if [ ! -f ".logs/information-gathering/consolidated-news.json" ]; then
-          echo "❌ VALIDATION FAILED: Consolidated news file missing"
-          exit 1
-        fi
-        
-        ARTICLE_COUNT=$(jq -r '.collection_summary.total_articles_found // 0' .logs/information-gathering/consolidated-news.json)
-        if [ "$ARTICLE_COUNT" -ge 5 ]; then
-          echo "✅ Validation passed: $ARTICLE_COUNT articles collected"
-        else
-          echo "⚠️ WARNING: Only $ARTICLE_COUNT articles collected (minimum 5 recommended)"
-        fi
 
-  # === コンテンツフィルタリング段階 ===
-  - id: "content-relevance-filtering"
-    name: "コンテンツ関連性フィルタリング"
-    phase: "content_filtering"
-    github_job: "relevance-filtering"
-    type: "filtering"
-    implementation: "ai"
-    duration_minutes: 3
-    dependencies: ["multi-source-news-collection"]
-    parallel_group: "filtering_parallel"
-    
-    github_steps:
-      - name: "Filter content by relevance"
-        shell: "bash"
-        script: |
-          echo "🔍 Filtering content by relevance..."
+  # Phase 4: ニュース分析段階
+  news-analysis:
+    needs: news-collection
+    runs-on: ubuntu-latest
+    outputs:
+      analysis_ready: ${{ steps.analyze.outputs.analysis_ready }}
+    steps:
+      - name: Analyze collected news content
+        id: analyze
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🔍 Analyzing collected news content..."
           
-          mkdir -p .logs/content-filtering
+          mkdir -p .logs/news-analysis
           
-          # 関連性フィルタリング
-          claude-code --prompt "以下のトピック分析に基づいて、収集されたニュース記事の関連性をフィルタリングしてください：
+          claude-code --prompt "収集されたニュースを分析し、以下の観点で要約してください：
           
-          分析対象トピック: $TOPIC_ANALYSIS
-          収集されたニュース: $(cat $CONSOLIDATED_NEWS_FILE)
+          分析焦点: ${{ github.event.inputs.analysis_focus }}
+          要約レベル: ${{ github.event.inputs.summary_length }}
+          期間: ${{ github.event.inputs.analysis_period }}
           
-          フィルタリング基準:
-          - 主要トピックとの関連度
-          - 情報の有用性
-          - 重複記事の除去
-          - 信頼性の高いソース優先
+          JSON形式で分析結果を返してください。" > .logs/news-analysis/analysis-report.json
           
-          以下の形式でJSONで回答してください：
-          {
-            \"filtering_results\": {
-              \"original_count\": \"元の記事数\",
-              \"filtered_count\": \"フィルタリング後の記事数\",
-              \"removal_reasons\": {\"除外理由\": \"件数\"},
-              \"filtering_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
-            },
-            \"highly_relevant_articles\": [
-              {
-                \"title\": \"記事タイトル\",
-                \"source\": \"情報源\",
-                \"url\": \"記事URL\",
-                \"published_date\": \"公開日時\",
-                \"summary\": \"記事要約\",
-                \"relevance_score\": \"関連性スコア（8-10点）\",
-                \"key_points\": [\"重要ポイント\"],
-                \"topic_alignment\": \"primary|secondary|supporting\"
-              }
-            ],
-            \"moderately_relevant_articles\": [\"中程度の関連性記事（同形式）\"],
-            \"quality_metrics\": {
-              \"average_relevance_score\": \"平均関連性スコア\",
-              \"source_credibility_distribution\": {\"high\": \"件数\", \"medium\": \"件数\", \"low\": \"件数\"},
-              \"topic_coverage_completeness\": \"1-10点での網羅性\"
-            }
-          }" > .logs/content-filtering/relevance-filtered.json
-          
-          RELEVANCE_FILTERED=$(cat .logs/content-filtering/relevance-filtered.json)
-          echo "RELEVANCE_FILTERED_FILE=.logs/content-filtering/relevance-filtered.json" >> $GITHUB_ENV
-          
-          echo "✅ Content relevance filtering completed"
+          echo "analysis_ready=true" >> $GITHUB_OUTPUT
+          echo "🔍 News analysis completed"
 
-  - id: "credibility-verification"
-    name: "情報源信頼性検証"
-    phase: "content_filtering"
-    github_job: "credibility-check"
-    type: "verification"
-    implementation: "ai"
-    duration_minutes: 2
-    dependencies: ["multi-source-news-collection"]
-    parallel_group: "filtering_parallel"
-    
-    github_steps:
-      - name: "Verify source credibility"
-        shell: "bash"
-        script: |
-          echo "🔒 Verifying source credibility..."
+  # Phase 5: レポート生成段階
+  report-generation:
+    needs: news-analysis
+    runs-on: ubuntu-latest
+    outputs:
+      report_ready: ${{ steps.generate.outputs.report_ready }}
+    steps:
+      - name: Generate comprehensive news report
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📋 Generating comprehensive news report..."
           
-          # 情報源の信頼性検証
-          claude-code --prompt "以下の収集されたニュース記事の情報源の信頼性を検証してください：
+          mkdir -p .logs/report-generation
           
-          収集されたニュース: $(cat $CONSOLIDATED_NEWS_FILE)
+          claude-code --prompt "分析されたニュースデータから最終レポートを生成してください：
           
-          検証基準:
-          - 報道機関の評判と実績
-          - バイアスの有無
-          - ファクトチェック履歴
-          - 専門性と権威性
-          - 一次情報源への参照
+          出力形式: ${{ github.event.inputs.output_format }}
+          情報源表示: ${{ github.event.inputs.include_sources }}
+          緊急度レベル: ${{ github.event.inputs.urgency_level }}
           
-          以下の形式でJSONで回答してください：
-          {
-            \"credibility_assessment\": {
-              \"verification_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-              \"total_sources_evaluated\": \"評価したソース数\",
-              \"credibility_distribution\": {
-                \"high_credibility\": \"高信頼性ソース数\",
-                \"medium_credibility\": \"中信頼性ソース数\",
-                \"low_credibility\": \"低信頼性ソース数\",
-                \"unknown_credibility\": \"不明ソース数\"
-              }
-            },
-            \"source_ratings\": [
-              {
-                \"source_name\": \"情報源名\",
-                \"credibility_rating\": \"high|medium|low|unknown\",
-                \"bias_assessment\": \"left|center|right|unknown\",
-                \"reliability_factors\": [\"信頼性要因\"],
-                \"risk_factors\": [\"リスク要因\"],
-                \"recommendation\": \"include|caution|exclude\"
-              }
-            ],
-            \"flagged_articles\": [
-              {
-                \"title\": \"要注意記事タイトル\",
-                \"source\": \"情報源\",
-                \"flag_reason\": \"フラグ理由\",
-                \"verification_status\": \"needs_verification|disputed|false\"
-              }
-            ],
-            \"verification_summary\": {
-              \"high_confidence_articles\": \"高確信度記事数\",
-              \"requires_additional_verification\": \"追加検証必要記事数\",
-              \"overall_collection_reliability\": \"1-10点での全体信頼性\"
-            }
-          }" > .logs/content-filtering/credibility-assessment.json
+          指定された形式でレポートを作成してください。" > .logs/report-generation/final-report.json
           
-          CREDIBILITY_ASSESSMENT=$(cat .logs/content-filtering/credibility-assessment.json)
-          echo "CREDIBILITY_ASSESSMENT_FILE=.logs/content-filtering/credibility-assessment.json" >> $GITHUB_ENV
-          
-          echo "✅ Source credibility verification completed"
+          echo "report_ready=true" >> $GITHUB_OUTPUT
+          echo "📋 Report generation completed"
 
-  - id: "duplicate-detection-removal"
-    name: "重複記事検出・除去"
-    phase: "content_filtering"
-    github_job: "duplicate-removal"
-    type: "processing"
-    implementation: "ai"
-    duration_minutes: 2
-    dependencies: ["content-relevance-filtering", "credibility-verification"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Detect and remove duplicate articles"
-        shell: "bash"
-        script: |
-          echo "🔄 Detecting and removing duplicate articles..."
+  # Phase 6: 最終パッケージ作成
+  final-packaging:
+    needs: [connectivity-test, topic-extraction, news-collection, news-analysis, report-generation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create comprehensive news analysis package
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📦 Creating comprehensive news analysis package..."
           
-          # 重複記事の検出・除去
-          claude-code --prompt "以下のフィルタリングされたニュース記事から重複を検出し、最良のバージョンを保持してください：
+          mkdir -p .final-output/{analysis,reports,sources}
           
-          関連性フィルタリング結果: $(cat $RELEVANCE_FILTERED_FILE)
-          信頼性検証結果: $(cat $CREDIBILITY_ASSESSMENT_FILE)
+          # 分析ドキュメント
+          cp .logs/information-gathering/topic-analysis.json .final-output/analysis/ 2>/dev/null || true
+          cp .logs/news-analysis/analysis-report.json .final-output/analysis/ 2>/dev/null || true
           
-          重複検出基準:
-          - タイトルの類似度
-          - 内容の重複度
-          - 同一事件・出来事の扱い
-          - 公開時間の近さ
+          # レポート
+          cp .logs/report-generation/final-report.json .final-output/reports/ 2>/dev/null || true
           
-          保持優先順位:
-          1. 信頼性の高いソース
-          2. より詳細な内容
-          3. より新しい情報
-          4. オリジナル報道
+          # ソースデータ
+          cp .logs/information-gathering/consolidated-news.json .final-output/sources/ 2>/dev/null || true
           
-          以下の形式でJSONで回答してください：
+          # マスター情報
+          cat > .final-output/news-analysis-master.json << EOF
           {
-            \"deduplication_results\": {
-              \"original_count\": \"重複除去前の記事数\",
-              \"final_count\": \"重複除去後の記事数\",
-              \"duplicates_removed\": \"除去された重複記事数\",
-              \"deduplication_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            "project_info": {
+              "project_name": "AI News Summarization & Analysis",
+              "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "github_run_id": "${{ github.run_id }}",
+              "analysis_type": "news_summarization_and_analysis"
             },
-            \"final_article_set\": [
-              {
-                \"title\": \"記事タイトル\",
-                \"source\": \"情報源\",
-                \"url\": \"記事URL\",
-                \"published_date\": \"公開日時\",
-                \"summary\": \"記事要約\",
-                \"relevance_score\": \"関連性スコア\",
-                \"credibility_rating\": \"信頼性評価\",
-                \"key_points\": [\"重要ポイント\"],
-                \"article_type\": \"breaking|analysis|opinion|report\",
-                \"unique_aspects\": [\"この記事固有の側面\"]
-              }
-            ],
-            \"removed_duplicates\": [
-              {
-                \"removed_title\": \"除去された記事タイトル\",
-                \"kept_instead\": \"代わりに保持した記事タイトル\",
-                \"removal_reason\": \"除去理由\"
-              }
-            ],
-            \"quality_improvement\": {
-              \"information_density_increase\": \"情報密度向上度\",
-              \"source_diversity_maintained\": \"ソース多様性維持度\",
-              \"coverage_completeness\": \"網羅性維持度\"
-            }
-          }" > .logs/content-filtering/deduplicated-articles.json
-          
-          DEDUPLICATED_ARTICLES=$(cat .logs/content-filtering/deduplicated-articles.json)
-          echo "DEDUPLICATED_ARTICLES_FILE=.logs/content-filtering/deduplicated-articles.json" >> $GITHUB_ENV
-          
-          echo "✅ Duplicate detection and removal completed"
-
-  # === 分析処理段階 ===
-  - id: "content-analysis"
-    name: "コンテンツ詳細分析"
-    phase: "analysis_processing"
-    github_job: "content-analysis"
-    type: "analysis"
-    implementation: "ai"
-    duration_minutes: 4
-    dependencies: ["duplicate-detection-removal"]
-    parallel_group: "analysis_parallel"
-    
-    github_steps:
-      - name: "Perform detailed content analysis"
-        shell: "bash"
-        script: |
-          echo "🧠 Performing detailed content analysis..."
-          
-          mkdir -p .logs/analysis-processing
-          
-          # 詳細なコンテンツ分析
-          claude-code --prompt "以下の厳選されたニュース記事に対して詳細な分析を行ってください：
-          
-          分析対象記事: $(cat $DEDUPLICATED_ARTICLES_FILE)
-          元の分析要求: $TOPIC_ANALYSIS
-          
-          分析観点:
-          1. 主要テーマとサブテーマの特定
-          2. 時系列での出来事の流れ
-          3. 関係者・組織の役割分析
-          4. 影響度と重要度の評価
-          5. トレンドとパターンの識別
-          6. 地域的・グローバルな影響
-          7. 産業・分野への影響
-          
-          以下の形式でJSONで回答してください：
-          {
-            \"analysis_summary\": {
-              \"analysis_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-              \"articles_analyzed\": \"分析記事数\",
-              \"analysis_depth\": \"comprehensive|standard|basic\",
-              \"confidence_level\": \"1-10点での分析信頼度\"
+            "input_parameters": {
+              "news_topic": "${{ github.event.inputs.news_topic }}",
+              "news_sources": "${{ github.event.inputs.news_sources }}",
+              "geographic_focus": "${{ github.event.inputs.geographic_focus }}",
+              "analysis_period": "${{ github.event.inputs.analysis_period }}",
+              "summary_length": "${{ github.event.inputs.summary_length }}",
+              "analysis_focus": "${{ github.event.inputs.analysis_focus }}",
+              "output_format": "${{ github.event.inputs.output_format }}",
+              "urgency_level": "${{ github.event.inputs.urgency_level }}",
+              "include_sources": "${{ github.event.inputs.include_sources }}"
             },
-            \"thematic_analysis\": {
-              \"primary_themes\": [\"主要テーマリスト\"],
-              \"secondary_themes\": [\"副次テーマリスト\"],
-              \"emerging_themes\": [\"新出現テーマリスト\"],
-              \"theme_interconnections\": [\"テーマ間の関連性\"]
-            },
-            \"temporal_analysis\": {
-              \"event_timeline\": [
-                {
-                  \"date\": \"日付\",
-                  \"event\": \"出来事\",
-                  \"significance\": \"重要度（1-10）\",
-                  \"impact_scope\": \"影響範囲\"
-                }
-              ],
-              \"trend_direction\": \"increasing|decreasing|stable|volatile\",
-              \"momentum\": \"accelerating|steady|slowing\"
-            },
-            \"stakeholder_analysis\": {
-              \"key_players\": [
-                {
-                  \"name\": \"関係者・組織名\",
-                  \"role\": \"役割\",
-                  \"influence_level\": \"high|medium|low\",
-                  \"position\": \"supportive|neutral|opposing|unknown\"
-                }
-              ],
-              \"power_dynamics\": [\"パワーバランスの分析\"]
-            },
-            \"impact_assessment\": {
-              \"immediate_impacts\": [\"即座の影響\"],
-              \"short_term_implications\": [\"短期的な含み\"],
-              \"long_term_consequences\": [\"長期的な結果\"],
-              \"affected_sectors\": [\"影響を受ける分野\"],
-              \"geographic_impact\": \"local|regional|national|international\"
-            },
-            \"sentiment_trends\": {
-              \"overall_sentiment\": \"positive|negative|neutral|mixed\",
-              \"sentiment_distribution\": {\"positive\": \"％\", \"negative\": \"％\", \"neutral\": \"％\"},
-              \"sentiment_evolution\": \"improving|worsening|stable\"
-            }
-          }" > .logs/analysis-processing/content-analysis.json
-          
-          CONTENT_ANALYSIS=$(cat .logs/analysis-processing/content-analysis.json)
-          echo "CONTENT_ANALYSIS_FILE=.logs/analysis-processing/content-analysis.json" >> $GITHUB_ENV
-          
-          echo "✅ Detailed content analysis completed"
-
-  - id: "sentiment-emotion-analysis"
-    name: "感情・センチメント分析"
-    phase: "analysis_processing"
-    github_job: "sentiment-analysis"
-    type: "analysis"
-    implementation: "mcp"
-    tool: "sentiment-analysis"
-    duration_minutes: 3
-    dependencies: ["duplicate-detection-removal"]
-    parallel_group: "analysis_parallel"
-    
-    github_steps:
-      - name: "Analyze sentiment and emotions"
-        shell: "bash"
-        script: |
-          echo "😊 Analyzing sentiment and emotions..."
-          
-          # 感情・センチメント分析
-          if [ "$ADVANCED_ANALYSIS" = "true" ] && [ -n "${{ secrets.SENTIMENT_API_KEY }}" ]; then
-            echo "Using advanced sentiment analysis API..."
-            
-            # 外部センチメント分析API使用
-            cat "$DEDUPLICATED_ARTICLES_FILE" | jq -r '.final_article_set[].summary' | while read -r text; do
-              curl -s -H "Authorization: Bearer ${{ secrets.SENTIMENT_API_KEY }}" \
-                -H "Content-Type: application/json" \
-                -d "{\"text\": \"$text\"}" \
-                "https://api.example-sentiment.com/analyze" >> .logs/analysis-processing/sentiment-raw.json
-              echo "" >> .logs/analysis-processing/sentiment-raw.json
-            done
-          else
-            echo "Using built-in sentiment analysis..."
-          fi
-          
-          # Claude Code による包括的感情分析
-          claude-code --prompt "以下のニュース記事群に対して包括的な感情・センチメント分析を行ってください：
-          
-          分析対象記事: $(cat $DEDUPLICATED_ARTICLES_FILE)
-          $([ -f '.logs/analysis-processing/sentiment-raw.json' ] && echo "外部API分析結果: $(cat .logs/analysis-processing/sentiment-raw.json)" || echo "")
-          
-          分析項目:
-          1. 全体的なセンチメント傾向
-          2. 記事ごとの感情分析
-          3. トピック別感情分布
-          4. 時系列での感情変化
-          5. ソース別感情傾向
-          6. 読者に与える心理的影響
-          
-          以下の形式でJSONで回答してください：
-          {
-            \"sentiment_analysis_summary\": {
-              \"analysis_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-              \"total_texts_analyzed\": \"分析テキスト数\",
-              \"analysis_method\": \"advanced_api|built_in|hybrid\",
-              \"confidence_score\": \"1-10点での分析信頼度\"
-            },
-            \"overall_sentiment\": {
-              \"dominant_sentiment\": \"positive|negative|neutral\",
-              \"sentiment_strength\": \"strong|moderate|weak\",
-              \"sentiment_distribution\": {
-                \"positive\": \"正面感情の割合\",
-                \"negative\": \"負面感情の割合\",
-                \"neutral\": \"中性感情の割合\"
+            "deliverables": {
+              "analysis_documents": {
+                "topic_analysis": "analysis/topic-analysis.json",
+                "content_analysis": "analysis/analysis-report.json"
               },
-              \"emotional_tone\": \"hopeful|concerned|urgent|analytical|celebratory\"
-            },
-            \"article_level_sentiment\": [
-              {
-                \"article_title\": \"記事タイトル\",
-                \"primary_sentiment\": \"感情分類\",
-                \"sentiment_score\": \"感情強度（-1.0 to 1.0）\",
-                \"detected_emotions\": [\"検出された感情\"],
-                \"emotional_keywords\": [\"感情を表すキーワード\"]
-              }
-            ],
-            \"temporal_sentiment_trends\": [
-              {
-                \"time_period\": \"時期\",
-                \"average_sentiment\": \"平均センチメント\",
-                \"trend_direction\": \"improving|declining|stable\"
-              }
-            ],
-            \"topic_sentiment_breakdown\": {
-              \"テーマ名\": {
-                \"sentiment\": \"感情分類\",
-                \"intensity\": \"強度\",
-                \"public_concern_level\": \"high|medium|low\"
-              }
-            },
-            \"psychological_impact_assessment\": {
-              \"reader_emotional_response\": \"予想される読者反応\",
-              \"concern_level\": \"不安レベル\",
-              \"call_to_action_potential\": \"行動喚起potential\",
-              \"information_urgency\": \"情報の緊急性\"
-            }
-          }" > .logs/analysis-processing/sentiment-analysis.json
-          
-          SENTIMENT_ANALYSIS=$(cat .logs/analysis-processing/sentiment-analysis.json)
-          echo "SENTIMENT_ANALYSIS_FILE=.logs/analysis-processing/sentiment-analysis.json" >> $GITHUB_ENV
-          
-          echo "✅ Sentiment and emotion analysis completed"
-
-  - id: "trend-pattern-identification"
-    name: "トレンド・パターン識別"
-    phase: "analysis_processing"
-    github_job: "trend-analysis"
-    type: "analysis"
-    implementation: "ai"
-    duration_minutes: 3
-    dependencies: ["content-analysis", "sentiment-emotion-analysis"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Identify trends and patterns"
-        shell: "bash"
-        script: |
-          echo "📈 Identifying trends and patterns..."
-          
-          # トレンド・パターン識別
-          claude-code --prompt "以下の分析結果を統合して、トレンドとパターンを識別してください：
-          
-          コンテンツ分析: $(cat $CONTENT_ANALYSIS_FILE)
-          センチメント分析: $(cat $SENTIMENT_ANALYSIS_FILE)
-          
-          パターン識別項目:
-          1. 報道頻度の変化
-          2. 注目度の推移
-          3. 関係者の行動パターン
-          4. 地理的な広がりパターン
-          5. 業界・分野への波及パターン
-          6. 世論・感情の変化パターン
-          7. 類似事例との比較
-          
-          以下の形式でJSONで回答してください：
-          {
-            \"trend_analysis_summary\": {
-              \"analysis_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-              \"analysis_period_covered\": \"分析対象期間\",
-              \"pattern_confidence\": \"1-10点でのパターン確信度\",
-              \"trend_stability\": \"stable|emerging|volatile|declining\"
-            },
-            \"identified_trends\": [
-              {
-                \"trend_name\": \"トレンド名\",
-                \"trend_type\": \"upward|downward|cyclical|sporadic\",
-                \"trend_strength\": \"strong|moderate|weak\",
-                \"time_frame\": \"short_term|medium_term|long_term\",
-                \"supporting_evidence\": [\"裏付けとなる証拠\"],
-                \"significance\": \"high|medium|low\",
-                \"predictive_indicators\": [\"予測指標\"]
-              }
-            ],
-            \"pattern_analysis\": {
-              \"recurring_patterns\": [\"繰り返されるパターン\"],
-              \"anomalies\": [\"異常・例外的な事象\"],
-              \"correlation_findings\": [\"相関関係の発見\"],
-              \"causation_hypotheses\": [\"因果関係の仮説\"]
-            },
-            \"comparative_analysis\": {
-              \"historical_parallels\": [\"歴史的な類似事例\"],
-              \"cross_industry_patterns\": [\"業界横断的パターン\"],
-              \"geographic_variations\": [\"地域的な差異\"],
-              \"scale_differences\": [\"規模による違い\"]
-            },
-            \"predictive_insights\": {
-              \"short_term_predictions\": [\"短期予測\"],
-              \"medium_term_outlook\": [\"中期見通し\"],
-              \"potential_scenarios\": [\"想定シナリオ\"],
-              \"key_variables_to_watch\": [\"注視すべき変数\"],
-              \"early_warning_indicators\": [\"早期警告指標\"]
-            },
-            \"strategic_implications\": {
-              \"stakeholder_actions\": [\"関係者が取るべき行動\"],
-              \"risk_factors\": [\"リスク要因\"],
-              \"opportunity_areas\": [\"機会領域\"],
-              \"preparation_recommendations\": [\"準備推奨事項\"]
-            }
-          }" > .logs/analysis-processing/trend-analysis.json
-          
-          TREND_ANALYSIS=$(cat .logs/analysis-processing/trend-analysis.json)
-          echo "TREND_ANALYSIS_FILE=.logs/analysis-processing/trend-analysis.json" >> $GITHUB_ENV
-          
-          echo "✅ Trend and pattern identification completed"
-
-  # === 統合要約段階 ===
-  - id: "comprehensive-synthesis"
-    name: "包括的情報統合"
-    phase: "synthesis_summarization"
-    github_job: "information-synthesis"
-    type: "synthesis"
-    implementation: "ai"
-    duration_minutes: 4
-    dependencies: ["trend-pattern-identification"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Synthesize comprehensive information"
-        shell: "bash"
-        script: |
-          echo "🔄 Synthesizing comprehensive information..."
-          
-          mkdir -p .logs/synthesis-summarization
-          
-          # 包括的な情報統合
-          claude-code --prompt "以下の全ての分析結果を統合して、包括的な情報統合を行ってください：
-          
-          元の分析要求: $TOPIC_ANALYSIS
-          コンテンツ分析: $(cat $CONTENT_ANALYSIS_FILE)
-          センチメント分析: $(cat $SENTIMENT_ANALYSIS_FILE)
-          トレンド分析: $(cat $TREND_ANALYSIS_FILE)
-          最終記事集: $(cat $DEDUPLICATED_ARTICLES_FILE)
-          
-          統合の観点:
-          1. 全体像の構築
-          2. 重要なインサイトの抽出
-          3. 矛盾する情報の調整
-          4. 欠落情報の特定
-          5. 確信度の評価
-          6. 実用的な示唆の導出
-          
-          以下の形式でJSONで回答してください：
-          {
-            \"synthesis_summary\": {
-              \"synthesis_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-              \"data_sources_integrated\": \"統合されたデータソース数\",
-              \"analysis_dimensions\": [\"分析次元リスト\"],
-              \"synthesis_confidence\": \"1-10点での統合信頼度\",
-              \"information_completeness\": \"1-10点での情報完全性\"
-            },
-            \"executive_summary\": {
-              \"situation_overview\": \"状況概要（200-300文字）\",
-              \"key_developments\": [\"主要な展開事項\"],
-              \"critical_insights\": [\"重要なインサイト\"],
-              \"immediate_implications\": [\"即座の含意\"],
-              \"strategic_significance\": \"戦略的重要性の説明\"
-            },
-            \"detailed_findings\": {
-              \"primary_conclusions\": [\"主要結論\"],
-              \"supporting_evidence\": [\"裏付け証拠\"],
-              \"confidence_levels\": {\"結論\": \"確信度\"},
-              \"areas_of_uncertainty\": [\"不確実性の領域\"],
-              \"contradictory_information\": [\"矛盾する情報\"]
-            },
-            \"stakeholder_impact_analysis\": {
-              \"high_impact_stakeholders\": [\"高影響関係者\"],
-              \"medium_impact_stakeholders\": [\"中影響関係者\"],
-              \"indirect_effects\": [\"間接的影響\"],
-              \"ripple_effects\": [\"波及効果\"]
-            },
-            \"temporal_synthesis\": {
-              \"historical_context\": \"歴史的文脈\",
-              \"current_status\": \"現在の状況\",
-              \"trajectory_analysis\": \"軌道分析\",
-              \"future_outlook\": \"将来見通し\"
-            },
-            \"risk_opportunity_matrix\": {
-              \"high_probability_risks\": [\"高確率リスク\"],
-              \"low_probability_high_impact_risks\": [\"低確率高影響リスク\"],
-              \"near_term_opportunities\": [\"短期機会\"],
-              \"strategic_opportunities\": [\"戦略的機会\"]
-            },
-            \"information_gaps\": {
-              \"critical_missing_information\": [\"重要な欠落情報\"],
-              \"additional_research_needed\": [\"追加調査が必要な領域\"],
-              \"verification_required\": [\"検証が必要な事項\"]
-            },
-            \"actionable_insights\": {
-              \"immediate_actions\": [\"即座の行動項目\"],
-              \"strategic_recommendations\": [\"戦略的推奨事項\"],
-              \"monitoring_priorities\": [\"監視優先事項\"],
-              \"contingency_planning\": [\"緊急時対応計画\"
-            }
-          }" > .logs/synthesis-summarization/comprehensive-synthesis.json
-          
-          COMPREHENSIVE_SYNTHESIS=$(cat .logs/synthesis-summarization/comprehensive-synthesis.json)
-          echo "COMPREHENSIVE_SYNTHESIS_FILE=.logs/synthesis-summarization/comprehensive-synthesis.json" >> $GITHUB_ENV
-          
-          echo "✅ Comprehensive information synthesis completed"
-
-  - id: "executive-summary-generation"
-    name: "エグゼクティブサマリー生成"
-    phase: "synthesis_summarization"
-    github_job: "executive-summary"
-    type: "generation"
-    implementation: "ai"
-    duration_minutes: 3
-    dependencies: ["comprehensive-synthesis"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Generate executive summary"
-        shell: "bash"
-        script: |
-          echo "📊 Generating executive summary..."
-          
-          # エグゼクティブサマリー生成
-          claude-code --prompt "以下の包括的統合結果から、経営層・意思決定者向けのエグゼクティブサマリーを生成してください：
-          
-          統合分析結果: $(cat $COMPREHENSIVE_SYNTHESIS_FILE)
-          
-          サマリー要件:
-          - 簡潔で理解しやすい
-          - 意思決定に必要な情報を優先
-          - アクションアイテムを明確に
-          - リスクと機会を強調
-          - 時間軸を意識した構成
-          
-          以下の形式でJSONとMarkdownの両方で出力してください：" > .temp-prompt.txt
-          
-          # JSONフォーマット部分
-          cat >> .temp-prompt.txt << 'EOF'
-          
-          JSON形式:
-          {
-            "executive_summary": {
-              "document_title": "ニュース分析エグゼクティブサマリー",
-              "analysis_date": "分析日時",
-              "topic_focus": "分析焦点トピック",
-              "urgency_level": "high|medium|low",
-              "summary_sections": {
-                "situation_snapshot": "状況スナップショット（100文字以内）",
-                "key_findings": ["主要発見事項（各50文字以内）"],
-                "immediate_concerns": ["即座の懸念事項"],
-                "strategic_opportunities": ["戦略的機会"],
-                "recommended_actions": ["推奨行動（優先順位付き）"],
-                "timeline_critical_events": ["時系列重要事象"],
-                "success_metrics": ["成功指標"],
-                "next_review_date": "次回レビュー予定日"
+              "reports": {
+                "final_report": "reports/final-report.json"
               },
-              "dashboard_metrics": {
-                "overall_risk_level": "high|medium|low",
-                "trend_direction": "positive|negative|neutral",
-                "stakeholder_confidence": "high|medium|low",
-                "market_impact_potential": "significant|moderate|minimal"
+              "source_data": {
+                "consolidated_news": "sources/consolidated-news.json"
               }
             }
           }
-          
-          Markdown形式:
-          # エグゼクティブサマリー: [トピック名]
-          
-          **分析日時**: [日時]  
-          **緊急度**: [レベル]  
-          **所要時間**: 3-5分
-          
-          ## 🎯 状況概要
-          [簡潔な現状説明]
-          
-          ## 📊 主要発見事項
-          1. [重要発見1]
-          2. [重要発見2]
-          3. [重要発見3]
-          
-          ## ⚠️ 即座の懸念事項
-          - [懸念1]
-          - [懸念2]
-          
-          ## 💡 戦略的機会
-          - [機会1]
-          - [機会2]
-          
-          ## ✅ 推奨行動 (優先順位付き)
-          ### 🔴 即座に必要
-          1. [行動1]
-          2. [行動2]
-          
-          ### 🟡 短期対応 (1-2週間)
-          1. [行動3]
-          2. [行動4]
-          
-          ### 🟢 中長期対応 (1-3ヶ月)
-          1. [行動5]
-          2. [行動6]
-          
-          ## 📈 主要指標
-          - **リスクレベル**: [レベル]
-          - **トレンド方向**: [方向]
-          - **市場影響度**: [影響度]
-          
-          ## 📅 次回レビュー
-          **予定日**: [日付]  
-          **フォーカス**: [重点項目]
-          
-          ---
-          *このサマリーは AI ニュース分析システムにより生成されました*
           EOF
           
-          # プロンプト実行
-          claude-code --prompt "$(cat .temp-prompt.txt)" > .logs/synthesis-summarization/executive-summary-raw.txt
-          
-          # JSON部分とMarkdown部分を分離
-          sed -n '/^{/,/^}/p' .logs/synthesis-summarization/executive-summary-raw.txt > .logs/synthesis-summarization/executive-summary.json
-          sed -n '/^# /,$p' .logs/synthesis-summarization/executive-summary-raw.txt > .logs/synthesis-summarization/executive-summary.md
-          
-          # 一時ファイル削除
-          rm .temp-prompt.txt
-          
-          EXECUTIVE_SUMMARY_JSON=$(cat .logs/synthesis-summarization/executive-summary.json)
-          echo "EXECUTIVE_SUMMARY_JSON_FILE=.logs/synthesis-summarization/executive-summary.json" >> $GITHUB_ENV
-          echo "EXECUTIVE_SUMMARY_MD_FILE=.logs/synthesis-summarization/executive-summary.md" >> $GITHUB_ENV
-          
-          echo "✅ Executive summary generation completed"
-
-  # === レポート作成段階 ===
-  - id: "detailed-report-compilation"
-    name: "詳細レポート編纂"
-    phase: "report_creation"
-    github_job: "report-compilation"
-    type: "compilation"
-    implementation: "ai"
-    duration_minutes: 4
-    dependencies: ["executive-summary-generation"]
-    parallel_group: "report_parallel"
-    
-    github_steps:
-      - name: "Compile detailed report"
-        shell: "bash"
-        script: |
-          echo "📑 Compiling detailed report..."
-          
-          mkdir -p .outputs/reports
-          
-          # 詳細レポートの編纂
-          claude-code --prompt "以下の全ての分析結果を統合して、包括的な詳細レポートを作成してください：
-          
-          エグゼクティブサマリー: $(cat $EXECUTIVE_SUMMARY_JSON_FILE)
-          包括的統合結果: $(cat $COMPREHENSIVE_SYNTHESIS_FILE)
-          全ての分析データ: {
-            \"content_analysis\": $(cat $CONTENT_ANALYSIS_FILE),
-            \"sentiment_analysis\": $(cat $SENTIMENT_ANALYSIS_FILE),
-            \"trend_analysis\": $(cat $TREND_ANALYSIS_FILE),
-            \"final_articles\": $(cat $DEDUPLICATED_ARTICLES_FILE)
-          }
-          
-          レポート要件:
-          - 構造化された読みやすい形式
-          - 根拠となるデータの明示
-          - 視覚的要素の提案
-          - 参考文献・情報源の記載
-          - アクションアイテムの具体化
-          
-          Markdown形式で詳細レポートを作成してください：" > .temp-detailed-prompt.txt
-          
-          cat >> .temp-detailed-prompt.txt << 'EOF'
-          
-          # 📰 ニュース分析詳細レポート
-          
-          ## 📋 レポート概要
-          - **分析トピック**: [トピック]
-          - **分析期間**: [期間]
-          - **分析完了日時**: [日時]
-          - **収集記事数**: [数]
-          - **分析信頼度**: [レベル]
-          
-          ## 🎯 エグゼクティブサマリー
-          [エグゼクティブサマリーの内容]
-          
-          ## 📊 分析手法・データソース
-          ### 分析アプローチ
-          - データ収集方法
-          - フィルタリング基準  
-          - 分析フレームワーク
-          
-          ### データソース
-          - 主要ニュースソース
-          - 情報源の信頼性評価
-          - データ品質指標
-          
-          ## 🔍 詳細分析結果
-          
-          ### 1. コンテンツ分析
-          #### 主要テーマ
-          [テーマ別の詳細分析]
-          
-          #### 時系列分析
-          [時間軸での変化分析]
-          
-          #### 関係者分析
-          [ステークホルダーの詳細分析]
-          
-          ### 2. センチメント・感情分析
-          #### 全体的傾向
-          [センチメントの全体像]
-          
-          #### 時系列変化
-          [感情の変化パターン]
-          
-          #### トピック別感情
-          [テーマごとの感情分析]
-          
-          ### 3. トレンド・パターン分析
-          #### 識別されたトレンド
-          [発見されたトレンドの詳細]
-          
-          #### パターン分析
-          [繰り返しパターンの分析]
-          
-          #### 予測的洞察
-          [将来予測と含意]
-          
-          ## 📈 影響度評価
-          
-          ### 短期的影響 (1-3ヶ月)
-          - [影響項目1]
-          - [影響項目2]
-          
-          ### 中期的影響 (3-12ヶ月)
-          - [影響項目1]
-          - [影響項目2]
-          
-          ### 長期的影響 (1年以上)
-          - [影響項目1]
-          - [影響項目2]
-          
-          ## ⚠️ リスク分析
-          
-          ### 高確率リスク
-          | リスク項目 | 確率 | 影響度 | 対応優先度 |
-          |-----------|------|--------|-----------|
-          | [リスク1] | [%] | [レベル] | [優先度] |
-          
-          ### 低確率高影響リスク
-          [Black Swan的リスクの分析]
-          
-          ## 💡 機会分析
-          
-          ### 短期機会
-          - [機会1の詳細]
-          - [機会2の詳細]
-          
-          ### 戦略的機会
-          - [長期的機会の分析]
-          
-          ## 🎯 推奨アクション
-          
-          ### 即座の対応 (24-48時間)
-          1. **[アクション1]**
-             - 実行者: [担当者]
-             - 期限: [日時]
-             - 期待効果: [効果]
-          
-          ### 短期対応 (1-2週間)
-          1. **[アクション2]**
-             - 実行計画: [詳細]
-             - リソース要件: [要件]
-             - 成功指標: [KPI]
-          
-          ### 中長期対応 (1-3ヶ月)
-          1. **[戦略的アクション]**
-             - 戦略的目的: [目的]
-             - 実行フェーズ: [段階]
-             - 投資対効果: [ROI]
-          
-          ## 📊 監視・追跡推奨事項
-          
-          ### 重要指標 (KPI)
-          - [指標1]: [測定方法]
-          - [指標2]: [測定方法]
-          
-          ### 監視頻度
-          - 日次監視: [監視項目]
-          - 週次レビュー: [レビュー項目]
-          - 月次評価: [評価項目]
-          
-          ## 📚 参考情報・データソース
-          
-          ### 主要参考記事
-          [重要記事のリスト]
-          
-          ### データソース詳細
-          [使用したデータソースの詳細情報]
-          
-          ### 追加調査推奨領域
-          [さらなる調査が有益な領域]
-          
-          ## 📅 次回分析計画
-          
-          ### 定期レビュースケジュール
-          - 次回レビュー: [日付]
-          - フォーカス領域: [重点項目]
-          - 追加データ収集: [収集計画]
-          
-          ### フォローアップ項目
-          1. [フォローアップ1]
-          2. [フォローアップ2]
-          
-          ---
-          
-          ## 📊 付録: データ詳細
-          
-          ### A. 収集記事一覧
-          [記事の詳細リスト]
-          
-          ### B. 分析手法詳細
-          [使用した分析手法の説明]
-          
-          ### C. 統計データ
-          [数値的分析結果]
-          
-          ---
-          
-          **レポート作成者**: AI ニュース分析システム  
-          **作成日時**: [日時]  
-          **バージョン**: 1.0  
-          **機密レベル**: [レベル]
-          EOF
-          
-          # 詳細レポート生成
-          claude-code --prompt "$(cat .temp-detailed-prompt.txt)" > .outputs/reports/detailed-news-analysis-report.md
-          
-          # 一時ファイル削除
-          rm .temp-detailed-prompt.txt
-          
-          echo "✅ Detailed report compilation completed"
-
-  - id: "data-visualization-suggestions"
-    name: "データ可視化提案"
-    phase: "report_creation"
-    github_job: "visualization-suggestions"
-    type: "planning"
-    implementation: "ai"
-    duration_minutes: 2
-    dependencies: ["executive-summary-generation"]
-    parallel_group: "report_parallel"
-    
-    github_steps:
-      - name: "Generate visualization suggestions"
-        shell: "bash"
-        script: |
-          echo "📊 Generating data visualization suggestions..."
-          
-          # データ可視化提案
-          claude-code --prompt "以下の分析結果に基づいて、効果的なデータ可視化の提案を行ってください：
-          
-          包括的統合結果: $(cat $COMPREHENSIVE_SYNTHESIS_FILE)
-          エグゼクティブサマリー: $(cat $EXECUTIVE_SUMMARY_JSON_FILE)
-          
-          可視化の目的:
-          - 複雑な情報の理解促進
-          - 意思決定支援
-          - ステークホルダーとのコミュニケーション
-          - トレンド・パターンの明確化
-          
-          以下の形式でJSONで回答してください：
-          {
-            \"visualization_plan\": {
-              \"creation_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-              \"target_audience\": [\"対象読者層\"],
-              \"visualization_goals\": [\"可視化の目標\"],
-              \"complexity_level\": \"executive|analyst|technical\"
-            },
-            \"recommended_charts\": [
-              {
-                \"chart_type\": \"timeline|bar_chart|pie_chart|line_graph|heat_map|network_diagram|scatter_plot\",
-                \"title\": \"チャートタイトル\",
-                \"purpose\": \"可視化の目的\",
-                \"data_source\": \"データソース\",
-                \"key_insights\": [\"このチャートから得られる洞察\"],
-                \"implementation_priority\": \"high|medium|low\",
-                \"technical_requirements\": [\"技術要件\"],
-                \"interactive_features\": [\"インタラクティブ機能の提案\"]
-              }
-            ],
-            \"dashboard_concept\": {
-              \"dashboard_title\": \"ダッシュボード名\",
-              \"layout_structure\": \"上下配置|左右配置|グリッド配置\",
-              \"key_metrics_display\": [\"主要指標の表示方法\"],
-              \"color_scheme\": \"配色方針\",
-              \"update_frequency\": \"更新頻度\"
-            },
-            \"infographic_suggestions\": [
-              {
-                \"infographic_theme\": \"インフォグラフィックテーマ\",
-                \"target_format\": \"poster|social_media|presentation|web\",
-                \"key_messages\": [\"主要メッセージ\"],
-                \"visual_elements\": [\"視覚要素\"],
-                \"design_approach\": \"minimalist|detailed|engaging|professional\"
-              }
-            ],
-            \"presentation_slides\": {
-              \"slide_sequence\": [\"スライド順序の提案\"],
-              \"attention_grabbers\": [\"注意を引く要素\"],
-              \"storytelling_flow\": \"ストーリーテリングの流れ\",
-              \"call_to_action_placement\": \"行動喚起の配置\"
-            }
-          }" > .logs/synthesis-summarization/visualization-suggestions.json
-          
-          VISUALIZATION_SUGGESTIONS=$(cat .logs/synthesis-summarization/visualization-suggestions.json)
-          echo "VISUALIZATION_SUGGESTIONS_FILE=.logs/synthesis-summarization/visualization-suggestions.json" >> $GITHUB_ENV
-          
-          echo "✅ Data visualization suggestions completed"
-
-  - id: "final-package-assembly"
-    name: "最終配信パッケージ組立"
-    phase: "report_creation"
-    github_job: "package-assembly"
-    type: "integration"
-    implementation: "script"
-    duration_minutes: 2
-    dependencies: ["detailed-report-compilation", "data-visualization-suggestions"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Assemble final delivery package"
-        shell: "bash"
-        script: |
-          echo "📦 Assembling final delivery package..."
-          
-          mkdir -p .final-output/{reports,summaries,data,assets}
-          
-          # メインレポート類をコピー
-          cp .outputs/reports/detailed-news-analysis-report.md .final-output/reports/
-          cp .logs/synthesis-summarization/executive-summary.md .final-output/summaries/
-          cp .logs/synthesis-summarization/executive-summary.json .final-output/summaries/
-          
-          # 分析データをコピー
-          cp $COMPREHENSIVE_SYNTHESIS_FILE .final-output/data/comprehensive-analysis.json
-          cp $CONTENT_ANALYSIS_FILE .final-output/data/content-analysis.json
-          cp $SENTIMENT_ANALYSIS_FILE .final-output/data/sentiment-analysis.json
-          cp $TREND_ANALYSIS_FILE .final-output/data/trend-analysis.json
-          cp $VISUALIZATION_SUGGESTIONS_FILE .final-output/data/visualization-suggestions.json
-          
-          # ソースデータをコピー
-          cp $DEDUPLICATED_ARTICLES_FILE .final-output/data/source-articles.json
-          
-          # パッケージ情報ファイル作成
-          cat > .final-output/package-info.json << EOF
-          {
-            \"package_info\": {
-              \"created_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-              \"workflow_run_id\": \"${{ github.run_id }}\",
-              \"analysis_topic\": $(echo "$TOPIC_ANALYSIS" | jq '.primary_topic'),
-              \"total_articles_analyzed\": $(jq -r '.deduplication_results.final_count // 0' $DEDUPLICATED_ARTICLES_FILE),
-              \"analysis_confidence\": $(jq -r '.analysis_summary.confidence_level // 0' $CONTENT_ANALYSIS_FILE),
-              \"package_completeness\": \"complete\"
-            },
-            \"contents\": {
-              \"reports\": [
-                \"detailed-news-analysis-report.md\"
-              ],
-              \"summaries\": [
-                \"executive-summary.md\",
-                \"executive-summary.json\"
-              ],
-              \"data_files\": [
-                \"comprehensive-analysis.json\",
-                \"content-analysis.json\",
-                \"sentiment-analysis.json\",
-                \"trend-analysis.json\",
-                \"visualization-suggestions.json\",
-                \"source-articles.json\"
-              ]
-            },
-            \"usage_guide\": {
-              \"start_with\": \"executive-summary.md\",
-              \"detailed_analysis\": \"detailed-news-analysis-report.md\",
-              \"raw_data\": \"data/ フォルダ内のJSONファイル\",
-              \"visualization\": \"visualization-suggestions.json\"
-            },
-            \"quality_metrics\": {
-              \"information_completeness\": $(jq -r '.synthesis_summary.information_completeness // 0' $COMPREHENSIVE_SYNTHESIS_FILE),
-              \"analysis_depth\": $(jq -r '.analysis_summary.analysis_depth // "standard"' $CONTENT_ANALYSIS_FILE),
-              \"source_credibility\": $(jq -r '.verification_summary.overall_collection_reliability // 0' $CREDIBILITY_ASSESSMENT_FILE)
-            }
-          }
-          EOF
-          
-          # README作成
-          cat > .final-output/README.md << 'EOF'
-          # 📰 AI ニュース分析レポート
-          
-          このパッケージには包括的なニュース分析結果が含まれています。
-          
-          ## 📁 ファイル構成
-          
-          ### 📊 レポート
-          - `reports/detailed-news-analysis-report.md` - 詳細分析レポート
-          - `summaries/executive-summary.md` - エグゼクティブサマリー
-          
-          ### 📈 データ
-          - `data/comprehensive-analysis.json` - 包括的分析結果
-          - `data/content-analysis.json` - コンテンツ分析データ
-          - `data/sentiment-analysis.json` - センチメント分析データ
-          - `data/trend-analysis.json` - トレンド分析データ
-          - `data/source-articles.json` - ソース記事データ
-          - `data/visualization-suggestions.json` - 可視化提案
-          
-          ## 🚀 利用開始
-          
-          1. **概要把握**: `summaries/executive-summary.md` から開始
-          2. **詳細確認**: `reports/detailed-news-analysis-report.md` で詳細を確認
-          3. **データ分析**: `data/` フォルダのJSONファイルで深掘り分析
-          4. **可視化**: `visualization-suggestions.json` を参考に図表作成
-          
-          ## 📊 品質指標
-          
-          - **情報完全性**: 記載される
-          - **分析深度**: 記載される  
-          - **ソース信頼性**: 記載される
-          
-          ---
-          *Generated by AI News Analysis System*
-          EOF
-          
-          # ZIPパッケージ作成
-          cd .final-output && zip -r ../news-analysis-package.zip . && cd ..
-          
-          # パッケージサイズ取得
-          PACKAGE_SIZE=$(stat -f%z "news-analysis-package.zip" 2>/dev/null || stat -c%s "news-analysis-package.zip" 2>/dev/null || echo "unknown")
-          
-          echo "Package size: $PACKAGE_SIZE bytes"
-          echo "✅ Final package assembly completed"
-          
-    success_links:
-      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
-      executive_summary: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/summaries/executive-summary.md"
-      detailed_report: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/reports/detailed-news-analysis-report.md"
-      analysis_data: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/data/"
-
-# 実行フロー設計
-execution_flow:
-  - stage: 0
-    name: "事前テスト"
-    parallel: false
-    jobs: ["connectivity-test"]
-    
-  - stage: 1
-    name: "情報収集"
-    parallel: false
-    jobs: ["topic-extraction", "news-collection"]
-    
-  - stage: 2
-    name: "コンテンツフィルタリング"
-    parallel: true
-    jobs: ["relevance-filtering", "credibility-check"]
-    then:
-      parallel: false
-      jobs: ["duplicate-removal"]
-      
-  - stage: 3
-    name: "分析処理"
-    parallel: true
-    jobs: ["content-analysis", "sentiment-analysis"]
-    then:
-      parallel: false
-      jobs: ["trend-analysis"]
-      
-  - stage: 4
-    name: "統合要約"
-    parallel: false
-    jobs: ["information-synthesis", "executive-summary"]
-    
-  - stage: 5
-    name: "レポート作成"
-    parallel: true
-    jobs: ["report-compilation", "visualization-suggestions"]
-    then:
-      parallel: false
-      jobs: ["package-assembly"]
-
-# 全体的なエラーハンドリング
-global_error_handling:
-  max_retries: 2
-  retry_delay_seconds: 25
-  critical_failure_notification: true
-  fallback_mode: "simplified_analysis"
-  
-# 成功基準
-success_criteria:
-  - "少なくとも5件のニュース記事が収集されている"
-  - "包括的な分析が完了している"
-  - "エグゼクティブサマリーが生成されている"
-  - "詳細レポートが作成されている"
-  - "配信用パッケージが組み立てられている"
-
-# アーティファクト保持
-artifacts:
-  - name: "news-analysis-logs"
-    path: ".logs/"
-    retention_days: 14
-  - name: "news-analysis-outputs"  
-    path: ".outputs/"
-    retention_days: 60
-  - name: "final-news-package"
-    path: ".final-output/"
-    retention_days: 90
-  - name: "news-package-zip"
-    path: "news-analysis-package.zip"
-    retention_days: 90
+          echo "📦 Final news analysis packaging completed"
+          
+      - name: Upload News Analysis Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-analysis-package-${{ github.run_number }}
+          path: .final-output/
+          retention-days: 30

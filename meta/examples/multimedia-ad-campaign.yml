@@ -1447,20 +1447,15 @@ tasks:
           echo "Campaign readiness score: $CAMPAIGN_READINESS/100"
           echo "Launch status: $LAUNCH_STATUS"
 
-  - id: "final-campaign-packaging"
-    name: "最終キャンペーンパッケージ・配信準備"
-    phase: "campaign_finalization"
-    github_job: "final-packaging"
-    type: "packaging"
-    implementation: "script"
-    duration_minutes: 5
-    dependencies: ["campaign-quality-assurance"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Create comprehensive campaign delivery package"
-        shell: "bash"
-        script: |
+  # Phase 8: 最終キャンペーンパッケージ作成
+  final-packaging:
+    needs: [campaign-strategy, visual-production, audio-production, video-production, interactive-content, cross-media-optimization, quality-assurance, distribution-coordination]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create comprehensive campaign delivery package
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "📦 Creating comprehensive campaign delivery package..."
           
           mkdir -p .final-output/{strategy,creative,assets,optimization}
@@ -1491,16 +1486,16 @@ tasks:
               "campaign_type": "integrated_multimedia_campaign",
               "total_production_time": "60 minutes"
             },
-            "campaign_overview": {
-              "campaign_readiness_score": "$CAMPAIGN_READINESS_SCORE/100",
-              "launch_status": "$LAUNCH_STATUS",
-              "total_assets_created": $TOTAL_ASSETS,
-              "multimedia_capabilities": {
-                "image_generation": $([ "$GENERATED_IMAGE_COUNT" -gt 0 ] && echo "true" || echo "false"),
-                "video_production": $([ "$PRODUCED_VIDEO_COUNT" -gt 0 ] && echo "true" || echo "false"),
-                "audio_creation": $([ "$CREATED_AUDIO_COUNT" -gt 0 ] && echo "true" || echo "false"),
-                "3d_modeling": $([ "$CREATED_3D_COUNT" -gt 0 ] && echo "true" || echo "false")
-              }
+            "input_parameters": {
+              "campaign_objective": "${{ github.event.inputs.campaign_objective }}",
+              "target_audience": "${{ github.event.inputs.target_audience }}",
+              "budget_range": "${{ github.event.inputs.budget_range }}",
+              "primary_channels": "${{ github.event.inputs.primary_channels }}",
+              "campaign_duration": "${{ github.event.inputs.campaign_duration }}",
+              "brand_tone": "${{ github.event.inputs.brand_tone }}",
+              "creative_style": "${{ github.event.inputs.creative_style }}",
+              "content_focus": "${{ github.event.inputs.content_focus }}",
+              "geographic_scope": "${{ github.event.inputs.geographic_scope }}"
             },
             "deliverables": {
               "strategy_documents": {
@@ -1519,45 +1514,6 @@ tasks:
                 "adaptation_plan": "optimization/adaptation-plan.json",
                 "quality_assurance": "optimization/quality-assurance-report.json"
               }
-            },
-            "asset_inventory": {
-              "images_created": $TOTAL_IMAGES,
-              "videos_produced": $TOTAL_VIDEOS,
-              "audio_files_generated": $TOTAL_AUDIO,
-              "3d_models_created": $TOTAL_3D,
-              "total_multimedia_assets": $TOTAL_ASSETS
-            },
-            "technical_capabilities": {
-              "basic_multimedia_capability": "$BASIC_CAPABILITY",
-              "advanced_multimedia_capability": "$ADVANCED_CAPABILITY",
-              "primary_image_service": "$PRIMARY_IMAGE_SERVICE",
-              "video_capability": "$VIDEO_CAPABILITY",
-              "audio_capability": "$AUDIO_CAPABILITY"
-            },
-            "campaign_execution": {
-              "immediate_deployment_ready": $([ "$LAUNCH_STATUS" = "ready" ] && echo "true" || echo "false"),
-              "critical_issues_count": "$CRITICAL_ISSUES_COUNT",
-              "high_priority_optimizations": "$HIGH_PRIORITY_OPTIMIZATIONS",
-              "recommended_next_steps": [
-                "Review quality assurance report",
-                "Implement high-priority optimizations",
-                "Conduct stakeholder approval process",
-                "Execute channel-specific adaptations",
-                "Launch measurement framework"
-              ]
-            },
-            "usage_guidelines": {
-              "asset_modification": "Assets can be modified using source JSON specifications",
-              "brand_compliance": "Ensure all modifications maintain brand consistency",
-              "platform_adaptation": "Use adaptation plan for channel-specific versions",
-              "quality_maintenance": "Follow QA checklist for any changes",
-              "performance_monitoring": "Implement measurement framework for optimization"
-            },
-            "support_resources": {
-              "troubleshooting": "Check logs/ directory for detailed generation information",
-              "asset_regeneration": "Use production-plan.json specifications to recreate assets",
-              "optimization_guidance": "Follow optimization-analysis.json recommendations",
-              "compliance_verification": "Use quality-assurance-report.json compliance checklist"
             }
           }
           EOF
@@ -1597,42 +1553,11 @@ tasks:
           - アクセシビリティ対応
           EOF
           
-          # ZIPパッケージ作成
-          cd .final-output && zip -r ../multimedia-campaign-package.zip . && cd ..
-          
           echo "📦 Final campaign packaging completed"
-          echo "Package includes:"
-          echo "- Campaign strategy and creative concepts"
-          echo "- $TOTAL_ASSETS multimedia assets"
-          echo "- Cross-media optimization analysis"
-          echo "- Quality assurance report (score: $CAMPAIGN_READINESS_SCORE/100)"
-          echo "- Channel adaptation guidelines"
-          echo "- Execution and measurement framework"
-          echo "Package location: multimedia-campaign-package.zip"
           
-    success_links:
-      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
-      quality_report: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/optimization/quality-assurance-report.json"
-      campaign_strategy: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/strategy/campaign-strategy.json"
-      execution_guide: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/CAMPAIGN_EXECUTION_GUIDE.md"
-
-    validation:
-      criteria:
-        - "キャンペーン戦略が策定されている"
-        - "マルチメディア素材が制作されている"
-        - "品質保証が実施されている"
-        - "配信パッケージが作成されている"
-      validation_script: |
-        if [ ! -f ".final-output/campaign-master-package.json" ]; then
-          echo "❌ VALIDATION FAILED: Campaign package missing"
-          exit 1
-        fi
-        
-        if [ "$LAUNCH_STATUS" = "ready" ]; then
-          echo "✅ Validation passed: Campaign ready for launch"
-        elif [ "$LAUNCH_STATUS" = "almost_ready" ]; then
-          echo "⚠️ WARNING: Minor adjustments recommended before launch"
-        else
-          echo "❌ VALIDATION FAILED: Major work needed before campaign launch"
-          exit 1
-        fi
+      - name: Upload Campaign Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: multimedia-campaign-package-${{ github.run_number }}
+          path: .final-output/
+          retention-days: 30

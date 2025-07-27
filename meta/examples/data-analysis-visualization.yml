@@ -1,289 +1,121 @@
-# データ分析・可視化 - 超詳細タスク分解
-name: "data-analysis-visualization"
-description: "データ収集・分析・可視化・レポート生成の包括的分析ワークフロー"
-category: "data-analytics-reporting"
-complexity_level: 4
-estimated_duration_minutes: 45
+name: "Data Analysis & Visualization Workflow"
+run-name: "📊 Analyzing: ${{ github.event.inputs.analysis_subject || 'Data Analysis & Visualization' }}"
 
-# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
-dynamic_inputs_spec:
-  modal_title: "データ分析・可視化設定"
-  modal_description: "データ分析プロジェクトの詳細設定を入力してください"
-  form_sections:
-    - section_name: "分析対象・データソース"
-      section_description: "分析する対象とデータの設定"
-      inputs:
-        - name: "analysis_subject"
-          label: "分析対象・テーマ"
-          type: "textarea"
-          required: true
-          placeholder: "例: GitHub リポジトリの開発活動分析、売上データの季節性分析、ユーザー行動パターン分析"
-          description: "何について分析を行うかを具体的に記述してください"
-          validation:
-            min_length: 10
-            max_length: 300
-            
-        - name: "data_sources"
-          label: "データソース"
-          type: "select"
-          required: true
-          description: "分析に使用するデータの主な取得先を選択"
-          options:
-            - value: "github_api"
-              label: "🐙 GitHub API"
-              description: "リポジトリデータ、イシュー、PR、コミット履歴"
-            - value: "google_sheets"
-              label: "📊 Google Sheets"
-              description: "スプレッドシートのデータ"
-            - value: "csv_files"
-              label: "📄 CSVファイル"
-              description: "ローカルのCSVデータファイル"
-            - value: "web_scraping"
-              label: "🌐 Webスクレイピング"
-              description: "ウェブサイトからのデータ収集"
-            - value: "api_data"
-              label: "🔌 外部API"
-              description: "各種外部APIからのデータ取得"
-            - value: "database"
-              label: "🗄️ データベース"
-              description: "SQL/NoSQLデータベース"
-              
-        - name: "analysis_period"
-          label: "分析対象期間"
-          type: "select"
-          required: true
-          description: "データ分析の対象とする期間を選択"
-          options:
-            - value: "1-week"
-              label: "📅 過去1週間"
-            - value: "1-month"
-              label: "📅 過去1ヶ月"
-            - value: "3-months"
-              label: "📅 過去3ヶ月"
-            - value: "6-months"
-              label: "📅 過去6ヶ月"
-            - value: "1-year"
-              label: "📅 過去1年"
-            - value: "custom"
-              label: "🎯 カスタム期間"
+on:
+  workflow_dispatch:
+    inputs:
+      analysis_subject:
+        description: '分析対象・テーマ'
+        required: true
+        default: 'GitHub リポジトリの開発活動分析、売上データの季節性分析、ユーザー行動パターン分析'
+        type: string
+      data_sources:
+        description: 'データソース'
+        required: true
+        type: choice
+        options:
+        - github_api
+        - google_sheets
+        - csv_files
+        - web_scraping
+        - api_data
+        - database
+        default: 'github_api'
+      analysis_period:
+        description: '分析対象期間'
+        required: true
+        type: choice
+        options:
+        - 1-week
+        - 1-month
+        - 3-months
+        - 6-months
+        - 1-year
+        - custom
+        default: '1-month'
+      analysis_depth:
+        description: '分析の深度'
+        required: true
+        type: choice
+        options:
+        - basic
+        - intermediate
+        - advanced
+        default: 'intermediate'
+      chart_types:
+        description: '希望する可視化タイプ'
+        required: true
+        type: choice
+        options:
+        - time_series
+        - comparison
+        - distribution
+        - correlation
+        - geographic
+        - network
+        default: 'time_series'
+      target_audience:
+        description: 'レポート対象者'
+        required: true
+        type: choice
+        options:
+        - executives
+        - managers
+        - analysts
+        - developers
+        - stakeholders
+        default: 'managers'
+      output_format:
+        description: 'メイン出力形式'
+        required: true
+        type: choice
+        options:
+        - dashboard
+        - report
+        - presentation
+        - summary
+        default: 'dashboard'
+      technical_level:
+        description: '技術的詳細度（1-5）'
+        required: true
+        default: '3'
+        type: choice
+        options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+        - '5'
+      include_predictions:
+        description: '予測・将来分析'
+        required: false
+        type: choice
+        options:
+        - none
+        - trends
+        - advanced
+        default: 'trends'
 
-    - section_name: "分析設定"
-      section_description: "分析の深度と手法に関する設定"
-      inputs:
-        - name: "analysis_depth"
-          label: "分析の深度"
-          type: "select"
-          required: true
-          description: "どの程度詳細な分析を行うかを選択"
-          options:
-            - value: "basic"
-              label: "📊 基本分析"
-              description: "基本統計、トレンド分析"
-            - value: "intermediate"
-              label: "📈 中級分析"
-              description: "相関分析、パターン認識、予測"
-            - value: "advanced"
-              label: "🔬 高度分析"
-              description: "機械学習、統計モデリング、複雑な可視化"
-              
-        - name: "chart_types"
-          label: "希望する可視化タイプ"
-          type: "select"
-          required: true
-          description: "重点的に作成したい図表の種類を選択"
-          options:
-            - value: "time_series"
-              label: "📈 時系列グラフ"
-              description: "時間軸でのデータ変化を表示"
-            - value: "comparison"
-              label: "📊 比較チャート"
-              description: "カテゴリ間やグループ間の比較"
-            - value: "distribution"
-              label: "📉 分布・ヒストグラム"
-              description: "データの分布状況を可視化"
-            - value: "correlation"
-              label: "🔗 相関・散布図"
-              description: "変数間の関係性を分析"
-            - value: "geographic"
-              label: "🗺️ 地理的可視化"
-              description: "地図上でのデータ表示"
-            - value: "network"
-              label: "🕸️ ネットワーク図"
-              description: "関係性やつながりを可視化"
-              
-        - name: "target_audience"
-          label: "レポート対象者"
-          type: "select"
-          required: true
-          description: "分析結果を報告する対象者を選択"
-          options:
-            - value: "executives"
-              label: "👔 経営層"
-              description: "CEO、役員向けの要約重視"
-            - value: "managers"
-              label: "📊 管理職"
-              description: "部長、マネージャー向け"
-            - value: "analysts"
-              label: "🔍 分析担当者"
-              description: "データアナリスト、研究者向け"
-            - value: "developers"
-              label: "💻 開発チーム"
-              description: "エンジニア、開発者向け"
-            - value: "stakeholders"
-              label: "🤝 関係者全般"
-              description: "プロジェクト関係者向け"
+permissions:
+  contents: write
+  issues: read
+  actions: read
 
-    - section_name: "アウトプット設定"
-      section_description: "分析結果の出力形式と詳細度の設定"
-      inputs:
-        - name: "output_format"
-          label: "メイン出力形式"
-          type: "select"
-          required: true
-          description: "分析結果の主要な出力形式を選択"
-          options:
-            - value: "dashboard"
-              label: "📊 インタラクティブダッシュボード"
-              description: "動的な可視化ダッシュボード"
-            - value: "report"
-              label: "📄 詳細レポート"
-              description: "包括的な分析レポート"
-            - value: "presentation"
-              label: "📽️ プレゼンテーション"
-              description: "発表用スライド形式"
-            - value: "summary"
-              label: "📋 エグゼクティブサマリー"
-              description: "要点を絞った概要"
-              
-        - name: "technical_level"
-          label: "技術的詳細度"
-          type: "range"
-          required: true
-          description: "統計的詳細や技術情報の含有レベル"
-          min: 1
-          max: 5
-          default: 3
-          step: 1
-          labels:
-            1: "非技術者向け"
-            3: "バランス"
-            5: "技術者向け"
-            
-        - name: "include_predictions"
-          label: "予測・将来分析"
-          type: "select"
-          required: false
-          description: "将来予測や予測分析を含めるかどうか"
-          options:
-            - value: "none"
-              label: "❌ 含めない"
-              description: "現状分析のみ"
-            - value: "trends"
-              label: "📈 トレンド予測"
-              description: "基本的なトレンド予測"
-            - value: "advanced"
-              label: "🔮 高度予測"
-              description: "機械学習による予測分析"
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-  # GitHub Actions 入力マッピングプレビュー
-  github_inputs_mapping:
-    analysis_subject:
-      input_name: "analysis_subject"
-      description: "分析対象・テーマ"
-      required: true
-      type: "string"
-    data_sources:
-      input_name: "data_sources"
-      description: "データソース"
-      required: true
-      type: "choice"
-      options: ["github_api", "google_sheets", "csv_files", "web_scraping", "api_data", "database"]
-    analysis_period:
-      input_name: "analysis_period"
-      description: "分析対象期間"
-      required: true
-      type: "choice"
-      options: ["1-week", "1-month", "3-months", "6-months", "1-year", "custom"]
-    analysis_depth:
-      input_name: "analysis_depth"
-      description: "分析の深度"
-      required: true
-      type: "choice"
-      options: ["basic", "intermediate", "advanced"]
-    chart_types:
-      input_name: "chart_types"
-      description: "希望する可視化タイプ"
-      required: true
-      type: "choice"
-      options: ["time_series", "comparison", "distribution", "correlation", "geographic", "network"]
-    target_audience:
-      input_name: "target_audience"
-      description: "レポート対象者"
-      required: true
-      type: "choice"
-      options: ["executives", "managers", "analysts", "developers", "stakeholders"]
-    output_format:
-      input_name: "output_format"
-      description: "メイン出力形式"
-      required: true
-      type: "choice"
-      options: ["dashboard", "report", "presentation", "summary"]
-    technical_level:
-      input_name: "technical_level"
-      description: "技術的詳細度（1-5）"
-      required: true
-      type: "string"
-      default: "3"
-    include_predictions:
-      input_name: "include_predictions"
-      description: "予測・将来分析"
-      required: false
-      type: "choice"
-      options: ["none", "trends", "advanced"]
-
-# 人間の無意識思考プロセス
-human_process:
-  - phase: "data_understanding"
-    description: "データ理解段階（要件・ソース・品質・構造の把握）"
-  - phase: "data_collection" 
-    description: "データ収集段階（取得・統合・前処理・検証）"
-  - phase: "exploratory_analysis"
-    description: "探索的分析段階（パターン発見・統計分析・仮説形成）"
-  - phase: "analytical_modeling"
-    description: "分析モデリング段階（手法選択・実行・検証・調整）"
-  - phase: "visualization_design"
-    description: "可視化設計段階（チャート設計・ダッシュボード・インタラクション）"
-  - phase: "insight_reporting"
-    description: "洞察レポート段階（解釈・提言・ストーリーテリング・配信）"
-
-# GitHub Actions ノード設計
-github_actions_config:
-  workflow_name: "Data Analysis & Visualization Pipeline"
-  on_triggers: ["workflow_dispatch", "issues", "schedule"]
-  permissions:
-    contents: "write"
-    issues: "write"
-    actions: "read"
-  artifacts_retention_days: 30
-  max_parallel_jobs: 4
-
-# 超詳細タスク分解
-tasks:
-  # === 事前テスト段階 ===
-  - id: "analytics-services-connectivity-test"
-    name: "分析・データサービス接続テスト"
-    phase: "pre_validation"
-    github_job: "connectivity-test"
-    type: "validation"
-    implementation: "script"
-    duration_minutes: 4
-    dependencies: []
-    parallel_group: null
-    
-    github_steps:
-      - name: "Test analytics and data services"
-        shell: "bash"
-        script: |
+jobs:
+  # Phase 1: 事前テスト段階
+  connectivity-test:
+    runs-on: ubuntu-latest
+    outputs:
+      services_ready: ${{ steps.test.outputs.services_ready }}
+      data_ai_available: ${{ steps.test.outputs.data_ai_available }}
+      github_api_available: ${{ steps.test.outputs.github_api_available }}
+    steps:
+      - name: Test analytics and data services
+        id: test
+        run: |
           echo "📊 Testing analytics and data services..."
           
           mkdir -p .logs/connectivity-tests
@@ -444,21 +276,20 @@ tasks:
           exit 1
         fi
 
-  # === データ理解段階 ===
-  - id: "analysis-requirements-definition"
-    name: "分析要件・目標定義"
-    phase: "data_understanding"
-    github_job: "requirements-definition"
-    type: "planning"
-    implementation: "ai"
-    duration_minutes: 4
-    dependencies: ["analytics-services-connectivity-test"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Define analysis requirements and objectives"
-        shell: "bash"
-        script: |
+  # Phase 2: データ理解段階
+  requirements-definition:
+    needs: connectivity-test
+    runs-on: ubuntu-latest
+    outputs:
+      requirements_ready: ${{ steps.define.outputs.requirements_ready }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Define analysis requirements and objectives
+        id: define
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🎯 Defining analysis requirements and objectives..."
           
           mkdir -p .logs/data-understanding
@@ -570,21 +401,18 @@ tasks:
           echo "Primary questions: $PRIMARY_QUESTIONS"
           echo "Data sources: $DATA_SOURCES_COUNT"
 
-  # === データ収集段階 ===
-  - id: "data-collection-integration"
-    name: "データ収集・統合"
-    phase: "data_collection"
-    github_job: "data-collection"
-    type: "collection"
-    implementation: "script"
-    duration_minutes: 8
-    dependencies: ["analysis-requirements-definition"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Collect and integrate data from sources"
-        shell: "bash"
-        script: |
+  # Phase 3: データ収集段階
+  data-collection:
+    needs: requirements-definition
+    runs-on: ubuntu-latest
+    outputs:
+      collection_status: ${{ steps.collect.outputs.collection_status }}
+    steps:
+      - name: Collect and integrate data from sources
+        id: collect
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "📥 Collecting and integrating data from sources..."
           
           mkdir -p .logs/data-collection/{raw,processed,metadata}
@@ -724,21 +552,18 @@ tasks:
           echo "Collected files: $COLLECTED_FILES"
           echo "GitHub API status: $GITHUB_COLLECTION_STATUS"
 
-  # === 探索的分析段階 ===
-  - id: "exploratory-data-analysis"
-    name: "探索的データ分析・パターン発見"
-    phase: "exploratory_analysis"
-    github_job: "exploratory-analysis"
-    type: "analysis"
-    implementation: "ai"
-    duration_minutes: 10
-    dependencies: ["data-collection-integration"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Perform exploratory data analysis"
-        shell: "bash"
-        script: |
+  # Phase 4: 探索的分析段階
+  exploratory-analysis:
+    needs: data-collection
+    runs-on: ubuntu-latest
+    outputs:
+      analysis_results: ${{ steps.analyze.outputs.analysis_results }}
+    steps:
+      - name: Perform exploratory data analysis
+        id: analyze
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🔍 Performing exploratory data analysis..."
           
           mkdir -p .logs/exploratory-analysis
@@ -951,21 +776,18 @@ tasks:
           echo "🔍 Exploratory data analysis completed"
           echo "Data completeness score: $COMPLETENESS_SCORE/10"
 
-  # === 分析モデリング段階 ===
-  - id: "analytical-modeling-insights"
-    name: "分析モデリング・洞察抽出"
-    phase: "analytical_modeling"
-    github_job: "analytical-modeling"
-    type: "modeling"
-    implementation: "ai"
-    duration_minutes: 8
-    dependencies: ["exploratory-data-analysis"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Perform analytical modeling and extract insights"
-        shell: "bash"
-        script: |
+  # Phase 5: 分析モデリング段階
+  analytical-modeling:
+    needs: exploratory-analysis
+    runs-on: ubuntu-latest
+    outputs:
+      modeling_status: ${{ steps.model.outputs.modeling_status }}
+    steps:
+      - name: Perform analytical modeling and extract insights
+        id: model
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🧮 Performing analytical modeling and insight extraction..."
           
           mkdir -p .logs/analytical-modeling
@@ -1159,21 +981,18 @@ tasks:
           echo "Modeling status: $MODELING_STATUS"
           echo "Strategic recommendations: $RECOMMENDATIONS_COUNT"
 
-  # === 可視化設計段階 ===
-  - id: "visualization-dashboard-creation"
-    name: "可視化・ダッシュボード作成"
-    phase: "visualization_design"
-    github_job: "visualization-creation"
-    type: "visualization"
-    implementation: "ai"
-    duration_minutes: 8
-    dependencies: ["analytical-modeling-insights"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Create visualizations and dashboard designs"
-        shell: "bash"
-        script: |
+  # Phase 6: 可視化設計段階
+  visualization-creation:
+    needs: analytical-modeling
+    runs-on: ubuntu-latest
+    outputs:
+      visualization_ready: ${{ steps.visualize.outputs.visualization_ready }}
+    steps:
+      - name: Create visualizations and dashboard designs
+        id: visualize
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "📊 Creating visualizations and dashboard designs..."
           
           mkdir -p .logs/visualization-design
@@ -1365,21 +1184,18 @@ tasks:
           echo "Design status: $VIZ_DESIGN_STATUS"
           echo "Charts designed: $CHART_COUNT"
 
-  # === 洞察レポート段階 ===
-  - id: "insight-report-generation"
-    name: "洞察レポート・提言作成"
-    phase: "insight_reporting"
-    github_job: "report-generation"
-    type: "reporting"
-    implementation: "ai"
-    duration_minutes: 7
-    dependencies: ["visualization-dashboard-creation"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Generate comprehensive insight report"
-        shell: "bash"
-        script: |
+  # Phase 7: 洞察レポート段階
+  report-generation:
+    needs: visualization-creation
+    runs-on: ubuntu-latest
+    outputs:
+      report_status: ${{ steps.generate.outputs.report_status }}
+    steps:
+      - name: Generate comprehensive insight report
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "📝 Generating comprehensive insight report..."
           
           mkdir -p .logs/insight-reporting
@@ -1577,20 +1393,13 @@ tasks:
           echo "Key findings: $FINDINGS_COUNT"
           echo "Strategic recommendations: $RECOMMENDATIONS_COUNT"
 
-  - id: "final-analytics-packaging"
-    name: "最終分析パッケージ作成"
-    phase: "insight_reporting"
-    github_job: "final-packaging"
-    type: "packaging"
-    implementation: "script"
-    duration_minutes: 3
-    dependencies: ["insight-report-generation"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Create comprehensive analytics delivery package"
-        shell: "bash"
-        script: |
+  # Phase 8: 最終パッケージ作成
+  final-packaging:
+    needs: [requirements-definition, data-collection, exploratory-analysis, analytical-modeling, visualization-creation, report-generation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create comprehensive analytics delivery package
+        run: |
           echo "📦 Creating comprehensive analytics delivery package..."
           
           mkdir -p .final-output/{requirements,data,analysis,visualization,reports}
@@ -1739,32 +1548,9 @@ tasks:
           echo "- Implementation guidance and best practices"
           echo "Package location: data-analytics-package.zip"
           
-    success_links:
-      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
-      comprehensive_report: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/reports/comprehensive-report.json"
-      visualization_spec: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/visualization/visualization-specification.json"
-      analytics_guide: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/DATA_ANALYTICS_GUIDE.md"
-
-    validation:
-      criteria:
-        - "分析要件が定義されている"
-        - "データ収集が実施されている"
-        - "探索的分析が完了している"
-        - "可視化設計が作成されている"
-        - "包括的レポートが生成されている"
-        - "最終パッケージが作成されている"
-      validation_script: |
-        if [ ! -f ".final-output/analytics-project-master.json" ]; then
-          echo "❌ VALIDATION FAILED: Analytics project package missing"
-          exit 1
-        fi
-        
-        if [ "$REPORT_STATUS" = "success" ] || [ "$REPORT_STATUS" = "basic" ]; then
-          echo "✅ Validation passed: Data analytics project completed successfully"
-          echo "Data quality score: $EDA_COMPLETENESS_SCORE/10"
-          echo "Key findings: $FINAL_FINDINGS_COUNT"
-          echo "Recommendations: $FINAL_RECOMMENDATIONS_COUNT"
-        else
-          echo "❌ VALIDATION FAILED: Report generation failed"
-          exit 1
-        fi
+      - name: Upload Analytics Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-analytics-package-${{ github.run_number }}
+          path: .final-output/
+          retention-days: 30
