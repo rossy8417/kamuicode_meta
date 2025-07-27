@@ -1,0 +1,83 @@
+name: "Audio Generation Test"
+run-name: "🎵 Audio Test: ${{ github.event.inputs.music_style }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      music_style:
+        description: '音楽スタイル'
+        required: true
+        default: 'Epic cinematic orchestral'
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  generate-audio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Generate and Download Audio
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Generate background music using t2m-google-lyria service:
+            1. Style: "${{ github.event.inputs.music_style }}"
+            2. Duration: 30 seconds
+            3. Generate the music
+            4. If URL is returned, download with wget to current directory
+            5. Save all details to audio-result.json including:
+               - Full URL (no abbreviation)
+               - Local filename if downloaded
+               - Generation status
+            6. List all files in current directory
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+            IMPORTANT: If MCP service requires permission, proceed anyway.
+            Always use FULL URLs for downloads.
+          append_system_prompt: |
+            For t2m-google-lyria service, use these parameters:
+            - style: music genre/style
+            - duration: in seconds
+            - output_directory: current directory
+            - auto_download: true
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "mcp__t2m-google-lyria__*,Bash,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          max_turns: "10"
+          
+      - name: Check Results
+        run: |
+          echo "🎵 Checking audio generation results..."
+          
+          # 結果ファイルを確認
+          if [ -f "audio-result.json" ]; then
+            echo "Result file found:"
+            cat audio-result.json | jq '.' || cat audio-result.json
+          fi
+          
+          # 音楽ファイルを探す
+          echo ""
+          echo "Audio files:"
+          ls -la *.mp3 2>/dev/null || echo "No MP3 files found"
+          ls -la *.wav 2>/dev/null || echo "No WAV files found"
+          
+          # すべてのファイルを表示
+          echo ""
+          echo "All files:"
+          ls -la
+          
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-test-${{ github.run_number }}
+          path: |
+            audio-result.json
+            *.mp3
+            *.wav
+          retention-days: 30
