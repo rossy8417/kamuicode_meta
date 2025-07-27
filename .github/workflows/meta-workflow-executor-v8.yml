@@ -237,9 +237,19 @@ jobs:
             # ステップバック回答をファイルに保存
             echo "$STEPBACK_ANSWERS" > generated/metadata/task-decomposition/stepback-input.txt
             
-            # プロンプトテンプレートを作成
+            # プロンプトテンプレートを作成（ドキュメント推奨の安全なパターン）
             PROMPT_FILE="generated/metadata/task-decomposition/decomposition-prompt.md"
-            sed "s/{{WORKFLOW_TYPE}}/$WORKFLOW_TYPE/g; s/{{STEPBACK_ANSWERS}}/$STEPBACK_ANSWERS/g" meta/prompts/stepback-to-tasks.md > "$PROMPT_FILE"
+            
+            # ✅ 安全なファイル生成 (HEREDOCを避ける) - ドキュメントline 59-64
+            cp meta/prompts/stepback-to-tasks.md "$PROMPT_FILE"
+            
+            # {{WORKFLOW_TYPE}}を安全に置換
+            sed -i "s/{{WORKFLOW_TYPE}}/$WORKFLOW_TYPE/g" "$PROMPT_FILE"
+            
+            # {{STEPBACK_ANSWERS}}を外部ファイル参照で安全に処理
+            echo "## ユーザーのステップバック回答" >> "$PROMPT_FILE"
+            echo "" >> "$PROMPT_FILE"
+            cat generated/metadata/task-decomposition/stepback-input.txt >> "$PROMPT_FILE"
             
             # Claude Codeでタスク分解を実行（ログ付き）
             echo "🤖 Executing Claude Code task decomposition..."
