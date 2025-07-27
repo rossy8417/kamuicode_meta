@@ -336,54 +336,83 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Install and Setup Claude CLI
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          echo "📦 Installing Claude CLI..."
-          curl -fsSL https://cli.anthropic.com/install.sh | sh
-          export PATH="$HOME/.local/bin:$PATH"
-          
-          echo "🔐 Setting up Claude authentication..."
-          ~/.local/bin/claude auth login --token "$CLAUDE_CODE_OAUTH_TOKEN"
-          
-          echo "✅ Claude CLI setup completed"
-        
       - name: Download Keyframe Prompts
         uses: actions/download-artifact@v4
         with:
           name: keyframe-prompts-${{ github.run_number }}
           path: generated/keyframes/
           
-      - name: Generate Key Frame Images
-        id: generate
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      - name: Create MCP config at runtime
         run: |
-          echo "🎨 Generating key frame images with T2I service..."
+          # .claudeディレクトリの確認
+          mkdir -p .claude
           
-          # プロンプトファイルを読み込み
-          INTRO_PROMPT=$(jq -r '.intro_prompt' generated/keyframes/prompts.json)
-          MAIN_PROMPT=$(jq -r '.main_prompt' generated/keyframes/prompts.json)
-          OUTRO_PROMPT=$(jq -r '.outro_prompt' generated/keyframes/prompts.json)
+          # 実行時にkamuicode MCP設定を生成
+          cat > .claude/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "t2i-google-imagen3": {
+                "type": "http",
+                "url": "https://mcp-creatify-lipsync-20250719-010824-a071b7b8-820994673238.us-central1.run.app/t2i/google/imagen",
+                "description": "Google Imagen 3 Text-to-Image Generation"
+              },
+              "t2i-fal-imagen4-ultra": {
+                "type": "http",
+                "url": "https://mcp-creatify-lipsync-20250719-010824-a071b7b8-820994673238.us-central1.run.app/t2i/fal/imagen4/ultra",
+                "description": "Fal.ai Imagen4 Ultra Text-to-Image"
+              }
+            }
+          }
+          EOF
           
-          # 実際のMCP T2I サービス呼び出し
-          echo "🔥 Calling MCP service: t2i-google-imagen3"
+          # ファイル権限を制限
+          chmod 600 .claude/mcp-config.json
           
-          # Intro画像生成
-          echo "📸 Generating intro frame..."
-          INTRO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$INTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
-          INTRO_URL=$(echo "$INTRO_RESULT" | jq -r '.image_url // .file_path // "none"')
+      - name: Generate Intro Frame
+        id: intro
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Read the intro prompt from generated/keyframes/prompts.json and generate an image using MCP service t2i-google-imagen3.
+            Use aspect ratio 1:1 and quality setting "${{ github.event.inputs.quality_setting }}".
+            Save the result URL to generated/keyframes/intro-result.json
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "View,mcp__t2i-google-imagen3__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           
-          # Main画像生成
-          echo "📸 Generating main frame..."
-          MAIN_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$MAIN_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
-          MAIN_URL=$(echo "$MAIN_RESULT" | jq -r '.image_url // .file_path // "none"')
+      - name: Generate Main Frame
+        id: main
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Read the main prompt from generated/keyframes/prompts.json and generate an image using MCP service t2i-google-imagen3.
+            Use aspect ratio 1:1 and quality setting "${{ github.event.inputs.quality_setting }}".
+            Save the result URL to generated/keyframes/main-result.json
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "View,mcp__t2i-google-imagen3__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           
-          # Outro画像生成
-          echo "📸 Generating outro frame..."
-          OUTRO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$OUTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
-          OUTRO_URL=$(echo "$OUTRO_RESULT" | jq -r '.image_url // .file_path // "none"')
+      - name: Generate Outro Frame
+        id: outro
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Read the outro prompt from generated/keyframes/prompts.json and generate an image using MCP service t2i-google-imagen3.
+            Use aspect ratio 1:1 and quality setting "${{ github.event.inputs.quality_setting }}".
+            Save the result URL to generated/keyframes/outro-result.json
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "View,mcp__t2i-google-imagen3__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Process Generated Images
+        id: generate
+        run: |
+          echo "🎨 Processing generated images..."
+          
+          # 結果ファイルから画像URLを取得
+          INTRO_URL=$(jq -r '.image_url // .file_path // "none"' generated/keyframes/intro-result.json 2>/dev/null || echo "none")
+          MAIN_URL=$(jq -r '.image_url // .file_path // "none"' generated/keyframes/main-result.json 2>/dev/null || echo "none")
+          OUTRO_URL=$(jq -r '.image_url // .file_path // "none"' generated/keyframes/outro-result.json 2>/dev/null || echo "none")
           
           # 画像ダウンロード・保存
           if [ "$INTRO_URL" != "none" ]; then
@@ -401,7 +430,7 @@ jobs:
             echo "✅ Outro saved: ~/$(pwd)/generated/keyframes/outro-frame.jpg"
           fi
           
-          # 結果JSON生成（実URLで）
+          # 統合結果JSON生成
           echo '{' > generated/keyframes/generated-images.json
           echo '  "images": [' >> generated/keyframes/generated-images.json
           echo '    {' >> generated/keyframes/generated-images.json
@@ -431,7 +460,13 @@ jobs:
           echo '}' >> generated/keyframes/generated-images.json
           
           echo "images_generated=true" >> $GITHUB_OUTPUT
-          echo "✅ Key frame generation completed with real URLs"
+          echo "✅ Key frame generation completed"
+      
+      - name: Cleanup MCP config
+        if: always()
+        run: |
+          # 生成した設定ファイルを削除
+          rm -f .claude/mcp-config.json
           
       - name: Upload Generated Images
         uses: actions/upload-artifact@v4
@@ -450,61 +485,63 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Install and Setup Claude CLI
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          echo "📦 Installing Claude CLI..."
-          curl -fsSL https://cli.anthropic.com/install.sh | sh
-          export PATH="$HOME/.local/bin:$PATH"
-          
-          echo "🔐 Setting up Claude authentication..."
-          ~/.local/bin/claude auth login --token "$CLAUDE_CODE_OAUTH_TOKEN"
-          
-          echo "✅ Claude CLI setup completed"
-        
       - name: Download Concept Plan
         uses: actions/download-artifact@v4
         with:
           name: concept-plan-${{ github.run_number }}
           path: generated/concept/
           
-      - name: Generate Background Music
-        id: generate
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      - name: Create MCP config for audio
         run: |
-          echo "🎵 Generating background music with T2M service..."
+          mkdir -p .claude
+          
+          # T2M用のMCP設定を生成
+          cat > .claude/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "t2m-google-lyria": {
+                "type": "http",
+                "url": "https://mcp-creatify-lipsync-20250719-010824-a071b7b8-820994673238.us-central1.run.app/t2m/google/lyria",
+                "description": "Google Lyria Text-to-Music Generation"
+              }
+            }
+          }
+          EOF
+          
+          chmod 600 .claude/mcp-config.json
+          
+      - name: Generate Background Music
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Create ${{ github.event.inputs.video_style }} style background music for ${{ github.event.inputs.target_audience }} audience.
+            Duration: ${{ github.event.inputs.video_length }} seconds.
+            Use MCP service t2m-google-lyria to generate the music.
+            Save the result URL to generated/audio/music-result.json
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "mcp__t2m-google-lyria__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Process Generated Audio
+        id: generate
+        run: |
+          echo "🎵 Processing generated audio..."
           
           mkdir -p generated/audio
           
-          # 音楽プロンプト作成
-          MUSIC_PROMPT="Create ${{ github.event.inputs.video_style }} style background music for ${{ github.event.inputs.target_audience }} audience, duration ${{ github.event.inputs.video_length }} seconds, suitable for video content"
-          
-          echo "🔥 Calling MCP service: t2m-google-lyria"
-          echo "🎼 Music prompt: $MUSIC_PROMPT"
-          
-          # 実際のMCP T2M サービス呼び出し
-          AUDIO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2m-google-lyria --prompt="$MUSIC_PROMPT" --duration=${{ github.event.inputs.video_length }})
-          AUDIO_URL=$(echo "$AUDIO_RESULT" | jq -r '.audio_url // .file_path // "none"')
+          # 結果ファイルから音声URLを取得
+          AUDIO_URL=$(jq -r '.audio_url // .file_path // "none"' generated/audio/music-result.json 2>/dev/null || echo "none")
           
           if [ "$AUDIO_URL" != "none" ]; then
             # 音声ダウンロード・保存
             wget "$AUDIO_URL" -O generated/audio/background-music.mp3
             echo "✅ Audio saved: ~/$(pwd)/generated/audio/background-music.mp3"
-            
-            # ファイルオープン
-            if command -v xdg-open > /dev/null; then
-              xdg-open generated/audio/background-music.mp3 || true
-            elif command -v open > /dev/null; then
-              open generated/audio/background-music.mp3 || true
-            fi
           else
             echo "❌ Audio generation failed"
             exit 1
           fi
           
-          # 音楽生成結果（実URLで）
+          # 音楽生成結果
           echo '{' > generated/audio/background-music.json
           echo "  \"audio_url\": \"$AUDIO_URL\"," >> generated/audio/background-music.json
           echo '  "local_file": "generated/audio/background-music.mp3",' >> generated/audio/background-music.json
@@ -512,12 +549,16 @@ jobs:
           echo '  "genre": "${{ github.event.inputs.video_style }}",' >> generated/audio/background-music.json
           echo '  "service": "t2m-google-lyria",' >> generated/audio/background-music.json
           echo '  "target_audience": "${{ github.event.inputs.target_audience }}",' >> generated/audio/background-music.json
-          echo "  \"prompt_used\": \"$MUSIC_PROMPT\"," >> generated/audio/background-music.json
           echo '  "generation_status": "success"' >> generated/audio/background-music.json
           echo '}' >> generated/audio/background-music.json
           
           echo "audio_ready=true" >> $GITHUB_OUTPUT
-          echo "✅ Background music generation completed with real URL"
+          echo "✅ Background music generation completed"
+      
+      - name: Cleanup MCP config
+        if: always()
+        run: |
+          rm -f .claude/mcp-config.json
           
       - name: Upload Audio Assets
         uses: actions/upload-artifact@v4
@@ -577,66 +618,64 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Install and Setup Claude CLI
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          echo "📦 Installing Claude CLI..."
-          curl -fsSL https://cli.anthropic.com/install.sh | sh
-          export PATH="$HOME/.local/bin:$PATH"
-          
-          echo "🔐 Setting up Claude authentication..."
-          ~/.local/bin/claude auth login --token "$CLAUDE_CODE_OAUTH_TOKEN"
-          
-          echo "✅ Claude CLI setup completed"
-        
       - name: Download Generated Images
         uses: actions/download-artifact@v4
         with:
           name: generated-images-${{ github.run_number }}
           path: generated/keyframes/
           
-      - name: Main Video Generation
-        id: generate
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      - name: Create MCP config for video
         run: |
-          echo "🎬 Generating main video with I2V service..."
+          mkdir -p .claude
+          
+          # I2V用のMCP設定を生成
+          cat > .claude/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "i2v-fal-hailuo-02-pro": {
+                "type": "http",
+                "url": "https://mcp-creatify-lipsync-20250719-010824-a071b7b8-820994673238.us-central1.run.app/i2v/fal/minimax/hailuo-02/pro",
+                "description": "Fal.ai Hailuo-02 Pro Image-to-Video Generation"
+              }
+            }
+          }
+          EOF
+          
+          chmod 600 .claude/mcp-config.json
+          
+      - name: Generate Main Video
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Read the main image URL from generated/keyframes/generated-images.json (the one with scene="main").
+            Use this image URL as input to generate a video with MCP service i2v-fal-hailuo-02-pro.
+            Duration: ${{ github.event.inputs.video_length }} seconds.
+            Style: ${{ github.event.inputs.video_style }}.
+            Save the result URL to generated/video/video-result.json
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "View,mcp__i2v-fal-hailuo-02-pro__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Process Generated Video
+        id: generate
+        run: |
+          echo "🎬 Processing generated video..."
           
           mkdir -p generated/video
           
-          # 生成された画像URLを取得（Googleの認証済URL使用）
-          MAIN_IMAGE_URL=$(jq -r '.images[] | select(.scene=="main") | .image_url' generated/keyframes/generated-images.json)
-          
-          if [ "$MAIN_IMAGE_URL" = "none" ] || [ -z "$MAIN_IMAGE_URL" ]; then
-            echo "❌ No valid image URL found for video generation"
-            exit 1
-          fi
-          
-          echo "🔥 Using input image URL: $MAIN_IMAGE_URL"
-          echo "🎬 Calling MCP service: i2v-fal-hailuo-02-pro"
-          
-          # 実際のMCP I2V サービス呼び出し
-          VIDEO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=i2v-fal-hailuo-02-pro --input-url="$MAIN_IMAGE_URL" --duration=${{ github.event.inputs.video_length }} --style="${{ github.event.inputs.video_style }}")
-          VIDEO_URL=$(echo "$VIDEO_RESULT" | jq -r '.video_url // .file_path // "none"')
+          # 結果ファイルから動画URLを取得
+          VIDEO_URL=$(jq -r '.video_url // .file_path // "none"' generated/video/video-result.json 2>/dev/null || echo "none")
           
           if [ "$VIDEO_URL" != "none" ]; then
             # 動画ダウンロード・保存
             wget "$VIDEO_URL" -O generated/video/main-video.mp4
             echo "✅ Video saved: ~/$(pwd)/generated/video/main-video.mp4"
-            
-            # ファイルオープン
-            if command -v xdg-open > /dev/null; then
-              xdg-open generated/video/main-video.mp4 || true
-            elif command -v open > /dev/null; then
-              open generated/video/main-video.mp4 || true
-            fi
           else
             echo "❌ Video generation failed"
             exit 1
           fi
           
-          # 動画生成結果（実URLで）
+          # 動画生成結果
           echo '{' > generated/video/main-video.json
           echo "  \"video_url\": \"$VIDEO_URL\"," >> generated/video/main-video.json
           echo '  "local_file": "generated/video/main-video.mp4",' >> generated/video/main-video.json
@@ -646,12 +685,16 @@ jobs:
           echo '  "service": "i2v-fal-hailuo-02-pro",' >> generated/video/main-video.json
           echo '  "style": "${{ github.event.inputs.video_style }}",' >> generated/video/main-video.json
           echo '  "quality": "${{ github.event.inputs.quality_setting }}",' >> generated/video/main-video.json
-          echo "  \"input_image_url\": \"$MAIN_IMAGE_URL\"," >> generated/video/main-video.json
           echo '  "generation_status": "success"' >> generated/video/main-video.json
           echo '}' >> generated/video/main-video.json
           
           echo "video_ready=true" >> $GITHUB_OUTPUT
-          echo "✅ Main video generation completed with real URL"
+          echo "✅ Main video generation completed"
+      
+      - name: Cleanup MCP config
+        if: always()
+        run: |
+          rm -f .claude/mcp-config.json
           
       - name: Upload Video Assets
         uses: actions/upload-artifact@v4
