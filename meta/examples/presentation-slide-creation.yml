@@ -162,3 +162,183 @@ jobs:
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
+          echo "🔍 Analyzing presentation requirements..."
+          
+          mkdir -p .logs/presentation-analysis
+          
+          # Analyze presentation parameters
+          TOPIC="${{ github.event.inputs.presentation_topic }}"
+          AUDIENCE="${{ github.event.inputs.target_audience }}"
+          TIME="${{ github.event.inputs.presentation_time }}"
+          STYLE="${{ github.event.inputs.presentation_style }}"
+          
+          echo "Topic: $TOPIC"
+          echo "Audience: $AUDIENCE"
+          echo "Time: $TIME"
+          echo "Style: $STYLE"
+          
+          # Generate presentation analysis
+          claude-code --prompt "以下のプレゼンテーション要件を分析し、構成と内容の提案をJSON形式で作成してください：
+          
+          テーマ: $TOPIC
+          対象聴衆: $AUDIENCE
+          時間: $TIME
+          スタイル: $STYLE
+          スライド数: ${{ github.event.inputs.slide_count }}
+          内容タイプ: ${{ github.event.inputs.content_type }}
+          
+          プレゼンテーション設計と各スライドの構成を提案してください。" > .logs/presentation-analysis/requirements-analysis.json
+          
+          echo "analysis_ready=true" >> $GITHUB_OUTPUT
+          echo "🔍 Presentation analysis completed"
+
+  # Phase 3: スライド構成段階
+  slide-structure:
+    needs: presentation-analysis
+    runs-on: ubuntu-latest
+    outputs:
+      structure_ready: ${{ steps.structure.outputs.structure_ready }}
+    steps:
+      - name: Create slide structure and content
+        id: structure
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📋 Creating slide structure and content..."
+          
+          mkdir -p .logs/slide-structure
+          
+          # Generate slide-by-slide content
+          claude-code --prompt "前段階の分析結果を基に、具体的なスライド内容を作成してください：
+          
+          プレゼンテーション情報:
+          - テーマ: ${{ github.event.inputs.presentation_topic }}
+          - 対象聴衆: ${{ github.event.inputs.target_audience }}
+          - スライド数: ${{ github.event.inputs.slide_count }}
+          - 可視化レベル: ${{ github.event.inputs.data_visualization_needs }}
+          
+          各スライドのタイトル、内容、レイアウトをJSON形式で作成してください。" > .logs/slide-structure/slide-content.json
+          
+          echo "structure_ready=true" >> $GITHUB_OUTPUT
+          echo "📋 Slide structure creation completed"
+
+  # Phase 4: ビジュアルデザイン段階
+  visual-design:
+    needs: [connectivity-test, slide-structure]
+    runs-on: ubuntu-latest
+    outputs:
+      design_ready: ${{ steps.design.outputs.design_ready }}
+    steps:
+      - name: Generate visual elements and backgrounds
+        id: design
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎨 Generating visual elements and backgrounds..."
+          
+          mkdir -p .logs/visual-design
+          
+          IMAGE_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.image_generation_available }}"
+          
+          if [ "$IMAGE_GEN_AVAILABLE" = "success" ]; then
+            echo "Generating slide background..."
+            STYLE_PROMPT="${{ github.event.inputs.presentation_style }} style, ${{ github.event.inputs.color_preference }} color scheme, professional presentation background"
+            
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$STYLE_PROMPT" > .logs/visual-design/background.json 2>&1 || echo "Background generation failed"
+          else
+            echo "⚠️ Image generation not available - using text-based design"
+            echo '{"design_type": "text_only", "color_scheme": "${{ github.event.inputs.color_preference }}"}' > .logs/visual-design/design-plan.json
+          fi
+          
+          echo "design_ready=true" >> $GITHUB_OUTPUT
+          echo "🎨 Visual design generation completed"
+
+  # Phase 5: 最終パッケージ作成
+  final-packaging:
+    needs: [presentation-analysis, slide-structure, visual-design]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create comprehensive presentation package
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📦 Creating comprehensive presentation package..."
+          
+          mkdir -p .final-output/{analysis,content,design}
+          
+          # Copy analysis documents
+          cp .logs/presentation-analysis/requirements-analysis.json .final-output/analysis/ 2>/dev/null || true
+          
+          # Copy slide content
+          cp .logs/slide-structure/slide-content.json .final-output/content/ 2>/dev/null || true
+          
+          # Copy design elements
+          cp .logs/visual-design/*.json .final-output/design/ 2>/dev/null || true
+          
+          # Create master presentation information
+          cat > .final-output/presentation-master.json << EOF
+          {
+            "project_info": {
+              "project_name": "Business Presentation Creation",
+              "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "github_run_id": "${{ github.run_id }}",
+              "presentation_type": "business_slide_creation"
+            },
+            "input_parameters": {
+              "presentation_topic": "${{ github.event.inputs.presentation_topic }}",
+              "target_audience": "${{ github.event.inputs.target_audience }}",
+              "presentation_time": "${{ github.event.inputs.presentation_time }}",
+              "slide_count": "${{ github.event.inputs.slide_count }}",
+              "content_type": "${{ github.event.inputs.content_type }}",
+              "data_visualization_needs": "${{ github.event.inputs.data_visualization_needs }}",
+              "presentation_style": "${{ github.event.inputs.presentation_style }}",
+              "color_preference": "${{ github.event.inputs.color_preference }}",
+              "purpose": "${{ github.event.inputs.purpose }}"
+            },
+            "deliverables": {
+              "analysis_documents": {
+                "requirements_analysis": "analysis/requirements-analysis.json"
+              },
+              "presentation_content": {
+                "slide_content": "content/slide-content.json"
+              },
+              "design_elements": {
+                "visual_design": "design/"
+              }
+            }
+          }
+          EOF
+          
+          # Create presentation creation guide
+          cat > .final-output/PRESENTATION_GUIDE.md << 'EOF'
+          # プレゼンテーションスライド制作ガイド
+          
+          ## 📊 プレゼンテーション概要
+          - 制作手法: AI分析による構造的スライド制作
+          - 品質レベル: ビジネスプロフェッショナル対応
+          - カスタマイズ: 聴衆・目的別最適化
+          
+          ## 🎯 構成設計
+          - テーマ分析と対象聴衆マッピング
+          - 論理的な流れとストーリー構築
+          - 時間配分と情報密度最適化
+          
+          ## 🎨 デザイン要素
+          - スタイル統一とブランド整合性
+          - 視覚的階層とレイアウト設計
+          - カラーパレットと可読性確保
+          
+          ## 📈 効果的なプレゼンテーション
+          - 聴衆エンゲージメント向上
+          - メッセージ明確化と記憶定着
+          - アクション誘導とフォローアップ
+          EOF
+          
+          echo "📦 Final presentation packaging completed"
+          
+      - name: Upload Presentation Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: presentation-package-${{ github.run_number }}
+          path: .final-output/
+          retention-days: 30
