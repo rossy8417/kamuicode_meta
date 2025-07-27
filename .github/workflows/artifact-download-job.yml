@@ -1,0 +1,169 @@
+name: "Artifact Download Helper"
+run-name: "📥 Download artifacts from run: ${{ github.event.inputs.run_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'GitHub Actions Run ID to download from'
+        required: true
+        type: string
+      artifact_pattern:
+        description: 'Artifact name pattern (e.g., "images-*", "final-package-*")'
+        required: false
+        default: '*'
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  download-and-process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download artifacts from specified run
+        run: |
+          echo "📥 Downloading artifacts from run ${{ github.event.inputs.run_id }}..."
+          
+          # 利用可能なアーティファクトをリスト
+          echo "Available artifacts:"
+          gh run view ${{ github.event.inputs.run_id }} \
+            --repo ${{ github.repository }} \
+            --json artifacts -q '.artifacts[].name' || echo "Failed to list artifacts"
+          
+          # パターンに一致するアーティファクトをダウンロード
+          gh run download ${{ github.event.inputs.run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "${{ github.event.inputs.artifact_pattern }}" \
+            --dir downloaded-artifacts/ || echo "Download failed"
+          
+      - name: Process downloaded artifacts
+        run: |
+          echo "📦 Processing downloaded artifacts..."
+          
+          if [ -d "downloaded-artifacts" ]; then
+            # ダウンロードしたファイルを表示
+            echo ""
+            echo "📁 Downloaded structure:"
+            find downloaded-artifacts -type f | sort
+            
+            # 画像ファイルを探してダウンロード
+            echo ""
+            echo "🎨 Processing images..."
+            find downloaded-artifacts -name "*.json" -type f | while read json_file; do
+              echo ""
+              echo "📄 Processing: $json_file"
+              
+              # 複数のURLパターンを試す
+              for url_field in "download_url" "image_url" "url" "video_url" "audio_url"; do
+                URL=$(jq -r ".$url_field // empty" "$json_file" 2>/dev/null)
+                if [ -n "$URL" ] && [ "$URL" != "null" ]; then
+                  echo "Found URL in field '$url_field': $URL"
+                  
+                  # ファイル名を決定
+                  base_name=$(basename "$json_file" .json)
+                  extension="png"
+                  
+                  if [[ "$URL" == *".mp4"* ]] || [[ "$url_field" == *"video"* ]]; then
+                    extension="mp4"
+                  elif [[ "$URL" == *".mp3"* ]] || [[ "$url_field" == *"audio"* ]]; then
+                    extension="mp3"
+                  elif [[ "$URL" == *".jpg"* ]]; then
+                    extension="jpg"
+                  fi
+                  
+                  output_file="downloads/${base_name}.${extension}"
+                  mkdir -p downloads
+                  
+                  echo "Downloading to: $output_file"
+                  wget -O "$output_file" "$URL" && echo "✅ Downloaded successfully" || echo "❌ Download failed"
+                fi
+              done
+              
+              # 配列内のURLも処理
+              jq -r '.scenes[]?.image_url // empty' "$json_file" 2>/dev/null | while read scene_url; do
+                if [ -n "$scene_url" ] && [ "$scene_url" != "null" ]; then
+                  scene_num=$(echo "$scene_url" | grep -o 'scene[0-9]*' || echo "scene")
+                  echo "Downloading scene image: $scene_url"
+                  mkdir -p downloads
+                  wget -O "downloads/${scene_num}.png" "$scene_url" || echo "Failed"
+                fi
+              done
+            done
+            
+            # 最終的なダウンロード結果
+            echo ""
+            echo "📊 Download summary:"
+            if [ -d "downloads" ]; then
+              echo "Downloaded files:"
+              ls -la downloads/
+            else
+              echo "No files were downloaded"
+            fi
+          else
+            echo "❌ No artifacts found to process"
+          fi
+          
+      - name: Create download report
+        run: |
+          # レポート作成
+          cat > download-report.json << EOF
+          {
+            "source_run_id": "${{ github.event.inputs.run_id }}",
+            "download_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "artifact_pattern": "${{ github.event.inputs.artifact_pattern }}",
+            "files_downloaded": [
+          EOF
+          
+          if [ -d "downloads" ]; then
+            first=true
+            find downloads -type f | while read file; do
+              if [ "$first" = true ]; then
+                first=false
+              else
+                echo "," >> download-report.json
+              fi
+              size=$(ls -lh "$file" | awk '{print $5}')
+              echo -n "      {\"file\": \"$file\", \"size\": \"$size\"}" >> download-report.json
+            done
+          fi
+          
+          echo "" >> download-report.json
+          echo "    ]" >> download-report.json
+          echo "  }" >> download-report.json
+          
+          echo "📄 Download report:"
+          cat download-report.json | jq '.' || cat download-report.json
+          
+      - name: Upload processed files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-downloads-${{ github.run_number }}
+          path: |
+            downloads/
+            download-report.json
+            downloaded-artifacts/
+          retention-days: 30
+          
+      - name: Summary
+        run: |
+          echo "## 📥 Artifact Download Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Source Run**: #${{ github.event.inputs.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pattern**: ${{ github.event.inputs.artifact_pattern }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "downloads" ]; then
+            echo "### Downloaded Files:" >> $GITHUB_STEP_SUMMARY
+            find downloads -type f | while read file; do
+              size=$(ls -lh "$file" | awk '{print $5}')
+              echo "- \`$file\` ($size)" >> $GITHUB_STEP_SUMMARY
+            done
+          else
+            echo "No files were downloaded." >> $GITHUB_STEP_SUMMARY
+          fi
