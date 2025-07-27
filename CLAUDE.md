@@ -16,11 +16,13 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 - **Quality Validation**: YAML syntax, GitHub Actions structure, MCP references, dependencies check
 
 ### Core Components
-- **`meta/examples/`**: 9 detailed reference workflow templates with ultra-detailed task breakdown
-- **`.github/workflows/kamuicode-meta-generator.yml`**: Main meta workflow (updated)
+- **`meta/examples/`**: 9 GitHub Actions workflow templates (video, 3D, audio, image, blog, data analysis, multimedia, news, presentation)
+- **`.github/workflows/meta-workflow-executor-v8.yml`**: Main meta workflow (v8.1 with Critical System Repair Protocol)
+- **`.github/workflows/auto-fix-deployment.yml`**: Automated deployment and error recovery system
+- **`.github/workflows/continuous-system-monitor.yml`**: System health monitoring
 - **`.github/ISSUE_TEMPLATE/`**: Issue templates for workflow requests
 - **`meta/prompts/`**: Prompt files for task decomposition, workflow generation, script generation, documentation
-- **Generated outputs**: Validated workflows, scripts, documentation with staged deployment
+- **`generated/`**: Organized outputs with staging → validation → production pipeline
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 
