@@ -8,9 +8,9 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 
 ## Current Architecture (v8.1)
 
-### 3-Approach Meta Workflow System with Persistent Storage
+### 3-Approach Meta Workflow System with Simplified Deployment
 - **3-Approach Generation**: Template selection, dynamic assembly, hybrid optimization in parallel
-- **4-Stage Deployment**: staging → selection → validation → production with persistent storage
+- **3-Stage Deployment**: staging → validation → active deployment with .disabled safety mechanism
 - **Prompt Separation**: All prompts managed as external files in `meta/prompts/`
 - **Small Nodes**: Each job has single responsibility with independent re-execution capability
 - **Quality Validation**: YAML syntax, GitHub Actions structure, MCP references, dependencies check
@@ -23,7 +23,8 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 - **`.github/workflows/continuous-system-monitor.yml`**: System health monitoring
 - **`.github/ISSUE_TEMPLATE/`**: Issue templates for workflow requests
 - **`meta/prompts/`**: Prompt files for task decomposition, workflow generation, script generation, documentation
-- **`generated/`**: Organized outputs with 4-stage pipeline + persistent metadata and logs
+- **`generated/`**: Organized outputs with 3-stage pipeline + persistent metadata and logs
+- **`.github/workflows/generated/`**: Final deployment area with active/, staging/, archive/ structure
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 
@@ -191,14 +192,20 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 └── blog-article-creation.yml (9 tasks, 35min)
 
 .github/workflows/
-└── meta-workflow-executor-v8.yml  # Main workflow with 4-stage deployment
+├── meta-workflow-executor-v8.yml    # Main meta workflow (v8.1)
+├── auto-fix-deployment.yml          # Automated error recovery system
+├── continuous-system-monitor.yml    # System health monitoring
+└── generated/                       # Generated workflow deployment area
+    ├── active/                      # Ready-to-activate workflows
+    │   └── latest-generated.yml     # Latest generated workflow (manual activation)
+    ├── staging/                     # Testing workflows (.disabled extension)
+    │   └── generated-*-*.yml.disabled
+    └── archive/                     # Historical workflows
+        └── *.yml
 
-generated/               # CRITICAL: All outputs must go here for persistence
-├── workflows/           # Workflow generation results
-│   ├── staging/         # 3-approach parallel generation
-│   ├── selected/        # Best workflow selection
-│   ├── production/      # Final workflows (persistent)
-│   └── validated/       # Validation logs
+generated/               # CRITICAL: All generation metadata goes here for persistence
+├── workflows/           # Workflow generation results (metadata only)
+│   └── staging/         # 3-approach parallel generation results
 ├── metadata/            # Analysis data (persistent) - replaces .meta/
 │   ├── stepback-analysis/
 │   ├── requirement-analysis/
@@ -249,13 +256,14 @@ Each workflow must include:
 - **Validation criteria and error handling**
 - **Duration estimates (5-60 minutes total)**
 
-#### 4-Stage Deployment Implementation with Persistent Storage
+#### Simplified 3-Stage Deployment Implementation with Safety Mechanism
 The main workflow now uses:
 1. **3-Approach Generation** → `generated/workflows/staging/approach-{1,2,3}-result-{run_number}/`
-2. **Evaluation & Selection** → `generated/workflows/selected/best-workflow.yml`
-3. **Validation** → YAML syntax, GitHub Actions structure, MCP references, dependencies
-4. **Production Deployment** → `generated/workflows/production/` + `.github/workflows/` (if validation passes)
-5. **Metadata & Logs Storage** → `generated/metadata/` + `generated/logs/` (permanently stored)
+2. **Evaluation & Selection** → Select best approach based on validation scores
+3. **Staging Deployment** → `.github/workflows/generated/staging/` (with .disabled extension for safety)
+4. **Active Ready** → `.github/workflows/generated/active/` (manual activation required)
+5. **Archive Management** → `.github/workflows/generated/archive/` (historical versions)
+6. **Metadata & Logs Storage** → `generated/metadata/` + `generated/logs/` (permanently stored)
 
 ### Development Best Practices
 
@@ -265,12 +273,14 @@ The main workflow now uses:
 3. **Include proper MCP service integration**
 4. **Add file path reference patterns**
 5. **Update `meta/examples/README.md`** with Mermaid diagram
+6. **Test deployment through simplified staging system**
 
 #### When Modifying Main Workflow
-- **Maintain staged deployment system**
+- **Maintain simplified staged deployment system**
 - **Keep validation scoring system (75+ points for pass)**
 - **Preserve template selection logic**
-- **Maintain artifact upload/download patterns**
+- **Target `.github/workflows/generated/` for final deployment**
+- **Use .disabled extension for staging safety**
 
 #### Error Handling
 - **External API fallbacks** for missing MCP services
@@ -285,16 +295,19 @@ The main workflow now uses:
 ### Execution Methods
 1. **Issue-driven**: Create issues using workflow-request.yml template
 2. **Manual**: Use `workflow_dispatch` trigger with parameters
-3. **Staged validation**: Automatic quality assurance before production deployment
+3. **Simplified staged validation**: Automatic quality assurance with manual activation
+4. **Archive management**: Historical versions preserved in archive/
 
 ## Development Philosophy
 
-- **Quality over Speed**: Use staged deployment for reliability
+- **Quality over Speed**: Use simplified staged deployment for reliability
 - **Template-based Efficiency**: Leverage existing patterns instead of generating from scratch  
 - **MCP-First**: Integrate AI generation services as primary tools
 - **External API Fallback**: Handle missing services gracefully
 - **Ultra-detailed Decomposition**: Break down to AI/script/MCP executable granularity
 - **Parallel Execution**: Optimize performance with dependency management
+- **Safe Deployment**: Use .disabled extension for staging safety
+- **Manual Activation**: Ensure human oversight for workflow activation
 
 ## Notes for Claude Code Sessions
 

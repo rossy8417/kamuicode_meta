@@ -59,7 +59,7 @@ jobs:
         run: |
           echo "🔍 Starting intelligent failure analysis..."
           
-          mkdir -p .meta/auto-fix/{analysis,patterns,strategies}
+          mkdir -p generated/auto-fix/{analysis,patterns,strategies}
           
           # Get target run information
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.target_run_id }}" ]; then
@@ -170,7 +170,7 @@ jobs:
                     fi
                     
                     # Save detailed analysis
-                    cat > ".meta/auto-fix/analysis/job-${job}-$(date +%Y%m%d-%H%M%S).json" << EOF
+                    cat > "generated/auto-fix/analysis/job-${job}-$(date +%Y%m%d-%H%M%S).json" << EOF
           {
             "job_name": "$job",
             "error_category": "$ERROR_CATEGORY",
@@ -219,7 +219,7 @@ jobs:
           FIX_STRATEGY="${{ needs.analyze-failure.outputs.fix_strategy }}"
           CONFIDENCE="${{ needs.analyze-failure.outputs.confidence_level }}"
           
-          mkdir -p .meta/auto-fix/fixes
+          mkdir -p generated/auto-fix/fixes
           FIX_APPLIED=""
           FIX_SUCCESS=false
           
@@ -248,7 +248,7 @@ jobs:
                 echo "✅ Auth token present"
                 
                 # Create auth validation script
-                cat > .meta/auto-fix/fixes/auth-validation.sh << 'EOF'
+                cat > generated/auto-fix/fixes/auth-validation.sh << 'EOF'
           #!/bin/bash
           # Validate authentication and refresh if needed
           if command -v gh &> /dev/null; then
@@ -259,7 +259,7 @@ jobs:
             fi
           fi
           EOF
-                chmod +x .meta/auto-fix/fixes/auth-validation.sh
+                chmod +x generated/auto-fix/fixes/auth-validation.sh
                 
                 FIX_APPLIED="auth_validation_script"
                 FIX_SUCCESS=true
@@ -274,7 +274,7 @@ jobs:
               echo "⏰ Applying timeout fixes..."
               
               # Add timeout configurations to workflow recommendations
-              cat > .meta/auto-fix/fixes/timeout-recommendations.json << EOF
+              cat > generated/auto-fix/fixes/timeout-recommendations.json << EOF
           {
             "recommendations": [
               {
@@ -299,7 +299,7 @@ jobs:
               echo "📦 Applying dependency fixes..."
               
               # Create dependency installation script
-              cat > .meta/auto-fix/fixes/dependency-fix.sh << 'EOF'
+              cat > generated/auto-fix/fixes/dependency-fix.sh << 'EOF'
           #!/bin/bash
           # Ensure required dependencies are installed
           echo "📦 Installing common dependencies..."
@@ -325,7 +325,7 @@ jobs:
           
           echo "✅ Dependencies check completed"
           EOF
-              chmod +x .meta/auto-fix/fixes/dependency-fix.sh
+              chmod +x generated/auto-fix/fixes/dependency-fix.sh
               
               FIX_APPLIED="dependency_installation"
               FIX_SUCCESS=true
@@ -335,7 +335,7 @@ jobs:
               echo "🔄 Applying service fallback..."
               
               # Create fallback configuration
-              cat > .meta/auto-fix/fixes/fallback-config.json << EOF
+              cat > generated/auto-fix/fixes/fallback-config.json << EOF
           {
             "fallback_strategies": {
               "claude_code_failure": "use_basic_template_generation",
@@ -353,7 +353,7 @@ jobs:
             "fix_syntax")
               echo "📝 Applying intelligent syntax fixes with success pattern guidance..."
               
-              mkdir -p .meta/auto-fix/fixes/yaml-repairs
+              mkdir -p generated/auto-fix/fixes/yaml-repairs
               
               # Basic YAML validation and intelligent fix with success patterns
               YAML_FILES=$(find .github/workflows -name "*.yml")
@@ -363,7 +363,7 @@ jobs:
                 if command -v python3 &> /dev/null; then
                   if ! python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
                     echo "❌ Syntax error detected in $file"
-                    echo "$file" >> .meta/auto-fix/fixes/syntax-errors.list
+                    echo "$file" >> generated/auto-fix/fixes/syntax-errors.list
                     SYNTAX_ERRORS_FOUND=true
                     
                     # 🔧 Claude Code + Success Pattern Integration
@@ -371,7 +371,7 @@ jobs:
                       echo "🤖 Applying Claude Code intelligent YAML repair..."
                       
                       # Create repair prompt with success pattern reference
-                      cat > .meta/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md << EOF
+                      cat > generated/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md << EOF
 # YAML Syntax Repair with Success Pattern Guidance
 
 ## Target File
@@ -397,26 +397,26 @@ $(cat "$file")
 EOF
 
                       # Execute Claude Code repair with timeout
-                      if timeout 90 claude-code --file ".meta/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md" --output ".meta/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" 2>&1; then
+                      if timeout 90 claude-code --file "generated/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md" --output "generated/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" 2>&1; then
                         
                         # Validate repaired file
-                        if python3 -c "import yaml; yaml.safe_load(open('.meta/auto-fix/fixes/yaml-repairs/repaired-$(basename \"$file\")'))" 2>/dev/null; then
+                        if python3 -c "import yaml; yaml.safe_load(open('generated/auto-fix/fixes/yaml-repairs/repaired-$(basename \"$file\")'))" 2>/dev/null; then
                           echo "✅ Claude Code successfully repaired $file"
                           
                           # Create backup and apply fix
                           cp "$file" "${file}.backup-$(date +%Y%m%d-%H%M%S)"
-                          cp ".meta/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" "$file"
+                          cp "generated/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" "$file"
                           
                           echo "📝 Backup created: ${file}.backup-$(date +%Y%m%d-%H%M%S)"
                           echo "✅ Applied intelligent repair to $file"
                           
                         else
                           echo "⚠️ Claude Code repair validation failed for $file"
-                          echo "$file" >> .meta/auto-fix/fixes/yaml-repairs/repair-failed.list
+                          echo "$file" >> generated/auto-fix/fixes/yaml-repairs/repair-failed.list
                         fi
                       else
                         echo "⚠️ Claude Code repair execution failed for $file"
-                        echo "$file" >> .meta/auto-fix/fixes/yaml-repairs/repair-failed.list
+                        echo "$file" >> generated/auto-fix/fixes/yaml-repairs/repair-failed.list
                       fi
                     else
                       echo "ℹ️ Claude Code or success patterns not available - using basic validation only"
@@ -427,18 +427,18 @@ EOF
               
               # Summary of repairs
               if [ "$SYNTAX_ERRORS_FOUND" = true ]; then
-                ERROR_COUNT=$(wc -l < .meta/auto-fix/fixes/syntax-errors.list 2>/dev/null || echo "0")
+                ERROR_COUNT=$(wc -l < generated/auto-fix/fixes/syntax-errors.list 2>/dev/null || echo "0")
                 REPAIR_SUCCESS_COUNT=0
                 
-                if [ -f ".meta/auto-fix/fixes/yaml-repairs/repair-failed.list" ]; then
-                  REPAIR_FAILED_COUNT=$(wc -l < .meta/auto-fix/fixes/yaml-repairs/repair-failed.list)
+                if [ -f "generated/auto-fix/fixes/yaml-repairs/repair-failed.list" ]; then
+                  REPAIR_FAILED_COUNT=$(wc -l < generated/auto-fix/fixes/yaml-repairs/repair-failed.list)
                   REPAIR_SUCCESS_COUNT=$((ERROR_COUNT - REPAIR_FAILED_COUNT))
                 else
                   REPAIR_SUCCESS_COUNT=$ERROR_COUNT
                 fi
                 
                 # Create repair summary
-                cat > .meta/auto-fix/fixes/yaml-repairs/repair-summary.json << EOF
+                cat > generated/auto-fix/fixes/yaml-repairs/repair-summary.json << EOF
 {
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "total_syntax_errors": $ERROR_COUNT,
@@ -464,7 +464,7 @@ EOF
               echo "🧹 Applying resource cleanup..."
               
               # Create cleanup script
-              cat > .meta/auto-fix/fixes/cleanup.sh << 'EOF'
+              cat > generated/auto-fix/fixes/cleanup.sh << 'EOF'
           #!/bin/bash
           echo "🧹 Cleaning up resources..."
           
@@ -481,7 +481,7 @@ EOF
           
           echo "✅ Cleanup completed"
           EOF
-              chmod +x .meta/auto-fix/fixes/cleanup.sh
+              chmod +x generated/auto-fix/fixes/cleanup.sh
               
               FIX_APPLIED="resource_cleanup"
               FIX_SUCCESS=true
@@ -491,7 +491,7 @@ EOF
               echo "⏳ Applying rate limit handling..."
               
               # Create rate limit handling configuration
-              cat > .meta/auto-fix/fixes/rate-limit-config.json << EOF
+              cat > generated/auto-fix/fixes/rate-limit-config.json << EOF
           {
             "rate_limit_handling": {
               "wait_time_seconds": [60, 300, 900],
@@ -510,7 +510,7 @@ EOF
               echo "⚠️ Generic retry for unknown error..."
               
               # Generic fix recommendations
-              cat > .meta/auto-fix/fixes/generic-recommendations.json << EOF
+              cat > generated/auto-fix/fixes/generic-recommendations.json << EOF
           {
             "generic_fixes": [
               "Check logs for specific error messages",
@@ -529,7 +529,7 @@ EOF
           esac
           
           # Save fix summary
-          cat > .meta/auto-fix/fixes/fix-summary-$(date +%Y%m%d-%H%M%S).json << EOF
+          cat > generated/auto-fix/fixes/fix-summary-$(date +%Y%m%d-%H%M%S).json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "target_error": "$ERROR_CATEGORY",
@@ -560,7 +560,7 @@ EOF
         run: |
           echo "🔍 Validating fix effectiveness..."
           
-          mkdir -p .meta/auto-fix/learning
+          mkdir -p generated/auto-fix/learning
           
           # Wait for potential effects
           sleep 30
@@ -590,7 +590,7 @@ EOF
           fi
           
           # Save learning data
-          cat > .meta/auto-fix/learning/learning-$(date +%Y%m%d-%H%M%S).json << EOF
+          cat > generated/auto-fix/learning/learning-$(date +%Y%m%d-%H%M%S).json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "original_error": "${{ needs.analyze-failure.outputs.error_category }}",
@@ -614,7 +614,7 @@ EOF
           git config user.name "intelligent-autofix[bot]"
           git config user.email "intelligent-autofix[bot]@users.noreply.github.com"
           
-          git add .meta/auto-fix/
+          git add generated/auto-fix/
           
           if ! git diff --cached --quiet; then
             git commit -m "🧠 Intelligent Auto-Fix: ${{ needs.analyze-failure.outputs.error_category }}
