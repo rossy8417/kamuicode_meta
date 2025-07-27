@@ -118,12 +118,12 @@ jobs:
         run: |
           echo "📊 Testing analytics and data services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # Claude Code AI テスト（データ分析用）
           echo "Testing Claude Code for data analysis..."
-          if timeout 30 claude-code --prompt "Test: Analyze sample dataset with 3 columns (A, B, C) and return 'DATA_AI_TEST_SUCCESS' if working." > .logs/connectivity-tests/data-ai-test.log 2>&1; then
-            if grep -q "DATA_AI_TEST_SUCCESS" .logs/connectivity-tests/data-ai-test.log; then
+          if timeout 30 claude-code --prompt "Test: Analyze sample dataset with 3 columns (A, B, C) and return 'DATA_AI_TEST_SUCCESS' if working." > generated/logs/connectivity-tests/data-ai-test.log 2>&1; then
+            if grep -q "DATA_AI_TEST_SUCCESS" generated/logs/connectivity-tests/data-ai-test.log; then
               DATA_AI_STATUS="success"
               echo "✅ Data AI Analysis: Available"
             else
@@ -141,7 +141,7 @@ jobs:
           JQ_AVAILABLE="false"
           
           if command -v python3 &> /dev/null; then
-            if timeout 10 python3 -c "import pandas, numpy, matplotlib; print('SUCCESS')" > .logs/connectivity-tests/python-test.log 2>&1; then
+            if timeout 10 python3 -c "import pandas, numpy, matplotlib; print('SUCCESS')" > generated/logs/connectivity-tests/python-test.log 2>&1; then
               PYTHON_AVAILABLE="true"
               echo "✅ Python Data Stack: Available"
             else
@@ -163,7 +163,7 @@ jobs:
           # 外部データAPIテスト
           echo "Testing external data APIs..."
           if [ -n "${{ secrets.GOOGLE_SHEETS_API_KEY }}" ]; then
-            if timeout 30 curl -s "https://sheets.googleapis.com/v4/spreadsheets?key=${{ secrets.GOOGLE_SHEETS_API_KEY }}" > .logs/connectivity-tests/sheets-api-test.log 2>&1; then
+            if timeout 30 curl -s "https://sheets.googleapis.com/v4/spreadsheets?key=${{ secrets.GOOGLE_SHEETS_API_KEY }}" > generated/logs/connectivity-tests/sheets-api-test.log 2>&1; then
               SHEETS_API_STATUS="success"
               echo "✅ Google Sheets API: Available"
             else
@@ -177,7 +177,7 @@ jobs:
           
           # GitHub API テスト（リポジトリデータ分析用）
           echo "Testing GitHub API for repository analytics..."
-          if timeout 30 curl -s "https://api.github.com/rate_limit" > .logs/connectivity-tests/github-api-test.log 2>&1; then
+          if timeout 30 curl -s "https://api.github.com/rate_limit" > generated/logs/connectivity-tests/github-api-test.log 2>&1; then
             GITHUB_API_STATUS="success"
             echo "✅ GitHub API: Available"
           else
@@ -187,7 +187,7 @@ jobs:
           
           # Webスクレイピング機能テスト
           echo "Testing web scraping capabilities..."
-          if timeout 30 curl -s "https://httpbin.org/json" | jq '.origin' > .logs/connectivity-tests/scraping-test.log 2>&1; then
+          if timeout 30 curl -s "https://httpbin.org/json" | jq '.origin' > generated/logs/connectivity-tests/scraping-test.log 2>&1; then
             WEB_SCRAPING_STATUS="success"
             echo "✅ Web Scraping: Available" 
           else
@@ -197,7 +197,7 @@ jobs:
           
           # 画像生成サービステスト（グラフ・チャート用）
           echo "Testing image generation for charts..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "data visualization chart test" > .logs/connectivity-tests/chart-image-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "data visualization chart test" > generated/logs/connectivity-tests/chart-image-test.log 2>&1; then
             CHART_IMAGE_STATUS="success"
             echo "✅ Chart Image Generation: Available"
           else
@@ -220,7 +220,7 @@ jobs:
           fi
           
           # テスト結果をJSON保存
-          cat > .logs/connectivity-tests/test-results.json << EOF
+          cat > generated/logs/connectivity-tests/test-results.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "analytics_services": {
@@ -263,12 +263,12 @@ jobs:
         - "基本的な分析機能が利用可能"
         - "テスト結果がJSON形式で保存されている"
       validation_script: |
-        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
+        if [ ! -f "generated/logs/connectivity-tests/test-results.json" ]; then
           echo "❌ VALIDATION FAILED: Test results missing"
           exit 1
         fi
         
-        WORKFLOW_CAN_PROCEED=$(jq -r '.capability_assessment.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
+        WORKFLOW_CAN_PROCEED=$(jq -r '.capability_assessment.workflow_can_proceed' generated/logs/connectivity-tests/test-results.json)
         if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
           echo "✅ Validation passed: Analytics services ready"
         else
@@ -292,7 +292,7 @@ jobs:
         run: |
           echo "🎯 Defining analysis requirements and objectives..."
           
-          mkdir -p .logs/data-understanding
+          mkdir -p generated/logs/data-understanding
           
           # 入力から分析要件を抽出
           ANALYSIS_SUBJECT="${{ github.event.inputs.analysis_subject || github.event.issue.title || 'GitHub Repository Analytics' }}"
@@ -385,10 +385,10 @@ jobs:
               \"feedback_mechanisms\": [\"フィードバック仕組み\"],
               \"iteration_strategy\": \"反復戦略\"
             }
-          }" > .logs/data-understanding/analysis-requirements.json
+          }" > generated/logs/data-understanding/analysis-requirements.json
           
-          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
-          echo "ANALYSIS_REQUIREMENTS_FILE=.logs/data-understanding/analysis-requirements.json" >> $GITHUB_ENV
+          ANALYSIS_REQUIREMENTS=$(cat generated/logs/data-understanding/analysis-requirements.json)
+          echo "ANALYSIS_REQUIREMENTS_FILE=generated/logs/data-understanding/analysis-requirements.json" >> $GITHUB_ENV
           
           # 主要パラメータを環境変数に設定
           PRIMARY_QUESTIONS=$(echo "$ANALYSIS_REQUIREMENTS" | jq -r '.analysis_objectives.primary_questions | length')
@@ -415,9 +415,9 @@ jobs:
         run: |
           echo "📥 Collecting and integrating data from sources..."
           
-          mkdir -p .logs/data-collection/{raw,processed,metadata}
+          mkdir -p generated/logs/data-collection/{raw,processed,metadata}
           
-          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
+          ANALYSIS_REQUIREMENTS=$(cat generated/logs/data-understanding/analysis-requirements.json)
           
           # GitHub リポジトリデータ収集（デフォルトデータソース）
           if [ "$GITHUB_API_AVAILABLE" = "true" ]; then
@@ -430,37 +430,37 @@ jobs:
             echo "Repository: $REPO_OWNER/$REPO_NAME"
             
             # リポジトリ基本情報
-            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME" > .logs/data-collection/raw/repo-info.json 2>&1; then
+            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME" > generated/logs/data-collection/raw/repo-info.json 2>&1; then
               echo "✅ Repository info collected"
             fi
             
             # コミット履歴（最新100件）
-            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/commits?per_page=100" > .logs/data-collection/raw/commits.json 2>&1; then
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/commits?per_page=100" > generated/logs/data-collection/raw/commits.json 2>&1; then
               echo "✅ Commit history collected"
             fi
             
             # イシュー情報（最新100件）
-            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/issues?state=all&per_page=100" > .logs/data-collection/raw/issues.json 2>&1; then
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/issues?state=all&per_page=100" > generated/logs/data-collection/raw/issues.json 2>&1; then
               echo "✅ Issues data collected"
             fi
             
             # プルリクエスト情報（最新50件）
-            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/pulls?state=all&per_page=50" > .logs/data-collection/raw/pulls.json 2>&1; then
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/pulls?state=all&per_page=50" > generated/logs/data-collection/raw/pulls.json 2>&1; then
               echo "✅ Pull requests collected"
             fi
             
             # リポジトリ統計
-            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/stats/contributors" > .logs/data-collection/raw/contributors.json 2>&1; then
+            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/stats/contributors" > generated/logs/data-collection/raw/contributors.json 2>&1; then
               echo "✅ Contributor stats collected"
             fi
             
             # 言語統計
-            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/languages" > .logs/data-collection/raw/languages.json 2>&1; then
+            if timeout 30 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/languages" > generated/logs/data-collection/raw/languages.json 2>&1; then
               echo "✅ Language stats collected"
             fi
             
             # GitHub Actionsワークフロー実行履歴
-            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/actions/runs?per_page=50" > .logs/data-collection/raw/workflow-runs.json 2>&1; then
+            if timeout 45 curl -s "https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/actions/runs?per_page=50" > generated/logs/data-collection/raw/workflow-runs.json 2>&1; then
               echo "✅ Workflow runs collected"
             fi
             
@@ -474,23 +474,23 @@ jobs:
           echo "Collecting local repository data..."
           
           # ファイル構造分析
-          find . -type f -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.md" | head -100 > .logs/data-collection/raw/file-list.txt 2>&1
+          find . -type f -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "*.md" | head -100 > generated/logs/data-collection/raw/file-list.txt 2>&1
           
           # Git ログ分析（利用可能な場合）
           if command -v git &> /dev/null && [ -d ".git" ]; then
-            git log --oneline --since="30 days ago" > .logs/data-collection/raw/recent-commits.txt 2>&1 || true
-            git shortlog -sn > .logs/data-collection/raw/commit-authors.txt 2>&1 || true
-            git ls-files | wc -l > .logs/data-collection/raw/file-count.txt 2>&1 || true
+            git log --oneline --since="30 days ago" > generated/logs/data-collection/raw/recent-commits.txt 2>&1 || true
+            git shortlog -sn > generated/logs/data-collection/raw/commit-authors.txt 2>&1 || true
+            git ls-files | wc -l > generated/logs/data-collection/raw/file-count.txt 2>&1 || true
           fi
           
           # ディレクトリサイズ分析
-          du -sh . > .logs/data-collection/raw/repo-size.txt 2>&1 || true
+          du -sh . > generated/logs/data-collection/raw/repo-size.txt 2>&1 || true
           
           # データ前処理・統合
           echo "Processing and integrating collected data..."
           
           # JSONデータの検証・統合
-          for json_file in .logs/data-collection/raw/*.json; do
+          for json_file in generated/logs/data-collection/raw/*.json; do
             if [ -f "$json_file" ]; then
               filename=$(basename "$json_file" .json)
               echo "Processing $filename..."
@@ -498,8 +498,8 @@ jobs:
               # JSON有効性チェック
               if jq empty "$json_file" 2>/dev/null; then
                 # 基本統計抽出
-                jq -r "type" "$json_file" > ".logs/data-collection/metadata/${filename}-type.txt" 2>/dev/null || true
-                jq '. | length' "$json_file" > ".logs/data-collection/metadata/${filename}-count.txt" 2>/dev/null || true
+                jq -r "type" "$json_file" > "generated/logs/data-collection/metadata/${filename}-type.txt" 2>/dev/null || true
+                jq '. | length' "$json_file" > "generated/logs/data-collection/metadata/${filename}-count.txt" 2>/dev/null || true
                 echo "✅ $filename processed successfully"
               else
                 echo "⚠️ $filename: Invalid JSON format"
@@ -508,10 +508,10 @@ jobs:
           done
           
           # データ収集サマリー作成
-          COLLECTED_FILES=$(ls .logs/data-collection/raw/ | wc -l)
-          PROCESSED_FILES=$(ls .logs/data-collection/metadata/ | wc -l)
+          COLLECTED_FILES=$(ls generated/logs/data-collection/raw/ | wc -l)
+          PROCESSED_FILES=$(ls generated/logs/data-collection/metadata/ | wc -l)
           
-          cat > .logs/data-collection/collection-summary.json << EOF
+          cat > generated/logs/data-collection/collection-summary.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "collection_summary": {
@@ -546,7 +546,7 @@ jobs:
           
           echo "COLLECTION_STATUS=$GITHUB_COLLECTION_STATUS" >> $GITHUB_ENV
           echo "COLLECTED_FILES_COUNT=$COLLECTED_FILES" >> $GITHUB_ENV
-          echo "COLLECTION_SUMMARY_FILE=.logs/data-collection/collection-summary.json" >> $GITHUB_ENV
+          echo "COLLECTION_SUMMARY_FILE=generated/logs/data-collection/collection-summary.json" >> $GITHUB_ENV
           
           echo "📥 Data collection and integration completed"
           echo "Collected files: $COLLECTED_FILES"
@@ -566,10 +566,10 @@ jobs:
         run: |
           echo "🔍 Performing exploratory data analysis..."
           
-          mkdir -p .logs/exploratory-analysis
+          mkdir -p generated/logs/exploratory-analysis
           
-          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
-          COLLECTION_SUMMARY=$(cat .logs/data-collection/collection-summary.json)
+          ANALYSIS_REQUIREMENTS=$(cat generated/logs/data-understanding/analysis-requirements.json)
+          COLLECTION_SUMMARY=$(cat generated/logs/data-collection/collection-summary.json)
           
           # 収集されたデータの統合分析
           echo "Analyzing collected data patterns..."
@@ -578,10 +578,10 @@ jobs:
           if [ "$COLLECTION_STATUS" = "success" ]; then
             
             # リポジトリ基本統計の抽出
-            if [ -f ".logs/data-collection/raw/repo-info.json" ]; then
+            if [ -f "generated/logs/data-collection/raw/repo-info.json" ]; then
               echo "Analyzing repository information..."
               
-              REPO_DATA=$(cat .logs/data-collection/raw/repo-info.json)
+              REPO_DATA=$(cat generated/logs/data-collection/raw/repo-info.json)
               
               # 基本情報抽出
               STARS=$(echo "$REPO_DATA" | jq -r '.stargazers_count // 0')
@@ -601,14 +601,14 @@ jobs:
             fi
             
             # コミット分析
-            if [ -f ".logs/data-collection/raw/commits.json" ]; then
+            if [ -f "generated/logs/data-collection/raw/commits.json" ]; then
               echo "Analyzing commit patterns..."
               
-              COMMIT_COUNT=$(jq 'length' .logs/data-collection/raw/commits.json 2>/dev/null || echo "0")
+              COMMIT_COUNT=$(jq 'length' generated/logs/data-collection/raw/commits.json 2>/dev/null || echo "0")
               
               # 最新コミット情報
-              LATEST_COMMIT_DATE=$(jq -r '.[0].commit.author.date // "unknown"' .logs/data-collection/raw/commits.json 2>/dev/null)
-              LATEST_AUTHOR=$(jq -r '.[0].commit.author.name // "unknown"' .logs/data-collection/raw/commits.json 2>/dev/null)
+              LATEST_COMMIT_DATE=$(jq -r '.[0].commit.author.date // "unknown"' generated/logs/data-collection/raw/commits.json 2>/dev/null)
+              LATEST_AUTHOR=$(jq -r '.[0].commit.author.name // "unknown"' generated/logs/data-collection/raw/commits.json 2>/dev/null)
               
               echo "Commit Analysis:"
               echo "- Total commits analyzed: $COMMIT_COUNT"
@@ -616,12 +616,12 @@ jobs:
             fi
             
             # イシュー分析
-            if [ -f ".logs/data-collection/raw/issues.json" ]; then
+            if [ -f "generated/logs/data-collection/raw/issues.json" ]; then
               echo "Analyzing issues and pull requests..."
               
-              TOTAL_ISSUES=$(jq 'length' .logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
-              OPEN_ISSUES_COUNT=$(jq '[.[] | select(.state == "open")] | length' .logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
-              CLOSED_ISSUES_COUNT=$(jq '[.[] | select(.state == "closed")] | length' .logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
+              TOTAL_ISSUES=$(jq 'length' generated/logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
+              OPEN_ISSUES_COUNT=$(jq '[.[] | select(.state == "open")] | length' generated/logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
+              CLOSED_ISSUES_COUNT=$(jq '[.[] | select(.state == "closed")] | length' generated/logs/data-collection/raw/issues.json 2>/dev/null || echo "0")
               
               echo "Issues Analysis:"
               echo "- Total issues/PRs: $TOTAL_ISSUES"
@@ -630,19 +630,19 @@ jobs:
             fi
             
             # 言語分析
-            if [ -f ".logs/data-collection/raw/languages.json" ]; then
+            if [ -f "generated/logs/data-collection/raw/languages.json" ]; then
               echo "Analyzing language distribution..."
               
-              LANGUAGES=$(jq -r 'keys[]' .logs/data-collection/raw/languages.json 2>/dev/null | head -5 | paste -sd, -)
+              LANGUAGES=$(jq -r 'keys[]' generated/logs/data-collection/raw/languages.json 2>/dev/null | head -5 | paste -sd, -)
               echo "Languages used: $LANGUAGES"
             fi
             
             # ワークフロー分析
-            if [ -f ".logs/data-collection/raw/workflow-runs.json" ]; then
+            if [ -f "generated/logs/data-collection/raw/workflow-runs.json" ]; then
               echo "Analyzing workflow execution patterns..."
               
-              WORKFLOW_RUNS=$(jq '.total_count // 0' .logs/data-collection/raw/workflow-runs.json 2>/dev/null)
-              RECENT_RUNS=$(jq '[.workflow_runs[]? | select(.created_at >= (now - 7*24*3600 | strftime("%Y-%m-%dT%H:%M:%SZ")))] | length' .logs/data-collection/raw/workflow-runs.json 2>/dev/null || echo "0")
+              WORKFLOW_RUNS=$(jq '.total_count // 0' generated/logs/data-collection/raw/workflow-runs.json 2>/dev/null)
+              RECENT_RUNS=$(jq '[.workflow_runs[]? | select(.created_at >= (now - 7*24*3600 | strftime("%Y-%m-%dT%H:%M:%SZ")))] | length' generated/logs/data-collection/raw/workflow-runs.json 2>/dev/null || echo "0")
               
               echo "Workflow Analysis:"
               echo "- Total workflow runs: $WORKFLOW_RUNS"
@@ -653,11 +653,11 @@ jobs:
           # ローカルファイルシステム分析
           echo "Analyzing local file system data..."
           
-          if [ -f ".logs/data-collection/raw/file-list.txt" ]; then
-            FILE_COUNT=$(wc -l < .logs/data-collection/raw/file-list.txt)
-            YAML_FILES=$(grep -c "\.yml\|\.yaml" .logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
-            JSON_FILES=$(grep -c "\.json" .logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
-            MD_FILES=$(grep -c "\.md" .logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
+          if [ -f "generated/logs/data-collection/raw/file-list.txt" ]; then
+            FILE_COUNT=$(wc -l < generated/logs/data-collection/raw/file-list.txt)
+            YAML_FILES=$(grep -c "\.yml\|\.yaml" generated/logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
+            JSON_FILES=$(grep -c "\.json" generated/logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
+            MD_FILES=$(grep -c "\.md" generated/logs/data-collection/raw/file-list.txt 2>/dev/null || echo "0")
             
             echo "File System Analysis:"
             echo "- Configuration files: $FILE_COUNT"
@@ -736,14 +736,14 @@ jobs:
                 \"visualization_opportunities\": [\"可視化機会\"],
                 \"modeling_approaches\": [\"モデリングアプローチ\"]
               }
-            }" > .logs/exploratory-analysis/eda-insights.json
+            }" > generated/logs/exploratory-analysis/eda-insights.json
             
             echo "✅ AI-driven pattern analysis completed"
           else
             echo "⚠️ AI analysis not available - creating basic statistical summary"
             
             # 基本的な統計サマリー作成
-            cat > .logs/exploratory-analysis/eda-insights.json << EOF
+            cat > generated/logs/exploratory-analysis/eda-insights.json << EOF
             {
               "data_overview": {
                 "dataset_characteristics": "GitHub repository analysis dataset",
@@ -767,11 +767,11 @@ jobs:
           fi
           
           # 探索的分析サマリー
-          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
+          EDA_INSIGHTS=$(cat generated/logs/exploratory-analysis/eda-insights.json)
           COMPLETENESS_SCORE=$(echo "$EDA_INSIGHTS" | jq -r '.data_overview.completeness_score // "5"')
           
           echo "EDA_COMPLETENESS_SCORE=$COMPLETENESS_SCORE" >> $GITHUB_ENV
-          echo "EDA_INSIGHTS_FILE=.logs/exploratory-analysis/eda-insights.json" >> $GITHUB_ENV
+          echo "EDA_INSIGHTS_FILE=generated/logs/exploratory-analysis/eda-insights.json" >> $GITHUB_ENV
           
           echo "🔍 Exploratory data analysis completed"
           echo "Data completeness score: $COMPLETENESS_SCORE/10"
@@ -790,11 +790,11 @@ jobs:
         run: |
           echo "🧮 Performing analytical modeling and insight extraction..."
           
-          mkdir -p .logs/analytical-modeling
+          mkdir -p generated/logs/analytical-modeling
           
-          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
-          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
-          COLLECTION_SUMMARY=$(cat .logs/data-collection/collection-summary.json)
+          ANALYSIS_REQUIREMENTS=$(cat generated/logs/data-understanding/analysis-requirements.json)
+          EDA_INSIGHTS=$(cat generated/logs/exploratory-analysis/eda-insights.json)
+          COLLECTION_SUMMARY=$(cat generated/logs/data-collection/collection-summary.json)
           
           # 高度な分析モデリング
           if [ "$DATA_AI_AVAILABLE" = "true" ]; then
@@ -932,7 +932,7 @@ jobs:
                 \"scope_boundaries\": [\"スコープ境界\"],
                 \"future_considerations\": [\"将来考慮事項\"]
               }
-            }" > .logs/analytical-modeling/modeling-insights.json
+            }" > generated/logs/analytical-modeling/modeling-insights.json
             
             echo "✅ Advanced analytical modeling completed"
             MODELING_STATUS="success"
@@ -940,7 +940,7 @@ jobs:
             echo "⚠️ AI modeling not available - creating basic analytical summary"
             
             # 基本的な分析サマリー作成
-            cat > .logs/analytical-modeling/modeling-insights.json << EOF
+            cat > generated/logs/analytical-modeling/modeling-insights.json << EOF
             {
               "modeling_approach": {
                 "selected_methods": ["Basic statistical analysis", "Pattern recognition"],
@@ -970,12 +970,12 @@ jobs:
             MODELING_STATUS="basic"
           fi
           
-          MODELING_INSIGHTS=$(cat .logs/analytical-modeling/modeling-insights.json)
+          MODELING_INSIGHTS=$(cat generated/logs/analytical-modeling/modeling-insights.json)
           RECOMMENDATIONS_COUNT=$(echo "$MODELING_INSIGHTS" | jq '.actionable_insights.strategic_recommendations | length' 2>/dev/null || echo "1")
           
           echo "MODELING_STATUS=$MODELING_STATUS" >> $GITHUB_ENV
           echo "RECOMMENDATIONS_COUNT=$RECOMMENDATIONS_COUNT" >> $GITHUB_ENV
-          echo "MODELING_INSIGHTS_FILE=.logs/analytical-modeling/modeling-insights.json" >> $GITHUB_ENV
+          echo "MODELING_INSIGHTS_FILE=generated/logs/analytical-modeling/modeling-insights.json" >> $GITHUB_ENV
           
           echo "🧮 Analytical modeling completed"
           echo "Modeling status: $MODELING_STATUS"
@@ -995,11 +995,11 @@ jobs:
         run: |
           echo "📊 Creating visualizations and dashboard designs..."
           
-          mkdir -p .logs/visualization-design
+          mkdir -p generated/logs/visualization-design
           
-          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
-          MODELING_INSIGHTS=$(cat .logs/analytical-modeling/modeling-insights.json)
-          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
+          ANALYSIS_REQUIREMENTS=$(cat generated/logs/data-understanding/analysis-requirements.json)
+          MODELING_INSIGHTS=$(cat generated/logs/analytical-modeling/modeling-insights.json)
+          EDA_INSIGHTS=$(cat generated/logs/exploratory-analysis/eda-insights.json)
           
           # 可視化設計・仕様作成
           if [ "$DATA_AI_AVAILABLE" = "true" ]; then
@@ -1092,7 +1092,7 @@ jobs:
                 \"version_control\": \"バージョン管理\",
                 \"documentation_standards\": [\"ドキュメント基準\"]
               }
-            }" > .logs/visualization-design/visualization-specification.json
+            }" > generated/logs/visualization-design/visualization-specification.json
             
             echo "✅ Comprehensive visualization strategy completed"
             VIZ_DESIGN_STATUS="success"
@@ -1100,7 +1100,7 @@ jobs:
             echo "⚠️ AI design not available - creating basic visualization plan"
             
             # 基本的な可視化計画作成
-            cat > .logs/visualization-design/visualization-specification.json << EOF
+            cat > generated/logs/visualization-design/visualization-specification.json << EOF
             {
               "visualization_strategy": {
                 "primary_objectives": ["Display repository metrics", "Show activity trends"],
@@ -1134,14 +1134,14 @@ jobs:
             # サンプルダッシュボード画像生成
             DASHBOARD_PROMPT="professional data analytics dashboard, GitHub repository metrics, modern UI design, charts and graphs, clean layout, blue and white color scheme, high quality"
             
-            if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$DASHBOARD_PROMPT" > .logs/visualization-design/dashboard-mockup.json 2>&1; then
+            if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$DASHBOARD_PROMPT" > generated/logs/visualization-design/dashboard-mockup.json 2>&1; then
               echo "✅ Dashboard mockup generated"
             fi
             
             # 個別チャート画像生成
             CHART_PROMPT="data visualization charts, bar charts and line graphs, professional business analytics style, clean design, colorful but professional"
             
-            if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$CHART_PROMPT" > .logs/visualization-design/charts-sample.json 2>&1; then
+            if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$CHART_PROMPT" > generated/logs/visualization-design/charts-sample.json 2>&1; then
               echo "✅ Sample charts generated"
             fi
             
@@ -1152,12 +1152,12 @@ jobs:
           fi
           
           # 可視化仕様の統計
-          VIZ_SPEC=$(cat .logs/visualization-design/visualization-specification.json)
+          VIZ_SPEC=$(cat generated/logs/visualization-design/visualization-specification.json)
           CHART_COUNT=$(echo "$VIZ_SPEC" | jq '.chart_specifications | length' 2>/dev/null || echo "2")
           KPI_COUNT=$(echo "$VIZ_SPEC" | jq '.key_performance_indicators | length' 2>/dev/null || echo "0")
           
           # 可視化サマリー作成
-          cat > .logs/visualization-design/visualization-summary.json << EOF
+          cat > generated/logs/visualization-design/visualization-summary.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "visualization_summary": {
@@ -1178,7 +1178,7 @@ jobs:
           echo "VIZ_DESIGN_STATUS=$VIZ_DESIGN_STATUS" >> $GITHUB_ENV
           echo "CHART_COUNT=$CHART_COUNT" >> $GITHUB_ENV
           echo "CHART_GENERATION_STATUS=$CHART_GENERATION_STATUS" >> $GITHUB_ENV
-          echo "VIZ_SUMMARY_FILE=.logs/visualization-design/visualization-summary.json" >> $GITHUB_ENV
+          echo "VIZ_SUMMARY_FILE=generated/logs/visualization-design/visualization-summary.json" >> $GITHUB_ENV
           
           echo "📊 Visualization and dashboard creation completed"
           echo "Design status: $VIZ_DESIGN_STATUS"
@@ -1198,14 +1198,14 @@ jobs:
         run: |
           echo "📝 Generating comprehensive insight report..."
           
-          mkdir -p .logs/insight-reporting
+          mkdir -p generated/logs/insight-reporting
           
           # 全分析結果の統合
-          ANALYSIS_REQUIREMENTS=$(cat .logs/data-understanding/analysis-requirements.json)
-          EDA_INSIGHTS=$(cat .logs/exploratory-analysis/eda-insights.json)
-          MODELING_INSIGHTS=$(cat .logs/analytical-modeling/modeling-insights.json)
-          VIZ_SPEC=$(cat .logs/visualization-design/visualization-specification.json)
-          COLLECTION_SUMMARY=$(cat .logs/data-collection/collection-summary.json)
+          ANALYSIS_REQUIREMENTS=$(cat generated/logs/data-understanding/analysis-requirements.json)
+          EDA_INSIGHTS=$(cat generated/logs/exploratory-analysis/eda-insights.json)
+          MODELING_INSIGHTS=$(cat generated/logs/analytical-modeling/modeling-insights.json)
+          VIZ_SPEC=$(cat generated/logs/visualization-design/visualization-specification.json)
+          COLLECTION_SUMMARY=$(cat generated/logs/data-collection/collection-summary.json)
           
           # 包括的レポート生成
           if [ "$DATA_AI_AVAILABLE" = "true" ]; then
@@ -1318,7 +1318,7 @@ jobs:
                 \"stakeholder_validation\": [\"ステークホルダー検証\"],
                 \"implementation_planning\": [\"実装計画\"]
               }
-            }" > .logs/insight-reporting/comprehensive-report.json
+            }" > generated/logs/insight-reporting/comprehensive-report.json
             
             echo "✅ Comprehensive analytical report generated"
             REPORT_STATUS="success"
@@ -1326,7 +1326,7 @@ jobs:
             echo "⚠️ AI reporting not available - creating basic summary report"
             
             # 基本レポート作成
-            cat > .logs/insight-reporting/comprehensive-report.json << EOF
+            cat > generated/logs/insight-reporting/comprehensive-report.json << EOF
             {
               "executive_summary": {
                 "project_overview": "Data analysis of GitHub repository: ${{ github.repository }}",
@@ -1358,12 +1358,12 @@ jobs:
           fi
           
           # レポート統計の抽出
-          REPORT_DATA=$(cat .logs/insight-reporting/comprehensive-report.json)
+          REPORT_DATA=$(cat generated/logs/insight-reporting/comprehensive-report.json)
           RECOMMENDATIONS_COUNT=$(echo "$REPORT_DATA" | jq '.strategic_recommendations | length' 2>/dev/null || echo "1")
           FINDINGS_COUNT=$(echo "$REPORT_DATA" | jq '.executive_summary.key_findings | length' 2>/dev/null || echo "2")
           
           # 最終レポートサマリー作成
-          cat > .logs/insight-reporting/report-summary.json << EOF
+          cat > generated/logs/insight-reporting/report-summary.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "report_generation": {
@@ -1386,7 +1386,7 @@ jobs:
           echo "REPORT_STATUS=$REPORT_STATUS" >> $GITHUB_ENV
           echo "FINAL_FINDINGS_COUNT=$FINDINGS_COUNT" >> $GITHUB_ENV
           echo "FINAL_RECOMMENDATIONS_COUNT=$RECOMMENDATIONS_COUNT" >> $GITHUB_ENV
-          echo "REPORT_SUMMARY_FILE=.logs/insight-reporting/report-summary.json" >> $GITHUB_ENV
+          echo "REPORT_SUMMARY_FILE=generated/logs/insight-reporting/report-summary.json" >> $GITHUB_ENV
           
           echo "📝 Insight report generation completed"
           echo "Report status: $REPORT_STATUS"
@@ -1405,23 +1405,23 @@ jobs:
           mkdir -p .final-output/{requirements,data,analysis,visualization,reports}
           
           # プロジェクト文書
-          cp .logs/data-understanding/analysis-requirements.json .final-output/requirements/ 2>/dev/null || true
+          cp generated/logs/data-understanding/analysis-requirements.json .final-output/requirements/ 2>/dev/null || true
           
           # データ関連
-          cp .logs/data-collection/collection-summary.json .final-output/data/ 2>/dev/null || true
+          cp generated/logs/data-collection/collection-summary.json .final-output/data/ 2>/dev/null || true
           # 実際のデータファイルは容量の関係で概要のみ
-          ls .logs/data-collection/raw/ > .final-output/data/collected-files-list.txt 2>/dev/null || echo "No raw data files" > .final-output/data/collected-files-list.txt
+          ls generated/logs/data-collection/raw/ > .final-output/data/collected-files-list.txt 2>/dev/null || echo "No raw data files" > .final-output/data/collected-files-list.txt
           
           # 分析結果
-          cp .logs/exploratory-analysis/eda-insights.json .final-output/analysis/ 2>/dev/null || true
-          cp .logs/analytical-modeling/modeling-insights.json .final-output/analysis/ 2>/dev/null || true
-          cp .logs/model-optimization/*.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/exploratory-analysis/eda-insights.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/analytical-modeling/modeling-insights.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/model-optimization/*.json .final-output/analysis/ 2>/dev/null || true
           
           # 可視化設計
-          cp .logs/visualization-design/*.json .final-output/visualization/ 2>/dev/null || true
+          cp generated/logs/visualization-design/*.json .final-output/visualization/ 2>/dev/null || true
           
           # レポート
-          cp .logs/insight-reporting/*.json .final-output/reports/ 2>/dev/null || true
+          cp generated/logs/insight-reporting/*.json .final-output/reports/ 2>/dev/null || true
           
           # マスター分析プロジェクト情報
           cat > .final-output/analytics-project-master.json << EOF

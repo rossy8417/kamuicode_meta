@@ -135,11 +135,11 @@ jobs:
         run: |
           echo "📚 Testing educational content generation services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # 図解・インフォグラフィック生成テスト
           echo "Testing diagram and infographic generation..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "educational diagram infographic test" > .logs/connectivity-tests/diagram-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "educational diagram infographic test" > generated/logs/connectivity-tests/diagram-test.log 2>&1; then
             DIAGRAM_GEN_STATUS="success"
             echo "✅ Diagram Generation: Available"
           else
@@ -149,7 +149,7 @@ jobs:
           
           # 教育動画生成テスト
           echo "Testing educational video generation..."
-          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "educational video content test" > .logs/connectivity-tests/edu-video-test.log 2>&1; then
+          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "educational video content test" > generated/logs/connectivity-tests/edu-video-test.log 2>&1; then
             VIDEO_GEN_STATUS="success"
             echo "✅ Educational Video Generation: Available"
           else
@@ -159,8 +159,8 @@ jobs:
           
           # Claude Code コンテンツ生成テスト
           echo "Testing educational content generation..."
-          if timeout 30 claude-code --prompt "Test: Create a simple educational explanation about AI. Return 'CONTENT_SUCCESS' if working." > .logs/connectivity-tests/content-test.log 2>&1; then
-            if grep -q "CONTENT_SUCCESS" .logs/connectivity-tests/content-test.log || grep -qi "artificial intelligence\|AI" .logs/connectivity-tests/content-test.log; then
+          if timeout 30 claude-code --prompt "Test: Create a simple educational explanation about AI. Return 'CONTENT_SUCCESS' if working." > generated/logs/connectivity-tests/content-test.log 2>&1; then
+            if grep -q "CONTENT_SUCCESS" generated/logs/connectivity-tests/content-test.log || grep -qi "artificial intelligence\|AI" generated/logs/connectivity-tests/content-test.log; then
               CONTENT_GEN_STATUS="success"
               echo "✅ Educational Content Generation: Available"
             else
@@ -197,7 +197,7 @@ jobs:
         run: |
           echo "📋 Designing comprehensive educational curriculum..."
           
-          mkdir -p .logs/curriculum-design
+          mkdir -p generated/logs/curriculum-design
           
           SUBJECT_TOPIC="${{ github.event.inputs.subject_topic }}"
           EDUCATION_LEVEL="${{ github.event.inputs.education_level }}"
@@ -217,7 +217,7 @@ jobs:
           難易度レベル: ${{ github.event.inputs.difficulty_level }}
           コンテンツ総量: ${{ github.event.inputs.content_length }}
 
-          学習モジュール構成、スキル習得順序、評価指標、学習成果目標を含む詳細なカリキュラムを設計してください。" > .logs/curriculum-design/curriculum-structure.json
+          学習モジュール構成、スキル習得順序、評価指標、学習成果目標を含む詳細なカリキュラムを設計してください。" > generated/logs/curriculum-design/curriculum-structure.json
           
           echo "curriculum_ready=true" >> $GITHUB_OUTPUT
           echo "📋 Curriculum design completed"
@@ -236,7 +236,7 @@ jobs:
         run: |
           echo "📝 Creating detailed educational content materials..."
           
-          mkdir -p .logs/content-creation
+          mkdir -p generated/logs/content-creation
           
           CONTENT_FORMAT="${{ github.event.inputs.content_format }}"
           LANGUAGE_COMPLEXITY="${{ github.event.inputs.language_complexity }}"
@@ -250,7 +250,7 @@ jobs:
           対象レベル: ${{ github.event.inputs.education_level }}
           教授法: ${{ github.event.inputs.teaching_method }}
 
-          レッスン構成、概念説明、実例・ケーススタディ、演習問題を含む包括的な教材を作成してください。" > .logs/content-creation/educational-content.json
+          レッスン構成、概念説明、実例・ケーススタディ、演習問題を含む包括的な教材を作成してください。" > generated/logs/content-creation/educational-content.json
           
           echo "content_ready=true" >> $GITHUB_OUTPUT
           echo "📝 Content creation completed"
@@ -269,7 +269,7 @@ jobs:
         run: |
           echo "🎨 Generating visual educational materials..."
           
-          mkdir -p .logs/visual-materials
+          mkdir -p generated/logs/visual-materials
           
           DIAGRAM_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.diagram_gen_available }}"
           VISUAL_STYLE="${{ github.event.inputs.visual_style }}"
@@ -278,22 +278,22 @@ jobs:
             echo "Generating educational diagrams..."
             DIAGRAM_PROMPT="${{ github.event.inputs.subject_topic }}, educational diagram, infographic, $VISUAL_STYLE style, clear explanation, teaching aid"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$DIAGRAM_PROMPT" > .logs/visual-materials/educational-diagrams.json 2>&1 || echo "Educational diagram generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$DIAGRAM_PROMPT" > generated/logs/visual-materials/educational-diagrams.json 2>&1 || echo "Educational diagram generation failed"
             
             echo "Generating concept illustrations..."
             CONCEPT_PROMPT="${{ github.event.inputs.subject_topic }}, concept illustration, educational visual, $VISUAL_STYLE style, learning support"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$CONCEPT_PROMPT" > .logs/visual-materials/concept-illustrations.json 2>&1 || echo "Concept illustration generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$CONCEPT_PROMPT" > generated/logs/visual-materials/concept-illustrations.json 2>&1 || echo "Concept illustration generation failed"
             
             echo "Generating process flowcharts..."
             FLOWCHART_PROMPT="${{ github.event.inputs.subject_topic }}, process flowchart, step-by-step guide, $VISUAL_STYLE style, educational flow"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FLOWCHART_PROMPT" > .logs/visual-materials/process-flowcharts.json 2>&1 || echo "Flowchart generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FLOWCHART_PROMPT" > generated/logs/visual-materials/process-flowcharts.json 2>&1 || echo "Flowchart generation failed"
             
             echo "✅ Visual educational materials generated"
           else
             echo "⚠️ Visual generation not available - creating text-based visual descriptions"
-            echo '{"visual_type": "text_descriptions", "style": "${{ github.event.inputs.visual_style }}"}' > .logs/visual-materials/text-visual-plan.json
+            echo '{"visual_type": "text_descriptions", "style": "${{ github.event.inputs.visual_style }}"}' > generated/logs/visual-materials/text-visual-plan.json
           fi
           
           echo "visuals_ready=true" >> $GITHUB_OUTPUT
@@ -313,7 +313,7 @@ jobs:
         run: |
           echo "⚡ Designing interactive learning elements..."
           
-          mkdir -p .logs/interactive-content
+          mkdir -p generated/logs/interactive-content
           
           # インタラクティブ学習要素設計
           claude-code --prompt "以下の教育要件に基づいて、インタラクティブな学習要素と活動を設計してJSON形式で返してください：
@@ -323,7 +323,7 @@ jobs:
           評価方式: ${{ github.event.inputs.assessment_type }}
           難易度レベル: ${{ github.event.inputs.difficulty_level }}
 
-          インタラクティブ演習、シミュレーション、ケーススタディ、グループ活動の詳細設計を含めてください。" > .logs/interactive-content/interactive-elements.json
+          インタラクティブ演習、シミュレーション、ケーススタディ、グループ活動の詳細設計を含めてください。" > generated/logs/interactive-content/interactive-elements.json
           
           echo "interactive_ready=true" >> $GITHUB_OUTPUT
           echo "⚡ Interactive content design completed"
@@ -342,7 +342,7 @@ jobs:
         run: |
           echo "📊 Creating comprehensive assessment and testing materials..."
           
-          mkdir -p .logs/assessment-creation
+          mkdir -p generated/logs/assessment-creation
           
           ASSESSMENT_TYPE="${{ github.event.inputs.assessment_type }}"
           
@@ -354,7 +354,7 @@ jobs:
           学習目標: ${{ github.event.inputs.learning_objective }}
           難易度レベル: ${{ github.event.inputs.difficulty_level }}
 
-          知識確認テスト、実技評価、プロジェクト課題、自己評価ツールを含む多様な評価方法を設計してください。" > .logs/assessment-creation/assessment-materials.json
+          知識確認テスト、実技評価、プロジェクト課題、自己評価ツールを含む多様な評価方法を設計してください。" > generated/logs/assessment-creation/assessment-materials.json
           
           echo "assessment_ready=true" >> $GITHUB_OUTPUT
           echo "📊 Assessment creation completed"
@@ -373,7 +373,7 @@ jobs:
         run: |
           echo "📖 Generating learning guides and support materials..."
           
-          mkdir -p .logs/learning-support
+          mkdir -p generated/logs/learning-support
           
           # 学習ガイド・サポート資料作成
           claude-code --prompt "以下の教育プログラムに対して、学習者向けガイドとサポート資料をJSON形式で作成してください：
@@ -383,7 +383,7 @@ jobs:
           コンテンツ総量: ${{ github.event.inputs.content_length }}
           学習目標: ${{ github.event.inputs.learning_objective }}
 
-          学習計画テンプレート、進捗管理ツール、追加リソース、トラブルシューティングガイドを含めてください。" > .logs/learning-support/support-materials.json
+          学習計画テンプレート、進捗管理ツール、追加リソース、トラブルシューティングガイドを含めてください。" > generated/logs/learning-support/support-materials.json
           
           echo "support_ready=true" >> $GITHUB_OUTPUT
           echo "📖 Learning support materials creation completed"
@@ -402,22 +402,22 @@ jobs:
           mkdir -p .final-output/{curriculum,content,visuals,interactive,assessment,support}
           
           # カリキュラム設計文書
-          cp .logs/curriculum-design/curriculum-structure.json .final-output/curriculum/ 2>/dev/null || true
+          cp generated/logs/curriculum-design/curriculum-structure.json .final-output/curriculum/ 2>/dev/null || true
           
           # 教材コンテンツ
-          cp .logs/content-creation/educational-content.json .final-output/content/ 2>/dev/null || true
+          cp generated/logs/content-creation/educational-content.json .final-output/content/ 2>/dev/null || true
           
           # ビジュアル教材
-          cp .logs/visual-materials/*.json .final-output/visuals/ 2>/dev/null || true
+          cp generated/logs/visual-materials/*.json .final-output/visuals/ 2>/dev/null || true
           
           # インタラクティブ要素
-          cp .logs/interactive-content/interactive-elements.json .final-output/interactive/ 2>/dev/null || true
+          cp generated/logs/interactive-content/interactive-elements.json .final-output/interactive/ 2>/dev/null || true
           
           # 評価・テスト教材
-          cp .logs/assessment-creation/assessment-materials.json .final-output/assessment/ 2>/dev/null || true
+          cp generated/logs/assessment-creation/assessment-materials.json .final-output/assessment/ 2>/dev/null || true
           
           # 学習サポート資料
-          cp .logs/learning-support/support-materials.json .final-output/support/ 2>/dev/null || true
+          cp generated/logs/learning-support/support-materials.json .final-output/support/ 2>/dev/null || true
           
           # マスター教育コンテンツ情報
           cat > .final-output/educational-content-master.json << EOF

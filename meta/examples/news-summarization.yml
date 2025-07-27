@@ -120,12 +120,12 @@ jobs:
         run: |
           echo "📰 Testing news collection and analysis services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # Web Search API テスト（ニュース収集で必須）
           echo "Testing web search services (required for news collection)..."
           if [ -n "${{ secrets.GOOGLE_SEARCH_API_KEY }}" ] && [ -n "${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}" ]; then
-            if timeout 30 curl -s "https://www.googleapis.com/customsearch/v1?key=${{ secrets.GOOGLE_SEARCH_API_KEY }}&cx=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}&q=latest+technology+news&num=5" > .logs/connectivity-tests/web-search-test.log 2>&1; then
+            if timeout 30 curl -s "https://www.googleapis.com/customsearch/v1?key=${{ secrets.GOOGLE_SEARCH_API_KEY }}&cx=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}&q=latest+technology+news&num=5" > generated/logs/connectivity-tests/web-search-test.log 2>&1; then
               WEB_SEARCH_STATUS="success"
               echo "✅ Google Search API: Available"
             else
@@ -139,7 +139,7 @@ jobs:
           
           # RSS Feed Parser テスト（ニュースフィード用）
           echo "Testing RSS feed parsing..."
-          if timeout 30 curl -s "https://feeds.bbci.co.uk/news/rss.xml" | head -n 20 > .logs/connectivity-tests/rss-test.log 2>&1; then
+          if timeout 30 curl -s "https://feeds.bbci.co.uk/news/rss.xml" | head -n 20 > generated/logs/connectivity-tests/rss-test.log 2>&1; then
             RSS_STATUS="success"
             echo "✅ RSS Feed: Available"
           else
@@ -149,8 +149,8 @@ jobs:
           
           # Claude Code AI分析機能テスト（カスタム分析機能）
           echo "Testing Claude Code AI analysis functions..."
-          if timeout 20 claude-code --prompt "Test prompt: Analyze this sample news text: 'Technology stocks surge as AI developments continue.' Return 'TEST_SUCCESS' if working." > .logs/connectivity-tests/ai-analysis-test.log 2>&1; then
-            if grep -q "TEST_SUCCESS" .logs/connectivity-tests/ai-analysis-test.log; then
+          if timeout 20 claude-code --prompt "Test prompt: Analyze this sample news text: 'Technology stocks surge as AI developments continue.' Return 'TEST_SUCCESS' if working." > generated/logs/connectivity-tests/ai-analysis-test.log 2>&1; then
+            if grep -q "TEST_SUCCESS" generated/logs/connectivity-tests/ai-analysis-test.log; then
               AI_ANALYSIS_STATUS="success"
               echo "✅ Claude Code AI Analysis: Available"
             else
@@ -165,7 +165,7 @@ jobs:
           # 外部ニュースAPI テスト（NewsAPI等）
           echo "Testing external news APIs..."
           if [ -n "${{ secrets.NEWS_API_KEY }}" ]; then
-            if timeout 30 curl -s "https://newsapi.org/v2/top-headlines?apiKey=${{ secrets.NEWS_API_KEY }}&pageSize=1" > .logs/connectivity-tests/news-api-test.log 2>&1; then
+            if timeout 30 curl -s "https://newsapi.org/v2/top-headlines?apiKey=${{ secrets.NEWS_API_KEY }}&pageSize=1" > generated/logs/connectivity-tests/news-api-test.log 2>&1; then
               NEWS_API_STATUS="success"
               echo "✅ News API: Available"
             else
@@ -180,7 +180,7 @@ jobs:
           # 感情分析API テスト（テキスト分析用）
           echo "Testing sentiment analysis services..."
           if [ -n "${{ secrets.SENTIMENT_API_KEY }}" ]; then
-            if timeout 20 curl -s -H "Authorization: Bearer ${{ secrets.SENTIMENT_API_KEY }}" "https://api.example-sentiment.com/analyze" -d "text=test" > .logs/connectivity-tests/sentiment-test.log 2>&1; then
+            if timeout 20 curl -s -H "Authorization: Bearer ${{ secrets.SENTIMENT_API_KEY }}" "https://api.example-sentiment.com/analyze" -d "text=test" > generated/logs/connectivity-tests/sentiment-test.log 2>&1; then
               SENTIMENT_API_STATUS="success"
               echo "✅ Sentiment API: Available"
             else
@@ -193,7 +193,7 @@ jobs:
           fi
           
           # テスト結果をJSON保存
-          cat > .logs/connectivity-tests/test-results.json << EOF
+          cat > generated/logs/connectivity-tests/test-results.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "required_for_workflow": {
@@ -240,7 +240,7 @@ jobs:
         run: |
           echo "🔍 Extracting analysis topics and keywords..."
           
-          mkdir -p .logs/information-gathering
+          mkdir -p generated/logs/information-gathering
           
           # 入力されたトピックまたはイシューから分析対象を抽出
           INPUT_TOPIC="${{ github.event.inputs.news_topic }}"
@@ -257,7 +257,7 @@ jobs:
           地域焦点: ${{ github.event.inputs.geographic_focus }}
           ニュースソース: ${{ github.event.inputs.news_sources }}
           
-          JSON形式で検索キーワードと分析方針を返してください。" > .logs/information-gathering/topic-analysis.json
+          JSON形式で検索キーワードと分析方針を返してください。" > generated/logs/information-gathering/topic-analysis.json
           
           echo "keywords_ready=true" >> $GITHUB_OUTPUT
           echo "✅ Topic and keyword extraction completed"
@@ -276,15 +276,15 @@ jobs:
         run: |
           echo "📰 Collecting news from multiple sources..."
           
-          mkdir -p .logs/information-gathering/sources
+          mkdir -p generated/logs/information-gathering/sources
           
           # Web Search API を使用したニュース収集
           echo "Collecting from web search..."
           if [ -n "${{ secrets.GOOGLE_SEARCH_API_KEY }}" ] && [ -n "${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}" ]; then
             curl -s "https://www.googleapis.com/customsearch/v1?key=${{ secrets.GOOGLE_SEARCH_API_KEY }}&cx=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}&q=${SEARCH_KEYWORDS}+news&num=10&dateRestrict=d1" \
-              > .logs/information-gathering/sources/web-search-results.json 2>&1
+              > generated/logs/information-gathering/sources/web-search-results.json 2>&1
           else
-            echo '{"items":[]}' > .logs/information-gathering/sources/web-search-results.json
+            echo '{"items":[]}' > generated/logs/information-gathering/sources/web-search-results.json
           fi
           
           # 追加の検索（異なる角度から）
@@ -292,33 +292,33 @@ jobs:
           RELATED_TERMS=$(echo "$TOPIC_ANALYSIS" | jq -r '.related_terms[0:3] | join("+")')
           if [ -n "${{ secrets.GOOGLE_SEARCH_API_KEY }}" ] && [ -n "${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}" ]; then
             curl -s "https://www.googleapis.com/customsearch/v1?key=${{ secrets.GOOGLE_SEARCH_API_KEY }}&cx=${{ secrets.GOOGLE_SEARCH_ENGINE_ID }}&q=${RELATED_TERMS}+analysis+report&num=10" \
-              > .logs/information-gathering/sources/related-search-results.json 2>&1
+              > generated/logs/information-gathering/sources/related-search-results.json 2>&1
           else
-            echo '{"items":[]}' > .logs/information-gathering/sources/related-search-results.json
+            echo '{"items":[]}' > generated/logs/information-gathering/sources/related-search-results.json
           fi
           
           # 外部ニュースAPI使用（利用可能な場合）
           if [ "$ENHANCED_COLLECTION" = "true" ] && [ -n "${{ secrets.NEWS_API_KEY }}" ]; then
             echo "Collecting from News API..."
             curl -s "https://newsapi.org/v2/everything?q=$SEARCH_KEYWORDS&sortBy=publishedAt&pageSize=30&apiKey=${{ secrets.NEWS_API_KEY }}" \
-              > .logs/information-gathering/sources/news-api-results.json 2>&1 || echo "News API collection failed"
+              > generated/logs/information-gathering/sources/news-api-results.json 2>&1 || echo "News API collection failed"
           fi
           
           # RSS フィード収集（利用可能な場合）
           if [ "$RSS_STATUS" = "success" ]; then
             echo "Collecting from RSS feeds..."
             # 主要ニュースサイトのRSSフィード
-            curl -s "https://rss.cnn.com/rss/edition.rss" | head -n 100 > .logs/information-gathering/sources/cnn-rss.xml 2>&1 || echo '{"items":[]}' > .logs/information-gathering/sources/cnn-rss.json
-            curl -s "https://feeds.reuters.com/reuters/topNews" | head -n 100 > .logs/information-gathering/sources/reuters-rss.xml 2>&1 || echo '{"items":[]}' > .logs/information-gathering/sources/reuters-rss.json
+            curl -s "https://rss.cnn.com/rss/edition.rss" | head -n 100 > generated/logs/information-gathering/sources/cnn-rss.xml 2>&1 || echo '{"items":[]}' > generated/logs/information-gathering/sources/cnn-rss.json
+            curl -s "https://feeds.reuters.com/reuters/topNews" | head -n 100 > generated/logs/information-gathering/sources/reuters-rss.xml 2>&1 || echo '{"items":[]}' > generated/logs/information-gathering/sources/reuters-rss.json
           fi
           
           # 収集結果の統合
           echo "Consolidating collected news..."
           claude-code --prompt "以下の複数ソースから収集したニュースデータを統合・整理してください：
           
-          Web検索結果: $(cat .logs/information-gathering/sources/web-search-results.json 2>/dev/null || echo '{}')
-          関連検索結果: $(cat .logs/information-gathering/sources/related-search-results.json 2>/dev/null || echo '{}')
-          $([ -f '.logs/information-gathering/sources/news-api-results.json' ] && echo "News API結果: $(cat .logs/information-gathering/sources/news-api-results.json)" || echo "")
+          Web検索結果: $(cat generated/logs/information-gathering/sources/web-search-results.json 2>/dev/null || echo '{}')
+          関連検索結果: $(cat generated/logs/information-gathering/sources/related-search-results.json 2>/dev/null || echo '{}')
+          $([ -f 'generated/logs/information-gathering/sources/news-api-results.json' ] && echo "News API結果: $(cat generated/logs/information-gathering/sources/news-api-results.json)" || echo "")
           
           以下の形式でJSONで回答してください：
           {
@@ -344,9 +344,9 @@ jobs:
               \"source_diversity\": \"1-10点でのソース多様性\",
               \"content_freshness\": \"1-10点での情報新鮮度\"
             }
-          }" > .logs/information-gathering/consolidated-news.json
+          }" > generated/logs/information-gathering/consolidated-news.json
           
-          CONSOLIDATED_NEWS=$(cat .logs/information-gathering/consolidated-news.json)
+          CONSOLIDATED_NEWS=$(cat generated/logs/information-gathering/consolidated-news.json)
           echo "collection_ready=true" >> $GITHUB_OUTPUT
           echo "📰 Multi-source news collection completed"
 
@@ -364,7 +364,7 @@ jobs:
         run: |
           echo "🔍 Analyzing collected news content..."
           
-          mkdir -p .logs/news-analysis
+          mkdir -p generated/logs/news-analysis
           
           claude-code --prompt "収集されたニュースを分析し、以下の観点で要約してください：
           
@@ -372,7 +372,7 @@ jobs:
           要約レベル: ${{ github.event.inputs.summary_length }}
           期間: ${{ github.event.inputs.analysis_period }}
           
-          JSON形式で分析結果を返してください。" > .logs/news-analysis/analysis-report.json
+          JSON形式で分析結果を返してください。" > generated/logs/news-analysis/analysis-report.json
           
           echo "analysis_ready=true" >> $GITHUB_OUTPUT
           echo "🔍 News analysis completed"
@@ -391,7 +391,7 @@ jobs:
         run: |
           echo "📋 Generating comprehensive news report..."
           
-          mkdir -p .logs/report-generation
+          mkdir -p generated/logs/report-generation
           
           claude-code --prompt "分析されたニュースデータから最終レポートを生成してください：
           
@@ -399,7 +399,7 @@ jobs:
           情報源表示: ${{ github.event.inputs.include_sources }}
           緊急度レベル: ${{ github.event.inputs.urgency_level }}
           
-          指定された形式でレポートを作成してください。" > .logs/report-generation/final-report.json
+          指定された形式でレポートを作成してください。" > generated/logs/report-generation/final-report.json
           
           echo "report_ready=true" >> $GITHUB_OUTPUT
           echo "📋 Report generation completed"
@@ -418,14 +418,14 @@ jobs:
           mkdir -p .final-output/{analysis,reports,sources}
           
           # 分析ドキュメント
-          cp .logs/information-gathering/topic-analysis.json .final-output/analysis/ 2>/dev/null || true
-          cp .logs/news-analysis/analysis-report.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/information-gathering/topic-analysis.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/news-analysis/analysis-report.json .final-output/analysis/ 2>/dev/null || true
           
           # レポート
-          cp .logs/report-generation/final-report.json .final-output/reports/ 2>/dev/null || true
+          cp generated/logs/report-generation/final-report.json .final-output/reports/ 2>/dev/null || true
           
           # ソースデータ
-          cp .logs/information-gathering/consolidated-news.json .final-output/sources/ 2>/dev/null || true
+          cp generated/logs/information-gathering/consolidated-news.json .final-output/sources/ 2>/dev/null || true
           
           # マスター情報
           cat > .final-output/news-analysis-master.json << EOF

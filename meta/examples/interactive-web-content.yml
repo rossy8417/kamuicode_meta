@@ -125,11 +125,11 @@ jobs:
         run: |
           echo "🌐 Testing web development and design services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # Web用画像生成サービステスト
           echo "Testing image generation for web content..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "professional web design hero image test" > .logs/connectivity-tests/web-image-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "professional web design hero image test" > generated/logs/connectivity-tests/web-image-test.log 2>&1; then
             WEB_IMAGE_STATUS="success"
             echo "✅ Web Image Generation: Available"
           else
@@ -139,8 +139,8 @@ jobs:
           
           # Claude Code によるコード生成テスト
           echo "Testing code generation capabilities..."
-          if timeout 30 claude-code --prompt "Test: Generate a simple HTML div element. Return 'CODE_GEN_SUCCESS' if working." > .logs/connectivity-tests/code-gen-test.log 2>&1; then
-            if grep -q "CODE_GEN_SUCCESS" .logs/connectivity-tests/code-gen-test.log || grep -q "<div" .logs/connectivity-tests/code-gen-test.log; then
+          if timeout 30 claude-code --prompt "Test: Generate a simple HTML div element. Return 'CODE_GEN_SUCCESS' if working." > generated/logs/connectivity-tests/code-gen-test.log 2>&1; then
+            if grep -q "CODE_GEN_SUCCESS" generated/logs/connectivity-tests/code-gen-test.log || grep -q "<div" generated/logs/connectivity-tests/code-gen-test.log; then
               CODE_GEN_STATUS="success"
               echo "✅ Code Generation: Available"
             else
@@ -176,7 +176,7 @@ jobs:
         run: |
           echo "🏗️ Designing site architecture and user experience..."
           
-          mkdir -p .logs/site-architecture
+          mkdir -p generated/logs/site-architecture
           
           CONTENT_PURPOSE="${{ github.event.inputs.content_purpose }}"
           WEBSITE_TYPE="${{ github.event.inputs.website_type }}"
@@ -196,7 +196,7 @@ jobs:
           デザインスタイル: ${{ github.event.inputs.design_style }}
           コンテンツセクション数: ${{ github.event.inputs.content_sections }}
 
-          サイトマップ、ナビゲーション構造、ユーザーフロー、レスポンシブ設計要件を含めてください。" > .logs/site-architecture/site-design.json
+          サイトマップ、ナビゲーション構造、ユーザーフロー、レスポンシブ設計要件を含めてください。" > generated/logs/site-architecture/site-design.json
           
           echo "architecture_ready=true" >> $GITHUB_OUTPUT
           echo "🏗️ Site architecture design completed"
@@ -215,7 +215,7 @@ jobs:
         run: |
           echo "🎨 Generating visual assets for web content..."
           
-          mkdir -p .logs/visual-assets
+          mkdir -p generated/logs/visual-assets
           
           WEB_IMAGE_AVAILABLE="${{ needs.connectivity-test.outputs.web_image_available }}"
           DESIGN_STYLE="${{ github.event.inputs.design_style }}"
@@ -225,22 +225,22 @@ jobs:
             echo "Generating hero section image..."
             HERO_PROMPT="${{ github.event.inputs.content_purpose }}, hero section banner, $DESIGN_STYLE design, $COLOR_SCHEME colors, professional web design, high quality"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$HERO_PROMPT" > .logs/visual-assets/hero-image.json 2>&1 || echo "Hero image generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$HERO_PROMPT" > generated/logs/visual-assets/hero-image.json 2>&1 || echo "Hero image generation failed"
             
             echo "Generating section background images..."
             SECTION_PROMPT="${{ github.event.inputs.content_purpose }}, section background, $DESIGN_STYLE aesthetic, web-optimized, clean background"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$SECTION_PROMPT" > .logs/visual-assets/section-bg.json 2>&1 || echo "Section background generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$SECTION_PROMPT" > generated/logs/visual-assets/section-bg.json 2>&1 || echo "Section background generation failed"
             
             echo "Generating icon/graphic elements..."
             ICON_PROMPT="modern web icons, $DESIGN_STYLE style, $COLOR_SCHEME colors, vector-style graphics, professional"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ICON_PROMPT" > .logs/visual-assets/web-icons.json 2>&1 || echo "Icon generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ICON_PROMPT" > generated/logs/visual-assets/web-icons.json 2>&1 || echo "Icon generation failed"
             
             echo "✅ Visual assets generated"
           else
             echo "⚠️ Image generation not available - will create CSS-based visual design"
-            echo '{"asset_type": "css_only", "color_scheme": "${{ github.event.inputs.color_scheme }}"}' > .logs/visual-assets/design-fallback.json
+            echo '{"asset_type": "css_only", "color_scheme": "${{ github.event.inputs.color_scheme }}"}' > generated/logs/visual-assets/design-fallback.json
           fi
           
           echo "assets_ready=true" >> $GITHUB_OUTPUT
@@ -260,7 +260,7 @@ jobs:
         run: |
           echo "📄 Generating semantic HTML structure..."
           
-          mkdir -p .logs/html-structure
+          mkdir -p generated/logs/html-structure
           
           # HTML構造生成
           claude-code --prompt "以下の要件に基づいて、セマンティックで構造化されたHTMLコードを生成してください：
@@ -270,7 +270,7 @@ jobs:
           アクセシビリティレベル: ${{ github.event.inputs.accessibility_level }}
           ターゲットデバイス: ${{ github.event.inputs.target_device }}
 
-          HTML5セマンティック要素、適切な見出し構造、ARIAラベル、メタタグを含む完全なHTMLを生成してください。" > .logs/html-structure/main-structure.html
+          HTML5セマンティック要素、適切な見出し構造、ARIAラベル、メタタグを含む完全なHTMLを生成してください。" > generated/logs/html-structure/main-structure.html
           
           echo "html_ready=true" >> $GITHUB_OUTPUT
           echo "📄 HTML structure generation completed"
@@ -289,7 +289,7 @@ jobs:
         run: |
           echo "🎨 Generating responsive CSS styling..."
           
-          mkdir -p .logs/css-styling
+          mkdir -p generated/logs/css-styling
           
           # CSS生成
           claude-code --prompt "以下の要件に基づいて、レスポンシブで現代的なCSSスタイルシートを生成してください：
@@ -299,7 +299,7 @@ jobs:
           ターゲットデバイス: ${{ github.event.inputs.target_device }}
           パフォーマンス優先度: ${{ github.event.inputs.performance_priority }}
 
-          モバイルファースト、Flexbox/Grid、アニメーション、ホバー効果を含む完全なCSSを生成してください。" > .logs/css-styling/main-styles.css
+          モバイルファースト、Flexbox/Grid、アニメーション、ホバー効果を含む完全なCSSを生成してください。" > generated/logs/css-styling/main-styles.css
           
           echo "css_ready=true" >> $GITHUB_OUTPUT
           echo "🎨 CSS styling completed"
@@ -318,7 +318,7 @@ jobs:
         run: |
           echo "⚡ Generating JavaScript interactive features..."
           
-          mkdir -p .logs/javascript-interactivity
+          mkdir -p generated/logs/javascript-interactivity
           
           INTERACTIVITY_LEVEL="${{ github.event.inputs.interactivity_level }}"
           
@@ -330,7 +330,7 @@ jobs:
           パフォーマンス優先度: ${{ github.event.inputs.performance_priority }}
           アクセシビリティレベル: ${{ github.event.inputs.accessibility_level }}
 
-          スムーズスクロール、アニメーション、フォームバリデーション、レスポンシブナビゲーションを含むモダンなJavaScriptを生成してください。" > .logs/javascript-interactivity/interactive-features.js
+          スムーズスクロール、アニメーション、フォームバリデーション、レスポンシブナビゲーションを含むモダンなJavaScriptを生成してください。" > generated/logs/javascript-interactivity/interactive-features.js
           
           echo "js_ready=true" >> $GITHUB_OUTPUT
           echo "⚡ JavaScript interactivity completed"
@@ -349,7 +349,7 @@ jobs:
         run: |
           echo "🔧 Optimizing and validating web content..."
           
-          mkdir -p .logs/optimization-validation
+          mkdir -p generated/logs/optimization-validation
           
           # 最適化・検証分析
           claude-code --prompt "以下のWebプロジェクト要件に基づいて、パフォーマンス最適化とアクセシビリティ検証の提案をJSON形式で作成してください：
@@ -358,7 +358,7 @@ jobs:
           アクセシビリティレベル: ${{ github.event.inputs.accessibility_level }}
           ターゲットデバイス: ${{ github.event.inputs.target_device }}
 
-          Core Web Vitals、WCAG準拠、SEO最適化、ブラウザ互換性の観点から分析してください。" > .logs/optimization-validation/optimization-report.json
+          Core Web Vitals、WCAG準拠、SEO最適化、ブラウザ互換性の観点から分析してください。" > generated/logs/optimization-validation/optimization-report.json
           
           echo "optimization_ready=true" >> $GITHUB_OUTPUT
           echo "🔧 Optimization and validation completed"
@@ -377,19 +377,19 @@ jobs:
           mkdir -p .final-output/{design,assets,code,optimization}
           
           # デザイン・設計ドキュメント
-          cp .logs/site-architecture/site-design.json .final-output/design/ 2>/dev/null || true
+          cp generated/logs/site-architecture/site-design.json .final-output/design/ 2>/dev/null || true
           
           # ビジュアル素材
-          cp .logs/visual-assets/*.json .final-output/assets/ 2>/dev/null || true
+          cp generated/logs/visual-assets/*.json .final-output/assets/ 2>/dev/null || true
           
           # コードファイル
           mkdir -p .final-output/code/{html,css,js}
-          cp .logs/html-structure/main-structure.html .final-output/code/html/ 2>/dev/null || true
-          cp .logs/css-styling/main-styles.css .final-output/code/css/ 2>/dev/null || true
-          cp .logs/javascript-interactivity/interactive-features.js .final-output/code/js/ 2>/dev/null || true
+          cp generated/logs/html-structure/main-structure.html .final-output/code/html/ 2>/dev/null || true
+          cp generated/logs/css-styling/main-styles.css .final-output/code/css/ 2>/dev/null || true
+          cp generated/logs/javascript-interactivity/interactive-features.js .final-output/code/js/ 2>/dev/null || true
           
           # 最適化レポート
-          cp .logs/optimization-validation/optimization-report.json .final-output/optimization/ 2>/dev/null || true
+          cp generated/logs/optimization-validation/optimization-report.json .final-output/optimization/ 2>/dev/null || true
           
           # マスターWeb プロジェクト情報
           cat > .final-output/web-project-master.json << EOF

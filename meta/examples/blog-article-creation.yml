@@ -84,7 +84,7 @@ jobs:
         run: |
           echo "🔍 Analyzing keywords and SEO strategy..."
           
-          mkdir -p .logs/keyword-analysis
+          mkdir -p generated/logs/keyword-analysis
           
           KEYWORDS="${{ github.event.inputs.keywords }}"
           SEO_FOCUS="${{ github.event.inputs.seo_focus }}"
@@ -94,7 +94,7 @@ jobs:
           キーワード: $KEYWORDS
           SEO重点度: $SEO_FOCUS/10
           
-          JSON形式でキーワード分析結果を返してください。" > .logs/keyword-analysis/keyword-analysis.json
+          JSON形式でキーワード分析結果を返してください。" > generated/logs/keyword-analysis/keyword-analysis.json
           
           echo "analysis_ready=true" >> $GITHUB_OUTPUT
           echo "🔍 Keyword analysis completed"
@@ -113,7 +113,7 @@ jobs:
         run: |
           echo "📋 Designing article structure..."
           
-          mkdir -p .logs/content-structure
+          mkdir -p generated/logs/content-structure
           
           ARTICLE_TYPE="${{ github.event.inputs.article_type }}"
           TARGET_AUDIENCE="${{ github.event.inputs.target_audience }}"
@@ -125,7 +125,7 @@ jobs:
           ターゲット: $TARGET_AUDIENCE
           記事の長さ: $CONTENT_LENGTH
           
-          JSON形式で記事構成を返してください。" > .logs/content-structure/article-structure.json
+          JSON形式で記事構成を返してください。" > generated/logs/content-structure/article-structure.json
           
           echo "structure_ready=true" >> $GITHUB_OUTPUT
           echo "📋 Article structure design completed"
@@ -144,7 +144,7 @@ jobs:
         run: |
           echo "✍️ Generating article content..."
           
-          mkdir -p .logs/content-generation
+          mkdir -p generated/logs/content-generation
           
           KEYWORDS="${{ github.event.inputs.keywords }}"
           ARTICLE_TYPE="${{ github.event.inputs.article_type }}"
@@ -156,7 +156,7 @@ jobs:
           記事タイプ: $ARTICLE_TYPE
           ターゲット読者: $TARGET_AUDIENCE
           
-          完全なブログ記事をMarkdown形式で生成してください。" > .logs/content-generation/article-content.md
+          完全なブログ記事をMarkdown形式で生成してください。" > generated/logs/content-generation/article-content.md
           
           echo "content_ready=true" >> $GITHUB_OUTPUT
           echo "✍️ Article content generation completed"
@@ -175,7 +175,7 @@ jobs:
         run: |
           echo "🚀 Optimizing for SEO..."
           
-          mkdir -p .logs/seo-optimization
+          mkdir -p generated/logs/seo-optimization
           
           SEO_FOCUS="${{ github.event.inputs.seo_focus }}"
           
@@ -183,7 +183,7 @@ jobs:
           
           SEO重点度: $SEO_FOCUS/10
           
-          JSON形式でSEO最適化レポートを返してください。" > .logs/seo-optimization/seo-report.json
+          JSON形式でSEO最適化レポートを返してください。" > generated/logs/seo-optimization/seo-report.json
           
           echo "seo_ready=true" >> $GITHUB_OUTPUT
           echo "🚀 SEO optimization completed"
@@ -200,12 +200,12 @@ jobs:
           mkdir -p .final-output/{analysis,content,seo}
           
           # プロジェクト文書
-          cp .logs/keyword-analysis/keyword-analysis.json .final-output/analysis/ 2>/dev/null || true
-          cp .logs/content-structure/article-structure.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/keyword-analysis/keyword-analysis.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/content-structure/article-structure.json .final-output/analysis/ 2>/dev/null || true
           
           # コンテンツ成果物
-          cp .logs/content-generation/article-content.md .final-output/content/ 2>/dev/null || true
-          cp .logs/seo-optimization/seo-report.json .final-output/seo/ 2>/dev/null || true
+          cp generated/logs/content-generation/article-content.md .final-output/content/ 2>/dev/null || true
+          cp generated/logs/seo-optimization/seo-report.json .final-output/seo/ 2>/dev/null || true
           
           # マスタープロジェクト情報
           cat > .final-output/blog-project-master.json << EOF

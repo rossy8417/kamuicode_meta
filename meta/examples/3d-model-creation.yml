@@ -109,11 +109,11 @@ jobs:
         run: |
           echo "🧊 Testing 3D generation and processing services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # 3Dモデル生成サービステスト（I2I3D）
           echo "Testing 3D model generation service..."
-          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --test > .logs/connectivity-tests/3d-gen-test.log 2>&1; then
+          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --test > generated/logs/connectivity-tests/3d-gen-test.log 2>&1; then
             THREED_GEN_STATUS="success"
             echo "✅ 3D Model Generation (Hunyuan3D): Available"
           else
@@ -123,7 +123,7 @@ jobs:
           
           # 画像生成サービステスト（参照画像作成用）
           echo "Testing image generation for reference creation..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "3d reference object test" > .logs/connectivity-tests/ref-image-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "3d reference object test" > generated/logs/connectivity-tests/ref-image-test.log 2>&1; then
             REF_IMAGE_STATUS="success"
             echo "✅ Reference Image Generation: Available"
           else
@@ -133,7 +133,7 @@ jobs:
           
           # 画像強化サービステスト（3D生成前の前処理用）
           echo "Testing image enhancement for preprocessing..."
-          if timeout 60 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --test > .logs/connectivity-tests/enhancement-test.log 2>&1; then
+          if timeout 60 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i-fal-flux-kontext-max --test > generated/logs/connectivity-tests/enhancement-test.log 2>&1; then
             IMAGE_ENHANCEMENT_STATUS="success" 
             echo "✅ Image Enhancement: Available"
           else
@@ -174,7 +174,7 @@ jobs:
         run: |
           echo "🎯 Developing 3D model concept and specifications..."
           
-          mkdir -p .logs/3d-concept
+          mkdir -p generated/logs/3d-concept
           
           # 入力から3D要件を抽出
           MODEL_CONCEPT="${{ github.event.inputs.model_concept }}"
@@ -192,7 +192,7 @@ jobs:
           モデルタイプ: $MODEL_TYPE
           詳細レベル: $DETAIL_LEVEL
           
-          JSON形式で3Dモデル仕様を返してください。" > .logs/3d-concept/3d-concept.json
+          JSON形式で3Dモデル仕様を返してください。" > generated/logs/3d-concept/3d-concept.json
           
           echo "concept_ready=true" >> $GITHUB_OUTPUT
           echo "🎯 3D concept development completed"
@@ -211,7 +211,7 @@ jobs:
         run: |
           echo "🖼️ Generating and preparing reference images..."
           
-          mkdir -p .logs/reference-preparation
+          mkdir -p generated/logs/reference-preparation
           
           REF_IMAGE_AVAILABLE="${{ needs.connectivity-test.outputs.ref_image_available }}"
           MODEL_CONCEPT="${{ github.event.inputs.model_concept }}"
@@ -224,7 +224,7 @@ jobs:
             echo "Generating primary reference image..."
             PRIMARY_PROMPT="$MODEL_CONCEPT, perfect for 3D modeling reference, clear details, neutral background, professional product photography lighting, high resolution"
             
-            if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PRIMARY_PROMPT" > .logs/reference-preparation/primary-reference.json 2>&1; then
+            if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PRIMARY_PROMPT" > generated/logs/reference-preparation/primary-reference.json 2>&1; then
               echo "✅ Primary reference image generated"
               PRIMARY_REF_STATUS="success"
             else
@@ -253,7 +253,7 @@ jobs:
         run: |
           echo "🧊 Generating primary 3D models..."
           
-          mkdir -p .logs/3d-generation
+          mkdir -p generated/logs/3d-generation
           
           THREED_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.threed_gen_available }}"
           
@@ -261,7 +261,7 @@ jobs:
             echo "3D model generation service available - creating models..."
             
             # プライマリ参照画像から3Dモデル生成
-            PRIMARY_REF_FILE=$(ls .logs/reference-preparation/primary-reference*.json 2>/dev/null | head -1)
+            PRIMARY_REF_FILE=$(ls generated/logs/reference-preparation/primary-reference*.json 2>/dev/null | head -1)
             
             if [ -n "$PRIMARY_REF_FILE" ]; then
               PRIMARY_IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$PRIMARY_REF_FILE" 2>/dev/null)
@@ -269,7 +269,7 @@ jobs:
               if [ "$PRIMARY_IMAGE_PATH" != "none" ]; then
                 echo "Generating 3D model from primary reference..."
                 
-                if timeout 240 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$PRIMARY_IMAGE_PATH" > .logs/3d-generation/primary-3d-model.json 2>&1; then
+                if timeout 240 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$PRIMARY_IMAGE_PATH" > generated/logs/3d-generation/primary-3d-model.json 2>&1; then
                   echo "✅ Primary 3D model generated successfully"
                   PRIMARY_3D_STATUS="success"
                 else
@@ -290,7 +290,7 @@ jobs:
           fi
           
           # 3D生成結果をログ保存
-          cat > .logs/3d-generation/generation-log.json << EOF
+          cat > generated/logs/3d-generation/generation-log.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "primary_3d_status": "$PRIMARY_3D_STATUS",
@@ -299,7 +299,7 @@ jobs:
           EOF
           
           echo "generation_results<<EOF" >> $GITHUB_OUTPUT
-          cat .logs/3d-generation/generation-log.json >> $GITHUB_OUTPUT
+          cat generated/logs/3d-generation/generation-log.json >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
           echo "🧊 Primary 3D model generation completed"
@@ -318,7 +318,7 @@ jobs:
         run: |
           echo "⚡ Optimizing 3D models for performance and quality..."
           
-          mkdir -p .logs/model-optimization
+          mkdir -p generated/logs/model-optimization
           
           GENERATION_RESULTS='${{ needs.threed-generation.outputs.generation_results }}'
           OPTIMIZATION_LEVEL="${{ github.event.inputs.optimization_level }}"
@@ -329,7 +329,7 @@ jobs:
           生成ログ: $GENERATION_RESULTS
           最適化レベル: $OPTIMIZATION_LEVEL
           
-          JSON形式で最適化推奨事項を返してください。" > .logs/model-optimization/optimization-analysis.json
+          JSON形式で最適化推奨事項を返してください。" > generated/logs/model-optimization/optimization-analysis.json
           
           echo "optimization_status=completed" >> $GITHUB_OUTPUT
           echo "⚡ 3D model optimization completed"
@@ -348,7 +348,7 @@ jobs:
         run: |
           echo "🎨 Setting up rendering and visualization configurations..."
           
-          mkdir -p .logs/rendering-setup
+          mkdir -p generated/logs/rendering-setup
           
           OUTPUT_FORMAT="${{ github.event.inputs.output_format }}"
           SURFACE_QUALITY="${{ github.event.inputs.surface_quality }}"
@@ -359,7 +359,7 @@ jobs:
           出力フォーマット: $OUTPUT_FORMAT
           表面品質: $SURFACE_QUALITY
           
-          JSON形式でレンダリング設定を返してください。" > .logs/rendering-setup/rendering-configuration.json
+          JSON形式でレンダリング設定を返してください。" > generated/logs/rendering-setup/rendering-configuration.json
           
           echo "rendering_ready=true" >> $GITHUB_OUTPUT
           echo "🎨 Rendering and visualization setup completed"
@@ -375,7 +375,7 @@ jobs:
         run: |
           echo "📦 Creating 3D delivery package and optimizing formats..."
           
-          mkdir -p .logs/delivery-packaging
+          mkdir -p generated/logs/delivery-packaging
           
           OUTPUT_FORMAT="${{ github.event.inputs.output_format }}"
           OPTIMIZATION_LEVEL="${{ github.event.inputs.optimization_level }}"
@@ -386,7 +386,7 @@ jobs:
           出力フォーマット: $OUTPUT_FORMAT
           最適化レベル: $OPTIMIZATION_LEVEL
           
-          JSON形式で配信戦略を返してください。" > .logs/delivery-packaging/delivery-strategy.json
+          JSON形式で配信戦略を返してください。" > generated/logs/delivery-packaging/delivery-strategy.json
           
           echo "📦 3D delivery packaging completed"
 
@@ -402,17 +402,17 @@ jobs:
           mkdir -p .final-output/{concept,generation,optimization,rendering}
           
           # プロジェクト文書
-          cp .logs/3d-concept/3d-concept.json .final-output/concept/ 2>/dev/null || true
+          cp generated/logs/3d-concept/3d-concept.json .final-output/concept/ 2>/dev/null || true
           
           # 3D生成成果物
           mkdir -p .final-output/generation/{models,references}
-          cp .logs/3d-generation/*.json .final-output/generation/models/ 2>/dev/null || true
-          cp .logs/reference-preparation/*.json .final-output/generation/references/ 2>/dev/null || true
+          cp generated/logs/3d-generation/*.json .final-output/generation/models/ 2>/dev/null || true
+          cp generated/logs/reference-preparation/*.json .final-output/generation/references/ 2>/dev/null || true
           
           # 最適化・レンダリング資料
-          cp .logs/model-optimization/*.json .final-output/optimization/ 2>/dev/null || true
-          cp .logs/rendering-setup/*.json .final-output/rendering/ 2>/dev/null || true
-          cp .logs/delivery-packaging/*.json .final-output/rendering/ 2>/dev/null || true
+          cp generated/logs/model-optimization/*.json .final-output/optimization/ 2>/dev/null || true
+          cp generated/logs/rendering-setup/*.json .final-output/rendering/ 2>/dev/null || true
+          cp generated/logs/delivery-packaging/*.json .final-output/rendering/ 2>/dev/null || true
           
           # マスター3Dプロジェクト情報
           cat > .final-output/3d-project-master.json << EOF

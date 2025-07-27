@@ -119,11 +119,11 @@ jobs:
         run: |
           echo "📊 Testing design and generation services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # Test Claude Code for presentation content generation
           echo "Testing presentation content generation..."
-          if timeout 30 claude-code --prompt "Test: Create a simple slide title for testing." > .logs/connectivity-tests/content-test.log 2>&1; then
+          if timeout 30 claude-code --prompt "Test: Create a simple slide title for testing." > generated/logs/connectivity-tests/content-test.log 2>&1; then
             CONTENT_GEN_STATUS="success"
             echo "✅ Content Generation: Available"
           else
@@ -133,7 +133,7 @@ jobs:
           
           # Test image generation services for slide backgrounds
           echo "Testing image generation for slide backgrounds..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "professional business presentation background, corporate style" > .logs/connectivity-tests/image-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "professional business presentation background, corporate style" > generated/logs/connectivity-tests/image-test.log 2>&1; then
             IMAGE_GEN_STATUS="success"
             echo "✅ Image Generation: Available"
           else
@@ -164,7 +164,7 @@ jobs:
         run: |
           echo "🔍 Analyzing presentation requirements..."
           
-          mkdir -p .logs/presentation-analysis
+          mkdir -p generated/logs/presentation-analysis
           
           # Analyze presentation parameters
           TOPIC="${{ github.event.inputs.presentation_topic }}"
@@ -187,7 +187,7 @@ jobs:
           スライド数: ${{ github.event.inputs.slide_count }}
           内容タイプ: ${{ github.event.inputs.content_type }}
           
-          プレゼンテーション設計と各スライドの構成を提案してください。" > .logs/presentation-analysis/requirements-analysis.json
+          プレゼンテーション設計と各スライドの構成を提案してください。" > generated/logs/presentation-analysis/requirements-analysis.json
           
           echo "analysis_ready=true" >> $GITHUB_OUTPUT
           echo "🔍 Presentation analysis completed"
@@ -206,7 +206,7 @@ jobs:
         run: |
           echo "📋 Creating slide structure and content..."
           
-          mkdir -p .logs/slide-structure
+          mkdir -p generated/logs/slide-structure
           
           # Generate slide-by-slide content
           claude-code --prompt "前段階の分析結果を基に、具体的なスライド内容を作成してください：
@@ -217,7 +217,7 @@ jobs:
           - スライド数: ${{ github.event.inputs.slide_count }}
           - 可視化レベル: ${{ github.event.inputs.data_visualization_needs }}
           
-          各スライドのタイトル、内容、レイアウトをJSON形式で作成してください。" > .logs/slide-structure/slide-content.json
+          各スライドのタイトル、内容、レイアウトをJSON形式で作成してください。" > generated/logs/slide-structure/slide-content.json
           
           echo "structure_ready=true" >> $GITHUB_OUTPUT
           echo "📋 Slide structure creation completed"
@@ -236,7 +236,7 @@ jobs:
         run: |
           echo "🎨 Generating visual elements and backgrounds..."
           
-          mkdir -p .logs/visual-design
+          mkdir -p generated/logs/visual-design
           
           IMAGE_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.image_generation_available }}"
           
@@ -244,10 +244,10 @@ jobs:
             echo "Generating slide background..."
             STYLE_PROMPT="${{ github.event.inputs.presentation_style }} style, ${{ github.event.inputs.color_preference }} color scheme, professional presentation background"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$STYLE_PROMPT" > .logs/visual-design/background.json 2>&1 || echo "Background generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$STYLE_PROMPT" > generated/logs/visual-design/background.json 2>&1 || echo "Background generation failed"
           else
             echo "⚠️ Image generation not available - using text-based design"
-            echo '{"design_type": "text_only", "color_scheme": "${{ github.event.inputs.color_preference }}"}' > .logs/visual-design/design-plan.json
+            echo '{"design_type": "text_only", "color_scheme": "${{ github.event.inputs.color_preference }}"}' > generated/logs/visual-design/design-plan.json
           fi
           
           echo "design_ready=true" >> $GITHUB_OUTPUT
@@ -267,13 +267,13 @@ jobs:
           mkdir -p .final-output/{analysis,content,design}
           
           # Copy analysis documents
-          cp .logs/presentation-analysis/requirements-analysis.json .final-output/analysis/ 2>/dev/null || true
+          cp generated/logs/presentation-analysis/requirements-analysis.json .final-output/analysis/ 2>/dev/null || true
           
           # Copy slide content
-          cp .logs/slide-structure/slide-content.json .final-output/content/ 2>/dev/null || true
+          cp generated/logs/slide-structure/slide-content.json .final-output/content/ 2>/dev/null || true
           
           # Copy design elements
-          cp .logs/visual-design/*.json .final-output/design/ 2>/dev/null || true
+          cp generated/logs/visual-design/*.json .final-output/design/ 2>/dev/null || true
           
           # Create master presentation information
           cat > .final-output/presentation-master.json << EOF

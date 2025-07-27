@@ -127,11 +127,11 @@ jobs:
         run: |
           echo "🎵 Testing audio generation services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # 音楽生成サービステスト（T2M）
           echo "Testing music generation service..."
-          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --test > .logs/connectivity-tests/music-gen-test.log 2>&1; then
+          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --test > generated/logs/connectivity-tests/music-gen-test.log 2>&1; then
             MUSIC_GEN_STATUS="success"
             echo "✅ Music Generation (Google Lyria): Available"
           else
@@ -141,7 +141,7 @@ jobs:
           
           # 音声生成サービステスト（V2A）
           echo "Testing voice generation service..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-metavoice-v1 --test > .logs/connectivity-tests/voice-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-metavoice-v1 --test > generated/logs/connectivity-tests/voice-test.log 2>&1; then
             VOICE_GEN_STATUS="success"
             echo "✅ Voice Generation (MetaVoice): Available"
           else
@@ -173,7 +173,7 @@ jobs:
         run: |
           echo "🎯 Developing music concept and specifications..."
           
-          mkdir -p .logs/music-concept
+          mkdir -p generated/logs/music-concept
           
           # 入力から音楽要件を抽出
           MUSIC_CONCEPT="${{ github.event.inputs.music_concept }}"
@@ -194,7 +194,7 @@ jobs:
           ムード・エネルギー: $MOOD_ENERGY
           楽器編成: $INSTRUMENTATION
           
-          JSON形式で音楽仕様を返してください。" > .logs/music-concept/music-concept.json
+          JSON形式で音楽仕様を返してください。" > generated/logs/music-concept/music-concept.json
           
           echo "concept_ready=true" >> $GITHUB_OUTPUT
           echo "🎯 Music concept development completed"
@@ -213,7 +213,7 @@ jobs:
         run: |
           echo "🎼 Designing musical composition structure..."
           
-          mkdir -p .logs/composition-design
+          mkdir -p generated/logs/composition-design
           
           TRACK_DURATION="${{ github.event.inputs.track_duration }}"
           TEMPO_BPM="${{ github.event.inputs.tempo_bpm }}"
@@ -230,7 +230,7 @@ jobs:
           テンポ: $TEMPO_BPM BPM
           調性: $MUSICAL_KEY
           
-          楽曲の構造、ハーモニー、リズムパターンを含むJSON形式の構成を返してください。" > .logs/composition-design/composition-structure.json
+          楽曲の構造、ハーモニー、リズムパターンを含むJSON形式の構成を返してください。" > generated/logs/composition-design/composition-structure.json
           
           echo "composition_ready=true" >> $GITHUB_OUTPUT
           echo "🎼 Musical composition design completed"
@@ -249,7 +249,7 @@ jobs:
         run: |
           echo "🎵 Generating primary music track..."
           
-          mkdir -p .logs/music-generation
+          mkdir -p generated/logs/music-generation
           
           MUSIC_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.music_gen_available }}"
           MUSIC_CONCEPT="${{ github.event.inputs.music_concept }}"
@@ -264,7 +264,7 @@ jobs:
             echo "Generating primary music track..."
             MUSIC_PROMPT="Create $MUSIC_GENRE music with $MOOD_ENERGY mood, duration $TRACK_DURATION seconds, concept: $MUSIC_CONCEPT"
             
-            if timeout 300 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MUSIC_PROMPT" --duration "$TRACK_DURATION" > .logs/music-generation/primary-track.json 2>&1; then
+            if timeout 300 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MUSIC_PROMPT" --duration "$TRACK_DURATION" > generated/logs/music-generation/primary-track.json 2>&1; then
               echo "✅ Primary music track generated successfully"
               PRIMARY_MUSIC_STATUS="success"
             else
@@ -277,7 +277,7 @@ jobs:
           fi
           
           # 音楽生成結果をログ保存
-          cat > .logs/music-generation/generation-log.json << EOF
+          cat > generated/logs/music-generation/generation-log.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "primary_music_status": "$PRIMARY_MUSIC_STATUS",
@@ -289,7 +289,7 @@ jobs:
           EOF
           
           echo "generation_results<<EOF" >> $GITHUB_OUTPUT
-          cat .logs/music-generation/generation-log.json >> $GITHUB_OUTPUT
+          cat generated/logs/music-generation/generation-log.json >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
           echo "🎵 Primary music generation completed"
@@ -308,7 +308,7 @@ jobs:
         run: |
           echo "🎚️ Processing and optimizing audio quality..."
           
-          mkdir -p .logs/audio-processing
+          mkdir -p generated/logs/audio-processing
           
           GENERATION_RESULTS='${{ needs.music-generation.outputs.generation_results }}'
           AUDIO_QUALITY="${{ github.event.inputs.audio_quality }}"
@@ -319,7 +319,7 @@ jobs:
           生成ログ: $GENERATION_RESULTS
           音響品質: $AUDIO_QUALITY
           
-          JSON形式で音響処理推奨事項を返してください。" > .logs/audio-processing/processing-analysis.json
+          JSON形式で音響処理推奨事項を返してください。" > generated/logs/audio-processing/processing-analysis.json
           
           echo "processing_status=completed" >> $GITHUB_OUTPUT
           echo "🎚️ Audio processing completed"
@@ -338,7 +338,7 @@ jobs:
         run: |
           echo "🎛️ Performing mixing and mastering..."
           
-          mkdir -p .logs/mixing-mastering
+          mkdir -p generated/logs/mixing-mastering
           
           AUDIO_QUALITY="${{ github.event.inputs.audio_quality }}"
           TEMPO_BPM="${{ github.event.inputs.tempo_bpm }}"
@@ -349,7 +349,7 @@ jobs:
           音響品質: $AUDIO_QUALITY
           テンポ: $TEMPO_BPM BPM
           
-          JSON形式でミキシング・マスタリング設定を返してください。" > .logs/mixing-mastering/mixing-configuration.json
+          JSON形式でミキシング・マスタリング設定を返してください。" > generated/logs/mixing-mastering/mixing-configuration.json
           
           echo "mixing_ready=true" >> $GITHUB_OUTPUT
           echo "🎛️ Mixing and mastering completed"
@@ -365,7 +365,7 @@ jobs:
         run: |
           echo "📦 Preparing various audio formats for delivery..."
           
-          mkdir -p .logs/format-delivery
+          mkdir -p generated/logs/format-delivery
           
           AUDIO_QUALITY="${{ github.event.inputs.audio_quality }}"
           TRACK_DURATION="${{ github.event.inputs.track_duration }}"
@@ -376,7 +376,7 @@ jobs:
           音響品質: $AUDIO_QUALITY
           楽曲の長さ: $TRACK_DURATION 秒
           
-          JSON形式で配信戦略を返してください。" > .logs/format-delivery/delivery-strategy.json
+          JSON形式で配信戦略を返してください。" > generated/logs/format-delivery/delivery-strategy.json
           
           echo "📦 Audio format delivery preparation completed"
 
@@ -392,17 +392,17 @@ jobs:
           mkdir -p .final-output/{concept,generation,processing,mixing}
           
           # プロジェクト文書
-          cp .logs/music-concept/music-concept.json .final-output/concept/ 2>/dev/null || true
-          cp .logs/composition-design/composition-structure.json .final-output/concept/ 2>/dev/null || true
+          cp generated/logs/music-concept/music-concept.json .final-output/concept/ 2>/dev/null || true
+          cp generated/logs/composition-design/composition-structure.json .final-output/concept/ 2>/dev/null || true
           
           # 音楽生成成果物
           mkdir -p .final-output/generation/{tracks,analysis}
-          cp .logs/music-generation/*.json .final-output/generation/tracks/ 2>/dev/null || true
+          cp generated/logs/music-generation/*.json .final-output/generation/tracks/ 2>/dev/null || true
           
           # 音響処理・ミキシング資料
-          cp .logs/audio-processing/*.json .final-output/processing/ 2>/dev/null || true
-          cp .logs/mixing-mastering/*.json .final-output/mixing/ 2>/dev/null || true
-          cp .logs/format-delivery/*.json .final-output/mixing/ 2>/dev/null || true
+          cp generated/logs/audio-processing/*.json .final-output/processing/ 2>/dev/null || true
+          cp generated/logs/mixing-mastering/*.json .final-output/mixing/ 2>/dev/null || true
+          cp generated/logs/format-delivery/*.json .final-output/mixing/ 2>/dev/null || true
           
           # マスター音楽プロジェクト情報
           cat > .final-output/music-project-master.json << EOF

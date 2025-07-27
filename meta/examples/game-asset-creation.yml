@@ -126,11 +126,11 @@ jobs:
         run: |
           echo "🎮 Testing game asset generation services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # 2D画像生成サービステスト（キャラクター・背景用）
           echo "Testing 2D image generation for game assets..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "game character asset test" > .logs/connectivity-tests/2d-asset-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "game character asset test" > generated/logs/connectivity-tests/2d-asset-test.log 2>&1; then
             IMAGE_GEN_STATUS="success"
             echo "✅ 2D Image Generation: Available"
           else
@@ -140,7 +140,7 @@ jobs:
           
           # 3Dモデル生成サービステスト（3Dアセット用）
           echo "Testing 3D model generation for game objects..."
-          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --test > .logs/connectivity-tests/3d-asset-test.log 2>&1; then
+          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --test > generated/logs/connectivity-tests/3d-asset-test.log 2>&1; then
             THREED_GEN_STATUS="success"
             echo "✅ 3D Model Generation: Available"
           else
@@ -150,7 +150,7 @@ jobs:
           
           # 音楽・効果音生成サービステスト
           echo "Testing audio generation for game sounds..."
-          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "game background music test" > .logs/connectivity-tests/audio-test.log 2>&1; then
+          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "game background music test" > generated/logs/connectivity-tests/audio-test.log 2>&1; then
             AUDIO_GEN_STATUS="success"
             echo "✅ Audio Generation: Available"
           else
@@ -183,7 +183,7 @@ jobs:
         run: |
           echo "📋 Creating comprehensive game design document..."
           
-          mkdir -p .logs/game-design
+          mkdir -p generated/logs/game-design
           
           GAME_CONCEPT="${{ github.event.inputs.game_concept }}"
           GAME_GENRE="${{ github.event.inputs.game_genre }}"
@@ -203,7 +203,7 @@ jobs:
           アセット優先度: ${{ github.event.inputs.asset_type_priority }}
           カラーパレット: ${{ github.event.inputs.color_palette }}
 
-          キャラクター設計、環境・背景、UI要素、小道具、音響要素の詳細な仕様を含めてください。" > .logs/game-design/game-design-document.json
+          キャラクター設計、環境・背景、UI要素、小道具、音響要素の詳細な仕様を含めてください。" > generated/logs/game-design/game-design-document.json
           
           echo "design_ready=true" >> $GITHUB_OUTPUT
           echo "📋 Game design document creation completed"
@@ -222,7 +222,7 @@ jobs:
         run: |
           echo "👾 Generating character assets and designs..."
           
-          mkdir -p .logs/character-assets
+          mkdir -p generated/logs/character-assets
           
           IMAGE_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.image_gen_available }}"
           ART_STYLE="${{ github.event.inputs.art_style }}"
@@ -232,22 +232,22 @@ jobs:
             echo "Generating main character designs..."
             MAIN_CHAR_PROMPT="${{ github.event.inputs.game_concept }}, main character design, $ART_STYLE style, $COLOR_PALETTE colors, game asset, character sheet"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$MAIN_CHAR_PROMPT" > .logs/character-assets/main-character.json 2>&1 || echo "Main character generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$MAIN_CHAR_PROMPT" > generated/logs/character-assets/main-character.json 2>&1 || echo "Main character generation failed"
             
             echo "Generating NPC character designs..."
             NPC_PROMPT="${{ github.event.inputs.game_concept }}, NPC character design, $ART_STYLE style, supporting character, game asset"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$NPC_PROMPT" > .logs/character-assets/npc-characters.json 2>&1 || echo "NPC character generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$NPC_PROMPT" > generated/logs/character-assets/npc-characters.json 2>&1 || echo "NPC character generation failed"
             
             echo "Generating enemy/antagonist designs..."
             ENEMY_PROMPT="${{ github.event.inputs.game_concept }}, enemy character design, $ART_STYLE style, antagonist, game asset"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ENEMY_PROMPT" > .logs/character-assets/enemy-characters.json 2>&1 || echo "Enemy character generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ENEMY_PROMPT" > generated/logs/character-assets/enemy-characters.json 2>&1 || echo "Enemy character generation failed"
             
             echo "✅ Character assets generated"
           else
             echo "⚠️ Image generation not available - creating character concept descriptions"
-            echo '{"asset_type": "concept_descriptions", "art_style": "${{ github.event.inputs.art_style }}"}' > .logs/character-assets/character-concepts.json
+            echo '{"asset_type": "concept_descriptions", "art_style": "${{ github.event.inputs.art_style }}"}' > generated/logs/character-assets/character-concepts.json
           fi
           
           echo "characters_ready=true" >> $GITHUB_OUTPUT
@@ -267,7 +267,7 @@ jobs:
         run: |
           echo "🌍 Generating environment and background assets..."
           
-          mkdir -p .logs/environment-assets
+          mkdir -p generated/logs/environment-assets
           
           IMAGE_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.image_gen_available }}"
           
@@ -275,22 +275,22 @@ jobs:
             echo "Generating main game environment..."
             ENV_PROMPT="${{ github.event.inputs.game_concept }}, game environment, ${{ github.event.inputs.art_style }} style, background scene, game level design"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ENV_PROMPT" > .logs/environment-assets/main-environment.json 2>&1 || echo "Main environment generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$ENV_PROMPT" > generated/logs/environment-assets/main-environment.json 2>&1 || echo "Main environment generation failed"
             
             echo "Generating secondary environments..."
             SEC_ENV_PROMPT="${{ github.event.inputs.game_concept }}, secondary game area, ${{ github.event.inputs.art_style }} style, alternate environment"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$SEC_ENV_PROMPT" > .logs/environment-assets/secondary-environments.json 2>&1 || echo "Secondary environment generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$SEC_ENV_PROMPT" > generated/logs/environment-assets/secondary-environments.json 2>&1 || echo "Secondary environment generation failed"
             
             echo "Generating environmental props..."
             PROPS_PROMPT="${{ github.event.inputs.game_concept }}, environmental props, ${{ github.event.inputs.art_style }} style, game objects, decorative elements"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PROPS_PROMPT" > .logs/environment-assets/environment-props.json 2>&1 || echo "Environmental props generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$PROPS_PROMPT" > generated/logs/environment-assets/environment-props.json 2>&1 || echo "Environmental props generation failed"
             
             echo "✅ Environment assets generated"
           else
             echo "⚠️ Image generation not available - creating environment concept descriptions"
-            echo '{"asset_type": "environment_concepts", "game_genre": "${{ github.event.inputs.game_genre }}"}' > .logs/environment-assets/environment-concepts.json
+            echo '{"asset_type": "environment_concepts", "game_genre": "${{ github.event.inputs.game_genre }}"}' > generated/logs/environment-assets/environment-concepts.json
           fi
           
           echo "environments_ready=true" >> $GITHUB_OUTPUT
@@ -310,7 +310,7 @@ jobs:
         run: |
           echo "🧊 Generating 3D game assets..."
           
-          mkdir -p .logs/threed-assets
+          mkdir -p generated/logs/threed-assets
           
           THREED_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.threed_gen_available }}"
           
@@ -318,7 +318,7 @@ jobs:
             echo "Generating 3D props from 2D references..."
             
             # 2Dキャラクターアセットから3Dモデル生成
-            CHAR_REF_FILE=$(ls .logs/character-assets/main-character*.json 2>/dev/null | head -1)
+            CHAR_REF_FILE=$(ls generated/logs/character-assets/main-character*.json 2>/dev/null | head -1)
             
             if [ -n "$CHAR_REF_FILE" ]; then
               CHAR_IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$CHAR_REF_FILE" 2>/dev/null)
@@ -326,14 +326,14 @@ jobs:
               if [ "$CHAR_IMAGE_PATH" != "none" ]; then
                 echo "Generating 3D character model from 2D reference..."
                 
-                claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$CHAR_IMAGE_PATH" > .logs/threed-assets/3d-character-model.json 2>&1 || echo "3D character generation failed"
+                claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp i2i3d-fal-hunyuan3d-v21 --image-path "$CHAR_IMAGE_PATH" > generated/logs/threed-assets/3d-character-model.json 2>&1 || echo "3D character generation failed"
               fi
             fi
             
             echo "✅ 3D assets generated"
           else
             echo "⚠️ 3D generation not available - focusing on 2D asset pipeline"
-            echo '{"asset_type": "2d_only", "platform": "${{ github.event.inputs.target_platform }}"}' > .logs/threed-assets/2d-focus-plan.json
+            echo '{"asset_type": "2d_only", "platform": "${{ github.event.inputs.target_platform }}"}' > generated/logs/threed-assets/2d-focus-plan.json
           fi
           
           echo "threed_ready=true" >> $GITHUB_OUTPUT
@@ -353,7 +353,7 @@ jobs:
         run: |
           echo "🖥️ Generating UI and interface elements..."
           
-          mkdir -p .logs/ui-interface
+          mkdir -p generated/logs/ui-interface
           
           # UI・インターフェース設計
           claude-code --prompt "以下のゲーム要件に基づいて、UI・インターフェース設計をJSON形式で作成してください：
@@ -363,7 +363,7 @@ jobs:
           アートスタイル: ${{ github.event.inputs.art_style }}
           解像度品質: ${{ github.event.inputs.resolution_quality }}
 
-          メニュー画面、ゲームプレイUI、インベントリ、設定画面、ボタン・アイコンの詳細仕様を含めてください。" > .logs/ui-interface/ui-design.json
+          メニュー画面、ゲームプレイUI、インベントリ、設定画面、ボタン・アイコンの詳細仕様を含めてください。" > generated/logs/ui-interface/ui-design.json
           
           echo "ui_ready=true" >> $GITHUB_OUTPUT
           echo "🖥️ UI interface creation completed"
@@ -382,7 +382,7 @@ jobs:
         run: |
           echo "🔊 Generating audio assets and sound effects..."
           
-          mkdir -p .logs/audio-assets
+          mkdir -p generated/logs/audio-assets
           
           AUDIO_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.audio_gen_available }}"
           
@@ -390,17 +390,17 @@ jobs:
             echo "Generating background music..."
             BGM_PROMPT="${{ github.event.inputs.game_concept }}, game background music, ${{ github.event.inputs.game_genre }} style, atmospheric, looping"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$BGM_PROMPT" > .logs/audio-assets/background-music.json 2>&1 || echo "Background music generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$BGM_PROMPT" > generated/logs/audio-assets/background-music.json 2>&1 || echo "Background music generation failed"
             
             echo "Generating menu music..."
             MENU_PROMPT="${{ github.event.inputs.game_concept }}, game menu music, welcoming, engaging, ${{ github.event.inputs.game_genre }} genre"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MENU_PROMPT" > .logs/audio-assets/menu-music.json 2>&1 || echo "Menu music generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MENU_PROMPT" > generated/logs/audio-assets/menu-music.json 2>&1 || echo "Menu music generation failed"
             
             echo "✅ Audio assets generated"
           else
             echo "⚠️ Audio generation not available - creating audio specification document"
-            echo '{"asset_type": "audio_specifications", "game_genre": "${{ github.event.inputs.game_genre }}"}' > .logs/audio-assets/audio-specs.json
+            echo '{"asset_type": "audio_specifications", "game_genre": "${{ github.event.inputs.game_genre }}"}' > generated/logs/audio-assets/audio-specs.json
           fi
           
           echo "audio_ready=true" >> $GITHUB_OUTPUT
@@ -420,22 +420,22 @@ jobs:
           mkdir -p .final-output/{design,characters,environments,threed,ui,audio}
           
           # ゲームデザイン文書
-          cp .logs/game-design/game-design-document.json .final-output/design/ 2>/dev/null || true
+          cp generated/logs/game-design/game-design-document.json .final-output/design/ 2>/dev/null || true
           
           # キャラクターアセット
-          cp .logs/character-assets/*.json .final-output/characters/ 2>/dev/null || true
+          cp generated/logs/character-assets/*.json .final-output/characters/ 2>/dev/null || true
           
           # 環境・背景アセット
-          cp .logs/environment-assets/*.json .final-output/environments/ 2>/dev/null || true
+          cp generated/logs/environment-assets/*.json .final-output/environments/ 2>/dev/null || true
           
           # 3Dアセット
-          cp .logs/threed-assets/*.json .final-output/threed/ 2>/dev/null || true
+          cp generated/logs/threed-assets/*.json .final-output/threed/ 2>/dev/null || true
           
           # UI・インターフェース
-          cp .logs/ui-interface/*.json .final-output/ui/ 2>/dev/null || true
+          cp generated/logs/ui-interface/*.json .final-output/ui/ 2>/dev/null || true
           
           # 音響アセット
-          cp .logs/audio-assets/*.json .final-output/audio/ 2>/dev/null || true
+          cp generated/logs/audio-assets/*.json .final-output/audio/ 2>/dev/null || true
           
           # マスターゲームアセット情報
           cat > .final-output/game-asset-master.json << EOF

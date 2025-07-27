@@ -117,11 +117,11 @@ jobs:
         run: |
           echo "📱 Testing social media content generation services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # 画像生成サービステスト（ソーシャルメディア投稿用）
           echo "Testing image generation for social media posts..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "social media post image test" > .logs/connectivity-tests/image-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "social media post image test" > generated/logs/connectivity-tests/image-test.log 2>&1; then
             IMAGE_GEN_STATUS="success"
             echo "✅ Image Generation: Available"
           else
@@ -131,7 +131,7 @@ jobs:
           
           # 動画生成サービステスト（ショート動画用）
           echo "Testing video generation for short content..."
-          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "short social media video test" > .logs/connectivity-tests/video-test.log 2>&1; then
+          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "short social media video test" > generated/logs/connectivity-tests/video-test.log 2>&1; then
             VIDEO_GEN_STATUS="success"
             echo "✅ Video Generation: Available"
           else
@@ -163,7 +163,7 @@ jobs:
         run: |
           echo "🔍 Analyzing target platforms and optimization requirements..."
           
-          mkdir -p .logs/platform-analysis
+          mkdir -p generated/logs/platform-analysis
           
           TARGET_PLATFORMS="${{ github.event.inputs.target_platforms }}"
           CONTENT_STYLE="${{ github.event.inputs.content_style }}"
@@ -182,7 +182,7 @@ jobs:
           ビジュアルタイプ: ${{ github.event.inputs.visual_type }}
           エンゲージメント目標: ${{ github.event.inputs.engagement_goal }}
 
-          各プラットフォームの特性、最適な投稿サイズ、ハッシュタグ戦略、投稿時間などを含めてください。" > .logs/platform-analysis/platform-strategy.json
+          各プラットフォームの特性、最適な投稿サイズ、ハッシュタグ戦略、投稿時間などを含めてください。" > generated/logs/platform-analysis/platform-strategy.json
           
           echo "analysis_ready=true" >> $GITHUB_OUTPUT
           echo "🔍 Platform analysis completed"
@@ -201,7 +201,7 @@ jobs:
         run: |
           echo "📋 Developing comprehensive content strategy..."
           
-          mkdir -p .logs/content-strategy
+          mkdir -p generated/logs/content-strategy
           
           CONTENT_THEME="${{ github.event.inputs.content_theme }}"
           POSTING_FREQUENCY="${{ github.event.inputs.posting_frequency }}"
@@ -215,7 +215,7 @@ jobs:
           ブランドボイス: $BRAND_VOICE
           コールトゥアクション: ${{ github.event.inputs.call_to_action }}
 
-          投稿カレンダー、コンテンツシリーズ、エンゲージメント戦略をJSON形式で返してください。" > .logs/content-strategy/content-plan.json
+          投稿カレンダー、コンテンツシリーズ、エンゲージメント戦略をJSON形式で返してください。" > generated/logs/content-strategy/content-plan.json
           
           echo "strategy_ready=true" >> $GITHUB_OUTPUT
           echo "📋 Content strategy development completed"
@@ -234,7 +234,7 @@ jobs:
         run: |
           echo "🎨 Generating visual content for social media..."
           
-          mkdir -p .logs/visual-content
+          mkdir -p generated/logs/visual-content
           
           IMAGE_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.image_gen_available }}"
           VIDEO_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.video_gen_available }}"
@@ -246,12 +246,12 @@ jobs:
             # メイン投稿画像生成
             MAIN_IMAGE_PROMPT="${{ github.event.inputs.content_theme }}, social media post, ${{ github.event.inputs.content_style }} style, engaging visual, high quality, optimized for social platforms"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$MAIN_IMAGE_PROMPT" > .logs/visual-content/main-post-image.json 2>&1 || echo "Main image generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$MAIN_IMAGE_PROMPT" > generated/logs/visual-content/main-post-image.json 2>&1 || echo "Main image generation failed"
             
             # インスタグラム正方形フォーマット
             SQUARE_PROMPT="${{ github.event.inputs.content_theme }}, Instagram square format, 1:1 aspect ratio, ${{ github.event.inputs.content_style }} aesthetic"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$SQUARE_PROMPT" > .logs/visual-content/instagram-square.json 2>&1 || echo "Square format generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$SQUARE_PROMPT" > generated/logs/visual-content/instagram-square.json 2>&1 || echo "Square format generation failed"
             
             echo "✅ Image content generated"
           else
@@ -263,7 +263,7 @@ jobs:
             
             VIDEO_PROMPT="${{ github.event.inputs.content_theme }}, short social media video, engaging, ${{ github.event.inputs.content_style }} style, 15-30 seconds"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "$VIDEO_PROMPT" > .logs/visual-content/short-video.json 2>&1 || echo "Video generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "$VIDEO_PROMPT" > generated/logs/visual-content/short-video.json 2>&1 || echo "Video generation failed"
             
             echo "✅ Video content generated"
           else
@@ -287,7 +287,7 @@ jobs:
         run: |
           echo "📝 Generating and optimizing platform-specific text content..."
           
-          mkdir -p .logs/text-optimization
+          mkdir -p generated/logs/text-optimization
           
           TARGET_PLATFORMS="${{ github.event.inputs.target_platforms }}"
           CONTENT_THEME="${{ github.event.inputs.content_theme }}"
@@ -301,7 +301,7 @@ jobs:
           ブランドボイス: $BRAND_VOICE
           コールトゥアクション: ${{ github.event.inputs.call_to_action }}
 
-          プラットフォーム別の文字数制限、ハッシュタグ戦略、エンゲージメント最適化を考慮してJSON形式で返してください。" > .logs/text-optimization/platform-text.json
+          プラットフォーム別の文字数制限、ハッシュタグ戦略、エンゲージメント最適化を考慮してJSON形式で返してください。" > generated/logs/text-optimization/platform-text.json
           
           echo "text_ready=true" >> $GITHUB_OUTPUT
           echo "📝 Text optimization completed"
@@ -320,7 +320,7 @@ jobs:
         run: |
           echo "🔍 Generating hashtag strategy and SEO optimization..."
           
-          mkdir -p .logs/hashtag-seo
+          mkdir -p generated/logs/hashtag-seo
           
           # ハッシュタグ戦略とSEO最適化
           claude-code --prompt "以下のソーシャルメディアコンテンツに対して、ハッシュタグ戦略とSEO最適化を設計してください：
@@ -330,7 +330,7 @@ jobs:
           プラットフォーム: ${{ github.event.inputs.target_platforms }}
           エンゲージメント目標: ${{ github.event.inputs.engagement_goal }}
 
-          人気ハッシュタグ、ニッチハッシュタグ、ブランドハッシュタグの組み合わせ戦略をJSON形式で返してください。" > .logs/hashtag-seo/hashtag-strategy.json
+          人気ハッシュタグ、ニッチハッシュタグ、ブランドハッシュタグの組み合わせ戦略をJSON形式で返してください。" > generated/logs/hashtag-seo/hashtag-strategy.json
           
           echo "seo_ready=true" >> $GITHUB_OUTPUT
           echo "🔍 Hashtag and SEO optimization completed"
@@ -349,15 +349,15 @@ jobs:
           mkdir -p .final-output/{strategy,content,visuals,optimization}
           
           # 戦略ドキュメント
-          cp .logs/platform-analysis/platform-strategy.json .final-output/strategy/ 2>/dev/null || true
-          cp .logs/content-strategy/content-plan.json .final-output/strategy/ 2>/dev/null || true
+          cp generated/logs/platform-analysis/platform-strategy.json .final-output/strategy/ 2>/dev/null || true
+          cp generated/logs/content-strategy/content-plan.json .final-output/strategy/ 2>/dev/null || true
           
           # ビジュアルコンテンツ
-          cp .logs/visual-content/*.json .final-output/visuals/ 2>/dev/null || true
+          cp generated/logs/visual-content/*.json .final-output/visuals/ 2>/dev/null || true
           
           # テキスト・最適化資料
-          cp .logs/text-optimization/platform-text.json .final-output/content/ 2>/dev/null || true
-          cp .logs/hashtag-seo/hashtag-strategy.json .final-output/optimization/ 2>/dev/null || true
+          cp generated/logs/text-optimization/platform-text.json .final-output/content/ 2>/dev/null || true
+          cp generated/logs/hashtag-seo/hashtag-strategy.json .final-output/optimization/ 2>/dev/null || true
           
           # マスターソーシャルメディア情報
           cat > .final-output/social-media-master.json << EOF

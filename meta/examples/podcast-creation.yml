@@ -122,11 +122,11 @@ jobs:
         run: |
           echo "🎙️ Testing podcast audio generation services..."
           
-          mkdir -p .logs/connectivity-tests
+          mkdir -p generated/logs/connectivity-tests
           
           # 音楽生成サービステスト（BGM・ジングル用）
           echo "Testing music generation for BGM and jingles..."
-          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "podcast intro music test" > .logs/connectivity-tests/music-test.log 2>&1; then
+          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "podcast intro music test" > generated/logs/connectivity-tests/music-test.log 2>&1; then
             MUSIC_GEN_STATUS="success"
             echo "✅ Music Generation (Lyria): Available"
           else
@@ -136,7 +136,7 @@ jobs:
           
           # 音声生成サービステスト（ナレーション用）
           echo "Testing voice generation for narration..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-metavoice-v1 --test > .logs/connectivity-tests/voice-test.log 2>&1; then
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-metavoice-v1 --test > generated/logs/connectivity-tests/voice-test.log 2>&1; then
             VOICE_GEN_STATUS="success"
             echo "✅ Voice Generation (MetaVoice): Available"
           else
@@ -168,7 +168,7 @@ jobs:
         run: |
           echo "📋 Developing podcast content strategy and episode structure..."
           
-          mkdir -p .logs/content-planning
+          mkdir -p generated/logs/content-planning
           
           PODCAST_TOPIC="${{ github.event.inputs.podcast_topic }}"
           PODCAST_FORMAT="${{ github.event.inputs.podcast_format }}"
@@ -188,7 +188,7 @@ jobs:
           コンテンツトーン: ${{ github.event.inputs.content_tone }}
           エピソード構成: ${{ github.event.inputs.episode_structure }}
 
-          詳細なエピソード構成、話題の流れ、聴衆エンゲージメント戦略を含めてください。" > .logs/content-planning/content-strategy.json
+          詳細なエピソード構成、話題の流れ、聴衆エンゲージメント戦略を含めてください。" > generated/logs/content-planning/content-strategy.json
           
           echo "planning_ready=true" >> $GITHUB_OUTPUT
           echo "📋 Content planning completed"
@@ -207,7 +207,7 @@ jobs:
         run: |
           echo "📝 Creating detailed podcast script and narration..."
           
-          mkdir -p .logs/script-development
+          mkdir -p generated/logs/script-development
           
           CONTENT_TONE="${{ github.event.inputs.content_tone }}"
           LANGUAGE_STYLE="${{ github.event.inputs.language_style }}"
@@ -221,7 +221,7 @@ jobs:
           言語スタイル: $LANGUAGE_STYLE
           エピソード長: ${{ github.event.inputs.episode_length }}
 
-          イントロ、メインコンテンツ、アウトロを含む完全な台本を作成してください。音楽キューや効果音のタイミングも含めてください。" > .logs/script-development/podcast-script.json
+          イントロ、メインコンテンツ、アウトロを含む完全な台本を作成してください。音楽キューや効果音のタイミングも含めてください。" > generated/logs/script-development/podcast-script.json
           
           echo "script_ready=true" >> $GITHUB_OUTPUT
           echo "📝 Script development completed"
@@ -240,7 +240,7 @@ jobs:
         run: |
           echo "🎵 Generating podcast music and audio elements..."
           
-          mkdir -p .logs/music-production
+          mkdir -p generated/logs/music-production
           
           MUSIC_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.music_gen_available }}"
           MUSIC_STYLE="${{ github.event.inputs.music_style }}"
@@ -249,22 +249,22 @@ jobs:
             echo "Generating intro music..."
             INTRO_PROMPT="podcast intro music, $MUSIC_STYLE style, professional, engaging, 10-15 seconds"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$INTRO_PROMPT" > .logs/music-production/intro-music.json 2>&1 || echo "Intro music generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$INTRO_PROMPT" > generated/logs/music-production/intro-music.json 2>&1 || echo "Intro music generation failed"
             
             echo "Generating background music..."
             BG_PROMPT="podcast background music, $MUSIC_STYLE style, subtle, non-intrusive, ambient"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$BG_PROMPT" > .logs/music-production/background-music.json 2>&1 || echo "Background music generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$BG_PROMPT" > generated/logs/music-production/background-music.json 2>&1 || echo "Background music generation failed"
             
             echo "Generating outro music..."
             OUTRO_PROMPT="podcast outro music, $MUSIC_STYLE style, conclusive, professional, 10-15 seconds"
             
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$OUTRO_PROMPT" > .logs/music-production/outro-music.json 2>&1 || echo "Outro music generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$OUTRO_PROMPT" > generated/logs/music-production/outro-music.json 2>&1 || echo "Outro music generation failed"
             
             echo "✅ Podcast music generated"
           else
             echo "⚠️ Music generation not available or disabled - creating music-free format"
-            echo '{"music_type": "none", "style": "voice_only"}' > .logs/music-production/no-music-plan.json
+            echo '{"music_type": "none", "style": "voice_only"}' > generated/logs/music-production/no-music-plan.json
           fi
           
           echo "music_ready=true" >> $GITHUB_OUTPUT
@@ -284,7 +284,7 @@ jobs:
         run: |
           echo "🗣️ Generating voice narration for podcast content..."
           
-          mkdir -p .logs/voice-narration
+          mkdir -p generated/logs/voice-narration
           
           VOICE_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.voice_gen_available }}"
           
@@ -296,12 +296,12 @@ jobs:
             
             # メインナレーション生成（実際の実装では台本から適切にテキストを抽出）
             echo "Generating voice narration from script..."
-            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-metavoice-v1 --text "$NARRATION_TEXT" > .logs/voice-narration/main-narration.json 2>&1 || echo "Main narration generation failed"
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-metavoice-v1 --text "$NARRATION_TEXT" > generated/logs/voice-narration/main-narration.json 2>&1 || echo "Main narration generation failed"
             
             echo "✅ Voice narration generated"
           else
             echo "⚠️ Voice generation not available - creating text-only script format"
-            echo '{"narration_type": "text_only", "format": "script_based"}' > .logs/voice-narration/text-only-plan.json
+            echo '{"narration_type": "text_only", "format": "script_based"}' > generated/logs/voice-narration/text-only-plan.json
           fi
           
           echo "narration_ready=true" >> $GITHUB_OUTPUT
@@ -321,7 +321,7 @@ jobs:
         run: |
           echo "🔧 Planning audio integration and editing workflow..."
           
-          mkdir -p .logs/audio-integration
+          mkdir -p generated/logs/audio-integration
           
           # オーディオ統合戦略
           claude-code --prompt "以下のポッドキャスト制作要素を統合する詳細な編集ワークフローをJSON形式で設計してください：
@@ -331,7 +331,7 @@ jobs:
           音楽スタイル: ${{ github.event.inputs.music_style }}
           形式: ${{ github.event.inputs.podcast_format }}
 
-          音量バランス、フェードイン・アウト、セクション間の切り替え、音質最適化の具体的な指示を含めてください。" > .logs/audio-integration/integration-plan.json
+          音量バランス、フェードイン・アウト、セクション間の切り替え、音質最適化の具体的な指示を含めてください。" > generated/logs/audio-integration/integration-plan.json
           
           echo "integration_ready=true" >> $GITHUB_OUTPUT
           echo "🔧 Audio integration planning completed"
@@ -350,7 +350,7 @@ jobs:
         run: |
           echo "📊 Generating podcast metadata and distribution package..."
           
-          mkdir -p .logs/metadata-distribution
+          mkdir -p generated/logs/metadata-distribution
           
           # ポッドキャストメタデータ・配信戦略
           claude-code --prompt "以下のポッドキャスト情報に基づいて、配信用メタデータとマーケティング戦略をJSON形式で作成してください：
@@ -360,7 +360,7 @@ jobs:
           形式: ${{ github.event.inputs.podcast_format }}
           エピソード長: ${{ github.event.inputs.episode_length }}
 
-          エピソードタイトル、説明文、タグ、カテゴリ、配信プラットフォーム戦略を含めてください。" > .logs/metadata-distribution/distribution-strategy.json
+          エピソードタイトル、説明文、タグ、カテゴリ、配信プラットフォーム戦略を含めてください。" > generated/logs/metadata-distribution/distribution-strategy.json
           
           echo "metadata_ready=true" >> $GITHUB_OUTPUT
           echo "📊 Metadata and distribution preparation completed"
@@ -379,21 +379,21 @@ jobs:
           mkdir -p .final-output/{planning,script,audio,integration,distribution}
           
           # 企画・設計ドキュメント
-          cp .logs/content-planning/content-strategy.json .final-output/planning/ 2>/dev/null || true
+          cp generated/logs/content-planning/content-strategy.json .final-output/planning/ 2>/dev/null || true
           
           # 台本・シナリオ
-          cp .logs/script-development/podcast-script.json .final-output/script/ 2>/dev/null || true
+          cp generated/logs/script-development/podcast-script.json .final-output/script/ 2>/dev/null || true
           
           # オーディオ素材
           mkdir -p .final-output/audio/{music,narration}
-          cp .logs/music-production/*.json .final-output/audio/music/ 2>/dev/null || true
-          cp .logs/voice-narration/*.json .final-output/audio/narration/ 2>/dev/null || true
+          cp generated/logs/music-production/*.json .final-output/audio/music/ 2>/dev/null || true
+          cp generated/logs/voice-narration/*.json .final-output/audio/narration/ 2>/dev/null || true
           
           # 統合・編集資料
-          cp .logs/audio-integration/integration-plan.json .final-output/integration/ 2>/dev/null || true
+          cp generated/logs/audio-integration/integration-plan.json .final-output/integration/ 2>/dev/null || true
           
           # 配信・メタデータ
-          cp .logs/metadata-distribution/distribution-strategy.json .final-output/distribution/ 2>/dev/null || true
+          cp generated/logs/metadata-distribution/distribution-strategy.json .final-output/distribution/ 2>/dev/null || true
           
           # マスターポッドキャスト情報
           cat > .final-output/podcast-master.json << EOF
