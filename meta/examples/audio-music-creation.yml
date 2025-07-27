@@ -1,1373 +1,485 @@
-# 音楽・オーディオ制作 - 超詳細タスク分解
-name: "audio-music-creation"
-description: "音楽・効果音・音声コンテンツの専門的制作フロー"
-category: "audio-content-production"
-complexity_level: 4
-estimated_duration_minutes: 35
+name: "Audio Music Creation Workflow"
+run-name: "🎵 Creating music: ${{ github.event.inputs.music_concept || 'Audio Music Creation' }}"
 
-# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
-dynamic_inputs_spec:
-  modal_title: "音楽・オーディオ制作設定"
-  modal_description: "AI音楽生成・音声コンテンツ制作の詳細パラメータ設定"
-  form_sections:
-    - section_name: "音楽コンセプト"
-      section_description: "楽曲の基本的なコンセプトとジャンル"
-      inputs:
-        - name: "music_concept"
-          label: "音楽コンセプト・用途"
-          type: "textarea"
-          required: true
-          placeholder: "例: リラックスできるカフェBGM、アップテンポなワークアウト用音楽"
-          description: "作成したい音楽の目的・用途・イメージを詳細に記載"
-          validation:
-            min_length: 15
-            max_length: 600
-        
-        - name: "music_genre"
-          label: "音楽ジャンル"
-          type: "select"
-          required: true
-          options:
-            - value: "ambient"
-              label: "🌊 アンビエント (環境音楽・癒し系)"
-            - value: "electronic"
-              label: "🎛️ エレクトロニック (シンセサイザー中心)"
-            - value: "classical"
-              label: "🎼 クラシック (オーケストラ・器楽)"
-            - value: "jazz"
-              label: "🎺 ジャズ (即興・スウィング)"
-            - value: "rock"
-              label: "🎸 ロック (バンドサウンド)"
-            - value: "pop"
-              label: "🎤 ポップス (キャッチー・親しみやすい)"
-            - value: "world"
-              label: "🌍 ワールドミュージック (民族音楽)"
-            - value: "experimental"
-              label: "🔬 実験音楽 (前衛・創造的)"
-          default: "ambient"
-        
-        - name: "mood_energy"
-          label: "ムード・エネルギー"
-          type: "select"
-          required: true
-          options:
-            - value: "very_calm"
-              label: "😌 とても穏やか (瞑想・睡眠用)"
-            - value: "relaxing"
-              label: "🍃 リラックス (読書・作業用)"
-            - value: "neutral"
-              label: "😐 中立 (日常・汎用)"
-            - value: "uplifting"
-              label: "😊 明るい (前向き・楽しい)"
-            - value: "energetic"
-              label: "⚡ エネルギッシュ (運動・活動的)"
-            - value: "intense"
-              label: "🔥 激しい (スポーツ・集中)"
-          default: "relaxing"
+on:
+  workflow_dispatch:
+    inputs:
+      music_concept:
+        description: '音楽コンセプト・用途'
+        required: true
+        default: 'リラックスできるカフェBGM、アップテンポなワークアウト用音楽'
+        type: string
+      music_genre:
+        description: '音楽ジャンル'
+        required: true
+        type: choice
+        options:
+        - ambient
+        - electronic
+        - classical
+        - jazz
+        - rock
+        - pop
+        - world
+        - experimental
+        default: 'ambient'
+      mood_energy:
+        description: 'ムード・エネルギー'
+        required: true
+        type: choice
+        options:
+        - very_calm
+        - relaxing
+        - neutral
+        - uplifting
+        - energetic
+        - intense
+        default: 'relaxing'
+      track_duration:
+        description: '楽曲の長さ (秒)'
+        required: true
+        default: '120'
+        type: choice
+        options:
+        - '30'
+        - '60'
+        - '90'
+        - '120'
+        - '150'
+        - '180'
+        - '210'
+        - '240'
+        - '270'
+        - '300'
+      tempo_bpm:
+        description: 'テンポ (BPM)'
+        required: true
+        default: '120'
+        type: choice
+        options:
+        - '60'
+        - '70'
+        - '80'
+        - '90'
+        - '100'
+        - '110'
+        - '120'
+        - '130'
+        - '140'
+        - '150'
+        - '160'
+        - '170'
+        - '180'
+      musical_key:
+        description: '調性・キー'
+        required: true
+        type: choice
+        options:
+        - c_major
+        - g_major
+        - d_major
+        - a_minor
+        - e_minor
+        - f_major
+        - auto
+        default: 'auto'
+      instrumentation:
+        description: '楽器編成'
+        required: true
+        type: choice
+        options:
+        - solo_piano
+        - string_ensemble
+        - full_orchestra
+        - electronic_synth
+        - acoustic_guitar
+        - mixed_ensemble
+        default: 'mixed_ensemble'
+      audio_quality:
+        description: '音響品質'
+        required: true
+        type: choice
+        options:
+        - studio_master
+        - high_fidelity
+        - standard
+        default: 'high_fidelity'
 
-    - section_name: "楽曲構成"
-      section_description: "楽曲の構造と技術的パラメータ"
-      inputs:
-        - name: "track_duration"
-          label: "楽曲の長さ (秒)"
-          type: "range"
-          required: true
-          min: 30
-          max: 300
-          default: 120
-          step: 30
-          description: "生成する楽曲の長さ (30秒-5分)"
-        
-        - name: "tempo_bpm"
-          label: "テンポ (BPM)"
-          type: "range"
-          required: true
-          min: 60
-          max: 180
-          default: 120
-          step: 10
-          description: "楽曲のテンポ・速度 (60=ゆっくり, 180=速い)"
-        
-        - name: "musical_key"
-          label: "調性・キー"
-          type: "select"
-          required: true
-          options:
-            - value: "c_major"
-              label: "C Major (明るい・基本的)"
-            - value: "g_major"
-              label: "G Major (親しみやすい)"
-            - value: "d_major"
-              label: "D Major (華やか)"
-            - value: "a_minor"
-              label: "A Minor (少し暗い・情緒的)"
-            - value: "e_minor"
-              label: "E Minor (メランコリック)"
-            - value: "f_major"
-              label: "F Major (柔らか)"
-            - value: "auto"
-              label: "🎲 自動選択 (AIが最適判断)"
-          default: "auto"
+permissions:
+  contents: write
+  issues: read
+  actions: read
 
-    - section_name: "音響設定"
-      section_description: "音質と楽器編成の設定"
-      inputs:
-        - name: "instrumentation"
-          label: "楽器編成"
-          type: "select"
-          required: true
-          options:
-            - value: "solo_piano"
-              label: "🎹 ソロピアノ"
-            - value: "string_ensemble"
-              label: "🎻 弦楽アンサンブル"
-            - value: "full_orchestra"
-              label: "🎼 フルオーケストラ"
-            - value: "electronic_synth"
-              label: "🎛️ エレクトロニック・シンセ"
-            - value: "acoustic_guitar"
-              label: "🎸 アコースティックギター"
-            - value: "mixed_ensemble"
-              label: "🎪 ミックス・アンサンブル"
-          default: "mixed_ensemble"
-        
-        - name: "audio_quality"
-          label: "音響品質"
-          type: "select"
-          required: true
-          options:
-            - value: "studio_master"
-              label: "🎚️ スタジオマスター (最高品質)"
-            - value: "high_fidelity"
-              label: "🔊 ハイファイ (高品質)"
-            - value: "standard"
-              label: "📻 標準品質"
-          default: "high_fidelity"
-        
-        - name: "stereo_width"
-          label: "ステレオ幅"
-          type: "select"
-          required: true
-          options:
-            - value: "wide_stereo"
-              label: "🔊 ワイドステレオ (空間的)"
-            - value: "standard_stereo"
-              label: "🎧 標準ステレオ"
-            - value: "mono_focused"
-              label: "📻 モノラル寄り (中央集中)"
-          default: "standard_stereo"
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-# GitHub Actions inputs変換マッピング
-github_actions_inputs_mapping:
-  inputs_conversion:
-    textarea: "string"
-    select: "choice"
-    range: "number"
-  
-  generated_inputs_preview:
-    music_concept:
-      description: "音楽コンセプト・用途"
-      required: true
-      type: string
-    music_genre:
-      description: "音楽ジャンル"
-      required: true
-      type: choice
-      options: ["ambient", "electronic", "classical", "jazz", "rock", "pop", "world", "experimental"]
-      default: "ambient"
-
-# 人間の無意識思考プロセス
-human_process:
-  - phase: "audio_concept_planning"
-    description: "音響コンセプト企画段階（ジャンル・ムード・用途・技術仕様）"
-  - phase: "musical_composition"
-    description: "楽曲構成段階（メロディ・リズム・ハーモニー・構造設計）"
-  - phase: "sound_design"
-    description: "サウンドデザイン段階（効果音・環境音・音響効果）"
-  - phase: "audio_production"
-    description: "音声制作段階（録音・生成・編集・ミキシング）"
-  - phase: "quality_enhancement"
-    description: "品質向上段階（マスタリング・最適化・形式変換）"
-  - phase: "delivery_preparation"
-    description: "配信準備段階（用途別最適化・品質管理・配信準備）"
-
-# GitHub Actions ノード設計
-github_actions_config:
-  workflow_name: "Audio Music Creation Pipeline"
-  on_triggers: ["workflow_dispatch", "issues"]
-  permissions:
-    contents: "write"
-    issues: "write"
-    actions: "read"
-  artifacts_retention_days: 30
-  max_parallel_jobs: 3
-
-# 超詳細タスク分解
-tasks:
-  # === 事前テスト段階 ===
-  - id: "audio-services-connectivity-test"
-    name: "音声・音楽生成サービス接続テスト"
-    phase: "pre_validation"
-    github_job: "connectivity-test"
-    type: "validation"
-    implementation: "mcp"
-    duration_minutes: 3
-    dependencies: []
-    parallel_group: null
-    
-    github_steps:
-      - name: "Test audio and music generation services"
-        shell: "bash"
-        script: |
-          echo "🎵 Testing audio and music generation services..."
+jobs:
+  # Phase 1: 事前テスト段階
+  connectivity-test:
+    runs-on: ubuntu-latest
+    outputs:
+      services_ready: ${{ steps.test.outputs.services_ready }}
+      music_gen_available: ${{ steps.test.outputs.music_gen_available }}
+      voice_available: ${{ steps.test.outputs.voice_available }}
+    steps:
+      - name: Test audio generation services
+        id: test
+        run: |
+          echo "🎵 Testing audio generation services..."
           
           mkdir -p .logs/connectivity-tests
           
           # 音楽生成サービステスト（T2M）
           echo "Testing music generation service..."
-          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "test background music, 10 seconds" --duration "10" > .logs/connectivity-tests/music-test.log 2>&1; then
+          if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --test > .logs/connectivity-tests/music-gen-test.log 2>&1; then
             MUSIC_GEN_STATUS="success"
-            echo "✅ Music Generation (Lyria): Available"
+            echo "✅ Music Generation (Google Lyria): Available"
           else
             MUSIC_GEN_STATUS="failed"
             echo "❌ Music Generation: Failed"
           fi
           
-          # Video-to-Audio サービステスト（V2A）
-          echo "Testing video-to-audio service..."
-          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "/tmp/test.mp4" --audio-style "test audio" > .logs/connectivity-tests/v2a-test.log 2>&1; then
-            V2A_STATUS="success"
-            echo "✅ Video-to-Audio (ThinkSound): Available"
+          # 音声生成サービステスト（V2A）
+          echo "Testing voice generation service..."
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-metavoice-v1 --test > .logs/connectivity-tests/voice-test.log 2>&1; then
+            VOICE_GEN_STATUS="success"
+            echo "✅ Voice Generation (MetaVoice): Available"
           else
-            V2A_STATUS="failed"
-            echo "⚠️ Video-to-Audio: Not available"
+            VOICE_GEN_STATUS="failed"
+            echo "⚠️ Voice Generation: Not available"
           fi
           
-          # Claude Code AI テスト（作詞・楽理分析用）
-          echo "Testing Claude Code for music composition..."
-          if timeout 30 claude-code --prompt "Test: Create a simple chord progression in C major and return 'MUSIC_AI_TEST_SUCCESS' if working." > .logs/connectivity-tests/music-ai-test.log 2>&1; then
-            if grep -q "MUSIC_AI_TEST_SUCCESS" .logs/connectivity-tests/music-ai-test.log; then
-              MUSIC_AI_STATUS="success"
-              echo "✅ Music AI Analysis: Available"
-            else
-              MUSIC_AI_STATUS="partial"
-              echo "⚠️ Music AI Analysis: Partial response"
-            fi
-          else
-            MUSIC_AI_STATUS="failed"
-            echo "❌ Music AI Analysis: Failed"
-          fi
-          
-          # 外部音声API テスト
-          echo "Testing external audio APIs..."
-          if [ -n "${{ secrets.ELEVENLABS_API_KEY }}" ]; then
-            if timeout 30 curl -s -H "xi-api-key: ${{ secrets.ELEVENLABS_API_KEY }}" "https://api.elevenlabs.io/v1/voices" > .logs/connectivity-tests/tts-test.log 2>&1; then
-              TTS_API_STATUS="success"
-              echo "✅ Text-to-Speech API: Available"
-            else
-              TTS_API_STATUS="failed"
-              echo "⚠️ Text-to-Speech API: Failed"
-            fi
-          else
-            TTS_API_STATUS="not_configured"
-            echo "ℹ️ Text-to-Speech API: Not configured"
-          fi
-          
-          # 音声処理ツールテスト
-          echo "Testing audio processing tools..."
-          if command -v ffmpeg &> /dev/null; then
-            if timeout 10 ffmpeg -version > .logs/connectivity-tests/ffmpeg-test.log 2>&1; then
-              AUDIO_TOOLS_STATUS="success"
-              echo "✅ Audio Processing Tools: Available"
-            else
-              AUDIO_TOOLS_STATUS="limited"
-              echo "⚠️ Audio Tools: Limited functionality"
-            fi
-          else
-            AUDIO_TOOLS_STATUS="not_available"
-            echo "ℹ️ Audio Processing Tools: Not installed"
-          fi
-          
-          # 音響制作能力の評価
-          BASIC_AUDIO_CAPABILITY="none"
-          ADVANCED_AUDIO_CAPABILITY="none"
-          
-          # 基本機能（音楽生成またはAI分析）
-          if [ "$MUSIC_GEN_STATUS" = "success" ] || [ "$MUSIC_AI_STATUS" = "success" ]; then
-            BASIC_AUDIO_CAPABILITY="available"
-          fi
-          
-          # 高度機能（複数サービス組み合わせ）
-          if [ "$MUSIC_GEN_STATUS" = "success" ] && [ "$V2A_STATUS" = "success" ] && [ "$AUDIO_TOOLS_STATUS" = "success" ]; then
-            ADVANCED_AUDIO_CAPABILITY="available"
-          fi
-          
-          # テスト結果をJSON保存
-          cat > .logs/connectivity-tests/test-results.json << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "audio_services": {
-              "music_generation": "$MUSIC_GEN_STATUS",
-              "video_to_audio": "$V2A_STATUS",
-              "music_ai_analysis": "$MUSIC_AI_STATUS",
-              "text_to_speech_api": "$TTS_API_STATUS",
-              "audio_processing_tools": "$AUDIO_TOOLS_STATUS"
-            },
-            "capability_assessment": {
-              "basic_audio_capability": "$BASIC_AUDIO_CAPABILITY",
-              "advanced_audio_capability": "$ADVANCED_AUDIO_CAPABILITY",
-              "workflow_can_proceed": $([ "$BASIC_AUDIO_CAPABILITY" = "available" ] && echo "true" || echo "false"),
-              "professional_production": $([ "$ADVANCED_AUDIO_CAPABILITY" = "available" ] && echo "true" || echo "false")
-            },
-            "service_priorities": {
-              "primary_music_service": "$([ "$MUSIC_GEN_STATUS" = "success" ] && echo "t2m-google-lyria" || echo "none")",
-              "audio_enhancement": "$([ "$V2A_STATUS" = "success" ] && echo "v2a-fal-thinksound" || echo "none")",
-              "composition_ai": "$([ "$MUSIC_AI_STATUS" = "success" ] && echo "claude-code" || echo "none")"
-            }
-          }
-          EOF
-          
-          # 環境変数に結果を設定
-          echo "BASIC_AUDIO_CAPABILITY=$BASIC_AUDIO_CAPABILITY" >> $GITHUB_ENV
-          echo "ADVANCED_AUDIO_CAPABILITY=$ADVANCED_AUDIO_CAPABILITY" >> $GITHUB_ENV
-          echo "MUSIC_GEN_AVAILABLE=$([ "$MUSIC_GEN_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
-          echo "V2A_AVAILABLE=$([ "$V2A_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
-          echo "MUSIC_AI_AVAILABLE=$([ "$MUSIC_AI_STATUS" = "success" ] && echo "true" || echo "false")" >> $GITHUB_ENV
+          # 出力設定
+          echo "services_ready=true" >> $GITHUB_OUTPUT
+          echo "music_gen_available=$MUSIC_GEN_STATUS" >> $GITHUB_OUTPUT
+          echo "voice_available=$VOICE_GEN_STATUS" >> $GITHUB_OUTPUT
           
           echo "🎵 Audio services connectivity tests completed"
-          echo "Basic capability: $BASIC_AUDIO_CAPABILITY"
-          echo "Advanced capability: $ADVANCED_AUDIO_CAPABILITY"
-          
-    validation:
-      criteria:
-        - "基本的な音声制作機能が利用可能"
-        - "テスト結果がJSON形式で保存されている"
-      validation_script: |
-        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
-          echo "❌ VALIDATION FAILED: Test results missing"
-          exit 1
-        fi
+
+  # Phase 2: 音楽コンセプト開発段階
+  concept-development:
+    needs: connectivity-test
+    runs-on: ubuntu-latest
+    outputs:
+      concept_ready: ${{ steps.develop.outputs.concept_ready }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
         
-        WORKFLOW_CAN_PROCEED=$(jq -r '.capability_assessment.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
-        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
-          echo "✅ Validation passed: Audio production services ready"
-        else
-          echo "❌ VALIDATION FAILED: Critical audio services unavailable"
-          exit 1
-        fi
+      - name: Develop music concept and specifications
+        id: develop
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎯 Developing music concept and specifications..."
+          
+          mkdir -p .logs/music-concept
+          
+          # 入力から音楽要件を抽出
+          MUSIC_CONCEPT="${{ github.event.inputs.music_concept }}"
+          MUSIC_GENRE="${{ github.event.inputs.music_genre }}"
+          MOOD_ENERGY="${{ github.event.inputs.mood_energy }}"
+          INSTRUMENTATION="${{ github.event.inputs.instrumentation }}"
+          
+          echo "Music concept: $MUSIC_CONCEPT"
+          echo "Genre: $MUSIC_GENRE"
+          echo "Mood: $MOOD_ENERGY"
+          echo "Instrumentation: $INSTRUMENTATION"
+          
+          # Claude Code で音楽コンセプト設計
+          claude-code --prompt "以下の要件に基づいて、音楽制作の詳細なコンセプトと技術仕様を設計してください：
+          
+          音楽コンセプト: $MUSIC_CONCEPT
+          ジャンル: $MUSIC_GENRE
+          ムード・エネルギー: $MOOD_ENERGY
+          楽器編成: $INSTRUMENTATION
+          
+          JSON形式で音楽仕様を返してください。" > .logs/music-concept/music-concept.json
+          
+          echo "concept_ready=true" >> $GITHUB_OUTPUT
+          echo "🎯 Music concept development completed"
 
-  # === 音響コンセプト企画段階 ===
-  - id: "audio-concept-development"
-    name: "音響コンセプト・仕様設計"
-    phase: "audio_concept_planning"
-    github_job: "concept-development"
-    type: "planning"
-    implementation: "ai"
-    duration_minutes: 4
-    dependencies: ["audio-services-connectivity-test"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Develop audio concept and specifications"
-        shell: "bash"
-        script: |
-          echo "🎼 Developing audio concept and specifications..."
+  # Phase 3: 楽曲構成設計段階
+  composition-design:
+    needs: concept-development
+    runs-on: ubuntu-latest
+    outputs:
+      composition_ready: ${{ steps.design.outputs.composition_ready }}
+    steps:
+      - name: Design musical composition structure
+        id: design
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎼 Designing musical composition structure..."
           
-          mkdir -p .logs/audio-concept
+          mkdir -p .logs/composition-design
           
-          # 入力からオーディオ要件を抽出
-          AUDIO_PURPOSE="${{ github.event.inputs.audio_purpose || github.event.issue.title || 'Background Music' }}"
-          MUSIC_GENRE="${{ github.event.inputs.music_genre || 'ambient electronic' }}"
-          TARGET_MOOD="${{ github.event.inputs.target_mood || 'calm and focused' }}"
-          DURATION="${{ github.event.inputs.duration || '2 minutes' }}"
-          USE_CASE="${{ github.event.inputs.use_case || 'background music for video content' }}"
-          TECHNICAL_QUALITY="${{ github.event.inputs.technical_quality || 'professional' }}"
+          TRACK_DURATION="${{ github.event.inputs.track_duration }}"
+          TEMPO_BPM="${{ github.event.inputs.tempo_bpm }}"
+          MUSICAL_KEY="${{ github.event.inputs.musical_key }}"
           
-          echo "Audio purpose: $AUDIO_PURPOSE"
-          echo "Music genre: $MUSIC_GENRE"
-          echo "Target mood: $TARGET_MOOD"
-          echo "Duration: $DURATION"
-          echo "Use case: $USE_CASE"
-          echo "Quality level: $TECHNICAL_QUALITY"
+          echo "Duration: $TRACK_DURATION seconds"
+          echo "Tempo: $TEMPO_BPM BPM"
+          echo "Key: $MUSICAL_KEY"
           
-          # Claude Code で音響コンセプト設計
-          claude-code --prompt "以下の要件に基づいて、専門的な音響コンセプトと技術仕様を設計してください：
+          # 楽曲構成設計
+          claude-code --prompt "以下のパラメータに基づいて、詳細な楽曲構成を設計してください：
           
-          制作目的: $AUDIO_PURPOSE
-          音楽ジャンル: $MUSIC_GENRE
-          ターゲット感情: $TARGET_MOOD
-          時間: $DURATION
-          用途: $USE_CASE
-          品質レベル: $TECHNICAL_QUALITY
+          楽曲の長さ: $TRACK_DURATION 秒
+          テンポ: $TEMPO_BPM BPM
+          調性: $MUSICAL_KEY
           
-          以下の形式でJSONで回答してください：
-          {
-            \"audio_concept\": {
-              \"primary_purpose\": \"主要目的\",
-              \"emotional_target\": \"狙う感情・印象\",
-              \"genre_classification\": \"詳細ジャンル分類\",
-              \"stylistic_influences\": [\"スタイル的影響・参考\"],
-              \"unique_characteristics\": [\"独自特徴・個性\"]
-            },
-            \"musical_specifications\": {
-              \"tempo_bpm\": \"テンポ（BPM）\",
-              \"key_signature\": \"調性\",
-              \"time_signature\": \"拍子\",
-              \"harmonic_structure\": \"和声構造\",
-              \"melodic_characteristics\": \"メロディ特徴\",
-              \"rhythmic_patterns\": \"リズムパターン\",
-              \"dynamic_range\": \"ダイナミックレンジ\"
-            },
-            \"instrumentation\": {
-              \"primary_instruments\": [\"主要楽器・音色\"],
-              \"supporting_elements\": [\"サポート要素\"],
-              \"texture_layers\": [\"テクスチャー層\"],
-              \"special_effects\": [\"特殊効果・処理\"],
-              \"ambient_elements\": [\"環境音・アンビエント要素\"]
-            },
-            \"technical_requirements\": {
-              \"sample_rate\": \"サンプリングレート\",
-              \"bit_depth\": \"ビット深度\",
-              \"file_format\": \"ファイル形式\",
-              \"dynamic_range_target\": \"ダイナミックレンジ目標\",
-              \"frequency_response\": \"周波数特性\",
-              \"loudness_standard\": \"ラウドネス基準\"
-            },
-            \"structure_design\": {
-              \"intro_duration\": \"イントロ時間\",
-              \"main_sections\": [\"メインセクション構成\"],
-              \"transition_points\": [\"転換ポイント\"],
-              \"climax_placement\": \"クライマックス配置\",
-              \"outro_approach\": \"アウトロ手法\",
-              \"loop_compatibility\": \"ループ対応\"
-            },
-            \"production_approach\": {
-              \"generation_strategy\": \"生成戦略\",
-              \"layering_plan\": \"レイヤリング計画\",
-              \"mixing_philosophy\": \"ミキシング方針\",
-              \"mastering_goals\": \"マスタリング目標\",
-              \"quality_benchmarks\": [\"品質ベンチマーク\"]
-            },
-            \"use_case_optimization\": {
-              \"playback_environments\": [\"再生環境\"],
-              \"listener_attention_level\": \"聴取集中度\",
-              \"content_integration\": \"コンテンツ統合方針\",
-              \"accessibility_considerations\": [\"アクセシビリティ配慮\"],
-              \"platform_requirements\": [\"プラットフォーム要件\"]
-            }
-          }" > .logs/audio-concept/audio-concept.json
+          楽曲の構造、ハーモニー、リズムパターンを含むJSON形式の構成を返してください。" > .logs/composition-design/composition-structure.json
           
-          AUDIO_CONCEPT=$(cat .logs/audio-concept/audio-concept.json)
-          echo "AUDIO_CONCEPT_FILE=.logs/audio-concept/audio-concept.json" >> $GITHUB_ENV
-          
-          # 主要パラメータを環境変数に設定
-          TARGET_DURATION=$(echo "$AUDIO_CONCEPT" | jq -r '.structure_design.intro_duration // "2 minutes"' | sed 's/[^0-9]//g')
-          TEMPO_BPM=$(echo "$AUDIO_CONCEPT" | jq -r '.musical_specifications.tempo_bpm' | sed 's/[^0-9]//g')
-          
-          echo "TARGET_DURATION_SECONDS=${TARGET_DURATION:-120}" >> $GITHUB_ENV
-          echo "TEMPO_BPM=${TEMPO_BPM:-120}" >> $GITHUB_ENV
-          
-          echo "🎼 Audio concept development completed"
-          echo "Target duration: ${TARGET_DURATION:-120} seconds"
-          echo "Tempo: ${TEMPO_BPM:-120} BPM"
+          echo "composition_ready=true" >> $GITHUB_OUTPUT
+          echo "🎼 Musical composition design completed"
 
-  - id: "musical-composition-design"
-    name: "楽曲構成・楽理設計"
-    phase: "musical_composition"
-    github_job: "composition-design"
-    type: "creation"
-    implementation: "ai"
-    duration_minutes: 5
-    dependencies: ["audio-concept-development"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Design musical composition and theory"
-        shell: "bash"
-        script: |
-          echo "🎹 Designing musical composition and theory..."
+  # Phase 4: 音楽生成段階
+  music-generation:
+    needs: [connectivity-test, concept-development, composition-design]
+    runs-on: ubuntu-latest
+    outputs:
+      generation_results: ${{ steps.generate.outputs.generation_results }}
+    steps:
+      - name: Generate primary music track
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎵 Generating primary music track..."
           
-          mkdir -p .logs/musical-composition
+          mkdir -p .logs/music-generation
           
-          AUDIO_CONCEPT=$(cat .logs/audio-concept/audio-concept.json)
+          MUSIC_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.music_gen_available }}"
+          MUSIC_CONCEPT="${{ github.event.inputs.music_concept }}"
+          MUSIC_GENRE="${{ github.event.inputs.music_genre }}"
+          MOOD_ENERGY="${{ github.event.inputs.mood_energy }}"
+          TRACK_DURATION="${{ github.event.inputs.track_duration }}"
           
-          # 詳細楽曲構成設計
-          claude-code --prompt "以下の音響コンセプトに基づいて、詳細な楽曲構成と楽理設計を行ってください：
-          
-          音響コンセプト: $AUDIO_CONCEPT
-          
-          以下の形式でJSONで回答してください：
-          {
-            \"composition_structure\": {
-              \"total_duration_seconds\": $TARGET_DURATION_SECONDS,
-              \"section_breakdown\": [
-                {
-                  \"section_name\": \"セクション名\",
-                  \"start_time\": \"開始時間（秒）\",
-                  \"duration\": \"セクション長（秒）\",
-                  \"musical_function\": \"音楽的機能\",
-                  \"energy_level\": \"エネルギーレベル（1-10）\",
-                  \"key_elements\": [\"重要要素\"],
-                  \"transition_type\": \"次への移行方法\"
-                }
-              ],
-              \"overall_arc\": \"全体的な起承転結\"
-            },
-            \"harmonic_progression\": {
-              \"primary_key\": \"主調\",
-              \"chord_progressions\": [
-                {
-                  \"section\": \"対象セクション\",
-                  \"chords\": [\"コード進行\"],
-                  \"harmonic_rhythm\": \"和声リズム\",
-                  \"voice_leading\": \"声部進行\"
-                }
-              ],
-              \"modulations\": [\"転調ポイント\"],
-              \"harmonic_tension_points\": [\"和声的緊張ポイント\"]
-            },
-            \"melodic_design\": {
-              \"main_melody\": {
-                \"contour\": \"メロディーライン概要\",
-                \"range\": \"音域\",
-                \"motivic_content\": \"動機的内容\",
-                \"phrasing\": \"フレージング\"
-              },
-              \"counter_melodies\": [\"対旋律\"],
-              \"thematic_development\": \"主題発展\",
-              \"melodic_instruments\": [\"メロディ担当楽器\"]
-            },
-            \"rhythmic_framework\": {
-              \"base_tempo\": $TEMPO_BPM,
-              \"rhythmic_patterns\": [
-                {
-                  \"instrument_group\": \"楽器グループ\",
-                  \"pattern_description\": \"リズムパターン記述\",
-                  \"complexity_level\": \"複雑度\",
-                  \"interaction_with_others\": \"他パートとの関係\"
-                }
-              ],
-              \"polyrhythmic_elements\": [\"ポリリズム要素\"],
-              \"tempo_variations\": [\"テンポ変化\"]
-            },
-            \"orchestration_plan\": {
-              \"instrument_layers\": [
-                {
-                  \"layer_name\": \"レイヤー名\",
-                  \"instruments\": [\"使用楽器・音色\"],
-                  \"register\": \"音域\",
-                  \"dynamic_role\": \"ダイナミック役割\",
-                  \"entry_timing\": \"登場タイミング\",
-                  \"articulation\": \"アーティキュレーション\"
-                }
-              ],
-              \"texture_evolution\": \"テクスチャーの発展\",
-              \"climax_orchestration\": \"クライマックス時の編成\",
-              \"minimalist_sections\": \"ミニマル構成箇所\"
-            },
-            \"production_prompts\": {
-              \"primary_generation_prompt\": \"メイン生成用詳細プロンプト\",
-              \"section_specific_prompts\": [
-                {
-                  \"section\": \"セクション名\",
-                  \"prompt\": \"セクション別生成プロンプト\",
-                  \"emphasis_points\": [\"強調ポイント\"]
-                }
-              ],
-              \"style_descriptors\": [\"スタイル記述子\"],
-              \"technical_parameters\": [\"技術的パラメータ\"]
-            },
-            \"quality_criteria\": {
-              \"musical_coherence\": \"楽曲的一貫性基準\",
-              \"emotional_impact\": \"感情的インパクト基準\",
-              \"technical_excellence\": \"技術的品質基準\",
-              \"commercial_viability\": \"商用可能性基準\",
-              \"innovation_elements\": [\"革新的要素\"]
-            }
-          }" > .logs/musical-composition/composition-design.json
-          
-          COMPOSITION_DESIGN=$(cat .logs/musical-composition/composition-design.json)
-          echo "COMPOSITION_DESIGN_FILE=.logs/musical-composition/composition-design.json" >> $GITHUB_ENV
-          
-          # 主要生成プロンプトを環境変数に設定
-          PRIMARY_PROMPT=$(echo "$COMPOSITION_DESIGN" | jq -r '.production_prompts.primary_generation_prompt')
-          SECTION_COUNT=$(echo "$COMPOSITION_DESIGN" | jq '.composition_structure.section_breakdown | length')
-          
-          echo "PRIMARY_GENERATION_PROMPT=$PRIMARY_PROMPT" >> $GITHUB_ENV
-          echo "COMPOSITION_SECTIONS=$SECTION_COUNT" >> $GITHUB_ENV
-          
-          echo "🎹 Musical composition design completed"
-          echo "Composition sections: $SECTION_COUNT"
-
-  # === サウンドデザイン段階 ===
-  - id: "sound-effects-planning"
-    name: "効果音・環境音設計"
-    phase: "sound_design"
-    github_job: "sound-planning"
-    type: "planning"
-    implementation: "ai"
-    duration_minutes: 3
-    dependencies: ["musical-composition-design"]
-    parallel_group: "sound_design_parallel"
-    
-    github_steps:
-      - name: "Plan sound effects and ambient sounds"
-        shell: "bash"
-        script: |
-          echo "🔊 Planning sound effects and ambient audio..."
-          
-          mkdir -p .logs/sound-design
-          
-          AUDIO_CONCEPT=$(cat .logs/audio-concept/audio-concept.json)
-          COMPOSITION_DESIGN=$(cat .logs/musical-composition/composition-design.json)
-          
-          # サウンドエフェクト・環境音設計
-          claude-code --prompt "以下の楽曲構成に基づいて、効果音と環境音の詳細設計を行ってください：
-          
-          音響コンセプト: $AUDIO_CONCEPT
-          楽曲構成: $COMPOSITION_DESIGN
-          
-          以下の形式でJSONで回答してください：
-          {
-            \"sound_design_concept\": {
-              \"overall_sound_palette\": \"全体的音響パレット\",
-              \"ambient_atmosphere\": \"環境的雰囲気\",
-              \"sound_narrative\": \"音響ナラティブ\",
-              \"immersion_level\": \"没入感レベル\"
-            },
-            \"ambient_elements\": [
-              {
-                \"element_name\": \"環境音名\",
-                \"sound_description\": \"音の詳細説明\",
-                \"frequency_range\": \"周波数帯域\",
-                \"dynamic_behavior\": \"ダイナミクス挙動\",
-                \"spatial_placement\": \"空間配置\",
-                \"duration_pattern\": \"持続パターン\",
-                \"interaction_with_music\": \"楽曲との相互作用\"
-              }
-            ],
-            \"sound_effects\": [
-              {
-                \"effect_name\": \"効果音名\",
-                \"trigger_timing\": \"発生タイミング\",
-                \"sonic_characteristics\": \"音響特性\",
-                \"processing_needs\": \"処理要件\",
-                \"layering_potential\": \"レイヤリング可能性\",
-                \"emotional_function\": \"感情的機能\"
-              }
-            ],
-            \"textural_layers\": [
-              {
-                \"layer_name\": \"テクスチャー層名\",
-                \"generation_method\": \"生成方法\",
-                \"processing_chain\": \"処理チェーン\",
-                \"mix_position\": \"ミックス内位置\",
-                \"evolution_pattern\": \"変化パターン\"
-              }
-            ],
-            \"production_requirements\": {
-              \"source_material_needs\": [\"ソース素材要件\"],
-              \"processing_tools\": [\"必要処理ツール\"],
-              \"quality_standards\": \"品質基準\",
-              \"integration_approach\": \"楽曲統合方針\"
-            },
-            \"generation_prompts\": {
-              \"ambient_prompts\": [\"環境音生成プロンプト\"],
-              \"effect_prompts\": [\"効果音生成プロンプト\"],
-              \"texture_prompts\": [\"テクスチャー生成プロンプト\"]
-            }
-          }" > .logs/sound-design/sound-effects-plan.json
-          
-          SOUND_EFFECTS_PLAN=$(cat .logs/sound-design/sound-effects-plan.json)
-          echo "SOUND_EFFECTS_PLAN_FILE=.logs/sound-design/sound-effects-plan.json" >> $GITHUB_ENV
-          
-          # 効果音数とアンビエント要素数を算出
-          EFFECTS_COUNT=$(echo "$SOUND_EFFECTS_PLAN" | jq '.sound_effects | length')
-          AMBIENT_COUNT=$(echo "$SOUND_EFFECTS_PLAN" | jq '.ambient_elements | length')
-          
-          echo "SOUND_EFFECTS_COUNT=$EFFECTS_COUNT" >> $GITHUB_ENV
-          echo "AMBIENT_ELEMENTS_COUNT=$AMBIENT_COUNT" >> $GITHUB_ENV
-          
-          echo "🔊 Sound effects planning completed"
-          echo "Sound effects: $EFFECTS_COUNT, Ambient elements: $AMBIENT_COUNT"
-
-  # === 音声制作段階 ===
-  - id: "primary-music-generation"
-    name: "メイン楽曲生成"
-    phase: "audio_production"
-    github_job: "music-generation"
-    type: "generation"
-    implementation: "mcp"
-    tool: "music-generation"
-    duration_minutes: 8
-    dependencies: ["sound-effects-planning"]
-    parallel_group: "audio_production_parallel"
-    
-    github_steps:
-      - name: "Generate primary music composition"
-        shell: "bash"
-        script: |
-          echo "🎼 Generating primary music composition..."
-          
-          mkdir -p .logs/audio-production/music
-          
-          COMPOSITION_DESIGN=$(cat .logs/musical-composition/composition-design.json)
-          
-          if [ "$MUSIC_GEN_AVAILABLE" = "true" ]; then
-            echo "Music generation service available - creating composition..."
+          if [ "$MUSIC_GEN_AVAILABLE" = "success" ]; then
+            echo "Music generation service available - creating music..."
             
-            # メイン楽曲の生成
-            echo "Generating main composition..."
-            MAIN_PROMPT="$PRIMARY_GENERATION_PROMPT"
-            DURATION_SECONDS="$TARGET_DURATION_SECONDS"
+            # メイン楽曲生成
+            echo "Generating primary music track..."
+            MUSIC_PROMPT="Create $MUSIC_GENRE music with $MOOD_ENERGY mood, duration $TRACK_DURATION seconds, concept: $MUSIC_CONCEPT"
             
-            echo "Using prompt: $MAIN_PROMPT"
-            echo "Duration: $DURATION_SECONDS seconds"
-            
-            if timeout 180 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MAIN_PROMPT" --duration "$DURATION_SECONDS" > .logs/audio-production/music/main-composition.json 2>&1; then
-              echo "✅ Main composition generated successfully"
-              MAIN_GENERATION_STATUS="success"
+            if timeout 300 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$MUSIC_PROMPT" --duration "$TRACK_DURATION" > .logs/music-generation/primary-track.json 2>&1; then
+              echo "✅ Primary music track generated successfully"
+              PRIMARY_MUSIC_STATUS="success"
             else
-              echo "❌ Main composition generation failed"
-              MAIN_GENERATION_STATUS="failed"
+              echo "❌ Primary music generation failed"
+              PRIMARY_MUSIC_STATUS="failed"
             fi
-            
-            # セクション別楽曲生成（詳細コントロール用）
-            echo "Generating section-specific compositions..."
-            
-            SECTION_PROMPTS=$(echo "$COMPOSITION_DESIGN" | jq -c '.production_prompts.section_specific_prompts[]')
-            SECTION_INDEX=0
-            
-            while IFS= read -r section_data; do
-              SECTION_NAME=$(echo "$section_data" | jq -r '.section')
-              SECTION_PROMPT=$(echo "$section_data" | jq -r '.prompt')
-              
-              echo "Generating section: $SECTION_NAME"
-              
-              # セクション時間を算出（簡易）
-              SECTION_DURATION=$((TARGET_DURATION_SECONDS / COMPOSITION_SECTIONS))
-              
-              if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$SECTION_PROMPT" --duration "$SECTION_DURATION" > .logs/audio-production/music/section-${SECTION_INDEX}-${SECTION_NAME}.json 2>&1; then
-                echo "✅ Section $SECTION_NAME generated"
-              else
-                echo "⚠️ Section $SECTION_NAME generation failed"
-              fi
-              
-              SECTION_INDEX=$((SECTION_INDEX + 1))
-            done <<< "$SECTION_PROMPTS"
-            
-            # 楽器別レイヤー生成（可能な場合）
-            echo "Generating instrumental layers..."
-            
-            INSTRUMENT_LAYERS=$(echo "$COMPOSITION_DESIGN" | jq -c '.orchestration_plan.instrument_layers[]')
-            LAYER_INDEX=0
-            
-            while IFS= read -r layer_data; do
-              LAYER_NAME=$(echo "$layer_data" | jq -r '.layer_name')
-              INSTRUMENTS=$(echo "$layer_data" | jq -r '.instruments | join(", ")')
-              DYNAMIC_ROLE=$(echo "$layer_data" | jq -r '.dynamic_role')
-              
-              echo "Generating layer: $LAYER_NAME"
-              
-              LAYER_PROMPT="$INSTRUMENTS layer for $DYNAMIC_ROLE, ${TARGET_DURATION_SECONDS} seconds, fits the main composition style"
-              
-              if timeout 100 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2m-google-lyria --prompt "$LAYER_PROMPT" --duration "$TARGET_DURATION_SECONDS" > .logs/audio-production/music/layer-${LAYER_INDEX}-${LAYER_NAME}.json 2>&1; then
-                echo "✅ Layer $LAYER_NAME generated"
-              else
-                echo "⚠️ Layer $LAYER_NAME generation failed"
-              fi
-              
-              LAYER_INDEX=$((LAYER_INDEX + 1))
-            done <<< "$INSTRUMENT_LAYERS"
-            
           else
             echo "⚠️ Music generation service not available"
-            MAIN_GENERATION_STATUS="service_unavailable"
-            
-            # 代替案の提示
-            cat > .logs/audio-production/music/generation-alternatives.json << EOF
-            {
-              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-              "music_service_status": "unavailable",
-              "alternative_approaches": [
-                "Use external music generation services",
-                "Employ royalty-free music libraries",
-                "Create MIDI compositions for external rendering",
-                "Use AI music composition software locally",
-                "Collaborate with human composers"
-              ],
-              "composition_specifications": $(cat .logs/musical-composition/composition-design.json | jq '.production_prompts'),
-              "recommended_next_steps": [
-                "Export composition specifications for external use",
-                "Create detailed production notes for human musicians",
-                "Identify suitable royalty-free alternatives"
-              ]
-            }
-            EOF
+            PRIMARY_MUSIC_STATUS="service_unavailable"
           fi
           
-          # 生成結果の統計
-          GENERATED_MUSIC_COUNT=$(ls .logs/audio-production/music/*.json 2>/dev/null | wc -l)
-          
-          # 音楽生成ログ
-          cat > .logs/audio-production/music/generation-log.json << EOF
+          # 音楽生成結果をログ保存
+          cat > .logs/music-generation/generation-log.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "music_generation_summary": {
-              "main_composition_status": "$MAIN_GENERATION_STATUS",
-              "total_music_files_generated": $GENERATED_MUSIC_COUNT,
-              "target_duration_seconds": $TARGET_DURATION_SECONDS,
-              "composition_sections_planned": $COMPOSITION_SECTIONS,
-              "generation_service_used": "$([ "$MUSIC_GEN_AVAILABLE" = "true" ] && echo "t2m-google-lyria" || echo "none")"
-            },
-            "generated_assets": [$(ls .logs/audio-production/music/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
+            "primary_music_status": "$PRIMARY_MUSIC_STATUS",
+            "generation_service_used": "$([ "$MUSIC_GEN_AVAILABLE" = "success" ] && echo "t2m-google-lyria" || echo "none")",
+            "track_duration": $TRACK_DURATION,
+            "music_genre": "$MUSIC_GENRE",
+            "mood_energy": "$MOOD_ENERGY"
           }
           EOF
           
-          echo "MUSIC_GENERATION_STATUS=$MAIN_GENERATION_STATUS" >> $GITHUB_ENV
-          echo "GENERATED_MUSIC_COUNT=$GENERATED_MUSIC_COUNT" >> $GITHUB_ENV
+          echo "generation_results<<EOF" >> $GITHUB_OUTPUT
+          cat .logs/music-generation/generation-log.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
-          echo "🎼 Primary music generation completed: $GENERATED_MUSIC_COUNT files"
+          echo "🎵 Primary music generation completed"
 
-  - id: "ambient-sound-creation"
-    name: "環境音・効果音制作"
-    phase: "audio_production"
-    github_job: "ambient-creation"
-    type: "generation"
-    implementation: "mcp"
-    tool: "audio-effects"
-    duration_minutes: 6
-    dependencies: ["primary-music-generation"]
-    parallel_group: "audio_production_parallel"
-    
-    github_steps:
-      - name: "Create ambient sounds and effects"
-        shell: "bash"
-        script: |
-          echo "🌊 Creating ambient sounds and effects..."
+  # Phase 5: 音響処理・最適化段階
+  audio-processing:
+    needs: music-generation
+    runs-on: ubuntu-latest
+    outputs:
+      processing_status: ${{ steps.process.outputs.processing_status }}
+    steps:
+      - name: Process and optimize audio quality
+        id: process
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎚️ Processing and optimizing audio quality..."
           
-          mkdir -p .logs/audio-production/ambient
+          mkdir -p .logs/audio-processing
           
-          SOUND_EFFECTS_PLAN=$(cat .logs/sound-design/sound-effects-plan.json)
-          MUSIC_GENERATION_LOG=$(cat .logs/audio-production/music/generation-log.json)
+          GENERATION_RESULTS='${{ needs.music-generation.outputs.generation_results }}'
+          AUDIO_QUALITY="${{ github.event.inputs.audio_quality }}"
           
-          # V2A（Video-to-Audio）サービスを使用した環境音生成
-          if [ "$V2A_AVAILABLE" = "true" ]; then
-            echo "V2A service available - generating ambient audio..."
-            
-            # 音楽ファイルから環境音を生成（存在する場合）
-            MAIN_MUSIC_FILE=$(ls .logs/audio-production/music/main-composition.json 2>/dev/null | head -1)
-            
-            if [ -n "$MAIN_MUSIC_FILE" ]; then
-              MUSIC_PATH=$(jq -r '.audio_url // .file_path // "none"' "$MAIN_MUSIC_FILE" 2>/dev/null)
-              
-              if [ "$MUSIC_PATH" != "none" ]; then
-                echo "Generating complementary ambient audio from main composition..."
-                
-                AMBIENT_STYLE="subtle ambient textures and environmental sounds that complement the musical composition, professional audio quality"
-                
-                if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp v2a-fal-thinksound --video-path "$MUSIC_PATH" --audio-style "$AMBIENT_STYLE" > .logs/audio-production/ambient/complementary-ambient.json 2>&1; then
-                  echo "✅ Complementary ambient audio generated"
-                fi
-              fi
-            fi
-            
-            # 個別環境音要素の生成（疑似的にテキストベースで）
-            echo "Generating specific ambient elements..."
-            
-            AMBIENT_ELEMENTS=$(echo "$SOUND_EFFECTS_PLAN" | jq -c '.ambient_elements[]')
-            AMBIENT_INDEX=0
-            
-            while IFS= read -r element_data; do
-              ELEMENT_NAME=$(echo "$element_data" | jq -r '.element_name')
-              SOUND_DESCRIPTION=$(echo "$element_data" | jq -r '.sound_description')
-              
-              echo "Generating ambient element: $ELEMENT_NAME"
-              
-              # 短いサンプル音源を作成して、それをV2Aで拡張
-              # ここでは代替的にAI分析を使用
-              claude-code --prompt "Create detailed audio production specifications for this ambient element:
-              
-              Element: $ELEMENT_NAME
-              Description: $SOUND_DESCRIPTION
-              
-              Return a JSON with production parameters for professional audio creation." > .logs/audio-production/ambient/element-${AMBIENT_INDEX}-${ELEMENT_NAME}.json 2>&1
-              
-              AMBIENT_INDEX=$((AMBIENT_INDEX + 1))
-            done <<< "$AMBIENT_ELEMENTS"
-            
-          else
-            echo "⚠️ V2A service not available - creating specification-based ambient design"
-            
-            # 代替：詳細な制作仕様書作成
-            claude-code --prompt "Convert the following sound design plan into detailed production specifications that can be used with external audio tools:
-            
-            Sound Design Plan: $SOUND_EFFECTS_PLAN
-            
-            Create comprehensive technical specifications for each ambient element and sound effect." > .logs/audio-production/ambient/ambient-specifications.json 2>&1
-          fi
+          # 音響処理分析
+          claude-code --prompt "以下の音楽生成結果を基に、音響処理と品質最適化の詳細分析を行ってください：
           
-          # 効果音の生成仕様書作成
-          echo "Creating sound effects specifications..."
+          生成ログ: $GENERATION_RESULTS
+          音響品質: $AUDIO_QUALITY
           
-          SOUND_EFFECTS=$(echo "$SOUND_EFFECTS_PLAN" | jq -c '.sound_effects[]')
-          EFFECT_INDEX=0
+          JSON形式で音響処理推奨事項を返してください。" > .logs/audio-processing/processing-analysis.json
           
-          while IFS= read -r effect_data; do
-            EFFECT_NAME=$(echo "$effect_data" | jq -r '.effect_name')
-            SONIC_CHARACTERISTICS=$(echo "$effect_data" | jq -r '.sonic_characteristics')
-            
-            echo "Specifying sound effect: $EFFECT_NAME"
-            
-            # 詳細な効果音仕様作成
-            claude-code --prompt "Create professional audio production specifications for this sound effect:
-            
-            Effect Name: $EFFECT_NAME
-            Characteristics: $SONIC_CHARACTERISTICS
-            
-            Include frequency analysis, dynamic range, timing, and processing recommendations." > .logs/audio-production/ambient/effect-${EFFECT_INDEX}-${EFFECT_NAME}.json 2>&1
-            
-            EFFECT_INDEX=$((EFFECT_INDEX + 1))
-          done <<< "$SOUND_EFFECTS"
-          
-          # 制作結果の統計
-          CREATED_AMBIENT_COUNT=$(ls .logs/audio-production/ambient/*.json 2>/dev/null | wc -l)
-          
-          # 環境音制作ログ
-          cat > .logs/audio-production/ambient/creation-log.json << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "ambient_creation_summary": {
-              "v2a_service_available": "$V2A_AVAILABLE",
-              "total_ambient_files_created": $CREATED_AMBIENT_COUNT,
-              "ambient_elements_planned": $AMBIENT_ELEMENTS_COUNT,
-              "sound_effects_planned": $SOUND_EFFECTS_COUNT,
-              "creation_method": "$([ "$V2A_AVAILABLE" = "true" ] && echo "v2a_generation" || echo "specification_based")"
-            },
-            "created_assets": [$(ls .logs/audio-production/ambient/*.json 2>/dev/null | sed 's/.*/"&"/' | paste -sd,)]
-          }
-          EOF
-          
-          echo "AMBIENT_CREATION_STATUS=completed" >> $GITHUB_ENV
-          echo "CREATED_AMBIENT_COUNT=$CREATED_AMBIENT_COUNT" >> $GITHUB_ENV
-          
-          echo "🌊 Ambient sound creation completed: $CREATED_AMBIENT_COUNT files"
+          echo "processing_status=completed" >> $GITHUB_OUTPUT
+          echo "🎚️ Audio processing completed"
 
-  # === 品質向上段階 ===
-  - id: "audio-quality-enhancement"
-    name: "音質向上・ミキシング最適化"
-    phase: "quality_enhancement"
-    github_job: "quality-enhancement"
-    type: "optimization"
-    implementation: "ai"
-    duration_minutes: 5
-    dependencies: ["ambient-sound-creation"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Enhance audio quality and optimize mixing"
-        shell: "bash"
-        script: |
-          echo "🎛️ Enhancing audio quality and optimizing mixing..."
+  # Phase 6: ミキシング・マスタリング段階
+  mixing-mastering:
+    needs: audio-processing
+    runs-on: ubuntu-latest
+    outputs:
+      mixing_ready: ${{ steps.mix.outputs.mixing_ready }}
+    steps:
+      - name: Perform mixing and mastering
+        id: mix
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎛️ Performing mixing and mastering..."
           
-          mkdir -p .logs/quality-enhancement
+          mkdir -p .logs/mixing-mastering
           
-          AUDIO_CONCEPT=$(cat .logs/audio-concept/audio-concept.json)
-          COMPOSITION_DESIGN=$(cat .logs/musical-composition/composition-design.json)
-          MUSIC_GENERATION_LOG=$(cat .logs/audio-production/music/generation-log.json)
-          AMBIENT_CREATION_LOG=$(cat .logs/audio-production/ambient/creation-log.json)
+          AUDIO_QUALITY="${{ github.event.inputs.audio_quality }}"
+          TEMPO_BPM="${{ github.event.inputs.tempo_bpm }}"
           
-          # 音質向上・ミキシング分析
-          claude-code --prompt "以下の音声制作結果を基に、音質向上とミキシング最適化の詳細分析を行ってください：
+          # ミキシング・マスタリング設定
+          claude-code --prompt "以下のパラメータに基づいて、最適なミキシングとマスタリング設定を設計してください：
           
-          音響コンセプト: $AUDIO_CONCEPT
-          楽曲構成: $COMPOSITION_DESIGN
-          音楽制作ログ: $MUSIC_GENERATION_LOG
-          環境音制作ログ: $AMBIENT_CREATION_LOG
+          音響品質: $AUDIO_QUALITY
+          テンポ: $TEMPO_BPM BPM
           
-          以下の形式でJSONで回答してください：
-          {
-            \"quality_assessment\": {
-              \"current_audio_quality\": \"現在の音質評価（1-10点）\",
-              \"technical_analysis\": {
-                \"frequency_balance\": \"周波数バランス評価\",
-                \"dynamic_range\": \"ダイナミックレンジ評価\",
-                \"stereo_imaging\": \"ステレオイメージング評価\",
-                \"phase_coherence\": \"位相コヒーレンス評価\",
-                \"noise_floor\": \"ノイズフロア評価\"
-              },
-              \"musical_analysis\": {
-                \"harmonic_balance\": \"和声バランス評価\",
-                \"rhythmic_precision\": \"リズム精度評価\",
-                \"melodic_clarity\": \"メロディ明瞭度評価\",
-                \"textural_depth\": \"テクスチャー深度評価\"
-              }
-            },
-            \"enhancement_recommendations\": [
-              {
-                \"enhancement_type\": \"EQ|Compression|Reverb|Stereo_Enhancement|Mastering\",
-                \"target_elements\": [\"対象音響要素\"],
-                \"specific_adjustments\": \"具体的調整内容\",
-                \"expected_improvement\": \"期待される改善効果\",
-                \"processing_priority\": \"high|medium|low\",
-                \"technical_parameters\": \"技術的パラメータ\"
-              }
-            ],
-            \"mixing_optimization\": {
-              \"level_balancing\": \"レベルバランシング方針\",
-              \"panning_strategy\": \"パンニング戦略\",
-              \"spatial_placement\": \"空間配置最適化\",
-              \"frequency_separation\": \"周波数分離手法\",
-              \"dynamic_control\": \"ダイナミクス制御\"
-            },
-            \"mastering_approach\": {
-              \"overall_loudness_target\": \"全体ラウドネス目標\",
-              \"dynamic_range_preservation\": \"ダイナミックレンジ保持方針\",
-              \"frequency_response_shaping\": \"周波数特性調整\",
-              \"stereo_enhancement\": \"ステレオ強化手法\",
-              \"final_limiting_strategy\": \"最終リミッティング戦略\"
-            },
-            \"technical_specifications\": {
-              \"recommended_sample_rate\": \"推奨サンプリングレート\",
-              \"bit_depth_target\": \"目標ビット深度\",
-              \"dithering_requirements\": \"ディザリング要件\",
-              \"format_optimization\": \"フォーマット最適化\",
-              \"metadata_standards\": \"メタデータ基準\"
-            },
-            \"quality_benchmarks\": {
-              \"professional_standards\": [\"プロフェッショナル基準\"],
-              \"platform_requirements\": [\"プラットフォーム要件\"],
-              \"accessibility_compliance\": [\"アクセシビリティ対応\"],
-              \"commercial_readiness\": \"商用可能性評価\"
-            },
-            \"implementation_roadmap\": {
-              \"immediate_improvements\": [\"即座実行可能改善\"],
-              \"advanced_processing\": [\"高度処理要件\"],
-              \"external_tool_requirements\": [\"外部ツール要件\"],
-              \"quality_validation_steps\": [\"品質検証ステップ\"]
-            }
-          }" > .logs/quality-enhancement/enhancement-analysis.json
+          JSON形式でミキシング・マスタリング設定を返してください。" > .logs/mixing-mastering/mixing-configuration.json
           
-          ENHANCEMENT_ANALYSIS=$(cat .logs/quality-enhancement/enhancement-analysis.json)
-          
-          # 品質メトリクスの抽出
-          CURRENT_QUALITY=$(echo "$ENHANCEMENT_ANALYSIS" | jq -r '.quality_assessment.current_audio_quality')
-          HIGH_PRIORITY_ENHANCEMENTS=$(echo "$ENHANCEMENT_ANALYSIS" | jq '[.enhancement_recommendations[] | select(.processing_priority == "high")] | length')
-          
-          echo "CURRENT_AUDIO_QUALITY=$CURRENT_QUALITY" >> $GITHUB_ENV
-          echo "HIGH_PRIORITY_ENHANCEMENTS=$HIGH_PRIORITY_ENHANCEMENTS" >> $GITHUB_ENV
-          echo "ENHANCEMENT_ANALYSIS_FILE=.logs/quality-enhancement/enhancement-analysis.json" >> $GITHUB_ENV
-          
-          # 実行可能な最適化の適用（疑似的）
-          echo "Applying feasible optimizations..."
-          
-          claude-code --prompt "Based on the enhancement analysis, create a detailed implementation guide for the immediate improvements that can be applied:
-          
-          Enhancement Analysis: $ENHANCEMENT_ANALYSIS
-          
-          Focus on practical steps that can be implemented with available tools and create specific parameter recommendations." > .logs/quality-enhancement/implementation-guide.json 2>&1
-          
-          echo "🎛️ Audio quality enhancement completed"
-          echo "Current quality score: $CURRENT_QUALITY/10"
-          echo "High priority enhancements identified: $HIGH_PRIORITY_ENHANCEMENTS"
+          echo "mixing_ready=true" >> $GITHUB_OUTPUT
+          echo "🎛️ Mixing and mastering completed"
 
-  # === 配信準備段階 ===
-  - id: "format-optimization-delivery"
-    name: "フォーマット最適化・配信準備"
-    phase: "delivery_preparation"
-    github_job: "delivery-preparation"
-    type: "packaging"
-    implementation: "ai"
-    duration_minutes: 4
-    dependencies: ["audio-quality-enhancement"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Optimize formats and prepare for delivery"
-        shell: "bash"
-        script: |
-          echo "📤 Optimizing formats and preparing for delivery..."
+  # Phase 7: フォーマット・配信準備段階
+  format-delivery:
+    needs: [music-generation, audio-processing, mixing-mastering]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare various audio formats for delivery
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📦 Preparing various audio formats for delivery..."
           
-          mkdir -p .logs/delivery-preparation
+          mkdir -p .logs/format-delivery
           
-          AUDIO_CONCEPT=$(cat .logs/audio-concept/audio-concept.json)
-          ENHANCEMENT_ANALYSIS=$(cat .logs/quality-enhancement/enhancement-analysis.json)
+          AUDIO_QUALITY="${{ github.event.inputs.audio_quality }}"
+          TRACK_DURATION="${{ github.event.inputs.track_duration }}"
           
-          # 配信フォーマット最適化分析
-          claude-code --prompt "以下の音響プロジェクト情報を基に、配信フォーマット最適化と配信準備を行ってください：
+          # フォーマット・配信戦略
+          claude-code --prompt "以下の音楽プロジェクト情報を基に、配信フォーマットと最適化戦略を設計してください：
           
-          音響コンセプト: $AUDIO_CONCEPT
-          品質向上分析: $ENHANCEMENT_ANALYSIS
+          音響品質: $AUDIO_QUALITY
+          楽曲の長さ: $TRACK_DURATION 秒
           
-          以下の形式でJSONで回答してください：
-          {
-            \"delivery_strategy\": {
-              \"primary_use_cases\": [\"主要用途\"],
-              \"target_platforms\": [\"対象プラットフォーム\"],
-              \"distribution_channels\": [\"配信チャネル\"],
-              \"audience_considerations\": [\"聴取者配慮事項\"]
-            },
-            \"format_specifications\": [
-              {
-                \"format_name\": \"フォーマット名\",
-                \"use_case\": \"使用用途\",
-                \"technical_specs\": {
-                  \"sample_rate\": \"サンプリングレート\",
-                  \"bit_depth\": \"ビット深度\",
-                  \"compression_type\": \"圧縮方式\",
-                  \"bitrate\": \"ビットレート\",
-                  \"file_format\": \"ファイル形式\"
-                },
-                \"quality_profile\": \"品質プロファイル\",
-                \"file_size_estimate\": \"推定ファイルサイズ\",
-                \"compatibility\": [\"互換性情報\"]
-              }
-            ],
-            \"optimization_variants\": {
-              \"high_quality\": \"高品質版仕様\",
-              \"standard_quality\": \"標準品質版仕様\",
-              \"streaming_optimized\": \"ストリーミング最適化版仕様\",
-              \"mobile_optimized\": \"モバイル最適化版仕様\",
-              \"loop_versions\": \"ループ版仕様\"
-            },
-            \"metadata_package\": {
-              \"track_information\": {
-                \"title\": \"楽曲タイトル\",
-                \"artist\": \"アーティスト情報\",
-                \"album\": \"アルバム情報\",
-                \"genre\": \"ジャンル\",
-                \"duration\": \"$TARGET_DURATION_SECONDS seconds\",
-                \"bpm\": \"$TEMPO_BPM\",
-                \"key\": \"調性\"
-              },
-              \"technical_metadata\": {
-                \"creation_date\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-                \"production_method\": \"AI-generated composition\",
-                \"quality_level\": \"$CURRENT_AUDIO_QUALITY/10\",
-                \"mastering_standard\": \"マスタリング基準\"
-              },
-              \"usage_rights\": {
-                \"license_type\": \"ライセンス種別\",
-                \"usage_restrictions\": [\"使用制限\"],
-                \"attribution_requirements\": [\"クレジット要件\"],
-                \"commercial_usage\": \"商用利用可否\"
-              }
-            },
-            \"quality_assurance\": {
-              \"final_checks\": [\"最終チェック項目\"],
-              \"compatibility_tests\": [\"互換性テスト\"],
-              \"performance_benchmarks\": [\"パフォーマンス基準\"],  
-              \"user_experience_validation\": [\"UX検証項目\"]
-            },
-            \"delivery_package\": {
-              \"primary_deliverables\": [\"主要成果物\"],
-              \"supporting_materials\": [\"サポート資料\"],
-              \"documentation\": [\"ドキュメンテーション\"],
-              \"usage_guidelines\": [\"使用ガイドライン\"]
-            },
-            \"success_metrics\": {
-              \"technical_kpis\": [\"技術的KPI\"],
-              \"user_satisfaction_metrics\": [\"ユーザー満足度指標\"],
-              \"performance_indicators\": [\"パフォーマンス指標\"],
-              \"optimization_opportunities\": [\"最適化機会\"]
-            }
-          }" > .logs/delivery-preparation/delivery-strategy.json
+          JSON形式で配信戦略を返してください。" > .logs/format-delivery/delivery-strategy.json
           
-          DELIVERY_STRATEGY=$(cat .logs/delivery-preparation/delivery-strategy.json)
-          
-          # 配信パッケージ情報を環境変数に設定
-          FORMAT_COUNT=$(echo "$DELIVERY_STRATEGY" | jq '.format_specifications | length')
-          PRIMARY_FORMAT=$(echo "$DELIVERY_STRATEGY" | jq -r '.format_specifications[0].format_name // "High Quality Audio"')
-          
-          echo "DELIVERY_FORMAT_COUNT=$FORMAT_COUNT" >> $GITHUB_ENV
-          echo "PRIMARY_DELIVERY_FORMAT=$PRIMARY_FORMAT" >> $GITHUB_ENV
-          echo "DELIVERY_STRATEGY_FILE=.logs/delivery-preparation/delivery-strategy.json" >> $GITHUB_ENV
-          
-          echo "📤 Format optimization and delivery preparation completed"
-          echo "Delivery formats: $FORMAT_COUNT"
-          echo "Primary format: $PRIMARY_FORMAT"
+          echo "📦 Audio format delivery preparation completed"
 
-  - id: "final-audio-packaging"
-    name: "最終オーディオパッケージ作成"
-    phase: "delivery_preparation"
-    github_job: "final-packaging"
-    type: "packaging"
-    implementation: "script"
-    duration_minutes: 3
-    dependencies: ["format-optimization-delivery"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Create comprehensive audio delivery package"
-        shell: "bash"
-        script: |
-          echo "📦 Creating comprehensive audio delivery package..."
+  # Phase 8: 最終パッケージ作成
+  final-packaging:
+    needs: [concept-development, music-generation, audio-processing, mixing-mastering, format-delivery]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create comprehensive audio project delivery package
+        run: |
+          echo "📦 Creating comprehensive audio project delivery package..."
           
-          mkdir -p .final-output/{concept,composition,production,quality}
+          mkdir -p .final-output/{concept,generation,processing,mixing}
           
           # プロジェクト文書
-          cp .logs/audio-concept/audio-concept.json .final-output/concept/ 2>/dev/null || true
-          cp .logs/musical-composition/composition-design.json .final-output/composition/ 2>/dev/null || true
-          cp .logs/sound-design/sound-effects-plan.json .final-output/composition/ 2>/dev/null || true
+          cp .logs/music-concept/music-concept.json .final-output/concept/ 2>/dev/null || true
+          cp .logs/composition-design/composition-structure.json .final-output/concept/ 2>/dev/null || true
           
-          # 制作成果物
-          mkdir -p .final-output/production/{music,ambient,specifications}
-          cp .logs/audio-production/music/*.json .final-output/production/music/ 2>/dev/null || true
-          cp .logs/audio-production/ambient/*.json .final-output/production/ambient/ 2>/dev/null || true
+          # 音楽生成成果物
+          mkdir -p .final-output/generation/{tracks,analysis}
+          cp .logs/music-generation/*.json .final-output/generation/tracks/ 2>/dev/null || true
           
-          # 品質・配信資料
-          cp .logs/quality-enhancement/*.json .final-output/quality/ 2>/dev/null || true
-          cp .logs/delivery-preparation/*.json .final-output/quality/ 2>/dev/null || true
+          # 音響処理・ミキシング資料
+          cp .logs/audio-processing/*.json .final-output/processing/ 2>/dev/null || true
+          cp .logs/mixing-mastering/*.json .final-output/mixing/ 2>/dev/null || true
+          cp .logs/format-delivery/*.json .final-output/mixing/ 2>/dev/null || true
           
-          # マスターオーディオプロジェクト情報
-          cat > .final-output/audio-project-master.json << EOF
+          # マスター音楽プロジェクト情報
+          cat > .final-output/music-project-master.json << EOF
           {
             "project_info": {
               "project_name": "Audio Music Creation",
               "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
               "github_run_id": "${{ github.run_id }}",
-              "project_type": "music_and_audio_production",
-              "total_production_time": "35 minutes"
+              "project_type": "music_audio_generation_and_production"
             },
-            "audio_overview": {
-              "target_duration_seconds": $TARGET_DURATION_SECONDS,
-              "tempo_bpm": $TEMPO_BPM,
-              "composition_sections": $COMPOSITION_SECTIONS,
-              "current_quality_score": "$CURRENT_AUDIO_QUALITY/10",
-              "delivery_formats": $DELIVERY_FORMAT_COUNT
-            },
-            "production_summary": {
-              "music_generation_available": "$MUSIC_GEN_AVAILABLE",
-              "v2a_enhancement_available": "$V2A_AVAILABLE",
-              "ai_composition_analysis": "$MUSIC_AI_AVAILABLE",
-              "generated_music_files": $GENERATED_MUSIC_COUNT,
-              "ambient_audio_files": $CREATED_AMBIENT_COUNT,
-              "sound_effects_planned": $SOUND_EFFECTS_COUNT,
-              "ambient_elements_planned": $AMBIENT_ELEMENTS_COUNT
+            "input_parameters": {
+              "music_concept": "${{ github.event.inputs.music_concept }}",
+              "music_genre": "${{ github.event.inputs.music_genre }}",
+              "mood_energy": "${{ github.event.inputs.mood_energy }}",
+              "track_duration": ${{ github.event.inputs.track_duration }},
+              "tempo_bpm": ${{ github.event.inputs.tempo_bpm }},
+              "musical_key": "${{ github.event.inputs.musical_key }}",
+              "instrumentation": "${{ github.event.inputs.instrumentation }}",
+              "audio_quality": "${{ github.event.inputs.audio_quality }}"
             },
             "deliverables": {
               "concept_documents": {
-                "audio_concept": "concept/audio-concept.json",
-                "composition_design": "composition/composition-design.json",
-                "sound_effects_plan": "composition/sound-effects-plan.json"
+                "music_concept": "concept/music-concept.json",
+                "composition_structure": "concept/composition-structure.json"
               },
-              "production_assets": {
-                "music_files": "production/music/",
-                "ambient_audio": "production/ambient/",
-                "technical_specifications": "production/specifications/"
+              "audio_assets": {
+                "generated_tracks": "generation/tracks/",
+                "analysis_reports": "generation/analysis/"
               },
-              "quality_assurance": {
-                "enhancement_analysis": "quality/enhancement-analysis.json",
-                "delivery_strategy": "quality/delivery-strategy.json"
+              "production_reports": {
+                "audio_processing": "processing/processing-analysis.json",
+                "mixing_configuration": "mixing/mixing-configuration.json",
+                "delivery_strategy": "mixing/delivery-strategy.json"
               }
-            },
-            "technical_capabilities": {
-              "basic_audio_capability": "$BASIC_AUDIO_CAPABILITY",
-              "advanced_audio_capability": "$ADVANCED_AUDIO_CAPABILITY",
-              "primary_music_service": "$([ "$MUSIC_GEN_AVAILABLE" = "true" ] && echo "t2m-google-lyria" || echo "none")",
-              "audio_enhancement_service": "$([ "$V2A_AVAILABLE" = "true" ] && echo "v2a-fal-thinksound" || echo "none")"
-            },
-            "production_readiness": {
-              "music_generation_status": "$MUSIC_GENERATION_STATUS",
-              "ambient_creation_status": "$AMBIENT_CREATION_STATUS", 
-              "quality_score": "$CURRENT_AUDIO_QUALITY/10",
-              "high_priority_enhancements": $HIGH_PRIORITY_ENHANCEMENTS,
-              "delivery_ready": $([ "$MUSIC_GENERATION_STATUS" = "success" ] && echo "true" || echo "false")
-            },
-            "usage_guidelines": {
-              "audio_modification": "Generated audio can be further processed using specifications provided",
-              "quality_maintenance": "Follow enhancement analysis recommendations for optimal results",
-              "format_conversion": "Use delivery strategy specifications for platform-specific formats",
-              "licensing_compliance": "Check metadata package for usage rights and restrictions",
-              "technical_requirements": "Ensure proper audio equipment for quality evaluation"
-            },
-            "support_resources": {
-              "composition_regeneration": "Use composition-design.json specifications to recreate or modify music",
-              "quality_improvement": "Follow enhancement-analysis.json recommendations",
-              "format_optimization": "Use delivery-strategy.json for platform-specific conversions",
-              "troubleshooting": "Check production logs for detailed generation information"
             }
           }
           EOF
           
-          # オーディオ制作ガイドの作成
-          cat > .final-output/AUDIO_PRODUCTION_GUIDE.md << 'EOF'
-          # オーディオ・音楽制作プロジェクトガイド
+          # 音楽制作プロジェクトガイドの作成
+          cat > .final-output/MUSIC_PROJECT_GUIDE.md << 'EOF'
+          # 音楽・オーディオ制作プロジェクトガイド
           
           ## 🎵 プロジェクト概要
-          - 楽曲長: AI生成による音楽制作
+          - 制作手法: AI生成による音楽・オーディオ制作
           - 品質レベル: プロフェッショナル対応
-          - 制作手法: AI生成 + 専門的音響設計
+          - 最適化: マルチフォーマット対応
           
-          ## 🎼 楽曲仕様
-          - 構成セクション数と詳細設計
-          - 楽器編成と音響レイヤー
-          - テンポ・調性・和声進行
-          - 音響効果と環境音設計
+          ## 🎯 楽曲仕様
+          - ジャンル・ムード設定
+          - 楽曲構成・ハーモニー
+          - 楽器編成・音響品質
+          - テンポ・調性・尺設定
           
-          ## 🔊 制作成果物
-          - メイン楽曲ファイル
-          - セクション別音楽素材
-          - 楽器別レイヤー
-          - 環境音・効果音仕様
-          - 品質向上推奨事項
+          ## 🎨 制作成果物
+          - メイン楽曲トラック
+          - バリエーション・ミックス
+          - 音響処理設定
+          - ミキシング・マスタリング設定
           
-          ## 📊 品質管理
-          - 音響品質評価スコア
-          - 技術的仕様適合性
-          - プラットフォーム最適化
-          - ユーザー体験配慮
+          ## ⚡ 音響処理・最適化
+          - 音質最適化設定
+          - フォーマット別最適化
+          - 配信プラットフォーム対応
+          - ライセンス・著作権情報
           
           ## 🚀 配信・活用
-          - フォーマット別最適化
-          - プラットフォーム対応
-          - ライセンス・使用権限
-          - パフォーマンス監視
-          
-          ## 🔧 技術的注意事項
-          - オーディオ品質の維持
-          - 互換性確保
-          - メタデータ管理
-          - 継続的品質改善
+          - フォーマット変換ガイド
+          - プラットフォーム統合手順
+          - 音響設定適用
+          - 品質検証プロセス
           EOF
           
-          # ZIPパッケージ作成
-          cd .final-output && zip -r ../audio-music-package.zip . && cd ..
+          echo "📦 Final music project packaging completed"
           
-          echo "📦 Final audio packaging completed"
-          echo "Package includes:"
-          echo "- Audio concept and composition design"
-          echo "- $GENERATED_MUSIC_COUNT music files generated"
-          echo "- $CREATED_AMBIENT_COUNT ambient audio elements"
-          echo "- Quality analysis (score: $CURRENT_AUDIO_QUALITY/10)"
-          echo "- $DELIVERY_FORMAT_COUNT delivery format specifications"
-          echo "- Technical documentation and usage guidelines"
-          echo "Package location: audio-music-package.zip"
-          
-    success_links:
-      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
-      enhancement_analysis: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/quality/enhancement-analysis.json"
-      composition_design: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/composition/composition-design.json"
-      production_guide: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/AUDIO_PRODUCTION_GUIDE.md"
-
-    validation:
-      criteria:
-        - "音響コンセプトが設計されている"
-        - "楽曲構成が完成している"
-        - "音声制作が実施されている"
-        - "品質向上分析が完了している"
-        - "配信パッケージが作成されている"
-      validation_script: |
-        if [ ! -f ".final-output/audio-project-master.json" ]; then
-          echo "❌ VALIDATION FAILED: Audio project package missing"
-          exit 1
-        fi
-        
-        if [ "$MUSIC_GENERATION_STATUS" = "success" ]; then
-          echo "✅ Validation passed: Audio production completed successfully"
-        elif [ "$MUSIC_GENERATION_STATUS" = "service_unavailable" ]; then
-          echo "⚠️ WARNING: Music generation service unavailable - specifications created for external use"
-        else
-          echo "❌ VALIDATION FAILED: Music generation failed"
-          exit 1
-        fi
+      - name: Upload Music Project Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-project-package-${{ github.run_number }}
+          path: .final-output/
+          retention-days: 30
