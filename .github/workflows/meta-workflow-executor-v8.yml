@@ -66,13 +66,13 @@ jobs:
         run: |
           echo "📝 Extracting stepback answers from Issue #${{ github.event.issue.number }}..."
           
-          mkdir -p .meta/stepback-analysis
+          mkdir -p generated/metadata/stepback-analysis
           
           # Issue本文を安全にファイルに保存（今回の学び：HEREDOCは避ける）
-          echo "${{ github.event.issue.body }}" > .meta/stepback-analysis/issue-body.txt
+          echo "${{ github.event.issue.body }}" > generated/metadata/stepback-analysis/issue-body.txt
           
           # ファイルから読み込み
-          ISSUE_BODY=$(cat .meta/stepback-analysis/issue-body.txt)
+          ISSUE_BODY=$(cat generated/metadata/stepback-analysis/issue-body.txt)
           
           # ワークフロータイプの推測
           WORKFLOW_TYPE="video-generation"
@@ -121,40 +121,40 @@ jobs:
         run: |
           echo "🔍 Analyzing requirements with stepback answers integration..."
           
-          mkdir -p .meta/requirement-analysis
+          mkdir -p generated/metadata/requirement-analysis
           
           # 分析プロンプト作成（echo方式で安全に）
-          echo "# Enhanced Requirement Analysis with Stepback Answers" > .meta/requirement-analysis/analysis-prompt.md
-          echo "" >> .meta/requirement-analysis/analysis-prompt.md
-          echo "以下のユーザーからのステップバック質問回答を分析し、ワークフロー生成のための詳細要求を整理してください。" >> .meta/requirement-analysis/analysis-prompt.md
-          echo "" >> .meta/requirement-analysis/analysis-prompt.md
-          echo "## Stepback Answers" >> .meta/requirement-analysis/analysis-prompt.md
-          echo "${{ needs.extract-stepback-answers.outputs.stepback_answers }}" >> .meta/requirement-analysis/analysis-prompt.md
+          echo "# Enhanced Requirement Analysis with Stepback Answers" > generated/metadata/requirement-analysis/analysis-prompt.md
+          echo "" >> generated/metadata/requirement-analysis/analysis-prompt.md
+          echo "以下のユーザーからのステップバック質問回答を分析し、ワークフロー生成のための詳細要求を整理してください。" >> generated/metadata/requirement-analysis/analysis-prompt.md
+          echo "" >> generated/metadata/requirement-analysis/analysis-prompt.md
+          echo "## Stepback Answers" >> generated/metadata/requirement-analysis/analysis-prompt.md
+          echo "${{ needs.extract-stepback-answers.outputs.stepback_answers }}" >> generated/metadata/requirement-analysis/analysis-prompt.md
           
           # フォールバックJSONを生成（今回の学び：echo方式）
           WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
           
           case "$WORKFLOW_TYPE" in
             "video-generation")
-              echo '{"clarity_score":8,"workflow_type":"video-generation","quality_requirements":{"image_resolution":"高解像度","video_quality":"高品質","audio_quality":"プロ品質"},"content_specifications":{"style":"cinematic","duration":"60秒","genre":"promotional"},"processing_requirements":{"sequence":"T2I→I2V","parallel_processing":"T2I完了後にI2VとT2M並列","integration_method":"最終統合"},"constraints":{"time_limit":"なし","resource_limit":"なし"}}' > .meta/requirement-analysis/enhanced-requirements.json
+              echo '{"clarity_score":8,"workflow_type":"video-generation","quality_requirements":{"image_resolution":"高解像度","video_quality":"高品質","audio_quality":"プロ品質"},"content_specifications":{"style":"cinematic","duration":"60秒","genre":"promotional"},"processing_requirements":{"sequence":"T2I→I2V","parallel_processing":"T2I完了後にI2VとT2M並列","integration_method":"最終統合"},"constraints":{"time_limit":"なし","resource_limit":"なし"}}' > generated/metadata/requirement-analysis/enhanced-requirements.json
               ;;
             "image-generation")
-              echo '{"clarity_score":8,"workflow_type":"image-generation","quality_requirements":{"image_resolution":"ultra_hd","style":"photorealistic"},"processing_requirements":{"sequence":"T2I","parallel_processing":"false","integration_method":"direct"},"constraints":{"time_limit":"標準","resource_limit":"標準"}}' > .meta/requirement-analysis/enhanced-requirements.json
+              echo '{"clarity_score":8,"workflow_type":"image-generation","quality_requirements":{"image_resolution":"ultra_hd","style":"photorealistic"},"processing_requirements":{"sequence":"T2I","parallel_processing":"false","integration_method":"direct"},"constraints":{"time_limit":"標準","resource_limit":"標準"}}' > generated/metadata/requirement-analysis/enhanced-requirements.json
               ;;
             *)
-              echo '{"clarity_score":7,"workflow_type":"custom","quality_requirements":{"output_quality":"high"},"processing_requirements":{"sequence":"auto","parallel_processing":"true","integration_method":"adaptive"},"constraints":{"time_limit":"標準","resource_limit":"標準"}}' > .meta/requirement-analysis/enhanced-requirements.json
+              echo '{"clarity_score":7,"workflow_type":"custom","quality_requirements":{"output_quality":"high"},"processing_requirements":{"sequence":"auto","parallel_processing":"true","integration_method":"adaptive"},"constraints":{"time_limit":"標準","resource_limit":"標準"}}' > generated/metadata/requirement-analysis/enhanced-requirements.json
               ;;
           esac
           
           echo "analysis_ready=true" >> $GITHUB_OUTPUT
-          echo "enhanced_request=.meta/requirement-analysis/enhanced-requirements.json" >> $GITHUB_OUTPUT
+          echo "enhanced_request=generated/metadata/requirement-analysis/enhanced-requirements.json" >> $GITHUB_OUTPUT
           echo "✅ Requirements analysis completed"
           
       - name: Upload Enhanced Requirements
         uses: actions/upload-artifact@v4
         with:
           name: enhanced-requirements
-          path: .meta/requirement-analysis/
+          path: generated/metadata/requirement-analysis/
           retention-days: 1
 
   decompose-tasks:
@@ -173,32 +173,32 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: enhanced-requirements
-          path: .meta/requirement-analysis/
+          path: generated/metadata/requirement-analysis/
           
       - name: Task Decomposition with Claude Code
         id: decompose
         run: |
           echo "🧠 Decomposing tasks for workflow generation..."
           
-          mkdir -p .meta/task-decomposition
+          mkdir -p generated/metadata/task-decomposition
           
-          ENHANCED_REQ=".meta/requirement-analysis/enhanced-requirements.json"
+          ENHANCED_REQ="generated/metadata/requirement-analysis/enhanced-requirements.json"
           WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
           
           # 簡潔なフォールバックJSONを作成
           case "$WORKFLOW_TYPE" in
             "video-generation")
-              echo '{"workflow_type":"video-generation","estimated_duration_minutes":45,"tasks":[{"id":"task-001","name":"テキストから画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"画像から動画生成","type":"mcp_generation","dependencies":["task-001"],"required_tools":["i2v-fal-hailuo-02-pro"]},{"id":"task-003","name":"BGM生成","type":"mcp_generation","dependencies":[],"required_tools":["t2m-google-lyria"]},{"id":"task-004","name":"動画統合","type":"integration","dependencies":["task-002","task-003"],"required_tools":["ffmpeg"]}]}' > .meta/task-decomposition/task-plan.json
+              echo '{"workflow_type":"video-generation","estimated_duration_minutes":45,"tasks":[{"id":"task-001","name":"テキストから画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"画像から動画生成","type":"mcp_generation","dependencies":["task-001"],"required_tools":["i2v-fal-hailuo-02-pro"]},{"id":"task-003","name":"BGM生成","type":"mcp_generation","dependencies":[],"required_tools":["t2m-google-lyria"]},{"id":"task-004","name":"動画統合","type":"integration","dependencies":["task-002","task-003"],"required_tools":["ffmpeg"]}]}' > generated/metadata/task-decomposition/task-plan.json
               ;;
             "image-generation")
-              echo '{"workflow_type":"image-generation","estimated_duration_minutes":20,"tasks":[{"id":"task-001","name":"画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"品質向上","type":"processing","dependencies":["task-001"],"required_tools":["image-processing"]}]}' > .meta/task-decomposition/task-plan.json
+              echo '{"workflow_type":"image-generation","estimated_duration_minutes":20,"tasks":[{"id":"task-001","name":"画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"品質向上","type":"processing","dependencies":["task-001"],"required_tools":["image-processing"]}]}' > generated/metadata/task-decomposition/task-plan.json
               ;;
             *)
-              echo '{"workflow_type":"custom","estimated_duration_minutes":30,"tasks":[{"id":"task-001","name":"要件分析","type":"processing","dependencies":[],"required_tools":["analysis-tools"]},{"id":"task-002","name":"コンテンツ生成","type":"generation","dependencies":["task-001"],"required_tools":["generation-tools"]}]}' > .meta/task-decomposition/task-plan.json
+              echo '{"workflow_type":"custom","estimated_duration_minutes":30,"tasks":[{"id":"task-001","name":"要件分析","type":"processing","dependencies":[],"required_tools":["analysis-tools"]},{"id":"task-002","name":"コンテンツ生成","type":"generation","dependencies":["task-001"],"required_tools":["generation-tools"]}]}' > generated/metadata/task-decomposition/task-plan.json
               ;;
           esac
           
-          JSON_FILE=".meta/task-decomposition/task-plan.json"
+          JSON_FILE="generated/metadata/task-decomposition/task-plan.json"
           
           if [ -f "$JSON_FILE" ]; then
             echo "✅ Task plan file created"
@@ -216,7 +216,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: task-plan-${{ github.run_number }}
-          path: .meta/task-decomposition/
+          path: generated/metadata/task-decomposition/
           retention-days: 30
 
   # Phase 2: 3アプローチ並列生成（今回の学び：echo方式でHEREDOC回避）
@@ -237,7 +237,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: task-plan-${{ github.run_number }}
-          path: .meta/task-decomposition/
+          path: generated/metadata/task-decomposition/
           
       - name: Template Selection Generation
         id: generate
@@ -452,7 +452,7 @@ jobs:
         run: |
           echo "📊 Evaluating all approaches and selecting the best..."
           
-          mkdir -p .meta/evaluation
+          mkdir -p generated/metadata/evaluation
           mkdir -p generated/workflows/selected
           
           # アプローチスコア取得
@@ -488,35 +488,19 @@ jobs:
           
           echo "🎯 Selected Best Approach: $SELECTED_APPROACH (Score: $BEST_SCORE)"
           
-          # 選択されたワークフローファイルをコピー（今回の学び：柔軟なパス検索）
+          # 選択されたワークフローファイルをコピー（簡素化されたパス検索）
           FINAL_WORKFLOW="generated/workflows/selected/best-workflow.yml"
           
-          # 複数のパターンでファイルを検索
-          FOUND_FILE=""
+          # ディレクトリが存在することを確認
+          mkdir -p "$(dirname "$FINAL_WORKFLOW")"
           
-          # パターン1: 期待されるパス
+          # 選択されたファイルをコピー
           if [ -f "$SELECTED_FILE" ]; then
-            FOUND_FILE="$SELECTED_FILE"
-          # パターン2: アーティファクトの直接的なパス（ファイル名のみ）
-          elif [ -f "$(basename "$SELECTED_FILE")" ]; then
-            FOUND_FILE="$(basename "$SELECTED_FILE")"
-          # パターン3: 現在のディレクトリにある場合
-          elif [ -f "best-workflow.yml" ]; then
-            FOUND_FILE="best-workflow.yml"
-          # パターン4: ワイルドカード検索
+            cp "$SELECTED_FILE" "$FINAL_WORKFLOW"
+            echo "✅ Best workflow copied from: $SELECTED_FILE → $FINAL_WORKFLOW"
           else
-            FOUND_FILE=$(find . -name "*workflow*.yml" -type f | grep -E "(template|dynamic|hybrid)" | head -1)
-          fi
-          
-          if [ -n "$FOUND_FILE" ] && [ -f "$FOUND_FILE" ]; then
-            cp "$FOUND_FILE" "$FINAL_WORKFLOW"
-            echo "✅ Best workflow copied from: $FOUND_FILE → $FINAL_WORKFLOW"
-          else
-            echo "❌ No suitable workflow file found"
-            echo "🔍 Available files:"
-            find . -name "*.yml" -type f | head -10
-            
-            # 緊急フォールバック：最低限のワークフローを生成
+            # フォールバック：最低限のワークフローを生成
+            echo "⚠️ Selected file not found: $SELECTED_FILE"
             echo "🆘 Creating fallback workflow..."
             echo 'name: "Generated Fallback Workflow"' > "$FINAL_WORKFLOW"
             echo 'on:' >> "$FINAL_WORKFLOW"
@@ -532,18 +516,18 @@ jobs:
           
           # 評価結果の保存（今回の学び：GitHubコンテキスト変数を安全に処理）
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          echo '{' > .meta/evaluation/selected-workflow.json
-          echo "  \"selected_approach\": \"$SELECTED_APPROACH\"," >> .meta/evaluation/selected-workflow.json
-          echo "  \"selected_file\": \"$FINAL_WORKFLOW\"," >> .meta/evaluation/selected-workflow.json
-          echo "  \"evaluation_score\": $BEST_SCORE," >> .meta/evaluation/selected-workflow.json
-          echo "  \"comparison\": {" >> .meta/evaluation/selected-workflow.json
-          echo "    \"approach_1\": {\"name\": \"$APPROACH_1\", \"score\": $SCORE_1}," >> .meta/evaluation/selected-workflow.json
-          echo "    \"approach_2\": {\"name\": \"$APPROACH_2\", \"score\": $SCORE_2}," >> .meta/evaluation/selected-workflow.json
-          echo "    \"approach_3\": {\"name\": \"$APPROACH_3\", \"score\": $SCORE_3}" >> .meta/evaluation/selected-workflow.json
-          echo "  }," >> .meta/evaluation/selected-workflow.json
-          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> .meta/evaluation/selected-workflow.json
-          echo "  \"issue_number\": $ISSUE_NUMBER" >> .meta/evaluation/selected-workflow.json
-          echo '}' >> .meta/evaluation/selected-workflow.json
+          echo '{' > generated/metadata/evaluation/selected-workflow.json
+          echo "  \"selected_approach\": \"$SELECTED_APPROACH\"," >> generated/metadata/evaluation/selected-workflow.json
+          echo "  \"selected_file\": \"$FINAL_WORKFLOW\"," >> generated/metadata/evaluation/selected-workflow.json
+          echo "  \"evaluation_score\": $BEST_SCORE," >> generated/metadata/evaluation/selected-workflow.json
+          echo "  \"comparison\": {" >> generated/metadata/evaluation/selected-workflow.json
+          echo "    \"approach_1\": {\"name\": \"$APPROACH_1\", \"score\": $SCORE_1}," >> generated/metadata/evaluation/selected-workflow.json
+          echo "    \"approach_2\": {\"name\": \"$APPROACH_2\", \"score\": $SCORE_2}," >> generated/metadata/evaluation/selected-workflow.json
+          echo "    \"approach_3\": {\"name\": \"$APPROACH_3\", \"score\": $SCORE_3}" >> generated/metadata/evaluation/selected-workflow.json
+          echo "  }," >> generated/metadata/evaluation/selected-workflow.json
+          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> generated/metadata/evaluation/selected-workflow.json
+          echo "  \"issue_number\": $ISSUE_NUMBER" >> generated/metadata/evaluation/selected-workflow.json
+          echo '}' >> generated/metadata/evaluation/selected-workflow.json
           
           echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
           echo "selected_workflow_path=$FINAL_WORKFLOW" >> $GITHUB_OUTPUT
@@ -560,7 +544,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: evaluation-results-${{ github.run_number }}
-          path: .meta/evaluation/
+          path: generated/metadata/evaluation/
           retention-days: 30
 
   # Phase 4: 検証・デプロイ
