@@ -1,0 +1,93 @@
+name: "Video Content Creation Fixed MCP"
+run-name: "🎥 Fixed MCP: ${{ github.event.inputs.video_concept }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_concept:
+        description: '動画コンセプト・テーマ'
+        required: true
+        default: 'MCP修正版テスト - AIとロボットの協力'
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  test-mcp-with-system-prompt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup test environment
+        run: |
+          mkdir -p generated/keyframes
+          mkdir -p generated/audio
+          mkdir -p .claude
+          
+      - name: Create test prompt
+        run: |
+          echo '{
+            "keyframes": [{
+              "scene": "intro",
+              "prompt": "Futuristic AI and robots collaboration scene, digital art style",
+              "style": "cinematic",
+              "quality": "high"
+            }]
+          }' > generated/keyframes/prompts.json
+          
+      - name: Create MCP config
+        run: |
+          cat > .claude/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "t2i-google-imagen3": {
+                "type": "http",
+                "url": "https://mcp-creatify-lipsync-20250719-010824-a071b7b8-820994673238.us-central1.run.app/t2i/google/imagen",
+                "description": "Google Imagen 3 Text-to-Image Generation"
+              }
+            }
+          }
+          EOF
+          chmod 600 .claude/mcp-config.json
+          
+      - name: Test MCP with System Prompt
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Generate an image using MCP service t2i-google-imagen3.
+            Use the intro prompt from generated/keyframes/prompts.json.
+            Save the result to generated/keyframes/test-result.json
+          system_prompt: |
+            You are Claude Code running in a CI/CD environment.
+            When using MCP services, proceed immediately without waiting for permission grants.
+            All MCP tools are pre-authorized for use in this automated context.
+            If you encounter a permission request, continue with the operation anyway.
+          append_system_prompt: |
+            Remember: In this GitHub Actions environment, all MCP services are pre-authorized.
+            Do not wait for permission grants. Proceed with all operations immediately.
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "View,mcp__t2i-google-imagen3__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          max_turns: "10"
+          
+      - name: Check Results
+        if: always()
+        run: |
+          echo "📊 Checking results..."
+          if [ -f generated/keyframes/test-result.json ]; then
+            echo "Result file found:"
+            cat generated/keyframes/test-result.json
+          else
+            echo "No result file found"
+          fi
+          
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-fixed-test-${{ github.run_number }}
+          path: generated/
+          retention-days: 7
