@@ -1,198 +1,101 @@
-# AI画像生成 - 超詳細タスク分解
-name: "ai-image-generation"
-description: "テキストプロンプトからAI画像を生成"
-category: "visual-content-creation"
-complexity_level: 3
-estimated_duration_minutes: 25
+name: "AI Image Generation Workflow"
+run-name: "🎨 Generating AI images: ${{ github.event.inputs.main_prompt || 'Image Generation' }}"
 
-# 動的モーダル入力仕様 (Dynamic Modal Input Specification)
-dynamic_inputs_spec:
-  modal_title: "AI画像生成設定"
-  modal_description: "生成したい画像の詳細な設定を入力してください"
-  form_sections:
-    - section_name: "基本設定"
-      section_description: "画像生成の基本パラメータ"
-      inputs:
-        - name: "main_prompt"
-          label: "メインプロンプト"
-          type: "textarea"
-          required: true
-          placeholder: "例: 美しい夕日の風景、アニメスタイル、高画質、詳細な背景"
-          description: "生成したい画像の詳細な説明を入力してください"
-          validation:
-            min_length: 10
-            max_length: 500
-            pattern: "^[^<>\"'&]*$"  # HTMLタグ等を除外
-          
-        - name: "negative_prompt"
-          label: "ネガティブプロンプト (除外したい要素)"
-          type: "textarea"
-          required: false
-          placeholder: "例: 低画質、不自然な手、ぼやけた画像"
-          description: "生成から除外したい要素を指定"
-          validation:
-            max_length: 200
-    
-    - section_name: "スタイル設定"
-      section_description: "画像のアートスタイルと品質設定"
-      inputs:
-        - name: "art_style"
-          label: "アートスタイル"
-          type: "select"
-          required: true
-          description: "画像のアートスタイルを選択"
-          options:
-            - value: "photorealistic"
-              label: "📸 フォトリアリスティック"
-              description: "写真のようなリアルな画像"
-            - value: "anime"
-              label: "🎌 アニメ・イラスト"
-              description: "日本のアニメ・マンガ風イラスト"
-            - value: "oil_painting"
-              label: "🎨 油絵調"
-              description: "クラシックな油絵のタッチ"
-            - value: "digital_art"
-              label: "💻 デジタルアート"
-              description: "現代的なデジタルアート"
-            - value: "watercolor"
-              label: "🌈 水彩画"
-              description: "柔らかな水彩画調"
-          default: "photorealistic"
-        
-        - name: "quality_level"
-          label: "品質レベル"
-          type: "range"
-          required: true
-          min: 1
-          max: 10
-          default: 8
-          step: 1
-          description: "画像品質 (1=最低品質・高速, 10=最高品質・低速)"
-          
-        - name: "creativity_level"
-          label: "創造性レベル"
-          type: "range"
-          required: true
-          min: 1
-          max: 10
-          default: 5
-          step: 1
-          description: "創造性 (1=プロンプト厳守, 10=創造的解釈)"
-    
-    - section_name: "画像設定"
-      section_description: "画像サイズと技術的パラメータ"
-      inputs:
-        - name: "aspect_ratio"
-          label: "縦横比"
-          type: "select"
-          required: true
-          description: "画像の縦横比を選択（SNS映え重視のため1:1を標準設定）"
-          options:
-            - value: "1:1"
-              label: "1:1 (正方形) - SNS投稿・Instagram最適 ⭐推奨"
-            - value: "16:9"
-              label: "16:9 (横長) - バナー・ヘッダーに最適"
-            - value: "4:3"
-              label: "4:3 (横長) - プレゼン・印刷に最適"
-            - value: "3:4"
-              label: "3:4 (縦長) - ポスター・スマホ画面に最適"
-            - value: "9:16"
-              label: "9:16 (縦長) - ストーリー・縦動画に最適"
-          default: "1:1"
-        
-        - name: "image_count"
-          label: "生成枚数"
-          type: "number"
-          required: true
-          min: 1
-          max: 8
-          default: 4
-          description: "同時に生成する画像の枚数 (多いほど選択肢が増えるが時間がかかる)"
-        
-        - name: "mcp_service_priority"
-          label: "使用MCPサービス優先度"
-          type: "select"
-          required: true
-          description: "画像生成に使用するMCPサービスの優先順位"
-          options:
-            - value: "ultra_quality"
-              label: "🔥 Ultra品質優先 (imagen4-ultra → imagen4-fast → imagen3)"
-            - value: "balanced"
-              label: "⚡ バランス重視 (imagen4-fast → imagen4-ultra → imagen3)"
-            - value: "speed_priority"
-              label: "🚀 速度優先 (imagen4-fast → imagen3 → imagen4-ultra)"
-            - value: "google_only"
-              label: "🟢 Google専用 (imagen3のみ)"
-          default: "balanced"
+on:
+  workflow_dispatch:
+    inputs:
+      main_prompt:
+        description: 'メインプロンプト - 生成したい画像の詳細な説明'
+        required: true
+        default: '美しい夕日の風景、アニメスタイル、高画質、詳細な背景'
+        type: string
+      negative_prompt:
+        description: 'ネガティブプロンプト (除外したい要素)'
+        required: false
+        default: '低画質、不自然な手、ぼやけた画像'
+        type: string
+      art_style:
+        description: 'アートスタイル'
+        required: true
+        type: choice
+        options:
+        - photorealistic
+        - anime
+        - oil_painting
+        - digital_art
+        - watercolor
+        default: 'photorealistic'
+      quality_level:
+        description: '品質レベル (1-10)'
+        required: true
+        default: '8'
+        type: choice
+        options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+        - '5'
+        - '6'
+        - '7'
+        - '8'
+        - '9'
+        - '10'
+      aspect_ratio:
+        description: '画像の縦横比'
+        required: true
+        type: choice
+        options:
+        - '1:1'
+        - '16:9'
+        - '4:3'
+        - '3:4'
+        - '9:16'
+        default: '1:1'
+      image_count:
+        description: '生成枚数 (1-8)'
+        required: true
+        default: '4'
+        type: choice
+        options:
+        - '1'
+        - '2'
+        - '3'
+        - '4'
+        - '5'
+        - '6'
+        - '7'
+        - '8'
+      mcp_service_priority:
+        description: '使用MCPサービス優先度'
+        required: true
+        type: choice
+        options:
+        - ultra_quality
+        - balanced
+        - speed_priority
+        - google_only
+        default: 'balanced'
 
-# 動的inputs生成用のマッピング設定
-github_actions_inputs_mapping:
-  # 上記の動的inputs仕様をGitHub Actions workflow inputsに変換する際の設定
-  inputs_conversion:
-    textarea: "string"
-    select: "choice" 
-    number: "number"
-    range: "number"
-  
-  # 生成されるGitHub Actions inputsの例
-  generated_inputs_preview:
-    main_prompt:
-      description: "メインプロンプト - 生成したい画像の詳細な説明"
-      required: true
-      type: string
-    art_style:
-      description: "アートスタイル"
-      required: true
-      type: choice
-      options: ["photorealistic", "anime", "oil_painting", "digital_art", "watercolor"]
-      default: "photorealistic"
-    quality_level:
-      description: "品質レベル (1-10)"
-      required: true
-      type: number
-      default: 8
+permissions:
+  contents: write
+  issues: read
+  actions: read
 
-# 人間の無意識思考プロセス
-human_process:
-  - phase: "concept_development"
-    description: "コンセプト開発段階（アイデア→具体的なビジョン）"
-  - phase: "prompt_engineering" 
-    description: "プロンプト設計段階（詳細な指示作成）"
-  - phase: "generation_execution"
-    description: "生成実行段階（AI生成・調整）"
-  - phase: "quality_refinement"
-    description: "品質改善段階（検証・修正・向上）"
-  - phase: "output_preparation"
-    description: "出力準備段階（形式最適化・配信準備）"
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-# GitHub Actions ノード設計
-github_actions_config:
-  workflow_name: "AI Image Generation"
-  on_triggers: ["workflow_dispatch", "issues"]
-  permissions:
-    contents: "write"
-    issues: "write"
-    actions: "read"
-  artifacts_retention_days: 14
-  max_parallel_jobs: 3
-
-# 超詳細タスク分解
-tasks:
-  # === 事前テスト段階 ===
-  - id: "mcp-api-connectivity-test"
-    name: "画像生成用MCP・API接続テスト"
-    phase: "pre_validation"
-    github_job: "connectivity-test"
-    type: "validation"
-    implementation: "mcp"
-    duration_minutes: 2
-    dependencies: []
-    parallel_group: null
-    
-    github_steps:
-      - name: "Test image generation services"
-        shell: "bash"
-        script: |
+jobs:
+  # Phase 1: 事前テスト段階
+  connectivity-test:
+    runs-on: ubuntu-latest
+    outputs:
+      services_ready: ${{ steps.test.outputs.services_ready }}
+      recommended_service: ${{ steps.test.outputs.recommended_service }}
+    steps:
+      - name: Test image generation services
+        id: test
+        run: |
           echo "🎨 Testing image generation services..."
           
           mkdir -p .logs/connectivity-tests
@@ -303,58 +206,30 @@ tasks:
           
           echo "🎨 Image generation service tests completed"
           
-    validation:
-      criteria:
-        - "画像生成MCPが利用可能"
-        - "必要なサービスの接続状況を確認済み"
-        - "テスト結果がJSON形式で保存されている"
-      validation_script: |
-        if [ ! -f ".logs/connectivity-tests/test-results.json" ]; then
-          echo "❌ VALIDATION FAILED: Test results missing"
-          exit 1
-        fi
-        
-        WORKFLOW_CAN_PROCEED=$(jq -r '.workflow_can_proceed' .logs/connectivity-tests/test-results.json)
-        if [ "$WORKFLOW_CAN_PROCEED" = "true" ]; then
-          echo "✅ Validation passed: Image generation services ready"
-        else
-          echo "❌ VALIDATION FAILED: Image generation services unavailable"
-          exit 1
-        fi
-        
-    error_handling:
-      retry_count: 2
-      retry_delay_seconds: 15
-      fallback_strategy: "abort_workflow"
-      fallback_script: |
-        echo "❌ CRITICAL: Image generation services unavailable - workflow cannot proceed"
-        exit 1
-        
-    progress_links:
-      log_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-      test_results: ".logs/connectivity-tests/test-results.json"
+          # 出力設定
+          echo "services_ready=true" >> $GITHUB_OUTPUT
+          echo "recommended_service=$RECOMMENDED_IMAGE_SERVICE" >> $GITHUB_OUTPUT
 
-  # === コンセプト開発段階 ===
-  - id: "input-prompt-analysis"
-    name: "入力プロンプトの分析・理解"
-    phase: "concept_development"
-    github_job: "prompt-analysis"
-    type: "analysis"
-    implementation: "ai"
-    duration_minutes: 2
-    dependencies: ["mcp-api-connectivity-test"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Analyze input prompt"
-        shell: "bash"
-        script: |
+  # Phase 2: コンセプト開発段階
+  prompt-analysis:
+    needs: connectivity-test
+    runs-on: ubuntu-latest
+    outputs:
+      prompt_analysis: ${{ steps.analyze.outputs.prompt_analysis }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Analyze input prompt
+        id: analyze
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🔍 Analyzing input prompt for image generation..."
           
           mkdir -p .logs/concept-development
           
           # 入力プロンプトを取得
-          INPUT_PROMPT="${{ github.event.inputs.image_prompt || github.event.issue.body }}"
+          INPUT_PROMPT="${{ github.event.inputs.main_prompt }}"
           echo "Input prompt: $INPUT_PROMPT"
           
           # Claude Code でプロンプト分析
@@ -380,43 +255,27 @@ tasks:
           }" > .logs/concept-development/prompt-analysis.json
           
           PROMPT_ANALYSIS=$(cat .logs/concept-development/prompt-analysis.json)
-          echo "PROMPT_ANALYSIS=$PROMPT_ANALYSIS" >> $GITHUB_ENV
+          echo "prompt_analysis<<EOF" >> $GITHUB_OUTPUT
+          echo "$PROMPT_ANALYSIS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "✅ Prompt analysis completed"
-          
-    validation:
-      criteria:
-        - "プロンプト分析結果がJSON形式で存在する"
-        - "必須フィールドが全て含まれている"
-        - "実行可能な技術要件が特定されている"
-      validation_script: |
-        if [ ! -f ".logs/concept-development/prompt-analysis.json" ]; then
-          echo "❌ VALIDATION FAILED: Prompt analysis missing"
-          exit 1
-        fi
-        if ! jq -e '.image_type' .logs/concept-development/prompt-analysis.json > /dev/null; then
-          echo "❌ VALIDATION FAILED: Invalid analysis structure"
-          exit 1
-        fi
-        echo "✅ Validation passed: Prompt analysis complete"
 
-  - id: "visual-concept-planning"
-    name: "ビジュアルコンセプトの計画"
-    phase: "concept_development"
-    github_job: "concept-planning"
-    type: "planning"
-    implementation: "ai"
-    duration_minutes: 3
-    dependencies: ["input-prompt-analysis"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Plan visual concept"
-        shell: "bash"
-        script: |
+  concept-planning:
+    needs: prompt-analysis
+    runs-on: ubuntu-latest
+    outputs:
+      visual_concept: ${{ steps.plan.outputs.visual_concept }}
+    steps:
+      - name: Plan visual concept
+        id: plan
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🎯 Planning visual concept..."
           
           # ビジュアルコンセプトの詳細計画
+          PROMPT_ANALYSIS='${{ needs.prompt-analysis.outputs.prompt_analysis }}'
           claude-code --prompt "以下の分析結果を基に、具体的なビジュアルコンセプトを計画してください：
           
           プロンプト分析: $PROMPT_ANALYSIS
@@ -454,30 +313,31 @@ tasks:
           }" > .logs/concept-development/visual-concept.json
           
           VISUAL_CONCEPT=$(cat .logs/concept-development/visual-concept.json)
-          echo "VISUAL_CONCEPT=$VISUAL_CONCEPT" >> $GITHUB_ENV
+          echo "visual_concept<<EOF" >> $GITHUB_OUTPUT
+          echo "$VISUAL_CONCEPT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "✅ Visual concept planning completed"
 
-  # === プロンプト設計段階 ===
-  - id: "detailed-prompt-engineering"
-    name: "詳細プロンプトエンジニアリング"
-    phase: "prompt_engineering"
-    github_job: "prompt-engineering"
-    type: "generation"
-    implementation: "ai"
-    duration_minutes: 4
-    dependencies: ["visual-concept-planning"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Engineer detailed prompts"
-        shell: "bash"
-        script: |
+  # Phase 3: プロンプト設計段階
+  prompt-engineering:
+    needs: concept-planning
+    runs-on: ubuntu-latest
+    outputs:
+      engineered_prompts: ${{ steps.engineer.outputs.engineered_prompts }}
+    steps:
+      - name: Engineer detailed prompts
+        id: engineer
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "⚙️ Engineering detailed generation prompts..."
           
           mkdir -p .logs/prompt-engineering
           
           # 詳細なプロンプト設計
+          PROMPT_ANALYSIS='${{ needs.prompt-analysis.outputs.prompt_analysis }}'
+          VISUAL_CONCEPT='${{ needs.concept-planning.outputs.visual_concept }}'
           claude-code --prompt "以下の情報を基に、AI画像生成用の最適化されたプロンプトを作成してください：
           
           元のプロンプト分析: $PROMPT_ANALYSIS
@@ -504,27 +364,27 @@ tasks:
           }" > .logs/prompt-engineering/engineered-prompts.json
           
           ENGINEERED_PROMPTS=$(cat .logs/prompt-engineering/engineered-prompts.json)
-          echo "ENGINEERED_PROMPTS=$ENGINEERED_PROMPTS" >> $GITHUB_ENV
+          echo "engineered_prompts<<EOF" >> $GITHUB_OUTPUT
+          echo "$ENGINEERED_PROMPTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "✅ Prompt engineering completed"
 
-  - id: "prompt-optimization"
-    name: "プロンプト最適化・検証"
-    phase: "prompt_engineering"
-    github_job: "prompt-optimization"
-    type: "optimization"
-    implementation: "ai"
-    duration_minutes: 2
-    dependencies: ["detailed-prompt-engineering"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Optimize and validate prompts"
-        shell: "bash"
-        script: |
+  prompt-optimization:
+    needs: prompt-engineering
+    runs-on: ubuntu-latest
+    outputs:
+      optimized_prompts: ${{ steps.optimize.outputs.optimized_prompts }}
+    steps:
+      - name: Optimize and validate prompts
+        id: optimize
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🔧 Optimizing and validating prompts..."
           
           # プロンプトの最適化と検証
+          ENGINEERED_PROMPTS='${{ needs.prompt-engineering.outputs.engineered_prompts }}'
           claude-code --prompt "以下のエンジニアリングされたプロンプトを最適化し、検証してください：
           
           エンジニアリングプロンプト: $ENGINEERED_PROMPTS
@@ -554,31 +414,30 @@ tasks:
           }" > .logs/prompt-engineering/optimized-prompts.json
           
           OPTIMIZED_PROMPTS=$(cat .logs/prompt-engineering/optimized-prompts.json)
-          echo "OPTIMIZED_PROMPTS=$OPTIMIZED_PROMPTS" >> $GITHUB_ENV
+          echo "optimized_prompts<<EOF" >> $GITHUB_OUTPUT
+          echo "$OPTIMIZED_PROMPTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "✅ Prompt optimization completed"
 
-  # === 生成実行段階 ===
-  - id: "initial-image-generation"
-    name: "初回画像生成"
-    phase: "generation_execution"
-    github_job: "initial-generation"
-    type: "generation"
-    implementation: "mcp"
-    tool: "image-generation"
-    duration_minutes: 5
-    dependencies: ["prompt-optimization"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Generate initial images"
-        shell: "bash"
-        script: |
+  # Phase 4: 生成実行段階
+  initial-generation:
+    needs: [connectivity-test, prompt-optimization]
+    runs-on: ubuntu-latest
+    outputs:
+      generation_results: ${{ steps.generate.outputs.generation_results }}
+    steps:
+      - name: Generate initial images
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🎨 Generating initial images..."
           
           mkdir -p .logs/generation .outputs/images
           
           # 最適化されたプロンプトを取得
+          OPTIMIZED_PROMPTS='${{ needs.prompt-optimization.outputs.optimized_prompts }}'
           FINAL_PROMPT=$(echo "$OPTIMIZED_PROMPTS" | jq -r '.final_generation_config.prompt')
           NEGATIVE_PROMPT=$(echo "$OPTIMIZED_PROMPTS" | jq -r '.final_generation_config.negative_prompt')
           
@@ -586,7 +445,7 @@ tasks:
           echo "Negative prompt: $NEGATIVE_PROMPT"
           
           # 推奨サービスを使用した画像生成
-          RECOMMENDED_SERVICE="$RECOMMENDED_IMAGE_SERVICE"
+          RECOMMENDED_SERVICE="${{ needs.connectivity-test.outputs.recommended_service }}"
           echo "Using recommended service: $RECOMMENDED_SERVICE"
           
           # メイン画像生成
@@ -677,72 +536,30 @@ tasks:
           }
           EOF
           
-          echo "GENERATION_RESULTS=$(cat .logs/generation/generation-results.json)" >> $GITHUB_ENV
+          echo "generation_results<<EOF" >> $GITHUB_OUTPUT
+          cat .logs/generation/generation-results.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "🎨 Initial image generation completed"
-          
-    validation:
-      criteria:
-        - "少なくとも1つの画像が正常に生成されている"
-        - "生成された画像ファイルが存在する"
-        - "生成結果がログに記録されている"
-      validation_script: |
-        if [ ! -f ".logs/generation/generation-results.json" ]; then
-          echo "❌ VALIDATION FAILED: Generation results missing"
-          exit 1
-        fi
-        
-        OVERALL_SUCCESS=$(jq -r '.overall_success' .logs/generation/generation-results.json)
-        if [ "$OVERALL_SUCCESS" = "true" ]; then
-          echo "✅ Validation passed: At least one image generated successfully"
-        else
-          echo "❌ VALIDATION FAILED: No images generated successfully"
-          exit 1
-        fi
-        
-    error_handling:
-      retry_count: 3
-      retry_delay_seconds: 30
-      fallback_strategy: "simplified_generation"
-      fallback_script: |
-        echo "⚠️ Using fallback: Trying alternative image generation services"
-        SIMPLE_PROMPT=$(echo "$PROMPT_ANALYSIS" | jq -r '.subject_matter')
-        
-        # Google Imagen3 フォールバック
-        if [ "$GOOGLE_IMAGEN3_STATUS" = "success" ]; then
-          claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-google-imagen3 \
-            --prompt "$SIMPLE_PROMPT, high quality" \
-            --output ".outputs/images/fallback_image.png" \
-            > .logs/generation/fallback-generation.log 2>&1 || echo "Google Imagen3 fallback failed"
-        # Imagen4 Fast フォールバック  
-        elif [ "$IMAGEN4_FAST_STATUS" = "success" ]; then
-          claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast \
-            --prompt "$SIMPLE_PROMPT, high quality" \
-            --output ".outputs/images/fallback_image.png" \
-            > .logs/generation/fallback-generation.log 2>&1 || echo "Imagen4 Fast fallback failed"
-        else
-          echo "No fallback services available"
-        fi
 
-  - id: "image-quality-analysis"
-    name: "画像品質分析"
-    phase: "generation_execution"
-    github_job: "quality-analysis"
-    type: "analysis"
-    implementation: "ai"
-    duration_minutes: 3
-    dependencies: ["initial-image-generation"]
-    parallel_group: "quality_parallel"
-    
-    github_steps:
-      - name: "Analyze image quality"
-        shell: "bash"
-        script: |
+  quality-analysis:
+    needs: [initial-generation, prompt-analysis]
+    runs-on: ubuntu-latest
+    outputs:
+      quality_analysis: ${{ steps.analyze.outputs.quality_analysis }}
+    steps:
+      - name: Analyze image quality
+        id: analyze
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🔍 Analyzing generated image quality..."
           
           mkdir -p .logs/quality-analysis
           
           # 生成された画像の品質分析
+          GENERATION_RESULTS='${{ needs.initial-generation.outputs.generation_results }}'
+          PROMPT_ANALYSIS='${{ needs.prompt-analysis.outputs.prompt_analysis }}'
           claude-code --prompt "生成された画像を分析して品質評価を行ってください：
           
           生成結果: $GENERATION_RESULTS
@@ -771,24 +588,21 @@ tasks:
           }" > .logs/quality-analysis/quality-assessment.json
           
           QUALITY_ANALYSIS=$(cat .logs/quality-analysis/quality-assessment.json)
-          echo "QUALITY_ANALYSIS=$QUALITY_ANALYSIS" >> $GITHUB_ENV
+          echo "quality_analysis<<EOF" >> $GITHUB_OUTPUT
+          echo "$QUALITY_ANALYSIS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "✅ Image quality analysis completed"
 
-  - id: "metadata-extraction"
-    name: "画像メタデータ抽出"
-    phase: "generation_execution"
-    github_job: "metadata-extraction"
-    type: "processing"
-    implementation: "script"
-    duration_minutes: 1
-    dependencies: ["initial-image-generation"]
-    parallel_group: "quality_parallel"
-    
-    github_steps:
-      - name: "Extract image metadata"
-        shell: "bash"
-        script: |
+  metadata-extraction:
+    needs: [initial-generation, prompt-optimization]
+    runs-on: ubuntu-latest
+    outputs:
+      image_metadata: ${{ steps.extract.outputs.image_metadata }}
+    steps:
+      - name: Extract image metadata
+        id: extract
+        run: |
           echo "📊 Extracting image metadata..."
           
           mkdir -p .logs/metadata
@@ -806,6 +620,7 @@ tasks:
             fi
             
             # メタデータJSON作成
+            OPTIMIZED_PROMPTS='${{ needs.prompt-optimization.outputs.optimized_prompts }}'
             cat > .logs/metadata/image-metadata.json << EOF
           {
             "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
@@ -829,29 +644,29 @@ tasks:
           fi
           
           IMAGE_METADATA=$(cat .logs/metadata/image-metadata.json)
-          echo "IMAGE_METADATA=$IMAGE_METADATA" >> $GITHUB_ENV
+          echo "image_metadata<<EOF" >> $GITHUB_OUTPUT
+          echo "$IMAGE_METADATA" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-  # === 品質改善段階 ===
-  - id: "image-refinement"
-    name: "画像の精細化・改善"
-    phase: "quality_refinement"
-    github_job: "image-refinement"
-    type: "optimization"
-    implementation: "mcp"
-    tool: "image-processing"
-    duration_minutes: 4
-    dependencies: ["image-quality-analysis", "metadata-extraction"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Refine and improve images"
-        shell: "bash"
-        script: |
+  # Phase 5: 品質改善段階
+  image-refinement:
+    needs: [quality-analysis, metadata-extraction, prompt-optimization]
+    runs-on: ubuntu-latest
+    outputs:
+      refinement_status: ${{ steps.refine.outputs.refinement_status }}
+    steps:
+      - name: Refine and improve images
+        id: refine
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "✨ Refining and improving images..."
           
           mkdir -p .outputs/refined
           
           # 品質分析結果を確認
+          QUALITY_ANALYSIS='${{ needs.quality-analysis.outputs.quality_analysis }}'
+          OPTIMIZED_PROMPTS='${{ needs.prompt-optimization.outputs.optimized_prompts }}'
           REGENERATION_NEEDED=$(echo "$QUALITY_ANALYSIS" | jq -r '.regeneration_needed')
           OVERALL_RATING=$(echo "$QUALITY_ANALYSIS" | jq -r '.primary_image_analysis.overall_rating // 0')
           
@@ -907,27 +722,28 @@ tasks:
           }
           EOF
           
+          echo "refinement_status=$REFINEMENT_STATUS" >> $GITHUB_OUTPUT
           echo "✨ Image refinement completed"
 
-  - id: "final-quality-validation"
-    name: "最終品質検証"
-    phase: "quality_refinement"
-    github_job: "final-validation"
-    type: "validation"
-    implementation: "ai"
-    duration_minutes: 2
-    dependencies: ["image-refinement"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Validate final image quality"
-        shell: "bash"
-        script: |
+  final-validation:
+    needs: [image-refinement, prompt-analysis, initial-generation]
+    runs-on: ubuntu-latest
+    outputs:
+      final_assessment: ${{ steps.validate.outputs.final_assessment }}
+      ready_for_delivery: ${{ steps.validate.outputs.ready_for_delivery }}
+    steps:
+      - name: Validate final image quality
+        id: validate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
           echo "🏁 Performing final quality validation..."
           
           mkdir -p .logs/final-validation
           
           # 最終画像の品質検証
+          PROMPT_ANALYSIS='${{ needs.prompt-analysis.outputs.prompt_analysis }}'
+          GENERATION_RESULTS='${{ needs.initial-generation.outputs.generation_results }}'
           claude-code --prompt "最終的に生成された画像の品質を検証してください：
           
           元の要求: $PROMPT_ANALYSIS
@@ -952,47 +768,23 @@ tasks:
           }" > .logs/final-validation/final-assessment.json
           
           FINAL_ASSESSMENT=$(cat .logs/final-validation/final-assessment.json)
-          echo "FINAL_ASSESSMENT=$FINAL_ASSESSMENT" >> $GITHUB_ENV
+          echo "final_assessment<<EOF" >> $GITHUB_OUTPUT
+          echo "$FINAL_ASSESSMENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           # 配信可否判定
           READY_FOR_DELIVERY=$(echo "$FINAL_ASSESSMENT" | jq -r '.final_quality_assessment.ready_for_delivery')
-          echo "READY_FOR_DELIVERY=$READY_FOR_DELIVERY" >> $GITHUB_ENV
+          echo "ready_for_delivery=$READY_FOR_DELIVERY" >> $GITHUB_OUTPUT
           
           echo "🏁 Final quality validation completed"
-          
-    validation:
-      criteria:
-        - "最終品質評価が完了している"
-        - "配信可否が判定されている"
-        - "品質スコアが6点以上"
-      validation_script: |
-        if [ ! -f ".logs/final-validation/final-assessment.json" ]; then
-          echo "❌ VALIDATION FAILED: Final assessment missing"
-          exit 1
-        fi
-        
-        QUALITY_SCORE=$(jq -r '.final_quality_assessment.quality_score // 0' .logs/final-validation/final-assessment.json)
-        if [ "$QUALITY_SCORE" -ge 6 ]; then
-          echo "✅ Validation passed: Quality meets minimum standards ($QUALITY_SCORE/10)"
-        else
-          echo "⚠️ WARNING: Quality below recommended threshold ($QUALITY_SCORE/10)"
-        fi
 
-  # === 出力準備段階 ===
-  - id: "format-optimization"
-    name: "形式最適化・変換"
-    phase: "output_preparation"
-    github_job: "format-optimization"
-    type: "processing"
-    implementation: "script"
-    duration_minutes: 2
-    dependencies: ["final-quality-validation"]
-    parallel_group: "output_parallel"
-    
-    github_steps:
-      - name: "Optimize image formats"
-        shell: "bash"
-        script: |
+  # Phase 6: 出力準備段階
+  format-optimization:
+    needs: final-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Optimize image formats
+        run: |
           echo "🔧 Optimizing image formats..."
           
           mkdir -p .final-output/{web,print,social}
@@ -1031,25 +823,23 @@ tasks:
             echo "❌ No refined image found for optimization"
           fi
 
-  - id: "metadata-compilation"
-    name: "メタデータ・情報コンパイル"
-    phase: "output_preparation"
-    github_job: "metadata-compilation"
-    type: "integration"
-    implementation: "script"
-    duration_minutes: 2
-    dependencies: ["final-quality-validation"]
-    parallel_group: "output_parallel"
-    
-    github_steps:
-      - name: "Compile comprehensive metadata"
-        shell: "bash"
-        script: |
+  metadata-compilation:
+    needs: [final-validation, prompt-analysis, initial-generation, quality-analysis, metadata-extraction]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compile comprehensive metadata
+        run: |
           echo "📋 Compiling comprehensive metadata..."
           
           mkdir -p .final-output
           
           # 包括的なメタデータファイル作成
+          PROMPT_ANALYSIS='${{ needs.prompt-analysis.outputs.prompt_analysis }}'
+          GENERATION_RESULTS='${{ needs.initial-generation.outputs.generation_results }}'
+          QUALITY_ANALYSIS='${{ needs.quality-analysis.outputs.quality_analysis }}'
+          FINAL_ASSESSMENT='${{ needs.final-validation.outputs.final_assessment }}'
+          IMAGE_METADATA='${{ needs.metadata-extraction.outputs.image_metadata }}'
+          
           cat > .final-output/image-info.json << EOF
           {
             "project_info": {
@@ -1059,8 +849,6 @@ tasks:
             },
             "original_request": $PROMPT_ANALYSIS,
             "generation_process": {
-              "visual_concept": $VISUAL_CONCEPT,
-              "engineered_prompts": $OPTIMIZED_PROMPTS,
               "generation_results": $GENERATION_RESULTS,
               "quality_analysis": $QUALITY_ANALYSIS,
               "final_assessment": $FINAL_ASSESSMENT
@@ -1089,20 +877,12 @@ tasks:
           
           echo "✅ Metadata compilation completed"
 
-  - id: "final-package-creation"
-    name: "最終パッケージ作成"
-    phase: "output_preparation"
-    github_job: "package-creation"
-    type: "integration"
-    implementation: "script"
-    duration_minutes: 1
-    dependencies: ["format-optimization", "metadata-compilation"]
-    parallel_group: null
-    
-    github_steps:
-      - name: "Create final delivery package"
-        shell: "bash"
-        script: |
+  package-creation:
+    needs: [format-optimization, metadata-compilation, final-validation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create final delivery package
+        run: |
           echo "📦 Creating final delivery package..."
           
           # ZIPパッケージ作成
@@ -1112,6 +892,7 @@ tasks:
           PACKAGE_SIZE=$(stat -f%z "ai-generated-images.zip" 2>/dev/null || stat -c%s "ai-generated-images.zip" 2>/dev/null || echo "unknown")
           
           # 配信パッケージ情報
+          READY_FOR_DELIVERY='${{ needs.final-validation.outputs.ready_for_delivery }}'
           cat > .final-output/package-info.json << EOF
           {
             "package_created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
@@ -1130,77 +911,11 @@ tasks:
           EOF
           
           echo "📦 Final package created successfully"
-          
-    success_links:
-      package_download: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts"
-      primary_image: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/print/high_quality.png"
-      web_version: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/web/image.jpg"
-      metadata: "${{ github.server_url }}/${{ github.repository }}/blob/main/.final-output/image-info.json"
-
-# 実行フロー設計
-execution_flow:
-  - stage: 0
-    name: "事前テスト"
-    parallel: false
-    jobs: ["connectivity-test"]
-    
-  - stage: 1
-    name: "コンセプト開発"
-    parallel: false
-    jobs: ["prompt-analysis", "concept-planning"]
-    
-  - stage: 2
-    name: "プロンプト設計"
-    parallel: false
-    jobs: ["prompt-engineering", "prompt-optimization"]
-    
-  - stage: 3
-    name: "画像生成"
-    parallel: false
-    jobs: ["initial-generation"]
-    then:
-      parallel: true
-      jobs: ["quality-analysis", "metadata-extraction"]
       
-  - stage: 4
-    name: "品質改善"
-    parallel: false
-    jobs: ["image-refinement", "final-validation"]
-    
-  - stage: 5
-    name: "出力準備"
-    parallel: true
-    jobs: ["format-optimization", "metadata-compilation"]
-    then:
-      parallel: false
-      jobs: ["package-creation"]
+      - name: Upload Image Generation Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-image-generation-package-${{ github.run_number }}
+          path: .final-output/
+          retention-days: 30
 
-# 全体的なエラーハンドリング
-global_error_handling:
-  max_retries: 2
-  retry_delay_seconds: 20
-  critical_failure_notification: true
-  fallback_mode: "basic_generation"
-  
-# 成功基準
-success_criteria:
-  - "少なくとも1つの画像が正常に生成されている"
-  - "最終品質スコアが6点以上"
-  - "複数の形式で出力ファイルが作成されている"
-  - "包括的なメタデータが生成されている"
-  - "配信用パッケージが作成されている"
-
-# アーティファクト保持
-artifacts:
-  - name: "image-generation-logs"
-    path: ".logs/"
-    retention_days: 7
-  - name: "generated-images"  
-    path: ".outputs/"
-    retention_days: 30
-  - name: "final-delivery-package"
-    path: ".final-output/"
-    retention_days: 90
-  - name: "image-package-zip"
-    path: "ai-generated-images.zip"
-    retention_days: 90
