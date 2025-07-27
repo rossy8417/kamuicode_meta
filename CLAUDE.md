@@ -6,14 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Code GitHub Actions integration. The system uses **template-based generation** with **staged deployment system** to generate high-quality, executable GitHub Actions workflows efficiently.
 
-## Current Architecture (v3)
+## Current Architecture (v8.1)
 
-### Template-Based Meta Workflow System
-- **Template Selection**: Uses 9 reference workflows in `meta/examples/` instead of complex task decomposition
-- **Staged Deployment**: 3-stage quality assurance (staging → validation → production)
+### 3-Approach Meta Workflow System with Persistent Storage
+- **3-Approach Generation**: Template selection, dynamic assembly, hybrid optimization in parallel
+- **4-Stage Deployment**: staging → selection → validation → production with persistent storage
 - **Prompt Separation**: All prompts managed as external files in `meta/prompts/`
 - **Small Nodes**: Each job has single responsibility with independent re-execution capability
 - **Quality Validation**: YAML syntax, GitHub Actions structure, MCP references, dependencies check
+- **Persistent Data**: All intermediate and final results stored permanently in `generated/`
 
 ### Core Components
 - **`meta/examples/`**: 9 GitHub Actions workflow templates (video, 3D, audio, image, blog, data analysis, multimedia, news, presentation)
@@ -22,7 +23,7 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 - **`.github/workflows/continuous-system-monitor.yml`**: System health monitoring
 - **`.github/ISSUE_TEMPLATE/`**: Issue templates for workflow requests
 - **`meta/prompts/`**: Prompt files for task decomposition, workflow generation, script generation, documentation
-- **`generated/`**: Organized outputs with staging → validation → production pipeline
+- **`generated/`**: Organized outputs with 4-stage pipeline + persistent metadata and logs
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 
@@ -190,7 +191,21 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 └── blog-article-creation.yml (9 tasks, 35min)
 
 .github/workflows/
-└── kamuicode-meta-generator.yml  # Main workflow with staged deployment
+└── meta-workflow-executor-v8.yml  # Main workflow with 4-stage deployment
+
+generated/               # CRITICAL: All outputs must go here for persistence
+├── workflows/           # Workflow generation results
+│   ├── staging/         # 3-approach parallel generation
+│   ├── selected/        # Best workflow selection
+│   ├── production/      # Final workflows (persistent)
+│   └── validated/       # Validation logs
+├── metadata/            # Analysis data (persistent) - replaces .meta/
+│   ├── stepback-analysis/
+│   ├── requirement-analysis/
+│   ├── task-decomposition/
+│   └── evaluation/
+└── logs/               # Execution logs (persistent)
+    └── run-{number}-{timestamp}/
 ```
 
 ### MCP Integration Rules
@@ -213,6 +228,16 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$ref_file" 2>/dev/null)
 VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$video_file")
 AUDIO_PATH=$(jq -r '.audio_url // .file_path // "none"' "$audio_file")
+
+# IMPORTANT: Use generated/ paths for all persistent storage
+mkdir -p generated/metadata/requirement-analysis  # NOT .meta/
+mkdir -p generated/workflows/production          # For final outputs
+mkdir -p generated/logs                          # For execution logs
+
+# Directory existence checks before file operations
+if [ ! -d "$(dirname "$TARGET_FILE")" ]; then
+  mkdir -p "$(dirname "$TARGET_FILE")"
+fi
 ```
 
 #### Ultra-Detailed Task Breakdown
@@ -224,11 +249,13 @@ Each workflow must include:
 - **Validation criteria and error handling**
 - **Duration estimates (5-60 minutes total)**
 
-#### Staged Deployment Implementation
+#### 4-Stage Deployment Implementation with Persistent Storage
 The main workflow now uses:
-1. **Template Selection** → `generated/workflows/staging/`
-2. **Validation** → YAML syntax, GitHub Actions structure, MCP references, dependencies
-3. **Production Deployment** → `.github/workflows/` (only if validation passes)
+1. **3-Approach Generation** → `generated/workflows/staging/approach-{1,2,3}-result-{run_number}/`
+2. **Evaluation & Selection** → `generated/workflows/selected/best-workflow.yml`
+3. **Validation** → YAML syntax, GitHub Actions structure, MCP references, dependencies
+4. **Production Deployment** → `generated/workflows/production/` + `.github/workflows/` (if validation passes)
+5. **Metadata & Logs Storage** → `generated/metadata/` + `generated/logs/` (permanently stored)
 
 ### Development Best Practices
 
