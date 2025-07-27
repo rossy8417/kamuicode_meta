@@ -1,0 +1,294 @@
+name: "Video Content Creation Production"
+run-name: "🎥 Production: ${{ github.event.inputs.video_concept }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_concept:
+        description: '動画コンセプト・テーマ'
+        required: true
+        default: 'AIとロボットが協力する未来の製品紹介動画'
+        type: string
+      target_audience:
+        description: 'ターゲット視聴者'
+        required: true
+        default: 'professional'
+        type: choice
+        options:
+        - general
+        - business
+        - young_adult
+        - professional
+        - creative
+      video_length:
+        description: '動画尺 (秒)'
+        required: true
+        default: '30'
+        type: choice
+        options:
+        - '15'
+        - '30'
+        - '60'
+      video_style:
+        description: '動画スタイル'
+        required: true
+        default: 'cinematic'
+        type: choice
+        options:
+        - cinematic
+        - commercial
+        - documentary
+        - educational
+        - artistic
+      quality_setting:
+        description: '画質設定'
+        required: true
+        default: 'high'
+        type: choice
+        options:
+        - ultra
+        - high
+        - standard
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  # Phase 1: 初期設定
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Verify MCP config exists
+        id: check
+        run: |
+          echo "🔍 Checking MCP configuration..."
+          if [ -f ".claude/mcp-kamuicode.json" ]; then
+            echo "✅ MCP config found"
+            echo "ready=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ MCP config not found"
+            exit 1
+          fi
+          
+      - name: Setup directories
+        run: |
+          mkdir -p generated/{concept,images,audio,video,final}
+          
+  # Phase 2: コンセプト作成
+  concept-planning:
+    needs: setup
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.ready == 'true'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Create concept with Claude Code
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Create a detailed video concept plan for: "${{ github.event.inputs.video_concept }}"
+            Target audience: ${{ github.event.inputs.target_audience }}
+            Duration: ${{ github.event.inputs.video_length }} seconds
+            Style: ${{ github.event.inputs.video_style }}
+            
+            Save the plan to generated/concept/plan.json with:
+            - scenes: array of scene descriptions
+            - prompts: specific prompts for each scene
+            - timing: scene durations
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Upload concept
+        uses: actions/upload-artifact@v4
+        with:
+          name: concept-${{ github.run_number }}
+          path: generated/concept/
+          
+  # Phase 3: 画像生成
+  image-generation:
+    needs: concept-planning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download concept
+        uses: actions/download-artifact@v4
+        with:
+          name: concept-${{ github.run_number }}
+          path: generated/concept/
+          
+      - name: Generate images with MCP
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            1. Read the concept from generated/concept/plan.json
+            2. For each scene, generate an image using t2i-google-imagen3
+            3. Use aspect ratio 1:1 (default) and quality: ${{ github.event.inputs.quality_setting }}
+            4. Download each image to current directory with wget using FULL authenticated URLs
+            5. Save all results to generated/images/results.json with:
+               - scene_name
+               - prompt_used
+               - image_url (full URL)
+               - local_file (downloaded file name)
+            6. Display full paths of downloaded files
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+            IMPORTANT: Always use FULL authenticated URLs for downloads.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "View,mcp__t2i-google-imagen3__*,Bash,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          max_turns: "20"
+          
+      - name: Upload images
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ github.run_number }}
+          path: |
+            generated/images/
+            *.png
+            *.jpg
+            
+  # Phase 4: 音楽生成
+  audio-generation:
+    needs: concept-planning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download concept
+        uses: actions/download-artifact@v4
+        with:
+          name: concept-${{ github.run_number }}
+          path: generated/concept/
+          
+      - name: Generate background music
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            1. Read concept from generated/concept/plan.json
+            2. Generate background music using t2m-google-lyria
+            3. Style: ${{ github.event.inputs.video_style }}
+            4. Duration: ${{ github.event.inputs.video_length }} seconds
+            5. Download audio file using FULL URL
+            6. Save to generated/audio/music.json
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "View,mcp__t2m-google-lyria__*,Bash,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Upload audio
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-${{ github.run_number }}
+          path: |
+            generated/audio/
+            *.mp3
+            *.wav
+            
+  # Phase 5: 動画生成
+  video-generation:
+    needs: [image-generation, audio-generation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download all assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ github.run_number }}"
+          merge-multiple: true
+          
+      - name: Generate video with MCP
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            1. Read image results from generated/images/results.json
+            2. Use the first image's FULL URL as input for i2v-fal-hailuo-02-pro
+            3. Generate video with duration: ${{ github.event.inputs.video_length }} seconds
+            4. Download video using FULL URL
+            5. Save to generated/video/result.json
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+            Use FULL Google URLs as input, not file paths!
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "View,mcp__i2v-fal-hailuo-02-pro__*,Bash,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ github.run_number }}
+          path: |
+            generated/video/
+            *.mp4
+            
+  # Phase 6: 最終パッケージ
+  final-package:
+    needs: video-generation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ github.run_number }}"
+          merge-multiple: true
+          
+      - name: Create final package
+        run: |
+          echo "📦 Creating final package..."
+          
+          # パッケージ情報
+          cat > generated/final/package.json << EOF
+          {
+            "project": "Video Content Creation",
+            "concept": "${{ github.event.inputs.video_concept }}",
+            "duration": ${{ github.event.inputs.video_length }},
+            "style": "${{ github.event.inputs.video_style }}",
+            "audience": "${{ github.event.inputs.target_audience }}",
+            "quality": "${{ github.event.inputs.quality_setting }}",
+            "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run": ${{ github.run_number }}
+          }
+          EOF
+          
+          # ファイル一覧
+          echo "📁 Generated files:"
+          find . -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.mp4" -o -name "*.mp3" \) | while read file; do
+            echo "  - $(basename $file)"
+          done
+          
+      - name: Upload final package
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-package-${{ github.run_number }}
+          path: |
+            generated/
+            *.png
+            *.jpg
+            *.mp4
+            *.mp3
+          retention-days: 90
+          
+      - name: Summary
+        run: |
+          echo "## 🎉 Video Content Creation Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Concept**: ${{ github.event.inputs.video_concept }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duration**: ${{ github.event.inputs.video_length }} seconds" >> $GITHUB_STEP_SUMMARY
+          echo "- **Style**: ${{ github.event.inputs.video_style }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Quality**: ${{ github.event.inputs.quality_setting }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package**: final-package-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
