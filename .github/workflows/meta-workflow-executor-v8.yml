@@ -84,12 +84,19 @@ jobs:
       - name: Extract Stepback Answers
         id: extract
         run: |
-          echo "📝 Extracting stepback answers from Issue #${{ github.event.issue.number }}..."
+          # Issue番号の動的解決（workflow_dispatch対応）
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ISSUE_NUMBER="${{ inputs.issue_number }}"
+          else
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
+          fi
+          
+          echo "📝 Extracting stepback answers from Issue #$ISSUE_NUMBER..."
           
           mkdir -p generated/metadata/stepback-analysis
           
-          # Issue本文を安全にファイルに保存（今回の学び：HEREDOCは避ける）
-          echo "${{ github.event.issue.body }}" > generated/metadata/stepback-analysis/issue-body.txt
+          # Issue本文をAPIから取得（安全な方法）
+          gh issue view $ISSUE_NUMBER --json body --jq '.body' > generated/metadata/stepback-analysis/issue-body.txt
           
           # ファイルから読み込み
           ISSUE_BODY=$(cat generated/metadata/stepback-analysis/issue-body.txt)
@@ -104,9 +111,12 @@ jobs:
             WORKFLOW_TYPE="video-generation"
           fi
           
-          # 簡潔な回答抽出
-          STEPBACK_ANSWERS=$(echo "$ISSUE_BODY" | grep -A 1 "Q[1-5]回答:" | head -10)
-          ANSWER_COUNT=$(echo "$STEPBACK_ANSWERS" | grep -c "Q[1-5]回答:" || echo "0")
+          # 簡潔な回答抽出（改善されたパターンマッチング）
+          STEPBACK_ANSWERS=$(echo "$ISSUE_BODY" | grep -E "Q[1-5]回答:|**回答：**" -A 2 | head -20)
+          ANSWER_COUNT=$(echo "$STEPBACK_ANSWERS" | grep -cE "Q[1-5]回答:|**回答：**" || echo "0")
+          
+          echo "🔍 Extracted stepback answers preview:"
+          echo "$STEPBACK_ANSWERS" | head -10
           
           echo "🔍 Found workflow type: $WORKFLOW_TYPE"
           echo "📊 Answer count: $ANSWER_COUNT"
