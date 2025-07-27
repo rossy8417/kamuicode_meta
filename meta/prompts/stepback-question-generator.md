@@ -42,8 +42,8 @@
 以下の形式で質問を生成し、**必ずファイルに保存**してください：
 
 ```bash
-mkdir -p .meta/dynamic-questions
-cat > .meta/dynamic-questions/generated-questions.md << 'EOF'
+mkdir -p generated/metadata/stepback-analysis
+cat > generated/metadata/stepback-analysis/generated-questions.md << 'EOF'
 ## 📋 ワークフロー詳細化のための質問
 
 より正確で最適化されたワークフローを生成するために、以下の質問にお答えください：
@@ -98,4 +98,4 @@ EOF
 **回答：**（ここに詳細をお書きください）
 ```
 
-重要：生成した質問は必ず `.meta/dynamic-questions/generated-questions.md` に保存してください。
+重要：生成した質問は必ず `generated/metadata/stepback-analysis/generated-questions.md` に保存してください。

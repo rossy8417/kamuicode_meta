@@ -13,7 +13,7 @@
 5. 並列実行可能なタスクを識別する
 
 ## 出力形式
-以下のJSON形式で `.meta/tasks/task-plan.json` に保存してください：
+以下のJSON形式で `generated/metadata/task-decomposition/task-plan.json` に保存してください：
 
 ```json
 {
