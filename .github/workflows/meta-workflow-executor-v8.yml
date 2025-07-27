@@ -587,28 +587,15 @@ jobs:
           if [ -f "$WORKFLOW_FILE" ]; then
             echo "📄 Checking: $WORKFLOW_FILE"
             
-            # Python YAML validation
-            python3 -c "
-            import yaml
-            try:
-                with open('$WORKFLOW_FILE', 'r') as f:
-                    yaml.safe_load(f)
-                print('✅ YAML syntax is valid')
-                exit(0)
-            except yaml.YAMLError as e:
-                print(f'❌ YAML syntax error: {e}')
-                exit(1)
-            except Exception as e:
-                print(f'❌ Error reading file: {e}')
-                exit(1)
-            "
-            
-            if [ $? -eq 0 ]; then
+            # Python YAML validation (今回の学び：シンプルなワンライナー形式）
+            if python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE', 'r'))" 2>/dev/null; then
               echo "yaml_valid=true" >> $GITHUB_OUTPUT
               echo "✅ YAML syntax validation passed"
             else
               echo "yaml_valid=false" >> $GITHUB_OUTPUT
               echo "❌ YAML syntax validation failed"
+              echo "🔍 File content preview:"
+              head -10 "$WORKFLOW_FILE" || echo "Could not read file"
             fi
           else
             echo "❌ Workflow file not found: $WORKFLOW_FILE"
