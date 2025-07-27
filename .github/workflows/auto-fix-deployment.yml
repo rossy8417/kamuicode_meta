@@ -3,7 +3,7 @@ run-name: 🧠 Analyzing and fixing workflow failure "${{ github.event.workflow_
 
 on:
   workflow_run:
-    workflows: ["Kamuicode Meta Generator (Self-Healing)", "Integrated Multimedia Pipeline"]
+    workflows: ["Meta Workflow Executor v8"]
     types:
       - completed
     branches:
@@ -351,21 +351,113 @@ jobs:
               ;;
               
             "fix_syntax")
-              echo "📝 Applying syntax fixes..."
+              echo "📝 Applying intelligent syntax fixes with success pattern guidance..."
               
-              # Basic YAML validation and fix suggestions
+              mkdir -p .meta/auto-fix/fixes/yaml-repairs
+              
+              # Basic YAML validation and intelligent fix with success patterns
               YAML_FILES=$(find .github/workflows -name "*.yml")
+              SYNTAX_ERRORS_FOUND=false
+              
               for file in $YAML_FILES; do
                 if command -v python3 &> /dev/null; then
                   if ! python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
-                    echo "❌ Syntax error in $file"
+                    echo "❌ Syntax error detected in $file"
                     echo "$file" >> .meta/auto-fix/fixes/syntax-errors.list
+                    SYNTAX_ERRORS_FOUND=true
+                    
+                    # 🔧 Claude Code + Success Pattern Integration
+                    if command -v claude-code &> /dev/null && [ -f "meta/successful-workflow-patterns.md" ]; then
+                      echo "🤖 Applying Claude Code intelligent YAML repair..."
+                      
+                      # Create repair prompt with success pattern reference
+                      cat > .meta/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md << EOF
+# YAML Syntax Repair with Success Pattern Guidance
+
+## Target File
+\`$file\`
+
+## Success Pattern Guidelines
+$(cat meta/successful-workflow-patterns.md)
+
+## Current File Content
+\`\`\`yaml
+$(cat "$file")
+\`\`\`
+
+## Repair Instructions
+以下の成功パターンに基づいて、上記YAMLファイルの構文エラーを修正してください：
+
+1. **echo方式のファイル生成**: HEREDOCを避ける（Line 59-64参照）
+2. **安全な変数処理**: GitHub Context変数の適切な処理（Line 65-72参照）
+3. **確実なジョブ構造**: 必須フィールドの確保（Line 311-330参照）
+4. **フォールバック戦略**: エラー時の代替処理（Line 180-188参照）
+
+修正されたYAMLファイル全体を出力してください。
+EOF
+
+                      # Execute Claude Code repair with timeout
+                      if timeout 90 claude-code --file ".meta/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md" --output ".meta/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" 2>&1; then
+                        
+                        # Validate repaired file
+                        if python3 -c "import yaml; yaml.safe_load(open('.meta/auto-fix/fixes/yaml-repairs/repaired-$(basename \"$file\")'))" 2>/dev/null; then
+                          echo "✅ Claude Code successfully repaired $file"
+                          
+                          # Create backup and apply fix
+                          cp "$file" "${file}.backup-$(date +%Y%m%d-%H%M%S)"
+                          cp ".meta/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" "$file"
+                          
+                          echo "📝 Backup created: ${file}.backup-$(date +%Y%m%d-%H%M%S)"
+                          echo "✅ Applied intelligent repair to $file"
+                          
+                        else
+                          echo "⚠️ Claude Code repair validation failed for $file"
+                          echo "$file" >> .meta/auto-fix/fixes/yaml-repairs/repair-failed.list
+                        fi
+                      else
+                        echo "⚠️ Claude Code repair execution failed for $file"
+                        echo "$file" >> .meta/auto-fix/fixes/yaml-repairs/repair-failed.list
+                      fi
+                    else
+                      echo "ℹ️ Claude Code or success patterns not available - using basic validation only"
+                    fi
                   fi
                 fi
               done
               
-              FIX_APPLIED="syntax_validation"
-              FIX_SUCCESS=true
+              # Summary of repairs
+              if [ "$SYNTAX_ERRORS_FOUND" = true ]; then
+                ERROR_COUNT=$(wc -l < .meta/auto-fix/fixes/syntax-errors.list 2>/dev/null || echo "0")
+                REPAIR_SUCCESS_COUNT=0
+                
+                if [ -f ".meta/auto-fix/fixes/yaml-repairs/repair-failed.list" ]; then
+                  REPAIR_FAILED_COUNT=$(wc -l < .meta/auto-fix/fixes/yaml-repairs/repair-failed.list)
+                  REPAIR_SUCCESS_COUNT=$((ERROR_COUNT - REPAIR_FAILED_COUNT))
+                else
+                  REPAIR_SUCCESS_COUNT=$ERROR_COUNT
+                fi
+                
+                # Create repair summary
+                cat > .meta/auto-fix/fixes/yaml-repairs/repair-summary.json << EOF
+{
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "total_syntax_errors": $ERROR_COUNT,
+  "intelligent_repairs_attempted": $REPAIR_SUCCESS_COUNT,
+  "repair_success_rate": "$(echo "scale=1; $REPAIR_SUCCESS_COUNT * 100 / $ERROR_COUNT" | bc 2>/dev/null || echo "0")%",
+  "claude_code_available": $(command -v claude-code &> /dev/null && echo "true" || echo "false"),
+  "success_patterns_available": $([ -f "meta/successful-workflow-patterns.md" ] && echo "true" || echo "false"),
+  "repair_method": "claude_code_with_success_patterns"
+}
+EOF
+                
+                echo "📊 Repair Summary: $REPAIR_SUCCESS_COUNT/$ERROR_COUNT files repaired"
+                FIX_APPLIED="intelligent_yaml_repair"
+                FIX_SUCCESS=$([ $REPAIR_SUCCESS_COUNT -gt 0 ] && echo "true" || echo "false")
+              else
+                echo "✅ No YAML syntax errors found"
+                FIX_APPLIED="yaml_validation_passed"
+                FIX_SUCCESS=true
+              fi
               ;;
               
             "cleanup_resources")
