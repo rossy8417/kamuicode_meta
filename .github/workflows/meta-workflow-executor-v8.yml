@@ -1,9 +1,15 @@
 name: Meta Workflow Executor v8
-run-name: 🚀 Executing 3-approach meta workflow for Issue #${{ github.event.issue.number }}
+run-name: 🚀 Executing 3-approach meta workflow for Issue #${{ github.event.issue.number || inputs.issue_number }}
 
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to test'
+        required: true
+        default: '46'
 
 permissions:
   contents: write
