@@ -55,13 +55,13 @@ meta/
 ├── docs/                             # システムドキュメント
 │   └── claude-code-vs-mcp-guidelines.md
 
-.github/workflows/generated/           # 生成ワークフロー配置場所
-├── active/                          # アクティブワークフロー
-│   └── latest-generated.yml         # 最新生成ワークフロー（手動アクティベーション）
-├── staging/                         # ステージングワークフロー（テスト用）
-│   └── generated-*-*.yml.disabled   # 無効化された検証済みワークフロー
-└── archive/                         # 過去のワークフロー履歴
-    └── *.yml                        # 履歴保存用
+.github/workflows/generated/           # 生成ワークフロー配置場所（簡素化）
+├── active/                          # 現在有効なワークフロー
+│   └── *.yml                        # アクティブワークフロー
+├── staging/                         # 検証済みワークフロー（無効化）
+│   └── *.yml.disabled               # テスト完了・手動有効化待ち
+└── archive/                         # 過去バージョン履歴
+    └── *.yml                        # 履歴保存
 
 generated/                           # 生成メタデータ・ログ
 ├── metadata/                        # メタデータ・分析結果（永続保存）
@@ -108,35 +108,34 @@ gh workflow run kamuicode-meta-generator.yml -f workflow_type=video-generation -
 
 ```mermaid
 graph TD
-    A[3アプローチ並列生成] --> B[generated/workflows/staging/]
-    B --> C[アプローチ評価・選択] --> D{ワークフロー検証}
-    D -->|合格| E[.github/workflows/generated/staging/]
-    D -->|不合格| F[エラーレポート・修正]
-    E --> G[.github/workflows/generated/active/]
-    E --> H[generated/metadata/ メタデータ保存]
-    E --> I[generated/logs/ 実行ログ保存]
-    
-    %% 3アプローチ詳細
-    A1[テンプレート選択] --> B
-    A2[動的組み立て] --> B
-    A3[ハイブリッド最適化] --> B
+    A[メタワークフロー実行] --> B[ワークフロー生成]
+    B --> C{品質検証}
+    C -->|合格 75点以上| D[.github/workflows/generated/staging/]
+    C -->|不合格| E[エラーレポート・修正]
+    D --> F[手動レビュー]
+    F -->|承認| G[.github/workflows/generated/active/]
+    F -->|要修正| H[.github/workflows/generated/archive/]
     
     %% 検証内容
-    D1[YAML構文チェック] --> D
-    D2[GitHub Actions構造検証] --> D  
-    D3[MCPサービス参照チェック] --> D
-    D4[依存関係検証] --> D
+    C1[YAML構文チェック] --> C
+    C2[GitHub Actions構造検証] --> C  
+    C3[MCPサービス参照チェック] --> C
+    C4[依存関係検証] --> C
+    
+    %% 並列保存
+    D --> I[generated/metadata/]
+    D --> J[generated/logs/]
     
     %% スタイリング
-    classDef stageNode fill:#e8f5e8
+    classDef processNode fill:#e8f5e8
     classDef validateNode fill:#fff8e1
     classDef deployNode fill:#e1f5fe
-    classDef persistNode fill:#f3e5f5
+    classDef storageNode fill:#f3e5f5
     
-    class A,A1,A2,A3,B stageNode
-    class C,D,D1,D2,D3,D4 validateNode
-    class E,G deployNode
-    class H,I persistNode
+    class A,B processNode
+    class C,C1,C2,C3,C4,E validateNode
+    class D,F,G,H deployNode
+    class I,J storageNode
 ```
 
 ### **検証項目**
@@ -152,14 +151,14 @@ graph TD
 
 #### **📂 最終成果物**
 ```bash
-# 最新の生成ワークフロー（手動アクティベーション待ち）
-.github/workflows/generated/active/latest-generated.yml
+# アクティブワークフロー（手動有効化済み）
+.github/workflows/generated/active/*.yml
 
-# ステージングワークフロー（テスト用・無効化）
-.github/workflows/generated/staging/generated-*-*.yml.disabled
+# ステージングワークフロー（検証済み・無効化）
+.github/workflows/generated/staging/*.yml.disabled
 
 # 履歴保存
-.github/workflows/generated/archive/workflow-[タイムスタンプ].yml
+.github/workflows/generated/archive/*.yml
 ```
 
 #### **📋 実行ログ・デバッグ情報**
@@ -178,27 +177,25 @@ generated/metadata/
 └── evaluation/              # アプローチ評価・選択結果
 ```
 
-#### **🔄 ワークフロー生成プロセス**
+#### **🔄 ワークフロー配置プロセス**
 ```bash
-# 3アプローチ生成結果（メタデータのみ）
-generated/workflows/staging/
-├── approach-1-result-[番号]/  # テンプレート選択アプローチ
-├── approach-2-result-[番号]/  # 動的組み立てアプローチ  
-└── approach-3-result-[番号]/  # ハイブリッド最適化アプローチ
+# 生成・検証プロセス
+generated/metadata/          # プロセス情報・ログ
+generated/logs/             # 実行詳細ログ
 
-# 最終配置場所
+# 最終配置場所（簡素化）
 .github/workflows/generated/
-├── staging/     # テスト用（.disabled拡張子付き）
-├── active/      # アクティベーション待ち
-└── archive/     # 履歴保存
+├── staging/     # 検証済み（.disabled拡張子）
+├── active/      # 手動有効化済み
+└── archive/     # 過去バージョン
 ```
 
 #### **📥 ダウンロード・アクセス方法**
 
 1. **リポジトリから直接ダウンロード**
    ```bash
-   # 最新ワークフローを取得
-   curl -O https://raw.githubusercontent.com/[your-repo]/main/.github/workflows/generated/active/latest-generated.yml
+   # アクティブワークフローを取得
+   curl -O https://raw.githubusercontent.com/[your-repo]/main/.github/workflows/generated/active/[workflow-name].yml
    ```
 
 2. **GitHub Actions Artifacts**
@@ -215,13 +212,11 @@ generated/workflows/staging/
 
 | ディレクトリ | 内容 | 保存期間 | 用途 |
 |-------------|------|----------|------|
-| `.github/workflows/generated/active/` | アクティブワークフロー | **永続** | 手動アクティベーション |
-| `.github/workflows/generated/staging/` | ステージングワークフロー | **永続** | テスト用（.disabled） |
-| `.github/workflows/generated/archive/` | 履歴ワークフロー | **永続** | 過去バージョン |
-| `generated/logs/` | 実行ログ・Artifact | **永続** | デバッグ・分析 |
-| `generated/metadata/` | 分析・評価データ | **永続** | プロセス追跡 |
-| `generated/workflows/staging/` | 3アプローチ結果 | **永続** | 比較・改善 |
-| `generated/artifacts/` | 従来アーティファクト | 30日 | 下位互換 |
+| `.github/workflows/generated/active/` | 有効化済みワークフロー | **永続** | プロダクション実行 |
+| `.github/workflows/generated/staging/` | 検証済みワークフロー(.disabled) | **永続** | 手動有効化待ち |
+| `.github/workflows/generated/archive/` | 過去バージョン履歴 | **永続** | バックアップ・参照 |
+| `generated/logs/` | 実行ログ・デバッグ情報 | **永続** | 分析・トラブルシュート |
+| `generated/metadata/` | 生成プロセスデータ | **永続** | 改善・最適化 |
 
 ## 🔧 **セットアップ**
 

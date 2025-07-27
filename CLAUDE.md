@@ -8,13 +8,13 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 
 ## Current Architecture (v8.1)
 
-### 3-Approach Meta Workflow System with Simplified Deployment
-- **3-Approach Generation**: Template selection, dynamic assembly, hybrid optimization in parallel
-- **3-Stage Deployment**: staging → validation → active deployment with .disabled safety mechanism
+### Template-Based Meta Workflow System with Simplified Deployment
+- **Template Selection**: Uses 9 reference workflows in `meta/examples/` instead of complex task decomposition
+- **Simplified 3-Stage Deployment**: generation → validation → deployment with .disabled safety mechanism
 - **Prompt Separation**: All prompts managed as external files in `meta/prompts/`
 - **Small Nodes**: Each job has single responsibility with independent re-execution capability
 - **Quality Validation**: YAML syntax, GitHub Actions structure, MCP references, dependencies check
-- **Persistent Data**: All intermediate and final results stored permanently in `generated/`
+- **Persistent Storage**: Final workflows in simplified `.github/workflows/generated/` structure
 
 ### Core Components
 - **`meta/examples/`**: 9 GitHub Actions workflow templates (video, 3D, audio, image, blog, data analysis, multimedia, news, presentation)
@@ -23,8 +23,8 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 - **`.github/workflows/continuous-system-monitor.yml`**: System health monitoring
 - **`.github/ISSUE_TEMPLATE/`**: Issue templates for workflow requests
 - **`meta/prompts/`**: Prompt files for task decomposition, workflow generation, script generation, documentation
-- **`generated/`**: Organized outputs with 3-stage pipeline + persistent metadata and logs
-- **`.github/workflows/generated/`**: Final deployment area with active/, staging/, archive/ structure
+- **`generated/`**: Organized outputs with metadata and logs storage
+- **`.github/workflows/generated/`**: Simplified final deployment area with active/, staging/, archive/ structure
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 
@@ -195,18 +195,16 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 ├── meta-workflow-executor-v8.yml    # Main meta workflow (v8.1)
 ├── auto-fix-deployment.yml          # Automated error recovery system
 ├── continuous-system-monitor.yml    # System health monitoring
-└── generated/                       # Generated workflow deployment area
-    ├── active/                      # Ready-to-activate workflows
-    │   └── latest-generated.yml     # Latest generated workflow (manual activation)
-    ├── staging/                     # Testing workflows (.disabled extension)
-    │   └── generated-*-*.yml.disabled
-    └── archive/                     # Historical workflows
-        └── *.yml
+└── generated/                       # Simplified generated workflow deployment
+    ├── active/                      # Production-ready workflows (manually activated)
+    │   └── *.yml                    # Active workflows
+    ├── staging/                     # Validated workflows (.disabled extension)
+    │   └── *.yml.disabled           # Ready for manual activation
+    └── archive/                     # Historical workflow versions
+        └── *.yml                    # Past versions
 
-generated/               # CRITICAL: All generation metadata goes here for persistence
-├── workflows/           # Workflow generation results (metadata only)
-│   └── staging/         # 3-approach parallel generation results
-├── metadata/            # Analysis data (persistent) - replaces .meta/
+generated/               # Metadata and logs storage
+├── metadata/            # Analysis data (persistent)
 │   ├── stepback-analysis/
 │   ├── requirement-analysis/
 │   ├── task-decomposition/
@@ -238,8 +236,12 @@ AUDIO_PATH=$(jq -r '.audio_url // .file_path // "none"' "$audio_file")
 
 # IMPORTANT: Use generated/ paths for all persistent storage
 mkdir -p generated/metadata/requirement-analysis  # NOT .meta/
-mkdir -p generated/workflows/production          # For final outputs
 mkdir -p generated/logs                          # For execution logs
+
+# IMPORTANT: Use .github/workflows/generated/ for final workflow deployment
+mkdir -p .github/workflows/generated/staging     # For validated workflows (.disabled)
+mkdir -p .github/workflows/generated/active      # For production workflows
+mkdir -p .github/workflows/generated/archive     # For historical versions
 
 # Directory existence checks before file operations
 if [ ! -d "$(dirname "$TARGET_FILE")" ]; then
@@ -256,14 +258,15 @@ Each workflow must include:
 - **Validation criteria and error handling**
 - **Duration estimates (5-60 minutes total)**
 
-#### Simplified 3-Stage Deployment Implementation with Safety Mechanism
+#### Simplified 3-Stage Deployment Implementation
 The main workflow now uses:
-1. **3-Approach Generation** → `generated/workflows/staging/approach-{1,2,3}-result-{run_number}/`
-2. **Evaluation & Selection** → Select best approach based on validation scores
-3. **Staging Deployment** → `.github/workflows/generated/staging/` (with .disabled extension for safety)
-4. **Active Ready** → `.github/workflows/generated/active/` (manual activation required)
-5. **Archive Management** → `.github/workflows/generated/archive/` (historical versions)
-6. **Metadata & Logs Storage** → `generated/metadata/` + `generated/logs/` (permanently stored)
+1. **Template Selection** → Select best template from `meta/examples/` based on workflow type
+2. **Workflow Generation** → Generate workflow based on selected template
+3. **Validation** → YAML syntax, GitHub Actions structure, MCP references check (75+ score required)
+4. **Staging Deployment** → `.github/workflows/generated/staging/` (with .disabled extension for safety)
+5. **Manual Activation** → Move to `.github/workflows/generated/active/` when ready for production
+6. **Archive Management** → Historical versions stored in `.github/workflows/generated/archive/`
+7. **Metadata & Logs Storage** → `generated/metadata/` + `generated/logs/` (permanently stored)
 
 ### Development Best Practices
 
@@ -279,8 +282,9 @@ The main workflow now uses:
 - **Maintain simplified staged deployment system**
 - **Keep validation scoring system (75+ points for pass)**
 - **Preserve template selection logic**
-- **Target `.github/workflows/generated/` for final deployment**
-- **Use .disabled extension for staging safety**
+- **Target `.github/workflows/generated/staging/` for validated workflows (.disabled)**
+- **Use `.github/workflows/generated/active/` for production-ready workflows**
+- **Archive old versions in `.github/workflows/generated/archive/`**
 
 #### Error Handling
 - **External API fallbacks** for missing MCP services
@@ -295,8 +299,8 @@ The main workflow now uses:
 ### Execution Methods
 1. **Issue-driven**: Create issues using workflow-request.yml template
 2. **Manual**: Use `workflow_dispatch` trigger with parameters
-3. **Simplified staged validation**: Automatic quality assurance with manual activation
-4. **Archive management**: Historical versions preserved in archive/
+3. **Simplified staged validation**: Automatic quality assurance → staging (.disabled) → manual activation → active
+4. **Archive management**: Historical versions preserved in `.github/workflows/generated/archive/`
 
 ## Development Philosophy
 
@@ -314,6 +318,7 @@ The main workflow now uses:
 - **This system is actively developed using Claude Code** - maintain development continuity
 - **All examples in `meta/examples/` represent production-ready templates**
 - **The main workflow uses template selection instead of complex task decomposition**
-- **Staged deployment prevents broken workflows from reaching production**
+- **Simplified staged deployment prevents broken workflows from reaching production**
 - **File path reference patterns are critical for workflow continuity**
 - **MCP services are limited to AI generation - use external APIs for other functions**
+- **Final workflows are deployed to `.github/workflows/generated/` in 3-folder structure (active/, staging/, archive/)**
