@@ -95,10 +95,12 @@ jobs:
           
           mkdir -p generated/metadata/stepback-analysis
           
-          # Issue本文をGitHub API経由で取得（認証不要の代替方法）
+          # Issue本文をGitHub API経由で取得（認証付き）
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # workflow_dispatch用：GitHub APIで直接取得
-            curl -s "https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER" | jq -r '.body' > generated/metadata/stepback-analysis/issue-body.txt
+            # workflow_dispatch用：認証付きGitHub API取得
+            curl -s -H "Authorization: token ${{ github.token }}" \
+                 -H "Accept: application/vnd.github.v3+json" \
+                 "https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER" | jq -r '.body' > generated/metadata/stepback-analysis/issue-body.txt
           else
             # issue_comment用：既存のevent情報使用
             echo "${{ github.event.issue.body }}" > generated/metadata/stepback-analysis/issue-body.txt
