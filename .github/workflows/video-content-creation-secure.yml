@@ -1,0 +1,138 @@
+name: "Video Content Creation Secure MCP"
+run-name: "🎥 Secure MCP: ${{ github.event.inputs.video_concept }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_concept:
+        description: '動画コンセプト・テーマ'
+        required: true
+        default: 'セキュアMCPテスト - AIとロボットの協力'
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  # 方法1: GitHub Secretsを使用
+  secure-mcp-with-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Create MCP config from secrets
+        run: |
+          mkdir -p .claude
+          
+          # SecretsからURLを取得して設定ファイルを生成
+          cat > .claude/mcp-config.json << EOF
+          {
+            "mcpServers": {
+              "t2i-google-imagen3": {
+                "type": "http",
+                "url": "${{ secrets.MCP_T2I_GOOGLE_URL }}",
+                "description": "Google Imagen 3 Text-to-Image Generation"
+              },
+              "i2v-fal-hailuo-02-pro": {
+                "type": "http",
+                "url": "${{ secrets.MCP_I2V_FAL_URL }}",
+                "description": "Fal.ai Hailuo-02 Pro Image-to-Video Generation"
+              }
+            }
+          }
+          EOF
+          
+          chmod 600 .claude/mcp-config.json
+          
+      - name: Test MCP with hidden URLs
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Generate a test image using MCP service t2i-google-imagen3.
+            Prompt: "${{ github.event.inputs.video_concept }}"
+            Aspect ratio: 1:1
+            Save result to test-result.json
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "View,mcp__t2i-google-imagen3__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # 方法2: リポジトリの.claude/mcp-kamuicode.jsonを使用
+  secure-mcp-with-repo-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Use repository MCP config
+        run: |
+          # リポジトリに既にある設定ファイルを使用
+          echo "📁 Using existing MCP config from repository"
+          ls -la .claude/
+          
+      - name: Test with repo config
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Generate a test image using available MCP services.
+            Save to generated/test-repo-config.json
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+          mcp_config: ".claude/mcp-kamuicode.json"  # リポジトリの設定を使用
+          allowed_tools: "View,mcp__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # 方法3: 環境変数を使用
+  secure-mcp-with-env:
+    runs-on: ubuntu-latest
+    env:
+      MCP_BASE_URL: ${{ secrets.MCP_BASE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Create MCP config with env vars
+        run: |
+          mkdir -p .claude
+          
+          # 環境変数を使用して設定を生成
+          cat > .claude/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "t2i-google-imagen3": {
+                "type": "http",
+                "url": "${MCP_BASE_URL}/t2i/google/imagen",
+                "description": "Google Imagen 3"
+              }
+            }
+          }
+          EOF
+          
+          # 環境変数を展開
+          envsubst < .claude/mcp-config.json > .claude/mcp-config-expanded.json
+          mv .claude/mcp-config-expanded.json .claude/mcp-config.json
+          chmod 600 .claude/mcp-config.json
+          
+      - name: Test with env vars
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Generate a test image. Save to test-env.json
+          system_prompt: |
+            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+          mcp_config: ".claude/mcp-config.json"
+          allowed_tools: "View,mcp__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secure-mcp-test-${{ github.run_number }}
+          path: |
+            generated/
+            *.json
+          retention-days: 7
