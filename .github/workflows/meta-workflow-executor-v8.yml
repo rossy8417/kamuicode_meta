@@ -178,25 +178,55 @@ jobs:
       - name: Task Decomposition with Claude Code
         id: decompose
         run: |
-          echo "🧠 Decomposing tasks for workflow generation..."
+          echo "🧠 Decomposing tasks based on user stepback answers..."
           
           mkdir -p generated/metadata/task-decomposition
           
           ENHANCED_REQ="generated/metadata/requirement-analysis/enhanced-requirements.json"
           WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+          STEPBACK_ANSWERS="${{ needs.extract-stepback-answers.outputs.stepback_answers }}"
           
-          # 簡潔なフォールバックJSONを作成
-          case "$WORKFLOW_TYPE" in
-            "video-generation")
-              echo '{"workflow_type":"video-generation","estimated_duration_minutes":45,"tasks":[{"id":"task-001","name":"テキストから画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"画像から動画生成","type":"mcp_generation","dependencies":["task-001"],"required_tools":["i2v-fal-hailuo-02-pro"]},{"id":"task-003","name":"BGM生成","type":"mcp_generation","dependencies":[],"required_tools":["t2m-google-lyria"]},{"id":"task-004","name":"動画統合","type":"integration","dependencies":["task-002","task-003"],"required_tools":["ffmpeg"]}]}' > generated/metadata/task-decomposition/task-plan.json
-              ;;
-            "image-generation")
-              echo '{"workflow_type":"image-generation","estimated_duration_minutes":20,"tasks":[{"id":"task-001","name":"画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"品質向上","type":"processing","dependencies":["task-001"],"required_tools":["image-processing"]}]}' > generated/metadata/task-decomposition/task-plan.json
-              ;;
-            *)
-              echo '{"workflow_type":"custom","estimated_duration_minutes":30,"tasks":[{"id":"task-001","name":"要件分析","type":"processing","dependencies":[],"required_tools":["analysis-tools"]},{"id":"task-002","name":"コンテンツ生成","type":"generation","dependencies":["task-001"],"required_tools":["generation-tools"]}]}' > generated/metadata/task-decomposition/task-plan.json
-              ;;
-          esac
+          # ステップバック回答を使った動的タスク分解（Claude Code使用）
+          if [ ! -z "$STEPBACK_ANSWERS" ] && [ "$STEPBACK_ANSWERS" != "null" ]; then
+            echo "📋 Using stepback answers for personalized task decomposition..."
+            
+            # ステップバック回答をファイルに保存
+            echo "$STEPBACK_ANSWERS" > generated/metadata/task-decomposition/stepback-input.txt
+            
+            # プロンプトテンプレートを作成
+            PROMPT_FILE="generated/metadata/task-decomposition/decomposition-prompt.md"
+            sed "s/{{WORKFLOW_TYPE}}/$WORKFLOW_TYPE/g; s/{{STEPBACK_ANSWERS}}/$STEPBACK_ANSWERS/g" meta/prompts/stepback-to-tasks.md > "$PROMPT_FILE"
+            
+            # Claude Codeでタスク分解を実行（ログ付き）
+            echo "🤖 Executing Claude Code task decomposition..."
+            if command -v claude-code >/dev/null 2>&1; then
+              if claude-code --file "$PROMPT_FILE" --output generated/metadata/task-decomposition/task-plan.json; then
+                echo "✅ Dynamic task decomposition completed successfully"
+              else
+                echo "⚠️ Claude Code execution failed, falling back to static decomposition"
+                STEPBACK_ANSWERS=""  # Force fallback
+              fi
+            else
+              echo "⚠️ Claude Code not available, falling back to static decomposition"
+              STEPBACK_ANSWERS=""  # Force fallback
+            fi
+          fi
+          
+          # フォールバック: 静的なタスク分解（ステップバック回答が無い場合）
+          if [ -z "$STEPBACK_ANSWERS" ] || [ "$STEPBACK_ANSWERS" = "null" ]; then
+            echo "📄 Using fallback static task decomposition..."
+            case "$WORKFLOW_TYPE" in
+              "video-generation")
+                echo '{"workflow_type":"video-generation","estimated_duration_minutes":45,"fallback_mode":true,"tasks":[{"id":"task-001","name":"テキストから画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"画像から動画生成","type":"mcp_generation","dependencies":["task-001"],"required_tools":["i2v-fal-hailuo-02-pro"]},{"id":"task-003","name":"BGM生成","type":"mcp_generation","dependencies":[],"required_tools":["t2m-google-lyria"]},{"id":"task-004","name":"動画統合","type":"integration","dependencies":["task-002","task-003"],"required_tools":["ffmpeg"]}]}' > generated/metadata/task-decomposition/task-plan.json
+                ;;
+              "image-generation")
+                echo '{"workflow_type":"image-generation","estimated_duration_minutes":20,"fallback_mode":true,"tasks":[{"id":"task-001","name":"画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"品質向上","type":"processing","dependencies":["task-001"],"required_tools":["image-processing"]}]}' > generated/metadata/task-decomposition/task-plan.json
+                ;;
+              *)
+                echo '{"workflow_type":"custom","estimated_duration_minutes":30,"fallback_mode":true,"tasks":[{"id":"task-001","name":"要件分析","type":"processing","dependencies":[],"required_tools":["analysis-tools"]},{"id":"task-002","name":"コンテンツ生成","type":"generation","dependencies":["task-001"],"required_tools":["generation-tools"]}]}' > generated/metadata/task-decomposition/task-plan.json
+                ;;
+            esac
+          fi
           
           JSON_FILE="generated/metadata/task-decomposition/task-plan.json"
           
