@@ -346,28 +346,66 @@ jobs:
         run: |
           echo "🎨 Generating key frame images with T2I service..."
           
-          # MCP T2I サービス呼び出し（模擬）
-          echo "Using MCP service: t2i-google-imagen3"
-          echo "Quality setting: ${{ github.event.inputs.quality_setting }}"
+          # プロンプトファイルを読み込み
+          INTRO_PROMPT=$(jq -r '.intro_prompt' generated/keyframes/prompts.json)
+          MAIN_PROMPT=$(jq -r '.main_prompt' generated/keyframes/prompts.json)
+          OUTRO_PROMPT=$(jq -r '.outro_prompt' generated/keyframes/prompts.json)
           
-          # 生成結果の記録（成功パターン: echo方式）
+          # 実際のMCP T2I サービス呼び出し
+          echo "🔥 Calling MCP service: t2i-google-imagen3"
+          
+          # Intro画像生成
+          echo "📸 Generating intro frame..."
+          INTRO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$INTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
+          INTRO_URL=$(echo "$INTRO_RESULT" | jq -r '.image_url // .file_path // "none"')
+          
+          # Main画像生成
+          echo "📸 Generating main frame..."
+          MAIN_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$MAIN_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
+          MAIN_URL=$(echo "$MAIN_RESULT" | jq -r '.image_url // .file_path // "none"')
+          
+          # Outro画像生成
+          echo "📸 Generating outro frame..."
+          OUTRO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$OUTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
+          OUTRO_URL=$(echo "$OUTRO_RESULT" | jq -r '.image_url // .file_path // "none"')
+          
+          # 画像ダウンロード・保存
+          if [ "$INTRO_URL" != "none" ]; then
+            wget "$INTRO_URL" -O generated/keyframes/intro-frame.jpg
+            echo "✅ Intro saved: ~/$(pwd)/generated/keyframes/intro-frame.jpg"
+          fi
+          
+          if [ "$MAIN_URL" != "none" ]; then
+            wget "$MAIN_URL" -O generated/keyframes/main-frame.jpg
+            echo "✅ Main saved: ~/$(pwd)/generated/keyframes/main-frame.jpg"
+          fi
+          
+          if [ "$OUTRO_URL" != "none" ]; then
+            wget "$OUTRO_URL" -O generated/keyframes/outro-frame.jpg
+            echo "✅ Outro saved: ~/$(pwd)/generated/keyframes/outro-frame.jpg"
+          fi
+          
+          # 結果JSON生成（実URLで）
           echo '{' > generated/keyframes/generated-images.json
           echo '  "images": [' >> generated/keyframes/generated-images.json
           echo '    {' >> generated/keyframes/generated-images.json
           echo '      "scene": "intro",' >> generated/keyframes/generated-images.json
-          echo '      "image_url": "https://example.com/generated/intro-frame.jpg",' >> generated/keyframes/generated-images.json
+          echo "      \"image_url\": \"$INTRO_URL\"," >> generated/keyframes/generated-images.json
+          echo '      "local_file": "generated/keyframes/intro-frame.jpg",' >> generated/keyframes/generated-images.json
           echo '      "service": "t2i-google-imagen3",' >> generated/keyframes/generated-images.json
           echo '      "quality": "${{ github.event.inputs.quality_setting }}"' >> generated/keyframes/generated-images.json
           echo '    },' >> generated/keyframes/generated-images.json
           echo '    {' >> generated/keyframes/generated-images.json
           echo '      "scene": "main",' >> generated/keyframes/generated-images.json
-          echo '      "image_url": "https://example.com/generated/main-frame.jpg",' >> generated/keyframes/generated-images.json
+          echo "      \"image_url\": \"$MAIN_URL\"," >> generated/keyframes/generated-images.json
+          echo '      "local_file": "generated/keyframes/main-frame.jpg",' >> generated/keyframes/generated-images.json
           echo '      "service": "t2i-google-imagen3",' >> generated/keyframes/generated-images.json
           echo '      "quality": "${{ github.event.inputs.quality_setting }}"' >> generated/keyframes/generated-images.json
           echo '    },' >> generated/keyframes/generated-images.json
           echo '    {' >> generated/keyframes/generated-images.json
           echo '      "scene": "outro",' >> generated/keyframes/generated-images.json
-          echo '      "image_url": "https://example.com/generated/outro-frame.jpg",' >> generated/keyframes/generated-images.json
+          echo "      \"image_url\": \"$OUTRO_URL\"," >> generated/keyframes/generated-images.json
+          echo '      "local_file": "generated/keyframes/outro-frame.jpg",' >> generated/keyframes/generated-images.json
           echo '      "service": "t2i-google-imagen3",' >> generated/keyframes/generated-images.json
           echo '      "quality": "${{ github.event.inputs.quality_setting }}"' >> generated/keyframes/generated-images.json
           echo '    }' >> generated/keyframes/generated-images.json
@@ -377,7 +415,7 @@ jobs:
           echo '}' >> generated/keyframes/generated-images.json
           
           echo "images_generated=true" >> $GITHUB_OUTPUT
-          echo "✅ Key frame generation completed"
+          echo "✅ Key frame generation completed with real URLs"
           
       - name: Upload Generated Images
         uses: actions/upload-artifact@v4
@@ -408,23 +446,46 @@ jobs:
           
           mkdir -p generated/audio
           
-          # MCP T2M サービス呼び出し（模擬）
-          echo "Using MCP service: t2m-google-lyria"
-          echo "Style: ${{ github.event.inputs.video_style }} background music"
-          echo "Duration: ${{ github.event.inputs.video_length }} seconds"
+          # 音楽プロンプト作成
+          MUSIC_PROMPT="Create ${{ github.event.inputs.video_style }} style background music for ${{ github.event.inputs.target_audience }} audience, duration ${{ github.event.inputs.video_length }} seconds, suitable for video content"
           
-          # 音楽生成結果（成功パターン: echo方式）
+          echo "🔥 Calling MCP service: t2m-google-lyria"
+          echo "🎼 Music prompt: $MUSIC_PROMPT"
+          
+          # 実際のMCP T2M サービス呼び出し
+          AUDIO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2m-google-lyria --prompt="$MUSIC_PROMPT" --duration=${{ github.event.inputs.video_length }})
+          AUDIO_URL=$(echo "$AUDIO_RESULT" | jq -r '.audio_url // .file_path // "none"')
+          
+          if [ "$AUDIO_URL" != "none" ]; then
+            # 音声ダウンロード・保存
+            wget "$AUDIO_URL" -O generated/audio/background-music.mp3
+            echo "✅ Audio saved: ~/$(pwd)/generated/audio/background-music.mp3"
+            
+            # ファイルオープン
+            if command -v xdg-open > /dev/null; then
+              xdg-open generated/audio/background-music.mp3 || true
+            elif command -v open > /dev/null; then
+              open generated/audio/background-music.mp3 || true
+            fi
+          else
+            echo "❌ Audio generation failed"
+            exit 1
+          fi
+          
+          # 音楽生成結果（実URLで）
           echo '{' > generated/audio/background-music.json
-          echo '  "audio_url": "https://example.com/generated/bgm.mp3",' >> generated/audio/background-music.json
+          echo "  \"audio_url\": \"$AUDIO_URL\"," >> generated/audio/background-music.json
+          echo '  "local_file": "generated/audio/background-music.mp3",' >> generated/audio/background-music.json
           echo '  "duration": ${{ github.event.inputs.video_length }},' >> generated/audio/background-music.json
           echo '  "genre": "${{ github.event.inputs.video_style }}",' >> generated/audio/background-music.json
           echo '  "service": "t2m-google-lyria",' >> generated/audio/background-music.json
           echo '  "target_audience": "${{ github.event.inputs.target_audience }}",' >> generated/audio/background-music.json
+          echo "  \"prompt_used\": \"$MUSIC_PROMPT\"," >> generated/audio/background-music.json
           echo '  "generation_status": "success"' >> generated/audio/background-music.json
           echo '}' >> generated/audio/background-music.json
           
           echo "audio_ready=true" >> $GITHUB_OUTPUT
-          echo "✅ Background music generation completed"
+          echo "✅ Background music generation completed with real URL"
           
       - name: Upload Audio Assets
         uses: actions/upload-artifact@v4
@@ -496,26 +557,53 @@ jobs:
           
           mkdir -p generated/video
           
-          # MCP I2V サービス呼び出し（模擬）
-          echo "Using MCP service: i2v-fal-hailuo-02-pro"
-          echo "Input: Generated keyframes"
-          echo "Duration: ${{ github.event.inputs.video_length }} seconds"
-          echo "Style: ${{ github.event.inputs.video_style }}"
+          # 生成された画像URLを取得（Googleの認証済URL使用）
+          MAIN_IMAGE_URL=$(jq -r '.images[] | select(.scene=="main") | .image_url' generated/keyframes/generated-images.json)
           
-          # 動画生成結果（成功パターン: echo方式）
+          if [ "$MAIN_IMAGE_URL" = "none" ] || [ -z "$MAIN_IMAGE_URL" ]; then
+            echo "❌ No valid image URL found for video generation"
+            exit 1
+          fi
+          
+          echo "🔥 Using input image URL: $MAIN_IMAGE_URL"
+          echo "🎬 Calling MCP service: i2v-fal-hailuo-02-pro"
+          
+          # 実際のMCP I2V サービス呼び出し
+          VIDEO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=i2v-fal-hailuo-02-pro --input-url="$MAIN_IMAGE_URL" --duration=${{ github.event.inputs.video_length }} --style="${{ github.event.inputs.video_style }}")
+          VIDEO_URL=$(echo "$VIDEO_RESULT" | jq -r '.video_url // .file_path // "none"')
+          
+          if [ "$VIDEO_URL" != "none" ]; then
+            # 動画ダウンロード・保存
+            wget "$VIDEO_URL" -O generated/video/main-video.mp4
+            echo "✅ Video saved: ~/$(pwd)/generated/video/main-video.mp4"
+            
+            # ファイルオープン
+            if command -v xdg-open > /dev/null; then
+              xdg-open generated/video/main-video.mp4 || true
+            elif command -v open > /dev/null; then
+              open generated/video/main-video.mp4 || true
+            fi
+          else
+            echo "❌ Video generation failed"
+            exit 1
+          fi
+          
+          # 動画生成結果（実URLで）
           echo '{' > generated/video/main-video.json
-          echo '  "video_url": "https://example.com/generated/main-video.mp4",' >> generated/video/main-video.json
+          echo "  \"video_url\": \"$VIDEO_URL\"," >> generated/video/main-video.json
+          echo '  "local_file": "generated/video/main-video.mp4",' >> generated/video/main-video.json
           echo '  "duration": ${{ github.event.inputs.video_length }},' >> generated/video/main-video.json
           echo '  "resolution": "1920x1080",' >> generated/video/main-video.json
           echo '  "fps": 30,' >> generated/video/main-video.json
           echo '  "service": "i2v-fal-hailuo-02-pro",' >> generated/video/main-video.json
           echo '  "style": "${{ github.event.inputs.video_style }}",' >> generated/video/main-video.json
           echo '  "quality": "${{ github.event.inputs.quality_setting }}",' >> generated/video/main-video.json
+          echo "  \"input_image_url\": \"$MAIN_IMAGE_URL\"," >> generated/video/main-video.json
           echo '  "generation_status": "success"' >> generated/video/main-video.json
           echo '}' >> generated/video/main-video.json
           
           echo "video_ready=true" >> $GITHUB_OUTPUT
-          echo "✅ Main video generation completed"
+          echo "✅ Main video generation completed with real URL"
           
       - name: Upload Video Assets
         uses: actions/upload-artifact@v4
