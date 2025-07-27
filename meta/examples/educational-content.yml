@@ -1,0 +1,531 @@
+name: "Educational Content Creation Workflow"
+run-name: "📚 Creating educational content: ${{ github.event.inputs.subject_topic || 'Educational Material' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      subject_topic:
+        description: '教育テーマ・科目'
+        required: true
+        default: 'プログラミング基礎、ビジネススキル、語学学習、科学・数学'
+        type: string
+      education_level:
+        description: '教育レベル・対象年齢'
+        required: true
+        type: choice
+        options:
+        - elementary_kids
+        - middle_school
+        - high_school
+        - university_college
+        - professional_adult
+        - general_public
+        default: 'professional_adult'
+      content_format:
+        description: 'コンテンツ形式'
+        required: true
+        type: choice
+        options:
+        - interactive_course
+        - video_tutorials
+        - text_materials
+        - quiz_assessments
+        - practical_exercises
+        - mixed_multimedia
+        default: 'mixed_multimedia'
+      learning_objective:
+        description: '学習目標'
+        required: true
+        type: choice
+        options:
+        - skill_acquisition
+        - knowledge_transfer
+        - certification_prep
+        - awareness_building
+        - problem_solving
+        - creative_development
+        default: 'skill_acquisition'
+      difficulty_level:
+        description: '難易度レベル'
+        required: true
+        type: choice
+        options:
+        - beginner_intro
+        - intermediate_practical
+        - advanced_expert
+        - mixed_progressive
+        default: 'intermediate_practical'
+      content_length:
+        description: 'コンテンツ総量'
+        required: true
+        type: choice
+        options:
+        - short_workshop
+        - standard_course
+        - comprehensive_program
+        - extensive_curriculum
+        default: 'standard_course'
+      teaching_method:
+        description: '教授法・アプローチ'
+        required: true
+        type: choice
+        options:
+        - lecture_traditional
+        - hands_on_practical
+        - case_study_analysis
+        - interactive_discussion
+        - project_based_learning
+        - gamified_engagement
+        default: 'hands_on_practical'
+      visual_style:
+        description: 'ビジュアルスタイル'
+        required: true
+        type: choice
+        options:
+        - professional_formal
+        - friendly_approachable
+        - modern_minimalist
+        - colorful_engaging
+        - academic_scholarly
+        default: 'friendly_approachable'
+      assessment_type:
+        description: '評価・テスト方式'
+        required: true
+        type: choice
+        options:
+        - multiple_choice_quiz
+        - practical_assignments
+        - project_submission
+        - peer_evaluation
+        - self_assessment
+        - no_formal_assessment
+        default: 'practical_assignments'
+      language_complexity:
+        description: '言語・表現の複雑さ'
+        required: false
+        type: choice
+        options:
+        - simple_clear
+        - technical_precise
+        - conversational_friendly
+        - academic_formal
+        - multilingual_support
+        default: 'conversational_friendly'
+
+permissions:
+  contents: write
+  issues: read
+  actions: read
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Phase 1: 事前テスト段階
+  connectivity-test:
+    runs-on: ubuntu-latest
+    outputs:
+      services_ready: ${{ steps.test.outputs.services_ready }}
+      diagram_gen_available: ${{ steps.test.outputs.diagram_gen_available }}
+      video_gen_available: ${{ steps.test.outputs.video_gen_available }}
+      content_gen_available: ${{ steps.test.outputs.content_gen_available }}
+    steps:
+      - name: Test educational content generation services
+        id: test
+        run: |
+          echo "📚 Testing educational content generation services..."
+          
+          mkdir -p .logs/connectivity-tests
+          
+          # 図解・インフォグラフィック生成テスト
+          echo "Testing diagram and infographic generation..."
+          if timeout 90 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "educational diagram infographic test" > .logs/connectivity-tests/diagram-test.log 2>&1; then
+            DIAGRAM_GEN_STATUS="success"
+            echo "✅ Diagram Generation: Available"
+          else
+            DIAGRAM_GEN_STATUS="failed"
+            echo "⚠️ Diagram Generation: Not available - will use text-based explanations"
+          fi
+          
+          # 教育動画生成テスト
+          echo "Testing educational video generation..."
+          if timeout 120 claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2v-fal-veo3-fast --prompt "educational video content test" > .logs/connectivity-tests/edu-video-test.log 2>&1; then
+            VIDEO_GEN_STATUS="success"
+            echo "✅ Educational Video Generation: Available"
+          else
+            VIDEO_GEN_STATUS="failed"
+            echo "⚠️ Video Generation: Not available - will focus on static content"
+          fi
+          
+          # Claude Code コンテンツ生成テスト
+          echo "Testing educational content generation..."
+          if timeout 30 claude-code --prompt "Test: Create a simple educational explanation about AI. Return 'CONTENT_SUCCESS' if working." > .logs/connectivity-tests/content-test.log 2>&1; then
+            if grep -q "CONTENT_SUCCESS" .logs/connectivity-tests/content-test.log || grep -qi "artificial intelligence\|AI" .logs/connectivity-tests/content-test.log; then
+              CONTENT_GEN_STATUS="success"
+              echo "✅ Educational Content Generation: Available"
+            else
+              CONTENT_GEN_STATUS="partial"
+              echo "⚠️ Content Generation: Partial - response received but needs verification"
+            fi
+          else
+            CONTENT_GEN_STATUS="failed"
+            echo "❌ Content Generation: Failed - will use template-based approach"
+          fi
+          
+          # Set outputs
+          echo "services_ready=true" >> $GITHUB_OUTPUT
+          echo "diagram_gen_available=$DIAGRAM_GEN_STATUS" >> $GITHUB_OUTPUT
+          echo "video_gen_available=$VIDEO_GEN_STATUS" >> $GITHUB_OUTPUT
+          echo "content_gen_available=$CONTENT_GEN_STATUS" >> $GITHUB_OUTPUT
+          
+          echo "📚 Educational content services connectivity tests completed"
+
+  # Phase 2: カリキュラム設計段階
+  curriculum-design:
+    needs: connectivity-test
+    runs-on: ubuntu-latest
+    outputs:
+      curriculum_ready: ${{ steps.design.outputs.curriculum_ready }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Design comprehensive educational curriculum
+        id: design
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📋 Designing comprehensive educational curriculum..."
+          
+          mkdir -p .logs/curriculum-design
+          
+          SUBJECT_TOPIC="${{ github.event.inputs.subject_topic }}"
+          EDUCATION_LEVEL="${{ github.event.inputs.education_level }}"
+          LEARNING_OBJECTIVE="${{ github.event.inputs.learning_objective }}"
+          
+          echo "Subject topic: $SUBJECT_TOPIC"
+          echo "Education level: $EDUCATION_LEVEL"
+          echo "Learning objective: $LEARNING_OBJECTIVE"
+          
+          # Claude Code でカリキュラム設計
+          claude-code --prompt "以下の要件に基づいて、包括的な教育カリキュラムと学習設計をJSON形式で作成してください：
+
+          教育テーマ: $SUBJECT_TOPIC
+          教育レベル: $EDUCATION_LEVEL
+          学習目標: $LEARNING_OBJECTIVE
+          教授法: ${{ github.event.inputs.teaching_method }}
+          難易度レベル: ${{ github.event.inputs.difficulty_level }}
+          コンテンツ総量: ${{ github.event.inputs.content_length }}
+
+          学習モジュール構成、スキル習得順序、評価指標、学習成果目標を含む詳細なカリキュラムを設計してください。" > .logs/curriculum-design/curriculum-structure.json
+          
+          echo "curriculum_ready=true" >> $GITHUB_OUTPUT
+          echo "📋 Curriculum design completed"
+
+  # Phase 3: 教材コンテンツ作成段階
+  content-creation:
+    needs: curriculum-design
+    runs-on: ubuntu-latest
+    outputs:
+      content_ready: ${{ steps.create.outputs.content_ready }}
+    steps:
+      - name: Create detailed educational content materials
+        id: create
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📝 Creating detailed educational content materials..."
+          
+          mkdir -p .logs/content-creation
+          
+          CONTENT_FORMAT="${{ github.event.inputs.content_format }}"
+          LANGUAGE_COMPLEXITY="${{ github.event.inputs.language_complexity }}"
+          
+          # 教材コンテンツ作成
+          claude-code --prompt "以下の要件に基づいて、詳細な教育コンテンツと教材を作成してください：
+
+          教育テーマ: ${{ github.event.inputs.subject_topic }}
+          コンテンツ形式: $CONTENT_FORMAT
+          言語複雑さ: $LANGUAGE_COMPLEXITY
+          対象レベル: ${{ github.event.inputs.education_level }}
+          教授法: ${{ github.event.inputs.teaching_method }}
+
+          レッスン構成、概念説明、実例・ケーススタディ、演習問題を含む包括的な教材を作成してください。" > .logs/content-creation/educational-content.json
+          
+          echo "content_ready=true" >> $GITHUB_OUTPUT
+          echo "📝 Content creation completed"
+
+  # Phase 4: ビジュアル教材制作段階
+  visual-materials:
+    needs: [connectivity-test, content-creation]
+    runs-on: ubuntu-latest
+    outputs:
+      visuals_ready: ${{ steps.create.outputs.visuals_ready }}
+    steps:
+      - name: Generate visual educational materials
+        id: create
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🎨 Generating visual educational materials..."
+          
+          mkdir -p .logs/visual-materials
+          
+          DIAGRAM_GEN_AVAILABLE="${{ needs.connectivity-test.outputs.diagram_gen_available }}"
+          VISUAL_STYLE="${{ github.event.inputs.visual_style }}"
+          
+          if [ "$DIAGRAM_GEN_AVAILABLE" = "success" ]; then
+            echo "Generating educational diagrams..."
+            DIAGRAM_PROMPT="${{ github.event.inputs.subject_topic }}, educational diagram, infographic, $VISUAL_STYLE style, clear explanation, teaching aid"
+            
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$DIAGRAM_PROMPT" > .logs/visual-materials/educational-diagrams.json 2>&1 || echo "Educational diagram generation failed"
+            
+            echo "Generating concept illustrations..."
+            CONCEPT_PROMPT="${{ github.event.inputs.subject_topic }}, concept illustration, educational visual, $VISUAL_STYLE style, learning support"
+            
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$CONCEPT_PROMPT" > .logs/visual-materials/concept-illustrations.json 2>&1 || echo "Concept illustration generation failed"
+            
+            echo "Generating process flowcharts..."
+            FLOWCHART_PROMPT="${{ github.event.inputs.subject_topic }}, process flowchart, step-by-step guide, $VISUAL_STYLE style, educational flow"
+            
+            claude-code --mcp-config=.claude/mcp-kamuicode.json --mcp t2i-fal-imagen4-fast --prompt "$FLOWCHART_PROMPT" > .logs/visual-materials/process-flowcharts.json 2>&1 || echo "Flowchart generation failed"
+            
+            echo "✅ Visual educational materials generated"
+          else
+            echo "⚠️ Visual generation not available - creating text-based visual descriptions"
+            echo '{"visual_type": "text_descriptions", "style": "${{ github.event.inputs.visual_style }}"}' > .logs/visual-materials/text-visual-plan.json
+          fi
+          
+          echo "visuals_ready=true" >> $GITHUB_OUTPUT
+          echo "🎨 Visual materials creation completed"
+
+  # Phase 5: インタラクティブコンテンツ段階
+  interactive-content:
+    needs: content-creation
+    runs-on: ubuntu-latest
+    outputs:
+      interactive_ready: ${{ steps.create.outputs.interactive_ready }}
+    steps:
+      - name: Design interactive learning elements
+        id: create
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "⚡ Designing interactive learning elements..."
+          
+          mkdir -p .logs/interactive-content
+          
+          # インタラクティブ学習要素設計
+          claude-code --prompt "以下の教育要件に基づいて、インタラクティブな学習要素と活動を設計してJSON形式で返してください：
+
+          教育テーマ: ${{ github.event.inputs.subject_topic }}
+          教授法: ${{ github.event.inputs.teaching_method }}
+          評価方式: ${{ github.event.inputs.assessment_type }}
+          難易度レベル: ${{ github.event.inputs.difficulty_level }}
+
+          インタラクティブ演習、シミュレーション、ケーススタディ、グループ活動の詳細設計を含めてください。" > .logs/interactive-content/interactive-elements.json
+          
+          echo "interactive_ready=true" >> $GITHUB_OUTPUT
+          echo "⚡ Interactive content design completed"
+
+  # Phase 6: 評価・テスト作成段階
+  assessment-creation:
+    needs: interactive-content
+    runs-on: ubuntu-latest
+    outputs:
+      assessment_ready: ${{ steps.create.outputs.assessment_ready }}
+    steps:
+      - name: Create comprehensive assessment and testing materials
+        id: create
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📊 Creating comprehensive assessment and testing materials..."
+          
+          mkdir -p .logs/assessment-creation
+          
+          ASSESSMENT_TYPE="${{ github.event.inputs.assessment_type }}"
+          
+          # 評価・テスト教材作成
+          claude-code --prompt "以下の要件に基づいて、包括的な学習評価とテスト教材をJSON形式で作成してください：
+
+          教育テーマ: ${{ github.event.inputs.subject_topic }}
+          評価方式: $ASSESSMENT_TYPE
+          学習目標: ${{ github.event.inputs.learning_objective }}
+          難易度レベル: ${{ github.event.inputs.difficulty_level }}
+
+          知識確認テスト、実技評価、プロジェクト課題、自己評価ツールを含む多様な評価方法を設計してください。" > .logs/assessment-creation/assessment-materials.json
+          
+          echo "assessment_ready=true" >> $GITHUB_OUTPUT
+          echo "📊 Assessment creation completed"
+
+  # Phase 7: 学習ガイド・サポート資料段階
+  learning-support:
+    needs: assessment-creation
+    runs-on: ubuntu-latest
+    outputs:
+      support_ready: ${{ steps.create.outputs.support_ready }}
+    steps:
+      - name: Generate learning guides and support materials
+        id: create
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📖 Generating learning guides and support materials..."
+          
+          mkdir -p .logs/learning-support
+          
+          # 学習ガイド・サポート資料作成
+          claude-code --prompt "以下の教育プログラムに対して、学習者向けガイドとサポート資料をJSON形式で作成してください：
+
+          教育テーマ: ${{ github.event.inputs.subject_topic }}
+          対象レベル: ${{ github.event.inputs.education_level }}
+          コンテンツ総量: ${{ github.event.inputs.content_length }}
+          学習目標: ${{ github.event.inputs.learning_objective }}
+
+          学習計画テンプレート、進捗管理ツール、追加リソース、トラブルシューティングガイドを含めてください。" > .logs/learning-support/support-materials.json
+          
+          echo "support_ready=true" >> $GITHUB_OUTPUT
+          echo "📖 Learning support materials creation completed"
+
+  # Phase 8: 最終パッケージ作成
+  final-packaging:
+    needs: [curriculum-design, content-creation, visual-materials, interactive-content, assessment-creation, learning-support]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create comprehensive educational content package
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "📦 Creating comprehensive educational content package..."
+          
+          mkdir -p .final-output/{curriculum,content,visuals,interactive,assessment,support}
+          
+          # カリキュラム設計文書
+          cp .logs/curriculum-design/curriculum-structure.json .final-output/curriculum/ 2>/dev/null || true
+          
+          # 教材コンテンツ
+          cp .logs/content-creation/educational-content.json .final-output/content/ 2>/dev/null || true
+          
+          # ビジュアル教材
+          cp .logs/visual-materials/*.json .final-output/visuals/ 2>/dev/null || true
+          
+          # インタラクティブ要素
+          cp .logs/interactive-content/interactive-elements.json .final-output/interactive/ 2>/dev/null || true
+          
+          # 評価・テスト教材
+          cp .logs/assessment-creation/assessment-materials.json .final-output/assessment/ 2>/dev/null || true
+          
+          # 学習サポート資料
+          cp .logs/learning-support/support-materials.json .final-output/support/ 2>/dev/null || true
+          
+          # マスター教育コンテンツ情報
+          cat > .final-output/educational-content-master.json << EOF
+          {
+            "project_info": {
+              "project_name": "Educational Content Creation & Development",
+              "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "github_run_id": "${{ github.run_id }}",
+              "content_type": "educational_materials_development"
+            },
+            "input_parameters": {
+              "subject_topic": "${{ github.event.inputs.subject_topic }}",
+              "education_level": "${{ github.event.inputs.education_level }}",
+              "content_format": "${{ github.event.inputs.content_format }}",
+              "learning_objective": "${{ github.event.inputs.learning_objective }}",
+              "difficulty_level": "${{ github.event.inputs.difficulty_level }}",
+              "content_length": "${{ github.event.inputs.content_length }}",
+              "teaching_method": "${{ github.event.inputs.teaching_method }}",
+              "visual_style": "${{ github.event.inputs.visual_style }}",
+              "assessment_type": "${{ github.event.inputs.assessment_type }}",
+              "language_complexity": "${{ github.event.inputs.language_complexity }}"
+            },
+            "deliverables": {
+              "curriculum_design": {
+                "structure_document": "curriculum/curriculum-structure.json"
+              },
+              "educational_content": {
+                "main_materials": "content/educational-content.json"
+              },
+              "visual_materials": {
+                "diagrams_illustrations": "visuals/"
+              },
+              "interactive_elements": {
+                "engagement_activities": "interactive/interactive-elements.json"
+              },
+              "assessment_tools": {
+                "evaluation_materials": "assessment/assessment-materials.json"
+              },
+              "support_resources": {
+                "learning_guides": "support/support-materials.json"
+              }
+            }
+          }
+          EOF
+          
+          # 教育コンテンツ制作ガイド
+          cat > .final-output/EDUCATIONAL_CONTENT_GUIDE.md << 'EOF'
+          # 教育コンテンツ制作プロダクションガイド
+          
+          ## 📚 プロジェクト概要
+          - 制作手法: AI生成による統合教育コンテンツ開発
+          - 品質レベル: プロフェッショナル教育機関対応
+          - 学習最適化: 多様な学習スタイル対応
+          
+          ## 📋 カリキュラム設計
+          - 包括的学習プログラム構造
+          - スキル習得順序・依存関係
+          - 学習成果目標・評価指標
+          - 適応的学習パス設計
+          
+          ## 📝 教材コンテンツ開発
+          - 段階的概念説明
+          - 実例・ケーススタディ
+          - 実践演習・ハンズオン
+          - 多様な学習リソース
+          
+          ## 🎨 ビジュアル教材制作
+          - 教育的図解・インフォグラフィック
+          - 概念理解支援ビジュアル
+          - プロセス・フローチャート
+          - 視覚的学習支援ツール
+          
+          ## ⚡ インタラクティブ学習
+          - エンゲージメント向上活動
+          - シミュレーション・体験学習
+          - 協調学習・グループワーク
+          - ゲーミフィケーション要素
+          
+          ## 📊 学習評価・アセスメント
+          - 多様な評価方法設計
+          - 形成的・総括的評価
+          - 自己評価・相互評価
+          - 学習進捗モニタリング
+          
+          ## 📖 学習サポート・ガイダンス
+          - 学習者向けガイド・ナビゲーション
+          - 進捗管理・学習計画支援
+          - 追加リソース・参考資料
+          - トラブルシューティング支援
+          
+          ## 🎯 効果的学習体験
+          - 個別化学習アプローチ
+          - アクセシビリティ配慮
+          - 継続的改善・フィードバック
+          - 学習成果最大化戦略
+          
+          ## 🔄 継続的改善・更新
+          - 学習効果分析・測定
+          - コンテンツ品質向上
+          - 技術的最適化・更新
+          - 教育トレンド対応
+          EOF
+          
+          echo "📦 Final educational content packaging completed"
+          
+      - name: Upload Educational Content Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: educational-content-package-${{ github.run_number }}
+          path: .final-output/
+          retention-days: 30
