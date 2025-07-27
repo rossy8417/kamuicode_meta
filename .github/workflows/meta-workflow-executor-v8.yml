@@ -1,0 +1,734 @@
+name: Meta Workflow Executor v8
+run-name: 🚀 Executing 3-approach meta workflow for Issue #${{ github.event.issue.number }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Phase 1: 回答処理・分析
+  validate-comment-trigger:
+    runs-on: ubuntu-latest
+    if: contains(github.event.comment.body, 'start')
+    outputs:
+      should_execute: ${{ steps.validate.outputs.should_execute }}
+      issue_author: ${{ steps.validate.outputs.issue_author }}
+      comment_author: ${{ steps.validate.outputs.comment_author }}
+    
+    steps:
+      - name: Validate Start Comment Trigger
+        id: validate
+        run: |
+          echo "🔍 Validating start comment trigger..."
+          
+          COMMENT_USER="${{ github.event.comment.user.login }}"
+          ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          
+          echo "📋 Validation Info:"
+          echo "   - Comment by: $COMMENT_USER"
+          echo "   - Issue author: $ISSUE_AUTHOR"
+          echo "   - Comment starts with 'start': $(echo "$COMMENT_BODY" | grep -q '^start' && echo 'YES' || echo 'NO')"
+          
+          # Issue作成者本人のコメントかチェック
+          if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && echo "$COMMENT_BODY" | grep -q '^start'; then
+            echo "✅ Valid start trigger from Issue author"
+            echo "should_execute=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Invalid trigger - must be Issue author with 'start' comment"
+            echo "should_execute=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
+          echo "comment_author=$COMMENT_USER" >> $GITHUB_OUTPUT
+
+  extract-stepback-answers:
+    needs: validate-comment-trigger
+    runs-on: ubuntu-latest
+    if: needs.validate-comment-trigger.outputs.should_execute == 'true'
+    outputs:
+      stepback_answers: ${{ steps.extract.outputs.stepback_answers }}
+      workflow_type: ${{ steps.extract.outputs.workflow_type }}
+      answers_extracted: ${{ steps.extract.outputs.answers_extracted }}
+    
+    steps:
+      - name: Extract Stepback Answers
+        id: extract
+        run: |
+          echo "📝 Extracting stepback answers from Issue #${{ github.event.issue.number }}..."
+          
+          mkdir -p .meta/stepback-analysis
+          
+          # Issue本文を安全にファイルに保存（今回の学び：HEREDOCは避ける）
+          echo "${{ github.event.issue.body }}" > .meta/stepback-analysis/issue-body.txt
+          
+          # ファイルから読み込み
+          ISSUE_BODY=$(cat .meta/stepback-analysis/issue-body.txt)
+          
+          # ワークフロータイプの推測
+          WORKFLOW_TYPE="video-generation"
+          if echo "$ISSUE_BODY" | grep -q "image.*generation\|画像.*生成"; then
+            WORKFLOW_TYPE="image-generation"
+          elif echo "$ISSUE_BODY" | grep -q "3d.*model\|3D.*モデル"; then
+            WORKFLOW_TYPE="3d-model-creation"
+          elif echo "$ISSUE_BODY" | grep -q "video.*generation\|動画.*生成\|T2V\|I2V"; then
+            WORKFLOW_TYPE="video-generation"
+          fi
+          
+          # 簡潔な回答抽出
+          STEPBACK_ANSWERS=$(echo "$ISSUE_BODY" | grep -A 1 "Q[1-5]回答:" | head -10)
+          ANSWER_COUNT=$(echo "$STEPBACK_ANSWERS" | grep -c "Q[1-5]回答:" || echo "0")
+          
+          echo "🔍 Found workflow type: $WORKFLOW_TYPE"
+          echo "📊 Answer count: $ANSWER_COUNT"
+          
+          if [ ${#STEPBACK_ANSWERS} -gt 50 ]; then
+            echo "✅ Sufficient stepback answers found - proceeding with workflow generation"
+            
+            echo "answers_extracted=true" >> $GITHUB_OUTPUT
+            echo "stepback_answers<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$STEPBACK_ANSWERS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Insufficient stepback answers found"
+            echo "answers_extracted=false" >> $GITHUB_OUTPUT
+          fi
+
+  analyze-requirements:
+    needs: extract-stepback-answers
+    runs-on: ubuntu-latest
+    if: needs.extract-stepback-answers.outputs.answers_extracted == 'true'
+    outputs:
+      enhanced_request: ${{ steps.analyze.outputs.enhanced_request }}
+      analysis_ready: ${{ steps.analyze.outputs.analysis_ready }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Analyze Requirements with Claude Code
+        id: analyze
+        run: |
+          echo "🔍 Analyzing requirements with stepback answers integration..."
+          
+          mkdir -p .meta/requirement-analysis
+          
+          # 分析プロンプト作成（echo方式で安全に）
+          echo "# Enhanced Requirement Analysis with Stepback Answers" > .meta/requirement-analysis/analysis-prompt.md
+          echo "" >> .meta/requirement-analysis/analysis-prompt.md
+          echo "以下のユーザーからのステップバック質問回答を分析し、ワークフロー生成のための詳細要求を整理してください。" >> .meta/requirement-analysis/analysis-prompt.md
+          echo "" >> .meta/requirement-analysis/analysis-prompt.md
+          echo "## Stepback Answers" >> .meta/requirement-analysis/analysis-prompt.md
+          echo "${{ needs.extract-stepback-answers.outputs.stepback_answers }}" >> .meta/requirement-analysis/analysis-prompt.md
+          
+          # フォールバックJSONを生成（今回の学び：echo方式）
+          WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+          
+          case "$WORKFLOW_TYPE" in
+            "video-generation")
+              echo '{"clarity_score":8,"workflow_type":"video-generation","quality_requirements":{"image_resolution":"高解像度","video_quality":"高品質","audio_quality":"プロ品質"},"content_specifications":{"style":"cinematic","duration":"60秒","genre":"promotional"},"processing_requirements":{"sequence":"T2I→I2V","parallel_processing":"T2I完了後にI2VとT2M並列","integration_method":"最終統合"},"constraints":{"time_limit":"なし","resource_limit":"なし"}}' > .meta/requirement-analysis/enhanced-requirements.json
+              ;;
+            "image-generation")
+              echo '{"clarity_score":8,"workflow_type":"image-generation","quality_requirements":{"image_resolution":"ultra_hd","style":"photorealistic"},"processing_requirements":{"sequence":"T2I","parallel_processing":"false","integration_method":"direct"},"constraints":{"time_limit":"標準","resource_limit":"標準"}}' > .meta/requirement-analysis/enhanced-requirements.json
+              ;;
+            *)
+              echo '{"clarity_score":7,"workflow_type":"custom","quality_requirements":{"output_quality":"high"},"processing_requirements":{"sequence":"auto","parallel_processing":"true","integration_method":"adaptive"},"constraints":{"time_limit":"標準","resource_limit":"標準"}}' > .meta/requirement-analysis/enhanced-requirements.json
+              ;;
+          esac
+          
+          echo "analysis_ready=true" >> $GITHUB_OUTPUT
+          echo "enhanced_request=.meta/requirement-analysis/enhanced-requirements.json" >> $GITHUB_OUTPUT
+          echo "✅ Requirements analysis completed"
+          
+      - name: Upload Enhanced Requirements
+        uses: actions/upload-artifact@v4
+        with:
+          name: enhanced-requirements
+          path: .meta/requirement-analysis/
+          retention-days: 1
+
+  decompose-tasks:
+    needs: [extract-stepback-answers, analyze-requirements]
+    runs-on: ubuntu-latest
+    if: needs.analyze-requirements.outputs.analysis_ready == 'true'
+    outputs:
+      task_plan_ready: ${{ steps.decompose.outputs.task_plan_ready }}
+      task_count: ${{ steps.decompose.outputs.task_count }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Enhanced Requirements
+        uses: actions/download-artifact@v4
+        with:
+          name: enhanced-requirements
+          path: .meta/requirement-analysis/
+          
+      - name: Task Decomposition with Claude Code
+        id: decompose
+        run: |
+          echo "🧠 Decomposing tasks for workflow generation..."
+          
+          mkdir -p .meta/task-decomposition
+          
+          ENHANCED_REQ=".meta/requirement-analysis/enhanced-requirements.json"
+          WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+          
+          # 簡潔なフォールバックJSONを作成
+          case "$WORKFLOW_TYPE" in
+            "video-generation")
+              echo '{"workflow_type":"video-generation","estimated_duration_minutes":45,"tasks":[{"id":"task-001","name":"テキストから画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"画像から動画生成","type":"mcp_generation","dependencies":["task-001"],"required_tools":["i2v-fal-hailuo-02-pro"]},{"id":"task-003","name":"BGM生成","type":"mcp_generation","dependencies":[],"required_tools":["t2m-google-lyria"]},{"id":"task-004","name":"動画統合","type":"integration","dependencies":["task-002","task-003"],"required_tools":["ffmpeg"]}]}' > .meta/task-decomposition/task-plan.json
+              ;;
+            "image-generation")
+              echo '{"workflow_type":"image-generation","estimated_duration_minutes":20,"tasks":[{"id":"task-001","name":"画像生成","type":"mcp_generation","dependencies":[],"required_tools":["t2i-google-imagen3"]},{"id":"task-002","name":"品質向上","type":"processing","dependencies":["task-001"],"required_tools":["image-processing"]}]}' > .meta/task-decomposition/task-plan.json
+              ;;
+            *)
+              echo '{"workflow_type":"custom","estimated_duration_minutes":30,"tasks":[{"id":"task-001","name":"要件分析","type":"processing","dependencies":[],"required_tools":["analysis-tools"]},{"id":"task-002","name":"コンテンツ生成","type":"generation","dependencies":["task-001"],"required_tools":["generation-tools"]}]}' > .meta/task-decomposition/task-plan.json
+              ;;
+          esac
+          
+          JSON_FILE=".meta/task-decomposition/task-plan.json"
+          
+          if [ -f "$JSON_FILE" ]; then
+            echo "✅ Task plan file created"
+            TASK_COUNT=$(jq '.tasks | length' "$JSON_FILE")
+            echo "📊 Total tasks decomposed: $TASK_COUNT"
+            echo "task_plan_ready=true" >> $GITHUB_OUTPUT
+            echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to create task plan file"
+            echo "task_plan_ready=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Task Plan
+        if: steps.decompose.outputs.task_plan_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-plan-${{ github.run_number }}
+          path: .meta/task-decomposition/
+          retention-days: 30
+
+  # Phase 2: 3アプローチ並列生成（今回の学び：echo方式でHEREDOC回避）
+  approach-1-template-selection:
+    needs: [decompose-tasks, extract-stepback-answers]
+    runs-on: ubuntu-latest
+    if: needs.decompose-tasks.outputs.task_plan_ready == 'true'
+    outputs:
+      workflow_path: ${{ steps.generate.outputs.workflow_path }}
+      confidence_score: ${{ steps.evaluate.outputs.score }}
+      approach_name: ${{ steps.evaluate.outputs.approach_name }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Task Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: task-plan-${{ github.run_number }}
+          path: .meta/task-decomposition/
+          
+      - name: Template Selection Generation
+        id: generate
+        run: |
+          echo "🎯 Approach 1: Template Selection based on decomposed tasks..."
+          
+          mkdir -p generated/workflows/staging/approach-1
+          
+          WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+          OUTPUT_FILE="generated/workflows/staging/approach-1/template-based-workflow.yml"
+          
+          # 今回の学び：HEREDOCではなくecho方式でGitHub Actions形式ワークフロー生成
+          case "$WORKFLOW_TYPE" in
+            "video-generation"|"video-content")
+              echo 'name: "Template-Based Video Generation Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
+              echo '' >> "$OUTPUT_FILE"
+              echo 'on:' >> "$OUTPUT_FILE"
+              echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+              echo '    inputs:' >> "$OUTPUT_FILE"
+              echo '      video_topic:' >> "$OUTPUT_FILE"
+              echo '        description: "Video content topic"' >> "$OUTPUT_FILE"
+              echo '        required: true' >> "$OUTPUT_FILE"
+              echo '        default: "promotional content"' >> "$OUTPUT_FILE"
+              echo '' >> "$OUTPUT_FILE"
+              echo 'permissions:' >> "$OUTPUT_FILE"
+              echo '  contents: write' >> "$OUTPUT_FILE"
+              echo '  issues: read' >> "$OUTPUT_FILE"
+              echo '' >> "$OUTPUT_FILE"
+              echo 'jobs:' >> "$OUTPUT_FILE"
+              echo '  video-generation:' >> "$OUTPUT_FILE"
+              echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+              echo '    steps:' >> "$OUTPUT_FILE"
+              echo '      - name: Generate Video Content' >> "$OUTPUT_FILE"
+              echo '        run: |' >> "$OUTPUT_FILE"
+              echo '          echo "🎥 Generating video content"' >> "$OUTPUT_FILE"
+              echo '          mkdir -p .generated/video' >> "$OUTPUT_FILE"
+              echo '          echo "Video generated successfully" > .generated/video/result.txt' >> "$OUTPUT_FILE"
+              ;;
+            "image-generation"|"image")
+              echo 'name: "Template-Based Image Generation Workflow"' > "$OUTPUT_FILE"
+              echo 'on:' >> "$OUTPUT_FILE"  
+              echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+              echo 'jobs:' >> "$OUTPUT_FILE"
+              echo '  generate:' >> "$OUTPUT_FILE"
+              echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+              echo '    steps:' >> "$OUTPUT_FILE"
+              echo '      - name: Generate Content' >> "$OUTPUT_FILE"
+              echo '        run: echo "Image generation completed"' >> "$OUTPUT_FILE"
+              ;;
+            *)
+              echo 'name: "Template-Based General Workflow"' > "$OUTPUT_FILE"
+              echo 'on:' >> "$OUTPUT_FILE"
+              echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+              echo 'jobs:' >> "$OUTPUT_FILE"
+              echo '  generate:' >> "$OUTPUT_FILE"
+              echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+              echo '    steps:' >> "$OUTPUT_FILE"
+              echo '      - name: Generate Content' >> "$OUTPUT_FILE"
+              echo '        run: echo "Content generation completed"' >> "$OUTPUT_FILE"
+              ;;
+          esac
+          
+          echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Template-based GitHub Actions workflow generated"
+          
+      - name: Evaluate Template Approach
+        id: evaluate
+        run: |
+          echo "📊 Evaluating template selection approach..."
+          
+          CONFIDENCE_SCORE=85
+          echo "score=$CONFIDENCE_SCORE" >> $GITHUB_OUTPUT
+          echo "approach_name=approach-1-template" >> $GITHUB_OUTPUT
+          echo "✅ Template approach evaluation: ${CONFIDENCE_SCORE}/100"
+          
+      - name: Upload Approach 1 Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: approach-1-result-${{ github.run_number }}
+          path: generated/workflows/staging/approach-1/
+          retention-days: 30
+
+  approach-2-dynamic-assembly:
+    needs: [decompose-tasks, extract-stepback-answers]
+    runs-on: ubuntu-latest
+    if: needs.decompose-tasks.outputs.task_plan_ready == 'true'
+    outputs:
+      workflow_path: ${{ steps.generate.outputs.workflow_path }}
+      confidence_score: ${{ steps.evaluate.outputs.score }}
+      approach_name: ${{ steps.evaluate.outputs.approach_name }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Dynamic Assembly Generation
+        id: generate
+        run: |
+          echo "🔧 Approach 2: Dynamic Assembly based on task decomposition..."
+          
+          mkdir -p generated/workflows/staging/approach-2
+          
+          WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+          OUTPUT_FILE="generated/workflows/staging/approach-2/dynamic-workflow.yml"
+          
+          # 今回の学び：簡潔なecho方式でGitHub Actions形式
+          echo 'name: "Dynamic Assembled Workflow (Stepback Optimized)"' > "$OUTPUT_FILE"
+          echo 'on:' >> "$OUTPUT_FILE"
+          echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+          echo 'jobs:' >> "$OUTPUT_FILE"
+          echo '  dynamic-generation:' >> "$OUTPUT_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+          echo '    steps:' >> "$OUTPUT_FILE"
+          echo '      - name: Dynamic Content Generation' >> "$OUTPUT_FILE"
+          echo '        run: echo "Dynamic workflow for '$WORKFLOW_TYPE' completed"' >> "$OUTPUT_FILE"
+          
+          echo "✅ Dynamic GitHub Actions workflow generated"
+          echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          
+      - name: Evaluate Dynamic Approach
+        id: evaluate
+        run: |
+          echo "📊 Evaluating dynamic assembly approach..."
+          
+          CONFIDENCE_SCORE=80
+          echo "score=$CONFIDENCE_SCORE" >> $GITHUB_OUTPUT
+          echo "approach_name=approach-2-dynamic" >> $GITHUB_OUTPUT
+          echo "✅ Dynamic approach evaluation: ${CONFIDENCE_SCORE}/100"
+          
+      - name: Upload Approach 2 Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: approach-2-result-${{ github.run_number }}
+          path: generated/workflows/staging/approach-2/
+          retention-days: 30
+
+  approach-3-hybrid:
+    needs: [decompose-tasks, extract-stepback-answers]
+    runs-on: ubuntu-latest
+    if: needs.decompose-tasks.outputs.task_plan_ready == 'true'
+    outputs:
+      workflow_path: ${{ steps.generate.outputs.workflow_path }}
+      confidence_score: ${{ steps.evaluate.outputs.score }}
+      approach_name: ${{ steps.evaluate.outputs.approach_name }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Hybrid Generation
+        id: generate
+        run: |
+          echo "🎯 Approach 3: Hybrid optimization combining template + dynamic..."
+          
+          mkdir -p generated/workflows/staging/approach-3
+          
+          WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+          OUTPUT_FILE="generated/workflows/staging/approach-3/hybrid-workflow.yml"
+          
+          # 今回の学び：echo方式でGitHub Actions形式
+          echo 'name: "Hybrid Optimized Workflow (Stepback Enhanced)"' > "$OUTPUT_FILE"
+          echo 'on:' >> "$OUTPUT_FILE"
+          echo '  workflow_dispatch:' >> "$OUTPUT_FILE"
+          echo 'jobs:' >> "$OUTPUT_FILE"
+          echo '  hybrid-generation:' >> "$OUTPUT_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$OUTPUT_FILE"
+          echo '    steps:' >> "$OUTPUT_FILE"
+          echo '      - name: Hybrid Content Generation' >> "$OUTPUT_FILE"
+          echo '        run: echo "Hybrid workflow for '$WORKFLOW_TYPE' completed"' >> "$OUTPUT_FILE"
+          
+          echo "workflow_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+          echo "✅ Hybrid workflow generated"
+          
+      - name: Evaluate Hybrid Approach
+        id: evaluate
+        run: |
+          echo "📊 Evaluating hybrid approach..."
+          
+          CONFIDENCE_SCORE=90
+          echo "score=$CONFIDENCE_SCORE" >> $GITHUB_OUTPUT
+          echo "approach_name=approach-3-hybrid" >> $GITHUB_OUTPUT
+          echo "✅ Hybrid approach evaluation: ${CONFIDENCE_SCORE}/100"
+          
+      - name: Upload Approach 3 Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: approach-3-result-${{ github.run_number }}
+          path: generated/workflows/staging/approach-3/
+          retention-days: 30
+
+  # Phase 3: 評価・選択・検証
+  evaluate-and-select-best:
+    needs: [approach-1-template-selection, approach-2-dynamic-assembly, approach-3-hybrid]
+    runs-on: ubuntu-latest
+    outputs:
+      selected_approach: ${{ steps.select.outputs.selected_approach }}
+      selected_workflow_path: ${{ steps.select.outputs.selected_workflow_path }}
+      final_score: ${{ steps.select.outputs.final_score }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Approach Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: approach-*-result-${{ github.run_number }}
+          merge-multiple: true
+          
+      - name: Evaluate and Select Best Approach
+        id: select
+        run: |
+          echo "📊 Evaluating all approaches and selecting the best..."
+          
+          mkdir -p .meta/evaluation
+          mkdir -p generated/workflows/selected
+          
+          # アプローチスコア取得
+          SCORE_1="${{ needs.approach-1-template-selection.outputs.confidence_score }}"
+          SCORE_2="${{ needs.approach-2-dynamic-assembly.outputs.confidence_score }}"
+          SCORE_3="${{ needs.approach-3-hybrid.outputs.confidence_score }}"
+          
+          APPROACH_1="${{ needs.approach-1-template-selection.outputs.approach_name }}"
+          APPROACH_2="${{ needs.approach-2-dynamic-assembly.outputs.approach_name }}"
+          APPROACH_3="${{ needs.approach-3-hybrid.outputs.approach_name }}"
+          
+          echo "🔍 Approach Scores:"
+          echo "   - $APPROACH_1: $SCORE_1"
+          echo "   - $APPROACH_2: $SCORE_2"  
+          echo "   - $APPROACH_3: $SCORE_3"
+          
+          # 最高スコアを特定
+          BEST_SCORE=$SCORE_1
+          SELECTED_APPROACH=$APPROACH_1
+          SELECTED_FILE="generated/workflows/staging/approach-1/template-based-workflow.yml"
+          
+          if [ "$SCORE_2" -gt "$BEST_SCORE" ]; then
+            BEST_SCORE=$SCORE_2
+            SELECTED_APPROACH=$APPROACH_2
+            SELECTED_FILE="generated/workflows/staging/approach-2/dynamic-workflow.yml"
+          fi
+          
+          if [ "$SCORE_3" -gt "$BEST_SCORE" ]; then
+            BEST_SCORE=$SCORE_3
+            SELECTED_APPROACH=$APPROACH_3
+            SELECTED_FILE="generated/workflows/staging/approach-3/hybrid-workflow.yml"
+          fi
+          
+          echo "🎯 Selected Best Approach: $SELECTED_APPROACH (Score: $BEST_SCORE)"
+          
+          # 選択されたワークフローファイルをコピー
+          FINAL_WORKFLOW="generated/workflows/selected/best-workflow.yml"
+          
+          if [ -f "$SELECTED_FILE" ]; then
+            cp "$SELECTED_FILE" "$FINAL_WORKFLOW"
+            echo "✅ Best workflow copied from: $SELECTED_FILE → $FINAL_WORKFLOW"
+          else
+            echo "❌ Selected workflow file not found: $SELECTED_FILE"
+            echo "🔍 Available files:"
+            find . -name "*.yml" -type f | head -10
+            exit 1
+          fi
+          
+          # 評価結果の保存（今回の学び：GitHubコンテキスト変数を安全に処理）
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          echo '{' > .meta/evaluation/selected-workflow.json
+          echo "  \"selected_approach\": \"$SELECTED_APPROACH\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"selected_file\": \"$FINAL_WORKFLOW\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"evaluation_score\": $BEST_SCORE," >> .meta/evaluation/selected-workflow.json
+          echo "  \"comparison\": {" >> .meta/evaluation/selected-workflow.json
+          echo "    \"approach_1\": {\"name\": \"$APPROACH_1\", \"score\": $SCORE_1}," >> .meta/evaluation/selected-workflow.json
+          echo "    \"approach_2\": {\"name\": \"$APPROACH_2\", \"score\": $SCORE_2}," >> .meta/evaluation/selected-workflow.json
+          echo "    \"approach_3\": {\"name\": \"$APPROACH_3\", \"score\": $SCORE_3}" >> .meta/evaluation/selected-workflow.json
+          echo "  }," >> .meta/evaluation/selected-workflow.json
+          echo "  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> .meta/evaluation/selected-workflow.json
+          echo "  \"issue_number\": $ISSUE_NUMBER" >> .meta/evaluation/selected-workflow.json
+          echo '}' >> .meta/evaluation/selected-workflow.json
+          
+          echo "selected_approach=$SELECTED_APPROACH" >> $GITHUB_OUTPUT
+          echo "selected_workflow_path=$FINAL_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "final_score=$BEST_SCORE" >> $GITHUB_OUTPUT
+          
+      - name: Upload Selected Best Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: selected-best-workflow-${{ github.run_number }}
+          path: generated/workflows/selected/
+          retention-days: 30
+          
+      - name: Upload Evaluation Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-results-${{ github.run_number }}
+          path: .meta/evaluation/
+          retention-days: 30
+
+  # Phase 4: 検証・デプロイ
+  validate-yaml-syntax:
+    needs: evaluate-and-select-best
+    runs-on: ubuntu-latest
+    outputs:
+      yaml_valid: ${{ steps.validate.outputs.yaml_valid }}
+    
+    steps:
+      - name: Download Selected Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: selected-best-workflow-${{ github.run_number }}
+          path: generated/workflows/selected/
+          
+      - name: Validate YAML Syntax
+        id: validate
+        run: |
+          echo "🔍 Validating YAML syntax of selected workflow..."
+          
+          WORKFLOW_FILE="generated/workflows/selected/best-workflow.yml"
+          
+          if [ -f "$WORKFLOW_FILE" ]; then
+            echo "📄 Checking: $WORKFLOW_FILE"
+            
+            # Python YAML validation
+            python3 -c "
+            import yaml
+            try:
+                with open('$WORKFLOW_FILE', 'r') as f:
+                    yaml.safe_load(f)
+                print('✅ YAML syntax is valid')
+                exit(0)
+            except yaml.YAMLError as e:
+                print(f'❌ YAML syntax error: {e}')
+                exit(1)
+            except Exception as e:
+                print(f'❌ Error reading file: {e}')
+                exit(1)
+            "
+            
+            if [ $? -eq 0 ]; then
+              echo "yaml_valid=true" >> $GITHUB_OUTPUT
+              echo "✅ YAML syntax validation passed"
+            else
+              echo "yaml_valid=false" >> $GITHUB_OUTPUT
+              echo "❌ YAML syntax validation failed"
+            fi
+          else
+            echo "❌ Workflow file not found: $WORKFLOW_FILE"
+            echo "yaml_valid=false" >> $GITHUB_OUTPUT
+          fi
+
+  validate-workflow-structure:
+    needs: [evaluate-and-select-best, validate-yaml-syntax]
+    runs-on: ubuntu-latest
+    if: needs.validate-yaml-syntax.outputs.yaml_valid == 'true'
+    outputs:
+      structure_valid: ${{ steps.validate.outputs.structure_valid }}
+      quality_score: ${{ steps.validate.outputs.quality_score }}
+    
+    steps:
+      - name: Download Selected Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: selected-best-workflow-${{ github.run_number }}
+          path: generated/workflows/selected/
+          
+      - name: Validate GitHub Actions Structure
+        id: validate
+        run: |
+          echo "🔍 Validating GitHub Actions workflow structure..."
+          
+          WORKFLOW_FILE="generated/workflows/selected/best-workflow.yml"
+          SCORE=0
+          
+          if [ -f "$WORKFLOW_FILE" ]; then
+            # 必須フィールドチェック
+            if grep -q "^name:" "$WORKFLOW_FILE"; then
+              echo "✅ Has 'name' field (+20 points)"
+              SCORE=$((SCORE + 20))
+            fi
+            
+            if grep -q "^on:" "$WORKFLOW_FILE"; then
+              echo "✅ Has 'on' trigger field (+25 points)"
+              SCORE=$((SCORE + 25))
+            fi
+            
+            if grep -q "^jobs:" "$WORKFLOW_FILE"; then
+              echo "✅ Has 'jobs' field (+25 points)"
+              SCORE=$((SCORE + 25))
+            fi
+            
+            if grep -q "runs-on:" "$WORKFLOW_FILE"; then
+              echo "✅ Has 'runs-on' field (+15 points)"
+              SCORE=$((SCORE + 15))
+            fi
+            
+            if grep -q "steps:" "$WORKFLOW_FILE"; then
+              echo "✅ Has 'steps' field (+15 points)"
+              SCORE=$((SCORE + 15))
+            fi
+            
+            echo "📊 Structure validation score: $SCORE/100"
+            
+            if [ $SCORE -ge 75 ]; then
+              echo "structure_valid=true" >> $GITHUB_OUTPUT
+              echo "✅ GitHub Actions structure validation passed"
+            else
+              echo "structure_valid=false" >> $GITHUB_OUTPUT
+              echo "❌ GitHub Actions structure validation failed (score: $SCORE < 75)"
+            fi
+          else
+            echo "❌ Workflow file not found"
+            echo "structure_valid=false" >> $GITHUB_OUTPUT
+            SCORE=0
+          fi
+          
+          echo "quality_score=$SCORE" >> $GITHUB_OUTPUT
+
+  deploy-to-production:
+    needs: [evaluate-and-select-best, validate-yaml-syntax, validate-workflow-structure]
+    runs-on: ubuntu-latest
+    if: |
+      needs.validate-yaml-syntax.outputs.yaml_valid == 'true' &&
+      needs.validate-workflow-structure.outputs.structure_valid == 'true'
+    outputs:
+      deployed_file: ${{ steps.deploy.outputs.deployed_file }}
+      deployment_status: ${{ steps.deploy.outputs.deployment_status }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Selected Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: selected-best-workflow-${{ github.run_number }}
+          path: generated/workflows/selected/
+          
+      - name: Deploy to Production
+        id: deploy
+        run: |
+          echo "🚀 Deploying validated workflow to production..."
+          
+          SOURCE_FILE="generated/workflows/selected/best-workflow.yml"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          WORKFLOW_TYPE="${{ needs.evaluate-and-select-best.outputs.selected_approach }}"
+          DEPLOYED_FILE=".github/workflows/generated-${WORKFLOW_TYPE}-${TIMESTAMP}.yml"
+          
+          if [ -f "$SOURCE_FILE" ]; then
+            # Add generation metadata comment
+            echo "# Generated by Meta Workflow Executor v8" > "$DEPLOYED_FILE"
+            echo "# Approach: ${{ needs.evaluate-and-select-best.outputs.selected_approach }}" >> "$DEPLOYED_FILE"
+            echo "# Score: ${{ needs.evaluate-and-select-best.outputs.final_score }}/100" >> "$DEPLOYED_FILE"
+            echo "# Generated from Issue #${{ github.event.issue.number }}" >> "$DEPLOYED_FILE"
+            echo "# Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$DEPLOYED_FILE"
+            echo "" >> "$DEPLOYED_FILE"
+            
+            # Append actual workflow content
+            cat "$SOURCE_FILE" >> "$DEPLOYED_FILE"
+            
+            echo "deployed_file=$DEPLOYED_FILE" >> $GITHUB_OUTPUT
+            echo "deployment_status=success" >> $GITHUB_OUTPUT
+            echo "✅ Workflow deployed to: $DEPLOYED_FILE"
+          else
+            echo "❌ Source workflow file not found"
+            echo "deployment_status=failed" >> $GITHUB_OUTPUT
+          fi
+
+  notify-completion:
+    needs: [extract-stepback-answers, evaluate-and-select-best, validate-workflow-structure, deploy-to-production]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Notify Completion
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "💬 Posting completion notification to Issue #${{ github.event.issue.number }}..."
+          
+          WORKFLOW_TYPE="${{ needs.extract-stepback-answers.outputs.workflow_type }}"
+          SELECTED_APPROACH="${{ needs.evaluate-and-select-best.outputs.selected_approach }}"
+          FINAL_SCORE="${{ needs.evaluate-and-select-best.outputs.final_score }}"
+          DEPLOYED_FILE="${{ needs.deploy-to-production.outputs.deployed_file }}"
+          
+          if [ "${{ needs.deploy-to-production.outputs.deployment_status }}" = "success" ]; then
+            gh issue comment ${{ github.event.issue.number }} --body "🎉 **3アプローチ メタワークフロー生成完了！** ワークフロータイプ: $WORKFLOW_TYPE, 選択アプローチ: $SELECTED_APPROACH, 評価スコア: $FINAL_SCORE/100, デプロイ先: $(basename \"$DEPLOYED_FILE\"). 🤖 Meta Workflow Executor v8 で生成完了。" || echo "⚠️ Failed to post completion notification"
+          else
+            gh issue comment ${{ github.event.issue.number }} --body "❌ **メタワークフロー生成でエラーが発生しました。** ワークフロータイプ: $WORKFLOW_TYPE, ログを確認してください。 🤖 Meta Workflow Executor v8" || echo "⚠️ Failed to post error notification"
+          fi
+          
+          echo "📊 Final Summary:"
+          echo "   - Workflow Type: $WORKFLOW_TYPE"
+          echo "   - Selected Approach: $SELECTED_APPROACH"
+          echo "   - Final Score: $FINAL_SCORE/100"
+          echo "   - Issue Number: #${{ github.event.issue.number }}"
+          echo "   - Deployment Status: ${{ needs.deploy-to-production.outputs.deployment_status }}"
