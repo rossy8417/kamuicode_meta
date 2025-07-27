@@ -24,7 +24,7 @@ jobs:
   # Phase 1: 回答処理・分析
   validate-comment-trigger:
     runs-on: ubuntu-latest
-    if: contains(github.event.comment.body, 'start')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.comment.body, 'start')
     outputs:
       should_execute: ${{ steps.validate.outputs.should_execute }}
       issue_author: ${{ steps.validate.outputs.issue_author }}
@@ -34,28 +34,42 @@ jobs:
       - name: Validate Start Comment Trigger
         id: validate
         run: |
-          echo "🔍 Validating start comment trigger..."
+          echo "🔍 Validating trigger conditions..."
           
-          COMMENT_USER="${{ github.event.comment.user.login }}"
-          ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
-          COMMENT_BODY="${{ github.event.comment.body }}"
+          EVENT_NAME="${{ github.event_name }}"
+          echo "📋 Event Type: $EVENT_NAME"
           
-          echo "📋 Validation Info:"
-          echo "   - Comment by: $COMMENT_USER"
-          echo "   - Issue author: $ISSUE_AUTHOR"
-          echo "   - Comment starts with 'start': $(echo "$COMMENT_BODY" | grep -q '^start' && echo 'YES' || echo 'NO')"
-          
-          # Issue作成者本人のコメントかチェック
-          if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && echo "$COMMENT_BODY" | grep -q '^start'; then
-            echo "✅ Valid start trigger from Issue author"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "✅ Manual trigger via workflow_dispatch - proceeding"
             echo "should_execute=true" >> $GITHUB_OUTPUT
+            echo "issue_author=manual" >> $GITHUB_OUTPUT
+            echo "comment_author=manual" >> $GITHUB_OUTPUT
+          elif [ "$EVENT_NAME" = "issue_comment" ]; then
+            COMMENT_USER="${{ github.event.comment.user.login }}"
+            ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
+            COMMENT_BODY="${{ github.event.comment.body }}"
+            
+            echo "📋 Comment Validation Info:"
+            echo "   - Comment by: $COMMENT_USER"
+            echo "   - Issue author: $ISSUE_AUTHOR"
+            echo "   - Comment starts with 'start': $(echo "$COMMENT_BODY" | grep -q '^start' && echo 'YES' || echo 'NO')"
+            
+            # Issue作成者本人のコメントかチェック
+            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && echo "$COMMENT_BODY" | grep -q '^start'; then
+              echo "✅ Valid start trigger from Issue author"
+              echo "should_execute=true" >> $GITHUB_OUTPUT
+              echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
+              echo "comment_author=$COMMENT_USER" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Invalid trigger - must be Issue author with 'start' comment"
+              echo "should_execute=false" >> $GITHUB_OUTPUT
+              echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
+              echo "comment_author=$COMMENT_USER" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "❌ Invalid trigger - must be Issue author with 'start' comment"
+            echo "❌ Unknown event type: $EVENT_NAME"
             echo "should_execute=false" >> $GITHUB_OUTPUT
           fi
-          
-          echo "issue_author=$ISSUE_AUTHOR" >> $GITHUB_OUTPUT
-          echo "comment_author=$COMMENT_USER" >> $GITHUB_OUTPUT
 
   extract-stepback-answers:
     needs: validate-comment-trigger
