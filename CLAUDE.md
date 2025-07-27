@@ -214,16 +214,20 @@ generated/               # Metadata and logs storage
 ```
 
 ### MCP Integration Rules
-**Available MCP Services** (from `.claude/mcp-kamuicode.json`):
+**MCP Configuration**: See `docs/MCP_CONFIGURATION_GUIDE.md` for complete service list and setup instructions.
+
+**Key MCP Services** (from `.claude/mcp-kamuicode.json`):
 - **T2I**: `t2i-google-imagen3`, `t2i-fal-imagen4-ultra`, `t2i-fal-imagen4-fast`
 - **T2V**: `t2v-fal-veo3-fast`
-- **I2V**: `i2v-fal-hailuo-02-pro`
+- **I2V**: `i2v-fal-hailuo-02-pro`, `i2v-fal-bytedance-seedance-v1-lite`
 - **T2M**: `t2m-google-lyria`
-- **V2A**: `v2a-fal-metavoice-v1`
-- **V2V**: `v2v-fal-cogvideo-1_5`
+- **V2A**: `v2a-fal-thinksound`
+- **V2V**: `v2v-fal-luma-ray2-modify`, `v2v-fal-creatify-lipsync`, `v2v-fal-pixverse-lipsync`
 - **I2I3D**: `i2i3d-fal-hunyuan3d-v21`
 
-**IMPORTANT**: Do NOT reference non-existent MCP services (e.g., `web-search`, `rss-parser`, `generic kamuicode`). Use external API calls instead.
+**IMPORTANT**: 
+- Do NOT reference non-existent MCP services (e.g., `web-search`, `rss-parser`, `generic kamuicode`). Use external API calls instead.
+- For GitHub Actions, set environment variables: `CLAUDE_CODE_CI_MODE=true` and `CLAUDE_CODE_AUTO_APPROVE_MCP=true`
 
 ### Code Patterns to Follow
 
