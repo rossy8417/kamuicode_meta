@@ -333,6 +333,22 @@ jobs:
     outputs:
       images_generated: ${{ steps.generate.outputs.images_generated }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install Claude CLI
+        run: |
+          echo "📦 Installing Claude CLI..."
+          curl -fsSL https://cli.anthropic.com/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          
+      - name: Setup Claude Authentication
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🔐 Setting up Claude authentication..."
+          ~/.local/bin/claude auth login --token "$CLAUDE_CODE_OAUTH_TOKEN"
+        
       - name: Download Keyframe Prompts
         uses: actions/download-artifact@v4
         with:
@@ -356,17 +372,17 @@ jobs:
           
           # Intro画像生成
           echo "📸 Generating intro frame..."
-          INTRO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$INTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
+          INTRO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$INTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
           INTRO_URL=$(echo "$INTRO_RESULT" | jq -r '.image_url // .file_path // "none"')
           
           # Main画像生成
           echo "📸 Generating main frame..."
-          MAIN_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$MAIN_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
+          MAIN_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$MAIN_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
           MAIN_URL=$(echo "$MAIN_RESULT" | jq -r '.image_url // .file_path // "none"')
           
           # Outro画像生成
           echo "📸 Generating outro frame..."
-          OUTRO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$OUTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
+          OUTRO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2i-google-imagen3 --prompt="$OUTRO_PROMPT" --aspect-ratio="1:1" --quality="${{ github.event.inputs.quality_setting }}")
           OUTRO_URL=$(echo "$OUTRO_RESULT" | jq -r '.image_url // .file_path // "none"')
           
           # 画像ダウンロード・保存
@@ -431,6 +447,22 @@ jobs:
     outputs:
       audio_ready: ${{ steps.generate.outputs.audio_ready }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install Claude CLI
+        run: |
+          echo "📦 Installing Claude CLI..."
+          curl -fsSL https://cli.anthropic.com/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          
+      - name: Setup Claude Authentication
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🔐 Setting up Claude authentication..."
+          ~/.local/bin/claude auth login --token "$CLAUDE_CODE_OAUTH_TOKEN"
+        
       - name: Download Concept Plan
         uses: actions/download-artifact@v4
         with:
@@ -453,7 +485,7 @@ jobs:
           echo "🎼 Music prompt: $MUSIC_PROMPT"
           
           # 実際のMCP T2M サービス呼び出し
-          AUDIO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=t2m-google-lyria --prompt="$MUSIC_PROMPT" --duration=${{ github.event.inputs.video_length }})
+          AUDIO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=t2m-google-lyria --prompt="$MUSIC_PROMPT" --duration=${{ github.event.inputs.video_length }})
           AUDIO_URL=$(echo "$AUDIO_RESULT" | jq -r '.audio_url // .file_path // "none"')
           
           if [ "$AUDIO_URL" != "none" ]; then
@@ -542,6 +574,22 @@ jobs:
     outputs:
       video_ready: ${{ steps.generate.outputs.video_ready }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install Claude CLI
+        run: |
+          echo "📦 Installing Claude CLI..."
+          curl -fsSL https://cli.anthropic.com/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          
+      - name: Setup Claude Authentication
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🔐 Setting up Claude authentication..."
+          ~/.local/bin/claude auth login --token "$CLAUDE_CODE_OAUTH_TOKEN"
+        
       - name: Download Generated Images
         uses: actions/download-artifact@v4
         with:
@@ -569,7 +617,7 @@ jobs:
           echo "🎬 Calling MCP service: i2v-fal-hailuo-02-pro"
           
           # 実際のMCP I2V サービス呼び出し
-          VIDEO_RESULT=$(claude --mcp-config=.claude/mcp-kamuicode.json --service=i2v-fal-hailuo-02-pro --input-url="$MAIN_IMAGE_URL" --duration=${{ github.event.inputs.video_length }} --style="${{ github.event.inputs.video_style }}")
+          VIDEO_RESULT=$(~/.local/bin/claude --mcp-config=.claude/mcp-kamuicode.json --service=i2v-fal-hailuo-02-pro --input-url="$MAIN_IMAGE_URL" --duration=${{ github.event.inputs.video_length }} --style="${{ github.event.inputs.video_style }}")
           VIDEO_URL=$(echo "$VIDEO_RESULT" | jq -r '.video_url // .file_path // "none"')
           
           if [ "$VIDEO_URL" != "none" ]; then
