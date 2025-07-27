@@ -765,11 +765,11 @@ jobs:
           SOURCE_FILE="generated/workflows/selected/best-workflow.yml"
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           WORKFLOW_TYPE="${{ needs.evaluate-and-select-best.outputs.selected_approach }}"
-          DEPLOYED_FILE=".github/workflows/generated-${WORKFLOW_TYPE}-${TIMESTAMP}.yml"
-          GENERATED_FILE="generated/workflows/production/best-workflow.yml"
+          DEPLOYED_FILE=".github/workflows/generated/staging/generated-${WORKFLOW_TYPE}-${TIMESTAMP}.yml.disabled"
+          ACTIVE_FILE=".github/workflows/generated/active/latest-generated.yml"
           
-          # Ensure generated/workflows/production directory exists
-          mkdir -p generated/workflows/production
+          # Ensure new simple structure exists
+          mkdir -p .github/workflows/generated/{staging,active,archive}
           
           if [ -f "$SOURCE_FILE" ]; then
             # Create metadata header and append source file
@@ -778,20 +778,24 @@ jobs:
             echo "# Score: ${{ needs.evaluate-and-select-best.outputs.final_score }}/100" >> "$DEPLOYED_FILE"
             echo "# Generated from Issue #${{ github.event.issue.number }}" >> "$DEPLOYED_FILE"
             echo "# Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$DEPLOYED_FILE"
+            echo "# Status: STAGING - Test before activating" >> "$DEPLOYED_FILE"
             echo "" >> "$DEPLOYED_FILE"
             cat "$SOURCE_FILE" >> "$DEPLOYED_FILE"
             
-            # Save to generated/ directory for repository storage
-            cp "$DEPLOYED_FILE" "$GENERATED_FILE"
+            # Archive any existing active workflow
+            if [ -f "$ACTIVE_FILE" ]; then
+              mv "$ACTIVE_FILE" ".github/workflows/generated/archive/archived-$(date +%Y%m%d-%H%M%S).yml"
+              echo "📦 Previous workflow archived"
+            fi
             
-            # Also save with timestamp for history
-            cp "$DEPLOYED_FILE" "generated/workflows/production/workflow-${TIMESTAMP}.yml"
+            # Copy to active (but keep .disabled in staging for safety)
+            cp "$DEPLOYED_FILE" "${ACTIVE_FILE}.disabled"
             
             echo "deployed_file=$DEPLOYED_FILE" >> $GITHUB_OUTPUT
-            echo "generated_file=$GENERATED_FILE" >> $GITHUB_OUTPUT
+            echo "active_file=$ACTIVE_FILE" >> $GITHUB_OUTPUT
             echo "deployment_status=success" >> $GITHUB_OUTPUT
-            echo "✅ Workflow deployed to: $DEPLOYED_FILE"
-            echo "✅ Workflow saved to: $GENERATED_FILE"
+            echo "✅ Workflow deployed to staging: $DEPLOYED_FILE"
+            echo "✅ Workflow ready for activation: ${ACTIVE_FILE}.disabled"
           else
             echo "❌ Source workflow file not found"
             echo "deployment_status=failed" >> $GITHUB_OUTPUT
@@ -889,7 +893,24 @@ jobs:
           DEPLOYED_FILE="${{ needs.deploy-to-production.outputs.deployed_file }}"
           
           if [ "${{ needs.deploy-to-production.outputs.deployment_status }}" = "success" ]; then
-            gh issue comment ${{ github.event.issue.number }} --body "🎉 **3アプローチ メタワークフロー生成完了！** Type: $WORKFLOW_TYPE, Approach: $SELECTED_APPROACH, Score: $FINAL_SCORE/100. Files: generated/workflows/production/best-workflow.yml, Logs: generated/logs/run-${{ github.run_number }}-*/ 🤖 Meta Workflow Executor v8" || echo "⚠️ Failed to post completion notification"
+            gh issue comment ${{ github.event.issue.number }} --body "🎉 **メタワークフロー生成完了！** 
+            
+**📊 生成結果:**
+- **Type**: $WORKFLOW_TYPE
+- **Approach**: $SELECTED_APPROACH  
+- **Score**: $FINAL_SCORE/100
+
+**📁 ファイル場所:**
+- **Staging**: \`.github/workflows/generated/staging/generated-${SELECTED_APPROACH}-*.yml.disabled\`
+- **Ready to activate**: \`.github/workflows/generated/active/latest-generated.yml.disabled\`
+
+**🔧 アクティブ化方法:**
+\`\`\`bash
+# テスト用に一時有効化
+mv .github/workflows/generated/active/latest-generated.yml.disabled .github/workflows/generated/active/latest-generated.yml
+\`\`\`
+
+🤖 Meta Workflow Executor v8.1" || echo "⚠️ Failed to post completion notification"
           else
             gh issue comment ${{ github.event.issue.number }} --body "❌ **メタワークフロー生成でエラーが発生しました。** ワークフロータイプ: $WORKFLOW_TYPE, ログを確認してください。 🤖 Meta Workflow Executor v8" || echo "⚠️ Failed to post error notification"
           fi

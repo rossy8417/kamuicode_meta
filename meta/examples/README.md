@@ -1,10 +1,10 @@
 # Meta Workflow Examples
 
-このディレクトリには、メタワークフロージェネレーターシステムで使用される参考ワークフローテンプレートが格納されています。
+このディレクトリには、**Meta Workflow Executor v8**で使用される参考ワークフローテンプレートが格納されています。
 
 ## 概要
 
-各ワークフローは**超詳細タスク分解**により、AIが確実に実行できる粒度まで分解された完全なワークフロー定義です。メタワークフロージェネレーターは、ユーザーリクエストに基づいてこれらのテンプレートから適切なものを選択し、カスタマイズして新しいワークフローを生成します。
+各ワークフローは**超詳細タスク分解**により、AIが確実に実行できる粒度まで分解された完全なワークフロー定義です。**Meta Workflow Executor v8**は、ユーザーのステップバック回答に基づいてこれらのテンプレートから適切なものを選択し、3つのアプローチ（テンプレートベース・動的組み立て・ハイブリッド）で並列生成して最適なワークフローを自動選択します。
 
 ## ワークフロー一覧
 
@@ -350,7 +350,7 @@ graph TD
 
 ### MCP (Model Context Protocol) サービス
 
-各ワークフローで使用される主要なMCPサービス：
+各ワークフローで使用される主要なMCPサービス（`.claude/mcp-kamuicode.json`で定義）：
 
 - **T2I (Text-to-Image)**
   - `t2i-google-imagen3`: Google Imagen 3
@@ -367,23 +367,36 @@ graph TD
   - `t2m-google-lyria`: Google Lyria
 
 - **V2A (Video-to-Audio)**
-  - `v2a-fal-metavoice-v1`: Fal.ai MetaVoice v1
+  - `v2a-fal-thinksound`: Fal.ai ThinkSound ⚠️ **注意**: 旧文書の`v2a-fal-metavoice-v1`から変更
 
 - **V2V (Video-to-Video)**
-  - `v2v-fal-cogvideo-1_5`: Fal.ai CogVideo 1.5
+  - `v2v-fal-luma-ray2-modify`: Fal.ai Luma Dream Machine Ray-2 ⚠️ **注意**: 旧文書の`v2v-fal-cogvideo-1_5`から変更
 
 - **I2I3D (Image-to-3D)**
   - `i2i3d-fal-hunyuan3d-v21`: Fal.ai HunYuan3D v2.1
+
+- **R2V (Reference-to-Video)**
+  - `r2v-fal-vidu-q1`: Fal.ai Vidu Q1
+
+- **I2I (Image-to-Image)**
+  - `i2i-fal-flux-kontext-max`: Fal.ai Flux Kontext Max
 
 ### ファイル構造パターン
 
 全ワークフローは一貫したファイルパス参照パターンを使用：
 
 ```bash
-# MCP出力からのファイルパス取得
-IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$ref_file")
-VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$video_file") 
+# MCP出力からのファイルパス取得（成功パターンドキュメント参照）
+IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$ref_file" 2>/dev/null)
+VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$video_file")
 AUDIO_PATH=$(jq -r '.audio_url // .file_path // "none"' "$audio_file")
+
+# 統一されたディレクトリ構造（meta/successful-workflow-patterns.md準拠）
+mkdir -p generated/workflows/staging/approach-{1,2,3}
+mkdir -p generated/workflows/selected
+mkdir -p generated/workflows/production
+mkdir -p generated/metadata/{stepback-analysis,requirement-analysis,task-decomposition,evaluation}
+mkdir -p generated/logs/run-${GITHUB_RUN_NUMBER}-${TIMESTAMP}
 ```
 
 ### GitHub Actions 統合
@@ -392,23 +405,40 @@ AUDIO_PATH=$(jq -r '.audio_url // .file_path // "none"' "$audio_file")
 
 - **Artifacts**: 30日間保持
 - **並列実行**: 最大3ジョブ
-- **エラーハンドリング**: リトライ機能付き
-- **品質チェック**: 各段階での検証
-- **ログ記録**: 詳細な実行ログ
+- **エラーハンドリング**: echo方式ファイル生成でHEREDOC回避
+- **品質チェック**: YAML構文・GitHub Actions構造・依存関係の検証
+- **ログ記録**: `generated/logs/` での詳細な実行ログ永続化
+- **オートフィックス**: 失敗時の自動修復システム (`auto-fix-deployment.yml`) 統合
 
 ## 使用方法
 
-### 1. メタワークフロージェネレーター経由（推奨）
+### 1. Meta Workflow Executor v8経由（推奨）
 
-```yaml
-- name: メタワークフロー実行
-  uses: ./.github/workflows/kamuicode-meta-generator.yml
-  with:
-    workflow_type: "video-generation"
-    description: "商品紹介動画を作成してください"
+**Issue作成による実行**:
+```markdown
+## 🤖 Kamuicode Meta Workflow Generator v8 - ステップバック質問回答
+
+### ワークフロー種別
+動画生成（video-generation）- T2V/I2V
+
+### 詳細な説明・ストーリー
+商品紹介動画を作成したい。T2I→I2V複合処理で高品質な動画を生成。
+
+## 📋 ワークフロー詳細化のための質問
+
+**Q1回答**: T2I→I2V複合処理を採用
+**Q2回答**: 最高品質設定で時間制限なし
+**Q3回答**: エラー時は異なるMCPサービスに切り替え
+**Q4回答**: URLプレビュー可能、中間ファイルも保持
+**Q5回答**: 詳細監視・ログ機能を組み込み
 ```
 
-### 2. 直接使用
+**手動実行**:
+```bash
+gh workflow run meta-workflow-executor-v8.yml -f issue_number=46
+```
+
+### 2. 直接使用（開発者向け）
 
 ```bash
 # テンプレートをコピーしてカスタマイズ
@@ -430,19 +460,22 @@ gh workflow run my-video-workflow.yml
 
 ## 品質保証
 
-### 段階的格納システム
+### 段階的格納システム v8
 
-1. **Staging**: `generated/workflows/staging/` でテンプレート生成
-2. **Validation**: YAML構文・GitHub Actions構造・MCP参照チェック
-3. **Production**: 検証合格後 `.github/workflows/` に配置
+1. **3-Approach Staging**: `generated/workflows/staging/approach-{1,2,3}/` で並列生成
+2. **Best Selection**: 最高スコアのアプローチを `generated/workflows/selected/` に選択
+3. **Validation**: YAML構文・GitHub Actions構造・MCP参照チェック
+4. **Staging Deployment**: `.github/workflows/generated/staging/` に `.disabled` 付きで配置
+5. **Active Ready**: `.github/workflows/generated/active/` に配置（手動アクティベーション待ち）
 
 ### 検証項目
 
-- ✅ YAML構文チェック (yamllint)
-- ✅ GitHub Actions構造検証
-- ✅ MCPサービス参照検証
+- ✅ YAML構文チェック (Python yaml.safe_load)
+- ✅ GitHub Actions構造検証 (必須フィールド確認)
+- ✅ MCPサービス参照検証 (`.claude/mcp-kamuicode.json` 準拠)
 - ✅ 依存関係チェック（循環参照防止）
 - ✅ 総合スコア判定 (75点以上で合格)
+- ✅ オートフィックス (`auto-fix-deployment.yml`) 統合
 
 ## 拡張・カスタマイズ
 
