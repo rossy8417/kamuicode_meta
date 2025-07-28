@@ -24,7 +24,7 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 - **`.github/ISSUE_TEMPLATE/`**: Issue templates for workflow requests
 - **`meta/prompts/`**: Prompt files for task decomposition, workflow generation, script generation, documentation
 - **`generated/`**: Organized outputs with metadata and logs storage
-- **`.github/workflows/generated/`**: Simplified final deployment area with active/, staging/, archive/ structure
+- **`.github/workflows/generated/`**: Simple workflow deployment area
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 
@@ -195,13 +195,8 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 ├── meta-workflow-executor-v8.yml    # Main meta workflow (v8.1)
 ├── auto-fix-deployment.yml          # Automated error recovery system
 ├── continuous-system-monitor.yml    # System health monitoring
-└── generated/                       # Simplified generated workflow deployment
-    ├── active/                      # Production-ready workflows (manually activated)
-    │   └── *.yml                    # Active workflows
-    ├── staging/                     # Validated workflows (.disabled extension)
-    │   └── *.yml.disabled           # Ready for manual activation
-    └── archive/                     # Historical workflow versions
-        └── *.yml                    # Past versions
+└── generated/                       # Simple generated workflow deployment
+    └── *.yml                        # Generated workflows
 
 generated/               # Metadata and logs storage
 ├── metadata/            # Analysis data (persistent)
@@ -246,9 +241,7 @@ mkdir -p projects/current-session/scripts       # For temporary scripts
 mkdir -p projects/current-session/final         # For final deliverables
 
 # IMPORTANT: Use .github/workflows/generated/ for final workflow deployment
-mkdir -p .github/workflows/generated/staging     # For validated workflows (.disabled)
-mkdir -p .github/workflows/generated/active      # For production workflows
-mkdir -p .github/workflows/generated/archive     # For historical versions
+mkdir -p .github/workflows/generated             # For generated workflows (simple structure)
 
 # Directory existence checks before file operations
 if [ ! -d "$(dirname "$TARGET_FILE")" ]; then
@@ -339,10 +332,8 @@ The main workflow now uses:
 1. **Template Selection** → Select best template from `meta/examples/` based on workflow type
 2. **Workflow Generation** → Generate workflow based on selected template
 3. **Validation** → YAML syntax, GitHub Actions structure, MCP references check (75+ score required)
-4. **Staging Deployment** → `.github/workflows/generated/staging/` (with .disabled extension for safety)
-5. **Manual Activation** → Move to `.github/workflows/generated/active/` when ready for production
-6. **Archive Management** → Historical versions stored in `.github/workflows/generated/archive/`
-7. **Metadata & Logs Storage** → `generated/metadata/` + `generated/logs/` (permanently stored)
+4. **Direct Deployment** → `.github/workflows/generated/` (simple structure)
+5. **Metadata & Logs Storage** → `projects/current-session/metadata/` + `projects/current-session/logs/` (permanently stored)
 
 ### Development Best Practices
 
@@ -358,9 +349,8 @@ The main workflow now uses:
 - **Maintain simplified staged deployment system**
 - **Keep validation scoring system (75+ points for pass)**
 - **Preserve template selection logic**
-- **Target `.github/workflows/generated/staging/` for validated workflows (.disabled)**
-- **Use `.github/workflows/generated/active/` for production-ready workflows**
-- **Archive old versions in `.github/workflows/generated/archive/`**
+- **Deploy to `.github/workflows/generated/` for generated workflows**
+- **Simple structure without complex subdirectories**
 
 #### Error Handling
 - **External API fallbacks** for missing MCP services
@@ -375,8 +365,7 @@ The main workflow now uses:
 ### Execution Methods
 1. **Issue-driven**: Create issues using workflow-request.yml template
 2. **Manual**: Use `workflow_dispatch` trigger with parameters
-3. **Simplified staged validation**: Automatic quality assurance → staging (.disabled) → manual activation → active
-4. **Archive management**: Historical versions preserved in `.github/workflows/generated/archive/`
+3. **Simple deployment**: Automatic quality assurance → direct deployment to `.github/workflows/generated/`
 
 ## Development Philosophy
 
@@ -397,4 +386,4 @@ The main workflow now uses:
 - **Simplified staged deployment prevents broken workflows from reaching production**
 - **File path reference patterns are critical for workflow continuity**
 - **MCP services are limited to AI generation - use external APIs for other functions**
-- **Final workflows are deployed to `.github/workflows/generated/` in 3-folder structure (active/, staging/, archive/)**
+- **Final workflows are deployed to `.github/workflows/generated/` in simple structure**
