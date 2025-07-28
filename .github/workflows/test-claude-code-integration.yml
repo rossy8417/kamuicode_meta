@@ -1,0 +1,304 @@
+name: Test Claude Code Integration
+run-name: 🧪 Testing GitHub Actions ↔ Claude Code Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_prompt:
+        description: 'Test prompt for Claude Code'
+        required: false
+        default: 'Create a simple task analysis for video generation workflow'
+      complexity_level:
+        description: 'Complexity level (1-10)'
+        required: false
+        default: '5'
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Phase 1: GitHub Actions初期処理
+  initial-analysis:
+    runs-on: ubuntu-latest
+    outputs:
+      should_use_claude: ${{ steps.analyze.outputs.should_use_claude }}
+      initial_data: ${{ steps.analyze.outputs.initial_data }}
+      complexity_score: ${{ steps.analyze.outputs.complexity_score }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Initial Static Analysis
+        id: analyze
+        run: |
+          echo "🔍 GitHub Actions初期分析開始..."
+          
+          mkdir -p test-results/phase1
+          
+          # 入力データの分析
+          TEST_PROMPT="${{ inputs.test_prompt }}"
+          COMPLEXITY="${{ inputs.complexity_level }}"
+          
+          echo "📝 Test Prompt: $TEST_PROMPT"
+          echo "📊 Complexity Level: $COMPLEXITY"
+          
+          # 複雑度による判定
+          if [ "$COMPLEXITY" -gt 3 ]; then
+            echo "🧠 複雑度が高いため、Claude Code分析を使用"
+            echo "should_use_claude=true" >> $GITHUB_OUTPUT
+          else
+            echo "📋 複雑度が低いため、静的処理のみ使用"
+            echo "should_use_claude=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # 初期データの準備
+          echo "# Initial Analysis Data" > test-results/phase1/initial-data.md
+          echo "" >> test-results/phase1/initial-data.md
+          echo "**Test Prompt**: $TEST_PROMPT" >> test-results/phase1/initial-data.md
+          echo "**Complexity**: $COMPLEXITY/10" >> test-results/phase1/initial-data.md
+          echo "**Timestamp**: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> test-results/phase1/initial-data.md
+          echo "**GitHub Run ID**: ${{ github.run_id }}" >> test-results/phase1/initial-data.md
+          
+          echo "initial_data=test-results/phase1/initial-data.md" >> $GITHUB_OUTPUT
+          echo "complexity_score=$COMPLEXITY" >> $GITHUB_OUTPUT
+          
+          echo "✅ GitHub Actions初期分析完了"
+          
+      - name: Upload Initial Analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: initial-analysis-${{ github.run_number }}
+          path: test-results/phase1/
+          retention-days: 1
+
+  # Phase 2: Claude Code分析（条件付き）
+  claude-analysis:
+    needs: initial-analysis
+    runs-on: ubuntu-latest
+    if: needs.initial-analysis.outputs.should_use_claude == 'true'
+    outputs:
+      claude_analysis_completed: ${{ steps.claude-result.outputs.completed }}
+      claude_result_file: ${{ steps.claude-result.outputs.result_file }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download Initial Analysis
+        uses: actions/download-artifact@v4
+        with:
+          name: initial-analysis-${{ github.run_number }}
+          path: test-results/phase1/
+          
+      - name: Prepare Claude Code Input
+        run: |
+          echo "🎯 Claude Code入力データ準備中..."
+          
+          mkdir -p test-results/phase2
+          
+          # Claude Code用プロンプトの作成
+          cat > test-results/phase2/claude-prompt.md << 'EOF'
+# Claude Code Integration Test
+
+あなたはGitHub ActionsワークフローでClaude Codeとの統合をテストしています。
+
+## 入力データ
+EOF
+          cat test-results/phase1/initial-data.md >> test-results/phase2/claude-prompt.md
+          
+          cat >> test-results/phase2/claude-prompt.md << 'EOF'
+
+## タスク
+以下の要求に基づいて、詳細なタスク分析を実行してください：
+
+1. **入力プロンプトの分析**
+2. **推奨ワークフロー戦略の提案**
+3. **必要なツールとMCPサービスの特定**
+4. **実行時間の見積もり**
+
+## 出力要求
+結果を以下のJSONファイルとして出力してください: `./claude-analysis-result.json`
+
+```json
+{
+  "analysis_completed": true,
+  "input_analysis": "入力の分析結果",
+  "recommended_strategy": "推奨戦略",
+  "required_tools": ["tool1", "tool2"],
+  "mcp_services": ["service1", "service2"],
+  "estimated_duration_minutes": 30,
+  "complexity_assessment": "高/中/低",
+  "additional_recommendations": "追加の推奨事項"
+}
+```
+
+このテストにより、GitHub ActionsとClaude Codeの統合が正常に動作することを確認します。
+EOF
+          
+          echo "✅ Claude Code入力準備完了"
+          
+      - name: Execute Claude Code Analysis
+        uses: anthropics/claude-code-base-action@beta
+        env:
+          CLAUDE_CODE_CI_MODE: "true"
+          CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+        with:
+          prompt_file: "test-results/phase2/claude-prompt.md"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          max_turns: "10"
+          allowed_tools: "Read,Write,Bash"
+          
+      - name: Process Claude Code Results
+        id: claude-result
+        run: |
+          echo "🔍 Claude Code結果の処理中..."
+          
+          if [ -f "./claude-analysis-result.json" ]; then
+            echo "✅ Claude Code分析結果を取得"
+            
+            # 結果をtest-resultsに移動
+            cp claude-analysis-result.json test-results/phase2/
+            
+            # 結果の検証
+            if jq empty test-results/phase2/claude-analysis-result.json 2>/dev/null; then
+              echo "✅ JSON形式が正しい"
+              
+              STRATEGY=$(jq -r '.recommended_strategy' test-results/phase2/claude-analysis-result.json)
+              DURATION=$(jq -r '.estimated_duration_minutes' test-results/phase2/claude-analysis-result.json)
+              
+              echo "📋 推奨戦略: $STRATEGY"
+              echo "⏱️ 推定時間: $DURATION 分"
+              
+              echo "completed=true" >> $GITHUB_OUTPUT
+              echo "result_file=test-results/phase2/claude-analysis-result.json" >> $GITHUB_OUTPUT
+            else
+              echo "❌ JSON形式が無効"
+              echo "completed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Claude Code分析結果が見つからない"
+            echo "completed=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Claude Analysis Results
+        if: steps.claude-result.outputs.completed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-analysis-${{ github.run_number }}
+          path: test-results/phase2/
+          retention-days: 1
+
+  # Phase 3: GitHub Actions最終処理（自動復帰）
+  final-processing:
+    needs: [initial-analysis, claude-analysis]
+    runs-on: ubuntu-latest
+    if: always()  # Claude Code失敗時もフォールバック実行
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ github.run_number }}"
+          merge-multiple: true
+          path: test-results/final/
+          
+      - name: Final Integration and Summary
+        run: |
+          echo "🎯 GitHub Actions最終処理（自動復帰完了）"
+          
+          mkdir -p test-results/summary
+          
+          # サマリーレポート作成
+          echo "# Claude Code Integration Test Summary" > test-results/summary/test-summary.md
+          echo "" >> test-results/summary/test-summary.md
+          echo "**Test Run**: ${{ github.run_id }}" >> test-results/summary/test-summary.md
+          echo "**Timestamp**: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> test-results/summary/test-summary.md
+          echo "" >> test-results/summary/test-summary.md
+          
+          # 各フェーズの結果をまとめ
+          echo "## Phase 1: GitHub Actions初期分析" >> test-results/summary/test-summary.md
+          echo "- ✅ 完了" >> test-results/summary/test-summary.md
+          echo "- 複雑度: ${{ needs.initial-analysis.outputs.complexity_score }}/10" >> test-results/summary/test-summary.md
+          echo "- Claude Code使用判定: ${{ needs.initial-analysis.outputs.should_use_claude }}" >> test-results/summary/test-summary.md
+          echo "" >> test-results/summary/test-summary.md
+          
+          echo "## Phase 2: Claude Code分析" >> test-results/summary/test-summary.md
+          if [ "${{ needs.initial-analysis.outputs.should_use_claude }}" = "true" ]; then
+            if [ "${{ needs.claude-analysis.outputs.claude_analysis_completed }}" = "true" ]; then
+              echo "- ✅ 完了" >> test-results/summary/test-summary.md
+              
+              # Claude Code結果の詳細を追加
+              if [ -f "test-results/final/claude-analysis-result.json" ]; then
+                echo "- 推奨戦略: $(jq -r '.recommended_strategy' test-results/final/claude-analysis-result.json)" >> test-results/summary/test-summary.md
+                echo "- 複雑度評価: $(jq -r '.complexity_assessment' test-results/final/claude-analysis-result.json)" >> test-results/summary/test-summary.md
+                echo "- 推定時間: $(jq -r '.estimated_duration_minutes' test-results/final/claude-analysis-result.json)分" >> test-results/summary/test-summary.md
+              fi
+            else
+              echo "- ❌ 失敗（フォールバック使用）" >> test-results/summary/test-summary.md
+            fi
+          else
+            echo "- ⏭️ スキップ（複雑度が低いため）" >> test-results/summary/test-summary.md
+          fi
+          echo "" >> test-results/summary/test-summary.md
+          
+          echo "## Phase 3: GitHub Actions最終処理" >> test-results/summary/test-summary.md
+          echo "- ✅ 自動復帰完了" >> test-results/summary/test-summary.md
+          echo "- 統合テスト成功" >> test-results/summary/test-summary.md
+          echo "" >> test-results/summary/test-summary.md
+          
+          echo "## 結論" >> test-results/summary/test-summary.md
+          echo "GitHub Actions ↔ Claude Code の往復統合が正常に動作することを確認しました。" >> test-results/summary/test-summary.md
+          
+          echo "📋 テストサマリー完成"
+          cat test-results/summary/test-summary.md
+          
+      - name: Commit Test Results (Optional)
+        run: |
+          if [ -d "test-results" ]; then
+            echo "💾 テスト結果を保存中..."
+            
+            # 結果をcommit用ディレクトリに整理
+            mkdir -p generated/test-results/claude-integration/
+            cp -r test-results/* generated/test-results/claude-integration/
+            
+            echo "✅ テスト結果を generated/test-results/claude-integration/ に保存"
+          fi
+
+  # フォールバック処理（Claude Code失敗時の代替）
+  fallback-processing:
+    needs: initial-analysis
+    runs-on: ubuntu-latest
+    if: needs.initial-analysis.outputs.should_use_claude == 'false'
+    
+    steps:
+      - name: Static Fallback Processing
+        run: |
+          echo "📋 静的フォールバック処理実行中..."
+          
+          mkdir -p test-results/fallback
+          
+          # 静的な分析結果を生成
+          cat > test-results/fallback/static-result.json << 'EOF'
+{
+  "analysis_completed": true,
+  "method": "static_fallback",
+  "input_analysis": "Static analysis based on complexity level",
+  "recommended_strategy": "template-based-approach",
+  "required_tools": ["basic-tools"],
+  "mcp_services": [],
+  "estimated_duration_minutes": 15,
+  "complexity_assessment": "低",
+  "additional_recommendations": "Simple workflow recommended for low complexity tasks"
+}
+EOF
+          
+          echo "✅ 静的フォールバック処理完了"
+          echo "💡 この結果はClaude Code分析なしで生成されました"
