@@ -3,10 +3,11 @@ run-name: 👥 Monitoring workflow for run ${{ github.event.workflow_run.run_num
 
 on:
   workflow_run:
-    workflows: ["Kamuicode Meta Generator (Self-Healing)", "Integrated Multimedia Pipeline"]
+    workflows: 
+      - "Meta Workflow Executor v8"
+      # メタワークフロー実行時に監視を開始
     types:
       - requested
-    # メインワークフロー開始時に監視開始
   workflow_dispatch:
     inputs:
       target_run_id:
@@ -32,7 +33,8 @@ jobs:
   # メインワークフロー連動監視
   companion-monitoring:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && github.event.inputs.monitoring_enabled == 'true')
+    # pushイベントを明示的に除外
+    if: github.event_name != 'push' && (github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && github.event.inputs.monitoring_enabled == 'true'))
     outputs:
       critical_issue: ${{ steps.monitor.outputs.critical_issue }}
       immediate_fix_needed: ${{ steps.monitor.outputs.immediate_fix_needed }}
