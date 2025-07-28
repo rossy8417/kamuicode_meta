@@ -80,7 +80,7 @@ jobs:
         run: |
           mkdir -p generated/{concept,images,audio,video,final}
           
-  # Phase 2: コンセプト作成
+  # Phase 2: コンセプト作成 (Claude Code SDK Node)
   concept-planning:
     needs: setup
     runs-on: ubuntu-latest
@@ -89,32 +89,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Create concept with Claude Code
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: |
-            Create a detailed video concept plan for: "${{ github.event.inputs.video_concept }}"
-            Target audience: ${{ github.event.inputs.target_audience }}
-            Duration: ${{ github.event.inputs.video_length }} seconds
-            Style: ${{ github.event.inputs.video_style }}
-            
-            Save the plan to generated/concept/plan.json with:
-            - scenes: array of scene descriptions with dialogue/narration
-            - prompts: specific prompts for each scene
-            - timing: scene durations and transitions
-            - dialogue: array of dialogue/narration for each scene
-            - audio_cues: background music and sound effects timing
-            
-            IMPORTANT: 
-            - Each scene should have specific dialogue or narration text
-            - Include timing for when dialogue should play
-            - Consider the total duration of ${{ github.event.inputs.video_length }} seconds
-            - Plan smooth transitions between scenes
-          system_prompt: |
-            You are creating a comprehensive video concept plan for production.
-            Include detailed dialogue/narration scripts and precise timing for all elements.
-          allowed_tools: "Write"
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code@latest
+          
+      - name: Create concept with Claude Code SDK
+        run: |
+          mkdir -p generated/concept
+          
+          claude -p "Create a detailed video concept plan for: '${{ github.event.inputs.video_concept }}'
+          Target audience: ${{ github.event.inputs.target_audience }}
+          Duration: ${{ github.event.inputs.video_length }} seconds
+          Style: ${{ github.event.inputs.video_style }}
+          
+          Save the plan to generated/concept/plan.json with:
+          - scenes: array of scene descriptions with dialogue/narration
+          - prompts: specific prompts for each scene
+          - timing: scene durations and transitions
+          - dialogue: array of dialogue/narration for each scene
+          - audio_cues: background music and sound effects timing
+          
+          IMPORTANT: 
+          - Each scene should have specific dialogue or narration text
+          - Include timing for when dialogue should play
+          - Consider the total duration of ${{ github.event.inputs.video_length }} seconds
+          - Plan smooth transitions between scenes
+          - Generate appropriate number of scenes based on duration (roughly 3-5 seconds per scene)" \
+          --output-format json
+          
+          # Verify generated plan
+          echo "📋 Generated concept plan:"
+          cat generated/concept/plan.json | jq '.'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           
       - name: Upload concept
         uses: actions/upload-artifact@v4
@@ -327,7 +334,7 @@ jobs:
             scene_${{ matrix.scene.scene }}_video.mp4
             generated/video/scene_${{ matrix.scene.scene }}_info.json
             
-  # Phase 7: 動画・音声結合
+  # Phase 7: 動画・音声結合 (Claude Code SDK Node)
   video-assembly:
     needs: video-generation
     runs-on: ubuntu-latest
@@ -341,72 +348,71 @@ jobs:
           pattern: "*-${{ github.run_number }}"
           merge-multiple: true
           
-      - name: Install FFmpeg
+      - name: Install FFmpeg and Claude Code CLI
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
+          npm install -g @anthropic-ai/claude-code@latest
           ffmpeg -version
           
-      - name: Consolidate scene videos
+      - name: Analyze and prepare video files
         run: |
-          echo "🎥 Consolidating all scene videos..."
-          mkdir -p videos
-          # Download all scene video artifacts
-          for i in {1..20}; do
-            if [ -f "scene_${i}_video.mp4" ]; then
-              echo "Found scene ${i} video"
-              mv "scene_${i}_video.mp4" videos/
+          echo "🎥 Analyzing available video files..."
+          mkdir -p videos generated/assembly
+          
+          # Find all scene video files
+          find . -name "scene_*_video.mp4" -type f
+          for file in scene_*_video.mp4; do
+            if [ -f "$file" ]; then
+              echo "Found: $file"
+              mv "$file" videos/
             fi
           done
+          
           ls -la videos/
           
-      - name: Assemble final video
+      - name: Assemble final video with Claude Code SDK
         run: |
-          echo "🎬 Starting video assembly..."
+          claude -p "You are an expert video editor working with FFmpeg. 
           
-          # Create working directory
-          mkdir -p generated/assembly
+          TASK: Create a comprehensive FFmpeg workflow to assemble a final video from multiple scene videos.
           
-          # Create concat file for video clips in proper order
-          echo "# Video concatenation list" > generated/assembly/concat.txt
-          cd videos
-          for i in {1..20}; do
-            if [ -f "scene_${i}_video.mp4" ]; then
-              echo "file '../videos/scene_${i}_video.mp4'" >> ../generated/assembly/concat.txt
-              echo "Added scene ${i} to concat list"
-            fi
-          done
-          cd ..
+          CURRENT SITUATION:
+          - Scene video files are in the videos/ directory (scene_1_video.mp4, scene_2_video.mp4, etc.)
+          - Background music file may be available as background_music.wav
+          - Audio dialogue files may be available as scene_*_dialogue.wav
           
-          echo "Concat list contents:"
-          cat generated/assembly/concat.txt
+          REQUIREMENTS:
+          1. Create a bash script that:
+             a. Lists all available scene videos in proper order (scene_1, scene_2, etc.)
+             b. Creates an FFmpeg concat file for video concatenation
+             c. Concatenates all scene videos into one video
+             d. Mixes background music and dialogue audio if available
+             e. Applies final video optimization (H.264, AAC audio, web-optimized)
+             f. Outputs final_video.mp4
           
-          # Concatenate all scene videos
-          ffmpeg -f concat -safe 0 -i generated/assembly/concat.txt -c copy generated/assembly/video_only.mp4
+          2. Handle missing files gracefully (if some scenes are missing)
+          3. Use proper FFmpeg flags for web-optimized output
+          4. Include error checking and logging
           
-          # Mix dialogue with background music
-          # First, create silence-padded dialogue tracks based on timing
-          # Then mix with background music at appropriate volume levels
+          Save the complete bash script as assemble_video.sh and make it executable.
           
-          # Final assembly: combine video with mixed audio
-          if [ -f "background_music.wav" ]; then
-            ffmpeg -i generated/assembly/video_only.mp4 -i background_music.wav \
-              -c:v copy -c:a aac -shortest \
-              -map 0:v -map 1:a \
-              generated/assembly/final_video_temp.mp4
-          else
-            cp generated/assembly/video_only.mp4 generated/assembly/final_video_temp.mp4
-          fi
+          IMPORTANT: Generate a complete, working bash script that I can execute directly." \
+          --output-format text
           
-          # Apply final compression and optimization
-          ffmpeg -i generated/assembly/final_video_temp.mp4 \
-            -c:v libx264 -preset medium -crf 23 \
-            -c:a aac -b:a 192k \
-            -movflags +faststart \
-            final_video.mp4
+          # Make the script executable and run it
+          chmod +x assemble_video.sh
+          ./assemble_video.sh
           
           echo "✅ Video assembly complete!"
-          ls -lh final_video.mp4
+          if [ -f "final_video.mp4" ]; then
+            ls -lh final_video.mp4
+          else
+            echo "❌ final_video.mp4 not found"
+            ls -la
+          fi
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           
       - name: Upload final video
         uses: actions/upload-artifact@v4
