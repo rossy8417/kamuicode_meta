@@ -296,51 +296,61 @@ jobs:
           max_turns: "15"
           
       - name: Generate video for scene ${{ matrix.scene.scene }} (immediate)
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: |
-            TASK: Generate video for scene ${{ matrix.scene.scene }} using FRESH image URL
-            
-            1. Read scene_${{ matrix.scene.scene }}_image_info.json (just created)
-            2. Extract the fresh image_url (no expiration yet)
-            3. Use image_url DIRECTLY with i2v-fal-hailuo-02-pro:
-               - Submit image_url (NOT base64, NOT local file)
-               - Duration: appropriate for this scene from concept plan
-               - Quality settings as needed
-            4. Poll hailuo_02_result until COMPLETED status
-            5. CRITICAL: Download video file using Bash tool (V1 proven method):
-               a. Get the final video URL from the completed result
-               b. Execute: Bash tool with curl -o "scene_${{ matrix.scene.scene }}_video.mp4" "<video_url>"
-               c. Verify the MP4 file exists and has valid size (> 100KB)
-               d. If download fails, retry up to 3 times with different curl commands
-            6. Create scene_${{ matrix.scene.scene }}_video_info.json with:
-               - download_status: "completed" (if successful)
-               - video_file_path: "scene_${{ matrix.scene.scene }}_video.mp4"
-               - file_size: actual file size
-               - verification_status: "verified"
-            
-            CRITICAL SUCCESS FACTORS (Based on V1 success):
-            - Use image_url directly (proven working method from V1)
-            - NO base64 conversion needed
-            - Image was just generated so URL is fresh
-            - MUST use Bash tool with curl command to download MP4 file (V1 method)
-            - Example from V1: curl -o "output.mp4" "https://v3.fal.media/.../output.mp4"
-            - Verify file exists with ls -la after curl command
-          system_prompt: |
-            You are Claude Code in CI/CD. Generate video for scene ${{ matrix.scene.scene }} using
-            the fresh image URL from the previous step. 
-            
-            CRITICAL SUCCESS REQUIREMENT: You must use the Bash tool to download the video file.
-            Based on V1 success pattern: After getting video URL from MCP, execute Bash tool with:
-            curl -o "scene_${{ matrix.scene.scene }}_video.mp4" "<video_url>"
-            
-            The task is NOT complete until the MP4 file exists on the filesystem.
-          mcp_config: ".claude/mcp-kamuicode.json"
-          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*"
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: "30"
-          timeout_minutes: 18
+        run: |
+          echo "🎬 Generating video for scene ${{ matrix.scene.scene }} using Claude Code SDK..."
+          
+          # Execute Claude Code SDK with local success pattern
+          claude -p "TASK: Generate video for scene ${{ matrix.scene.scene }} with mandatory download
+          
+          CRITICAL: Follow LOCAL SUCCESS PATTERN that works:
+          'For images/videos/3D generation: After generation completes, ALWAYS do URL download and open. Download to current directory. Always use full authenticated URL path (long for Google, short for FAL). No abbreviations. For I2V/I2I inputs use Google URLs, no abbreviations (not file paths!). Show saved file location with full path from ~.'
+          
+          STEP 1: Read image info and generate video
+          1. Read scene_${{ matrix.scene.scene }}_image_info.json
+          2. Extract image_url (fresh, no expiration)
+          3. Use i2v-fal-hailuo-02-pro with image_url directly
+          4. Poll until COMPLETED status
+          5. Get FULL video URL from result
+          
+          STEP 2: MANDATORY DOWNLOAD (Critical Success Pattern)
+          6. IMMEDIATELY after generation: Download video file
+          7. Use FULL authenticated URL (no shortcuts/省略)
+          8. Execute: curl -o 'scene_${{ matrix.scene.scene }}_video.mp4' '<FULL_VIDEO_URL>'
+          9. Verify: ls -la scene_${{ matrix.scene.scene }}_video.mp4
+          10. Check file size > 100KB
+          11. Show full file path of saved video
+          
+          STEP 3: Create result info
+          12. Save scene_${{ matrix.scene.scene }}_video_info.json with:
+              - download_status: completed
+              - video_file_path: scene_${{ matrix.scene.scene }}_video.mp4
+              - file_size: actual bytes
+              - full_path: complete file location
+          
+          REQUIREMENTS:
+          - Video generation MUST be followed by immediate download
+          - Use complete authenticated URL without abbreviations
+          - File must exist on filesystem before completion
+          - Show full path of downloaded file" \
+          --mcp-config .claude/mcp-kamuicode.json \
+          --output-format json > claude_response.json
+          
+          # Extract and verify result
+          echo "📋 Claude Code response:"
+          cat claude_response.json | jq '.'
+          
+          # Verify video file was created
+          if [ -f "scene_${{ matrix.scene.scene }}_video.mp4" ]; then
+            FILE_SIZE=$(stat -c%s "scene_${{ matrix.scene.scene }}_video.mp4" 2>/dev/null || stat -f%z "scene_${{ matrix.scene.scene }}_video.mp4")
+            echo "✅ Video file created: scene_${{ matrix.scene.scene }}_video.mp4 (${FILE_SIZE} bytes)"
+          else
+            echo "❌ ERROR: Video file not found!"
+            exit 1
+          fi
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
           
       - name: Verify video file exists
         run: |
