@@ -238,9 +238,12 @@ IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$ref_file" 2>/dev/null)
 VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$video_file")
 AUDIO_PATH=$(jq -r '.audio_url // .file_path // "none"' "$audio_file")
 
-# IMPORTANT: Use generated/ paths for all persistent storage
-mkdir -p generated/metadata/requirement-analysis  # NOT .meta/
-mkdir -p generated/logs                          # For execution logs
+# IMPORTANT: Use projects/ paths for all project storage
+mkdir -p projects/current-session/metadata      # For current session metadata
+mkdir -p projects/current-session/logs          # For execution logs
+mkdir -p projects/current-session/temp          # For temporary files
+mkdir -p projects/current-session/scripts       # For temporary scripts
+mkdir -p projects/current-session/final         # For final deliverables
 
 # IMPORTANT: Use .github/workflows/generated/ for final workflow deployment
 mkdir -p .github/workflows/generated/staging     # For validated workflows (.disabled)
@@ -257,13 +260,15 @@ fi
 
 **CRITICAL**: Follow these rules EXACTLY. No exceptions. No creativity.
 
-#### **Temporary File Creation Rules**
+#### **Project-Based File Creation Rules**
 ```bash
-# ✅ CORRECT - Use existing directory structure
-generated/scripts/          # Temporary scripts (auto-delete eligible)
-generated/temp/            # Temporary files
-generated/logs/            # Execution logs
-generated/metadata/        # Analysis metadata
+# ✅ CORRECT - Use project-based directory structure
+projects/current-session/scripts/    # Temporary scripts (auto-delete eligible)
+projects/current-session/temp/       # Temporary files
+projects/current-session/logs/       # Execution logs
+projects/current-session/metadata/   # Analysis metadata
+projects/current-session/final/      # Final deliverables
+projects/project-name/               # Specific project files
 
 # ❌ FORBIDDEN - Never create these patterns
 ./new_directory/           # No new root directories
@@ -271,41 +276,48 @@ generated/metadata/        # Analysis metadata
 ./*_temp/                 # No root temp patterns
 ./script_*.py             # No root script files
 ./output_*.json           # No root output files
+./generated/              # Old structure - use projects/ instead
+./downloads/              # Old structure - use projects/ instead
 ```
 
 #### **Script Generation Rules**
 ```bash
-# ✅ CORRECT - Temporary scripts location
-generated/scripts/workflow_script.py    # Auto-delete eligible
-generated/scripts/temp_processing.sh    # Auto-delete eligible
+# ✅ CORRECT - Project-based scripts location
+projects/current-session/scripts/workflow_script.py    # Auto-delete eligible
+projects/current-session/scripts/temp_processing.sh    # Auto-delete eligible
+projects/project-name/scripts/specific_tool.py         # Project-specific scripts
 
 # ✅ CORRECT - Permanent utility scripts (rare)
-scripts/utility_tool.py                 # Only if truly reusable
+scripts/utility_tool.py                               # Only if truly reusable
 
 # ❌ FORBIDDEN - Never place scripts here
 ./script.py                             # Root directory
 ./temp_script.sh                        # Root directory
 ./process_*.py                          # Root directory
+./generated/scripts/                    # Old structure
 ```
 
 #### **Output File Rules**
 ```bash
-# ✅ CORRECT - Structured output locations
-generated/final/output.mp4              # Final deliverables
-generated/temp/intermediate.json        # Temporary processing
-downloads/project-name/result.png       # Downloaded assets
+# ✅ CORRECT - Project-based output locations
+projects/current-session/final/output.mp4           # Final deliverables
+projects/current-session/temp/intermediate.json     # Temporary processing
+projects/project-name/assets/result.png             # Project assets
 
 # ❌ FORBIDDEN - Root directory pollution
 ./output.mp4                            # Root directory
 ./result.json                           # Root directory
 ./scene_*.mp4                          # Root directory (clean up existing!)
+./generated/final/                      # Old structure
+./downloads/project-name/               # Old structure
 ```
 
 #### **Directory Creation Rules**
 1. **NEVER create new directories in root** without explicit approval
-2. **ALWAYS use existing directory structure**: `generated/`, `downloads/`, `docs/`, `scripts/`
+2. **ALWAYS use project-based structure**: `projects/`, `docs/`, `scripts/`, `meta/`
 3. **Check directory existence** before creating subdirectories
-4. **Use proper subdirectory naming**: `generated/[purpose]/[files]`
+4. **Use proper subdirectory naming**: `projects/[project-name]/[purpose]/[files]`
+5. **For current session**: Use `projects/current-session/` as default project
 
 #### **Enforcement Protocol**
 - **Before creating any file**: Check if target directory exists in approved structure
