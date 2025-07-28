@@ -103,8 +103,7 @@ jobs:
             - prompts: specific prompts for each scene
             - timing: scene durations
           system_prompt: |
-            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
-          mcp_config: ".claude/mcp-kamuicode.json"
+            You are creating a video concept plan for production.
           allowed_tools: "Write"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           
@@ -128,6 +127,14 @@ jobs:
           name: concept-${{ github.run_number }}
           path: generated/concept/
           
+      - name: Read MCP permissions from settings
+        id: mcp_permissions
+        run: |
+          echo "📖 Reading MCP permissions..."
+          # Extract the full settings for MCP permissions
+          FULL_SETTINGS=$(cat .claude/settings.local.json | jq -c .)
+          echo "FULL_SETTINGS=$FULL_SETTINGS" >> $GITHUB_OUTPUT
+          
       - name: Generate images with MCP
         uses: anthropics/claude-code-base-action@beta
         with:
@@ -143,9 +150,10 @@ jobs:
                - local_file (downloaded file name)
             6. Display full paths of downloaded files
           system_prompt: |
-            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+            You are Claude Code in CI/CD with pre-configured MCP permissions.
             IMPORTANT: Always use FULL authenticated URLs for downloads.
           mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "View,mcp__t2i-google-imagen3__*,Bash,Write"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "20"
@@ -173,6 +181,14 @@ jobs:
           name: concept-${{ github.run_number }}
           path: generated/concept/
           
+      - name: Read MCP permissions from settings
+        id: mcp_permissions
+        run: |
+          echo "📖 Reading MCP permissions..."
+          # Extract the full settings for MCP permissions
+          FULL_SETTINGS=$(cat .claude/settings.local.json | jq -c .)
+          echo "FULL_SETTINGS=$FULL_SETTINGS" >> $GITHUB_OUTPUT
+          
       - name: Generate background music
         uses: anthropics/claude-code-base-action@beta
         with:
@@ -184,8 +200,9 @@ jobs:
             5. Download audio file using FULL URL
             6. Save to generated/audio/music.json
           system_prompt: |
-            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+            You are Claude Code in CI/CD with pre-configured MCP permissions.
           mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "View,mcp__t2m-google-lyria__*,Bash,Write"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           
@@ -212,11 +229,16 @@ jobs:
           pattern: "*-${{ github.run_number }}"
           merge-multiple: true
           
+      - name: Read MCP permissions from settings
+        id: mcp_permissions
+        run: |
+          echo "📖 Reading MCP permissions..."
+          # Extract the full settings for MCP permissions
+          FULL_SETTINGS=$(cat .claude/settings.local.json | jq -c .)
+          echo "FULL_SETTINGS=$FULL_SETTINGS" >> $GITHUB_OUTPUT
+          
       - name: Generate video with MCP
         uses: anthropics/claude-code-base-action@beta
-        env:
-          CLAUDE_CODE_CI_MODE: "true"
-          CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
         with:
           prompt: |
             1. Read image results from generated/images/results.json
@@ -227,9 +249,10 @@ jobs:
             6. Save video as generated/video/output.mp4
             7. Save metadata to generated/video/result.json
           system_prompt: |
-            You are Claude Code in CI/CD. All MCP tools are pre-authorized.
+            You are Claude Code in CI/CD with pre-configured MCP permissions.
             Use FULL Google URLs as input, not file paths!
           mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "View,mcp__i2v-fal-hailuo-02-pro__*,Bash,Write,Read"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "30"
