@@ -105,22 +105,24 @@ meta/
 
 ## ⚠️ 問題のあるファイル・ディレクトリ
 
-### **1. 重複・古いワークフローファイル（削除推奨）**
+### **1. 重複・古いワークフローファイル（🔍 メタワークフロー参照を確認済み - 削除推奨）**
 ```
 .github/workflows/
-├── video-content-creation.yml           # 基本版
-├── video-content-creation-cli.yml       # CLI版
-├── video-content-creation-direct.yml    # 直接版
-├── video-content-creation-download.yml  # ダウンロード版
-├── video-content-creation-fixed.yml     # 修正版
-├── video-content-creation-mock.yml      # モック版
-├── video-content-creation-production.yml     # 本番版
-├── video-content-creation-production-v2.yml  # 本番v2
-├── video-content-creation-production-v3.yml  # 本番v3
-├── video-content-creation-secure.yml         # セキュア版
-└── video-content-creation-with-download.yml  # ダウンロード付き
+├── video-content-creation.yml           # 基本版 ✅ 削除可能
+├── video-content-creation-cli.yml       # CLI版 ✅ 削除可能
+├── video-content-creation-direct.yml    # 直接版 ✅ 削除可能
+├── video-content-creation-download.yml  # ダウンロード版 ✅ 削除可能
+├── video-content-creation-fixed.yml     # 修正版 ✅ 削除可能
+├── video-content-creation-mock.yml      # モック版 ✅ 削除可能
+├── video-content-creation-production.yml     # 本番版 ✅ 削除可能
+├── video-content-creation-production-v2.yml  # 本番v2 ✅ 削除可能
+├── video-content-creation-production-v3.yml  # 本番v3 ⚠️ 保持検討
+├── video-content-creation-secure.yml         # セキュア版 ✅ 削除可能
+└── video-content-creation-with-download.yml  # ダウンロード付き ✅ 削除可能
 ```
-**推奨**: 最新の production-v3 のみ残し、他を削除
+**確認結果**: Meta Workflow Executor v8は**個別のワークフローファイルを直接参照していない**
+- 動的にワークフローを生成するため、既存ファイルに依存しない
+- 削除しても機能に影響なし
 
 ### **2. テスト用ワークフロー（整理推奨）**
 ```
@@ -161,31 +163,34 @@ generated/metadata/task-decomposition/  # 空
 
 ## 📊 ストレージ使用状況
 
-### **Essential (保持必須)**
-- `meta/examples/` - 9つのテンプレート（コアロジック）
-- `meta/ai-learning/` - AI学習データ
+### **Essential (保持必須) - メタワークフロー参照確認済み**
+- `meta/examples/` - 9つのテンプレート（間接参照 - 将来利用予定）
+- `meta/prompts/stepback-to-tasks.md` - **直接参照** (line 245)
+- `meta/ai-learning/` - AI学習データ（AI Auto-Fix使用）
 - `generated/logs/` - 実行履歴（最新のみ）
-- `generated/metadata/` - メタデータ
-- `.github/workflows/meta-workflow-executor-v8.yml`
-- `.github/workflows/auto-fix-deployment.yml`
-- `.github/workflows/continuous-system-monitor.yml`
+- `generated/metadata/` - **直接生成・使用** (line 97, 202, 228, 325)
+- `generated/workflows/` - **メタワークフロー生成先** (line 335, 429, 483)
+- `.github/workflows/meta-workflow-executor-v8.yml` - **メインエントリポイント**
+- `.github/workflows/auto-fix-deployment.yml` - 自動修正システム
+- `.github/workflows/continuous-system-monitor.yml` - 監視システム（Meta Workflow依存）
 
-### **Redundant (削除推奨)**
-- Video関連ワークフロー: 10個 → 1-2個
-- Test関連ワークフロー: 7個 → 0個（完了後）
-- Deprecated prompts: 4個 → 0個
+### **Redundant (メタワークフロー非依存 - 安全に削除可能)**
+- Video関連ワークフロー: **10個 → 0-1個** (メタワークフローで動的生成)
+- Test関連ワークフロー: 7個 → 0個（テスト完了後）
+- Deprecated prompts: 4個 → 0個（完全に未使用）
+- Individual workflow files: **メタワークフローが動的生成するため不要**
 
 ### **Clean-up Candidates (整理推奨)**
 - 古い実行ログ: 7日以上前
 - 空のメタデータディレクトリ
 - 特定用途の古いスクリプト
 
-## 🔧 推奨改善アクション
+## 🔧 推奨改善アクション（メタワークフロー依存関係確認済み）
 
-### **Phase 1: Immediate Cleanup**
-1. **重複ワークフロー削除**: video-* 系を1-2個に統合
-2. **テストファイル整理**: test-* 系の用途確認・削除
-3. **廃止プロンプト削除**: `meta/prompts/deprecated/`
+### **Phase 1: Immediate Cleanup（安全な削除）**
+1. **重複ワークフロー削除**: video-* 系11個すべて削除可能（メタワークフローが動的生成）
+2. **テストファイル整理**: test-* 系7個の用途確認・削除
+3. **廃止プロンプト削除**: `meta/prompts/deprecated/` 完全削除（未参照確認済み）
 
 ### **Phase 2: Structure Optimization**
 1. **ログローテーション**: 7日以上の古いログ削除
