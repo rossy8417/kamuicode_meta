@@ -6,6 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Code GitHub Actions integration. The system uses **template-based generation** with **staged deployment system** to generate high-quality, executable GitHub Actions workflows efficiently.
 
+## CLI Environment Recognition
+
+**CRITICAL**: Active CLI environment detected (CLI settings updated: 2025-07-28 17:22)
+
+### Environment Separation Rules
+- **CLI Environment**: `cli_generated/` directory + `.env.claude` + local settings
+- **GitHub Actions**: `generated/` directory + automation settings
+- **Never mix CLI and automation outputs**
+
+### File Management Priority
+1. **CLI-Protected**: `cli_generated/`, `.claude/settings.local.json`, `.claude_mcp_defaults.md`
+2. **Shared**: `.claude/mcp-kamuicode.json` (coordinate updates)
+3. **GitHub Actions**: `generated/`, `.github/workflows/`
+
+### MCP Output Directory Rules
+- **CLI Sessions**: Use `./cli_generated/media/[images|videos|audio|3d]/`
+- **GitHub Actions**: Use `./generated/media/[type]/` or `./projects/project-name/`
+- **File Prefix**: CLI uses `claude_generated` or `claude_[type]` prefix
+
 ## Current Architecture (v8.1)
 
 ### Template-Based Meta Workflow System with Simplified Deployment
