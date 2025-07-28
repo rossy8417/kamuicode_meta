@@ -130,9 +130,40 @@ Claude Codeセッションで：
 - [ ] README等のドキュメント更新
 
 ### **整理実施記録**
-- [ ] 何を統合/削除したかを記録
-- [ ] 新しい構造を文書化
-- [ ] 今後の参考のため基準を明文化
+- [x] 何を統合/削除したかを記録
+- [x] 新しい構造を文書化
+- [x] 今後の参考のため基準を明文化
+
+## 📚 実施済み整理パターン (2025/07/28)
+
+### **meta/ ディレクトリの整理**
+- `meta/docs/claude-code-vs-mcp-guidelines.md` → `docs/claude-code-vs-mcp-guidelines.md`
+- `meta/successful-workflow-patterns.md` → `docs/analysis/successful-workflow-patterns.md`  
+- `meta/patterns.json` (空ファイル) → 削除
+- `meta/docs/` (空ディレクトリ) → 削除
+
+### **適用した整理原則**
+1. **目的別配置**: MCPガイドラインは汎用ドキュメントとして `docs/` に配置
+2. **分析データ統合**: ワークフロー分析は `docs/analysis/` に統合
+3. **空ファイル削除**: 意味のない `{"patterns": []}` ファイルを削除
+4. **単一ファイルディレクトリ解消**: `meta/docs/` の1ファイルを上位に移動後削除
+
+### **整理後の meta/ 構造**
+```
+meta/
+├── examples/          # 15個のワークフローテンプレート
+│   ├── README.md      # テンプレート一覧とMermaid図
+│   └── *.yml          # GitHub Actions templates
+└── prompts/           # 4個のプロンプトファイル
+    ├── README.md      # プロンプト説明
+    └── *.md           # stepback分析等のプロンプト
+```
+
+### **今後の参考基準**
+1. **機能別 > 内容別**: 機能に関連するファイルは機能ディレクトリに集約
+2. **分析データ集約**: 全ての分析結果は `docs/analysis/` に統合
+3. **空ファイル即削除**: 意味のないplaceholderファイルは保持しない
+4. **1ファイルディレクトリ禁止**: 単一ファイルのためだけのディレクトリは作らない
 
 ---
 
