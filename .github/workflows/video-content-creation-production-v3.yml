@@ -266,6 +266,7 @@ jobs:
   video-generation:
     needs: video-generation-prep
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Timeout for each scene
     strategy:
       matrix:
         scene: ${{ fromJson(needs.video-generation-prep.outputs.scene_matrix) }}
@@ -294,11 +295,12 @@ jobs:
           prompt: |
             1. Read generated/images/results.json and generated/concept/plan.json
             2. Generate video for scene ${{ matrix.scene.scene }} ONLY:
-               a. Find the image for scene ${{ matrix.scene.scene }}
-               b. Use i2v-fal-hailuo-02-pro to generate video clip
-               c. Duration should match the scene timing from plan.json
-               d. Poll for completion using hailuo_02_result until COMPLETED
-               e. Download video as scene_${{ matrix.scene.scene }}_video.mp4
+               a. Find the image for scene ${{ matrix.scene.scene }} from results.json
+               b. IMPORTANT: First download the image using wget/curl if it's a URL
+               c. Use i2v-fal-hailuo-02-pro to generate video clip with LOCAL image file
+               d. Duration should match the scene timing from plan.json  
+               e. Poll for completion using hailuo_02_result until COMPLETED
+               f. Download video as scene_${{ matrix.scene.scene }}_video.mp4
             3. Create generated/video/scene_${{ matrix.scene.scene }}_info.json with:
                - Scene number: ${{ matrix.scene.scene }}
                - Video file path
@@ -310,7 +312,7 @@ jobs:
             Generate video clip for scene ${{ matrix.scene.scene }} only.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "View,mcp__i2v-fal-hailuo-02-pro__*,Bash,Write,Read"
+          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "30"
           
