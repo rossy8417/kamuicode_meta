@@ -166,11 +166,12 @@ jobs:
           name: concept-${{ github.run_number }}
           path: generated/concept/
           
-      - name: Read MCP permissions from settings
+      - name: Verify settings file has all permissions
         id: mcp_permissions
         run: |
-          echo "📖 Reading MCP permissions..."
-          # Extract MCP-only settings for GitHub Actions
+          echo "📖 Verifying GitHub Actions settings..."
+          echo "Current settings content:"
+          cat .claude/settings.github-actions.json | jq '.'
           FULL_SETTINGS=$(cat .claude/settings.github-actions.json | jq -c .)
           echo "FULL_SETTINGS=$FULL_SETTINGS" >> $GITHUB_OUTPUT
           
@@ -300,8 +301,8 @@ jobs:
           echo "🎬 Generating video for scene ${{ matrix.scene.scene }} using Claude Code SDK..."
           
           # Execute Claude Code SDK with local success pattern
-          # Create combined settings with MCP and bash permissions
-          echo '{"permissions":{"allow":["Read","Write","Bash(curl:*)","Bash(ls:*)","Bash(stat:*)","Bash(file:*)","Bash(mkdir:*)","Bash(echo:*)","Bash(cat:*)","Bash(jq:*)","Bash(pwd:*)","mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit","mcp__i2v-fal-hailuo-02-pro__hailuo_02_status","mcp__i2v-fal-hailuo-02-pro__hailuo_02_result"]}}' > combined-settings.json
+          # Use GitHub Actions settings file directly (already contains all permissions)
+          cp .claude/settings.github-actions.json combined-settings.json
           
           claude -p "TASK: Generate video for scene ${{ matrix.scene.scene }} with mandatory download
           
