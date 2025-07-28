@@ -121,7 +121,24 @@ jobs:
           - Generate 3-5 scenes based on ${{ github.event.inputs.video_length }} second duration
           - Include specific dialogue or narration text for each scene
           - Output ONLY valid JSON, no additional text or explanations" \
-          --output-format json > generated/concept/plan.json
+          --output-format json > claude_output.json
+          
+          # Extract the JSON from Claude Code SDK output and save to plan.json
+          echo "🔍 Extracting JSON from Claude Code output..."
+          if jq -e '.result' claude_output.json > /dev/null 2>&1; then
+            # Extract from SDK metadata format
+            jq -r '.result' claude_output.json | sed -n '/```json/,/```/p' | sed '1d;$d' > generated/concept/plan.json
+          else
+            # Assume direct JSON format (fallback)
+            cat claude_output.json > generated/concept/plan.json
+          fi
+          
+          # Validate extracted JSON
+          if ! jq '.' generated/concept/plan.json > /dev/null 2>&1; then
+            echo "❌ Failed to extract valid JSON, attempting alternative extraction..."
+            # Alternative: extract JSON block from text content
+            grep -A 1000 '```json' claude_output.json | grep -B 1000 '```' | head -n -1 | tail -n +2 > generated/concept/plan.json
+          fi
           
           # Verify generated plan
           echo "📋 Generated concept plan:"
