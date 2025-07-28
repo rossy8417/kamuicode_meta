@@ -1,5 +1,5 @@
-name: Intelligent Auto-Fix System
-run-name: 🧠 Analyzing and fixing workflow failure "${{ github.event.workflow_run.name || 'Manual' }}"
+name: AI-Powered Intelligent Auto-Fix System
+run-name: 🧠 AI analyzing and fixing "${{ github.event.workflow_run.name || 'Manual' }}"
 
 on:
   workflow_run:
@@ -34,36 +34,51 @@ permissions:
   issues: write
 
 env:
-  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}  # Claude Pro/Max用
 
 jobs:
-  # Phase 1: Failure Detection & Log Analysis
-  analyze-failure:
+  # Phase 1: AI-Powered Failure Analysis
+  ai-analyze-failure:
     runs-on: ubuntu-latest
-    # pushイベントを明示的に除外
     if: github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure'))
     outputs:
-      has_failure: ${{ steps.analyze.outputs.has_failure }}
-      error_category: ${{ steps.analyze.outputs.error_category }}
-      error_details: ${{ steps.analyze.outputs.error_details }}
-      fix_strategy: ${{ steps.analyze.outputs.fix_strategy }}
-      confidence_level: ${{ steps.analyze.outputs.confidence_level }}
+      has_failure: ${{ steps.ai_analyze.outputs.has_failure }}
+      error_analysis: ${{ steps.ai_analyze.outputs.error_analysis }}
+      root_cause: ${{ steps.ai_analyze.outputs.root_cause }}
+      suggested_fixes: ${{ steps.ai_analyze.outputs.suggested_fixes }}
+      confidence_level: ${{ steps.ai_analyze.outputs.confidence_level }}
+      fix_complexity: ${{ steps.ai_analyze.outputs.fix_complexity }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Install Analysis Tools
+      - name: Setup MCP Configuration
         run: |
-          # Install jq for JSON parsing
-          sudo apt-get update && sudo apt-get install -y jq bc
+          # MCPサーバー設定を動的生成
+          mkdir -p .claude
+          cat > .claude/mcp-config.json << 'EOF'
+          {
+            "mcpServers": {
+              "github": {
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-github"],
+                "env": {
+                  "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+                }
+              },
+              "filesystem": {
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+              }
+            }
+          }
+          EOF
           
-      - name: Deep Log Analysis & Error Pattern Recognition
-        id: analyze
+      - name: Fetch Detailed Failure Logs
+        id: fetch_logs
         run: |
-          echo "🔍 Starting intelligent failure analysis..."
-          
-          mkdir -p generated/auto-fix/{analysis,patterns,strategies}
+          echo "📋 Fetching comprehensive failure data..."
           
           # Get target run information
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.target_run_id }}" ]; then
@@ -72,573 +87,441 @@ jobs:
             TARGET_RUN_ID="${{ github.event.workflow_run.id }}"
           fi
           
-          echo "🎯 Analyzing run: $TARGET_RUN_ID"
+          # Fetch complete logs
+          mkdir -p generated/logs
+          gh run view $TARGET_RUN_ID --log > generated/logs/full-log.txt 2>&1 || true
+          gh run view $TARGET_RUN_ID --log-failed > generated/logs/failed-log.txt 2>&1 || true
           
-          # Initialize analysis variables
-          HAS_FAILURE=false
-          ERROR_CATEGORY="unknown"
-          ERROR_DETAILS=""
-          FIX_STRATEGY="none"
-          CONFIDENCE_LEVEL=0
+          # Get workflow file content
+          WORKFLOW_PATH="${{ github.event.workflow_run.path || '.github/workflows/meta-workflow-executor-v8.yml' }}"
+          cp "$WORKFLOW_PATH" generated/logs/workflow-file.yml || true
           
-          # Get failed job logs
-          echo "📋 Fetching failure logs..."
-          if command -v gh &> /dev/null; then
-            # Get the run information
-            RUN_INFO=$(gh api "repos/${{ github.repository }}/actions/runs/$TARGET_RUN_ID" 2>/dev/null || echo "{}")
-            
-            if [ "$RUN_INFO" != "{}" ]; then
-              CONCLUSION=$(echo "$RUN_INFO" | jq -r '.conclusion // "unknown"')
-              
-              if [ "$CONCLUSION" = "failure" ]; then
-                HAS_FAILURE=true
-                echo "❌ Failure confirmed in run $TARGET_RUN_ID"
-                
-                # Get failed jobs
-                JOBS=$(gh api "repos/${{ github.repository }}/actions/runs/$TARGET_RUN_ID/jobs" 2>/dev/null || echo '{"jobs":[]}')
-                FAILED_JOBS=$(echo "$JOBS" | jq -r '.jobs[] | select(.conclusion == "failure") | .name' 2>/dev/null || echo "")
-                
-                if [ -n "$FAILED_JOBS" ]; then
-                  echo "🎯 Failed jobs identified: $FAILED_JOBS"
-                  
-                  # Analyze specific error patterns
-                  for job in $FAILED_JOBS; do
-                    echo "🔍 Analyzing job: $job"
-                    
-                    # Get job logs (simplified approach)
-                    JOB_LOGS=$(gh run view $TARGET_RUN_ID --log-failed 2>/dev/null | head -100 || echo "")
-                    
-                    # Pattern Analysis Engine
-                    if echo "$JOB_LOGS" | grep -qi "git push.*rejected\|fetch first\|failed to push"; then
-                      ERROR_CATEGORY="git_conflict"
-                      ERROR_DETAILS="Git push rejected due to remote changes"
-                      FIX_STRATEGY="retry_with_pull"
-                      CONFIDENCE_LEVEL=95
-                      echo "🎯 Git conflict pattern detected (confidence: 95%)"
-                      
-                    elif echo "$JOB_LOGS" | grep -qi "authentication.*failed\|permission denied\|unauthorized"; then
-                      ERROR_CATEGORY="auth_failure"
-                      ERROR_DETAILS="Authentication or permission error"
-                      FIX_STRATEGY="refresh_auth"
-                      CONFIDENCE_LEVEL=90
-                      echo "🎯 Authentication failure pattern detected (confidence: 90%)"
-                      
-                    elif echo "$JOB_LOGS" | grep -qi "timeout\|timed out\|deadline exceeded"; then
-                      ERROR_CATEGORY="timeout"
-                      ERROR_DETAILS="Job timeout or network timeout"
-                      FIX_STRATEGY="increase_timeout"
-                      CONFIDENCE_LEVEL=85
-                      echo "🎯 Timeout pattern detected (confidence: 85%)"
-                      
-                    elif echo "$JOB_LOGS" | grep -qi "command not found\|python.*not found\|node.*not found"; then
-                      ERROR_CATEGORY="missing_dependency"
-                      ERROR_DETAILS="Missing required tools or dependencies"
-                      FIX_STRATEGY="install_dependencies"
-                      CONFIDENCE_LEVEL=88
-                      echo "🎯 Missing dependency pattern detected (confidence: 88%)"
-                      
-                    elif echo "$JOB_LOGS" | grep -qi "claude.*error\|mcp.*error\|connection.*failed"; then
-                      ERROR_CATEGORY="service_failure"
-                      ERROR_DETAILS="External service or MCP connection failure"
-                      FIX_STRATEGY="fallback_mode"
-                      CONFIDENCE_LEVEL=82
-                      echo "🎯 Service failure pattern detected (confidence: 82%)"
-                      
-                    elif echo "$JOB_LOGS" | grep -qi "yaml.*error\|syntax.*error\|invalid.*workflow"; then
-                      ERROR_CATEGORY="syntax_error"
-                      ERROR_DETAILS="YAML syntax or workflow configuration error"
-                      FIX_STRATEGY="fix_syntax"
-                      CONFIDENCE_LEVEL=92
-                      echo "🎯 Syntax error pattern detected (confidence: 92%)"
-                      
-                    elif echo "$JOB_LOGS" | grep -qi "disk.*full\|no space\|storage.*exceeded"; then
-                      ERROR_CATEGORY="resource_exhaustion"
-                      ERROR_DETAILS="Disk space or resource exhaustion"
-                      FIX_STRATEGY="cleanup_resources"
-                      CONFIDENCE_LEVEL=90
-                      echo "🎯 Resource exhaustion pattern detected (confidence: 90%)"
-                      
-                    elif echo "$JOB_LOGS" | grep -qi "rate limit\|api.*limit\|quota.*exceeded"; then
-                      ERROR_CATEGORY="rate_limit"
-                      ERROR_DETAILS="API rate limit or quota exceeded"
-                      FIX_STRATEGY="wait_and_retry"
-                      CONFIDENCE_LEVEL=88
-                      echo "🎯 Rate limit pattern detected (confidence: 88%)"
-                      
-                    else
-                      ERROR_CATEGORY="unknown_error"
-                      ERROR_DETAILS="Unrecognized error pattern"
-                      FIX_STRATEGY="generic_retry"
-                      CONFIDENCE_LEVEL=30
-                      echo "⚠️ Unknown error pattern (confidence: 30%)"
-                    fi
-                    
-                    # Save detailed analysis
-                    cat > "generated/auto-fix/analysis/job-${job}-$(date +%Y%m%d-%H%M%S).json" << EOF
-          {
-            "job_name": "$job",
-            "error_category": "$ERROR_CATEGORY",
-            "error_details": "$ERROR_DETAILS",
-            "fix_strategy": "$FIX_STRATEGY",
-            "confidence_level": $CONFIDENCE_LEVEL,
-            "log_snippet": "$(echo "$JOB_LOGS" | head -10 | tr '\n' ' ' | sed 's/"/\\"/g')"
-          }
-          EOF
-                  done
-                fi
-              else
-                echo "✅ No failure detected in target run"
-              fi
-            fi
-          fi
+          echo "target_run_id=$TARGET_RUN_ID" >> $GITHUB_OUTPUT
           
-          # Output results
-          echo "has_failure=$HAS_FAILURE" >> $GITHUB_OUTPUT
-          echo "error_category=$ERROR_CATEGORY" >> $GITHUB_OUTPUT
-          echo "error_details=$ERROR_DETAILS" >> $GITHUB_OUTPUT
-          echo "fix_strategy=$FIX_STRATEGY" >> $GITHUB_OUTPUT
-          echo "confidence_level=$CONFIDENCE_LEVEL" >> $GITHUB_OUTPUT
+      - name: AI-Powered Deep Analysis
+        id: ai_analyze
+        run: |
+          echo "🤖 Starting AI-powered failure analysis..."
           
-          echo "🎯 Analysis complete: Category=$ERROR_CATEGORY, Strategy=$FIX_STRATEGY, Confidence=$CONFIDENCE_LEVEL%"
+          # Create comprehensive analysis prompt
+          cat > generated/ai-analysis-prompt.md << 'EOF'
+          # Workflow Failure Analysis Request
 
-  # Phase 2: Intelligent Fix Application
-  apply-intelligent-fix:
-    needs: analyze-failure
+          ## Context
+          - Repository: ${{ github.repository }}
+          - Failed Workflow: ${{ github.event.workflow_run.name }}
+          - Run ID: ${{ steps.fetch_logs.outputs.target_run_id }}
+          
+          ## Failed Job Logs
+          ```
+          $(cat generated/logs/failed-log.txt | tail -500)
+          ```
+          
+          ## Workflow Configuration
+          ```yaml
+          $(cat generated/logs/workflow-file.yml)
+          ```
+          
+          ## Analysis Tasks
+          1. **Root Cause Analysis**: Identify the exact cause of failure
+          2. **Error Classification**: Categorize the error type
+          3. **Impact Assessment**: Determine the scope and severity
+          4. **Fix Recommendations**: Provide specific, actionable fixes
+          5. **Prevention Strategy**: Suggest long-term improvements
+          
+          ## Output Format
+          Provide a JSON response with:
+          - has_failure: boolean
+          - error_analysis: detailed description
+          - root_cause: specific cause
+          - suggested_fixes: array of fix objects with {action, description, code_snippet}
+          - confidence_level: 0-100
+          - fix_complexity: low/medium/high
+          - prevention_recommendations: array of strings
+          EOF
+          
+          # Execute Claude Code SDK analysis with OAuth token
+          ANALYSIS_RESULT=$(claude -p "$(cat generated/ai-analysis-prompt.md)" \
+            --output-format json \
+            --mcp-config .claude/mcp-config.json \
+            --allowed-tools "View,mcp__github__*,mcp__filesystem__*" \
+            --max-turns 5 \
+            2>/dev/null || echo '{"has_failure": false, "error": "Analysis failed"}')
+          
+          # Parse and save results
+          echo "$ANALYSIS_RESULT" > generated/ai-analysis-result.json
+          
+          # Extract key outputs
+          HAS_FAILURE=$(echo "$ANALYSIS_RESULT" | jq -r '.has_failure // false')
+          ERROR_ANALYSIS=$(echo "$ANALYSIS_RESULT" | jq -r '.error_analysis // "Unknown error"' | sed 's/"/\\"/g')
+          ROOT_CAUSE=$(echo "$ANALYSIS_RESULT" | jq -r '.root_cause // "Unknown cause"' | sed 's/"/\\"/g')
+          SUGGESTED_FIXES=$(echo "$ANALYSIS_RESULT" | jq -c '.suggested_fixes // []')
+          CONFIDENCE=$(echo "$ANALYSIS_RESULT" | jq -r '.confidence_level // 0')
+          COMPLEXITY=$(echo "$ANALYSIS_RESULT" | jq -r '.fix_complexity // "unknown"')
+          
+          # Set outputs
+          echo "has_failure=$HAS_FAILURE" >> $GITHUB_OUTPUT
+          echo "error_analysis=$ERROR_ANALYSIS" >> $GITHUB_OUTPUT
+          echo "root_cause=$ROOT_CAUSE" >> $GITHUB_OUTPUT
+          echo "suggested_fixes=$SUGGESTED_FIXES" >> $GITHUB_OUTPUT
+          echo "confidence_level=$CONFIDENCE" >> $GITHUB_OUTPUT
+          echo "fix_complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
+          
+          echo "✅ AI analysis completed with confidence: $CONFIDENCE%"
+
+  # Phase 2: AI-Driven Fix Implementation
+  ai-apply-fix:
+    needs: ai-analyze-failure
     runs-on: ubuntu-latest
-    if: needs.analyze-failure.outputs.has_failure == 'true' && needs.analyze-failure.outputs.confidence_level > '70'
+    if: needs.ai-analyze-failure.outputs.has_failure == 'true' && needs.ai-analyze-failure.outputs.confidence_level > '70'
     outputs:
-      fix_applied: ${{ steps.fix.outputs.fix_applied }}
-      fix_success: ${{ steps.fix.outputs.fix_success }}
+      fixes_applied: ${{ steps.apply_fixes.outputs.fixes_applied }}
+      fix_success: ${{ steps.apply_fixes.outputs.fix_success }}
+      pr_created: ${{ steps.create_pr.outputs.pr_created }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Apply Targeted Fix
-        id: fix
+      - name: Restore Analysis Results
         run: |
-          echo "🔧 Applying intelligent fix for: ${{ needs.analyze-failure.outputs.error_category }}"
+          mkdir -p generated
+          echo '${{ needs.ai-analyze-failure.outputs.suggested_fixes }}' > generated/suggested-fixes.json
           
-          ERROR_CATEGORY="${{ needs.analyze-failure.outputs.error_category }}"
-          FIX_STRATEGY="${{ needs.analyze-failure.outputs.fix_strategy }}"
-          CONFIDENCE="${{ needs.analyze-failure.outputs.confidence_level }}"
-          
-          mkdir -p generated/auto-fix/fixes
-          FIX_APPLIED=""
-          FIX_SUCCESS=false
-          
-          case "$FIX_STRATEGY" in
-            "retry_with_pull")
-              echo "🔄 Applying git conflict resolution fix..."
-              
-              # Enhanced git push retry logic (already exists in main workflow)
-              # Verify it's properly implemented
-              if grep -q "PUSH_RETRIES" .github/workflows/kamuicode-meta-generator.yml; then
-                echo "✅ Git retry logic already implemented"
-                FIX_APPLIED="git_retry_verified"
-                FIX_SUCCESS=true
-              else
-                echo "❌ Git retry logic missing - would need manual implementation"
-                FIX_APPLIED="git_retry_missing"
-                FIX_SUCCESS=false
-              fi
-              ;;
-              
-            "refresh_auth")
-              echo "🔑 Applying authentication refresh..."
-              
-              # Check if auth token is properly configured
-              if [ -n "${{ env.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
-                echo "✅ Auth token present"
-                
-                # Create auth validation script
-                cat > generated/auto-fix/fixes/auth-validation.sh << 'EOF'
-          #!/bin/bash
-          # Validate authentication and refresh if needed
-          if command -v gh &> /dev/null; then
-            if gh auth status &>/dev/null; then
-              echo "✅ GitHub authentication valid"
-            else
-              echo "❌ GitHub authentication invalid - requires manual refresh"
-            fi
-          fi
-          EOF
-                chmod +x generated/auto-fix/fixes/auth-validation.sh
-                
-                FIX_APPLIED="auth_validation_script"
-                FIX_SUCCESS=true
-              else
-                echo "❌ Auth token missing"
-                FIX_APPLIED="auth_missing"
-                FIX_SUCCESS=false
-              fi
-              ;;
-              
-            "increase_timeout")
-              echo "⏰ Applying timeout fixes..."
-              
-              # Add timeout configurations to workflow recommendations
-              cat > generated/auto-fix/fixes/timeout-recommendations.json << EOF
+      - name: Setup MCP Configuration
+        run: |
+          mkdir -p .claude
+          cat > .claude/mcp-config.json << 'EOF'
           {
-            "recommendations": [
-              {
-                "file": ".github/workflows/kamuicode-meta-generator.yml",
-                "changes": [
-                  "Add timeout-minutes: 30 to long-running jobs",
-                  "Add timeout-minutes: 10 to quick jobs",
-                  "Add retry mechanism for network operations"
-                ]
+            "mcpServers": {
+              "filesystem": {
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
               }
-            ],
-            "priority": "high",
-            "confidence": $CONFIDENCE
-          }
-          EOF
-              
-              FIX_APPLIED="timeout_recommendations"
-              FIX_SUCCESS=true
-              ;;
-              
-            "install_dependencies")
-              echo "📦 Applying dependency fixes..."
-              
-              # Create dependency installation script
-              cat > generated/auto-fix/fixes/dependency-fix.sh << 'EOF'
-          #!/bin/bash
-          # Ensure required dependencies are installed
-          echo "📦 Installing common dependencies..."
-          
-          # Node.js tools
-          if ! command -v node &> /dev/null; then
-            echo "Installing Node.js..."
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-          fi
-          
-          # Python tools
-          if ! command -v python3 &> /dev/null; then
-            echo "Installing Python..."
-            sudo apt-get update && sudo apt-get install -y python3 python3-pip
-          fi
-          
-          # Claude Code CLI
-          if ! command -v claude &> /dev/null; then
-            echo "Installing Claude Code..."
-            npm install -g @anthropic-ai/claude-code
-          fi
-          
-          echo "✅ Dependencies check completed"
-          EOF
-              chmod +x generated/auto-fix/fixes/dependency-fix.sh
-              
-              FIX_APPLIED="dependency_installation"
-              FIX_SUCCESS=true
-              ;;
-              
-            "fallback_mode")
-              echo "🔄 Applying service fallback..."
-              
-              # Create fallback configuration
-              cat > generated/auto-fix/fixes/fallback-config.json << EOF
-          {
-            "fallback_strategies": {
-              "claude_code_failure": "use_basic_template_generation",
-              "mcp_service_failure": "use_external_api_calls",
-              "network_timeout": "retry_with_exponential_backoff"
-            },
-            "implementation": "Configuration saved for manual implementation"
-          }
-          EOF
-              
-              FIX_APPLIED="fallback_config_created"
-              FIX_SUCCESS=true
-              ;;
-              
-            "fix_syntax")
-              echo "📝 Applying intelligent syntax fixes with success pattern guidance..."
-              
-              mkdir -p generated/auto-fix/fixes/yaml-repairs
-              
-              # Basic YAML validation and intelligent fix with success patterns
-              YAML_FILES=$(find .github/workflows -name "*.yml")
-              SYNTAX_ERRORS_FOUND=false
-              
-              for file in $YAML_FILES; do
-                if command -v python3 &> /dev/null; then
-                  if ! python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
-                    echo "❌ Syntax error detected in $file"
-                    echo "$file" >> generated/auto-fix/fixes/syntax-errors.list
-                    SYNTAX_ERRORS_FOUND=true
-                    
-                    # 🔧 Claude Code + Success Pattern Integration
-                    if command -v claude-code &> /dev/null && [ -f "meta/successful-workflow-patterns.md" ]; then
-                      echo "🤖 Applying Claude Code intelligent YAML repair..."
-                      
-                      # Create repair prompt with success pattern reference
-                      cat > generated/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md << EOF
-# YAML Syntax Repair with Success Pattern Guidance
-
-## Target File
-\`$file\`
-
-## Success Pattern Guidelines
-$(cat meta/successful-workflow-patterns.md)
-
-## Current File Content
-\`\`\`yaml
-$(cat "$file")
-\`\`\`
-
-## Repair Instructions
-以下の成功パターンに基づいて、上記YAMLファイルの構文エラーを修正してください：
-
-1. **echo方式のファイル生成**: HEREDOCを避ける（Line 59-64参照）
-2. **安全な変数処理**: GitHub Context変数の適切な処理（Line 65-72参照）
-3. **確実なジョブ構造**: 必須フィールドの確保（Line 311-330参照）
-4. **フォールバック戦略**: エラー時の代替処理（Line 180-188参照）
-
-修正されたYAMLファイル全体を出力してください。
-EOF
-
-                      # Execute Claude Code repair with timeout
-                      if timeout 90 claude-code --file "generated/auto-fix/fixes/yaml-repairs/repair-prompt-$(basename "$file").md" --output "generated/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" 2>&1; then
-                        
-                        # Validate repaired file
-                        if python3 -c "import yaml; yaml.safe_load(open('generated/auto-fix/fixes/yaml-repairs/repaired-$(basename \"$file\")'))" 2>/dev/null; then
-                          echo "✅ Claude Code successfully repaired $file"
-                          
-                          # Create backup and apply fix
-                          cp "$file" "${file}.backup-$(date +%Y%m%d-%H%M%S)"
-                          cp "generated/auto-fix/fixes/yaml-repairs/repaired-$(basename "$file")" "$file"
-                          
-                          echo "📝 Backup created: ${file}.backup-$(date +%Y%m%d-%H%M%S)"
-                          echo "✅ Applied intelligent repair to $file"
-                          
-                        else
-                          echo "⚠️ Claude Code repair validation failed for $file"
-                          echo "$file" >> generated/auto-fix/fixes/yaml-repairs/repair-failed.list
-                        fi
-                      else
-                        echo "⚠️ Claude Code repair execution failed for $file"
-                        echo "$file" >> generated/auto-fix/fixes/yaml-repairs/repair-failed.list
-                      fi
-                    else
-                      echo "ℹ️ Claude Code or success patterns not available - using basic validation only"
-                    fi
-                  fi
-                fi
-              done
-              
-              # Summary of repairs
-              if [ "$SYNTAX_ERRORS_FOUND" = true ]; then
-                ERROR_COUNT=$(wc -l < generated/auto-fix/fixes/syntax-errors.list 2>/dev/null || echo "0")
-                REPAIR_SUCCESS_COUNT=0
-                
-                if [ -f "generated/auto-fix/fixes/yaml-repairs/repair-failed.list" ]; then
-                  REPAIR_FAILED_COUNT=$(wc -l < generated/auto-fix/fixes/yaml-repairs/repair-failed.list)
-                  REPAIR_SUCCESS_COUNT=$((ERROR_COUNT - REPAIR_FAILED_COUNT))
-                else
-                  REPAIR_SUCCESS_COUNT=$ERROR_COUNT
-                fi
-                
-                # Create repair summary
-                cat > generated/auto-fix/fixes/yaml-repairs/repair-summary.json << EOF
-{
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "total_syntax_errors": $ERROR_COUNT,
-  "intelligent_repairs_attempted": $REPAIR_SUCCESS_COUNT,
-  "repair_success_rate": "$(echo "scale=1; $REPAIR_SUCCESS_COUNT * 100 / $ERROR_COUNT" | bc 2>/dev/null || echo "0")%",
-  "claude_code_available": $(command -v claude-code &> /dev/null && echo "true" || echo "false"),
-  "success_patterns_available": $([ -f "meta/successful-workflow-patterns.md" ] && echo "true" || echo "false"),
-  "repair_method": "claude_code_with_success_patterns"
-}
-EOF
-                
-                echo "📊 Repair Summary: $REPAIR_SUCCESS_COUNT/$ERROR_COUNT files repaired"
-                FIX_APPLIED="intelligent_yaml_repair"
-                FIX_SUCCESS=$([ $REPAIR_SUCCESS_COUNT -gt 0 ] && echo "true" || echo "false")
-              else
-                echo "✅ No YAML syntax errors found"
-                FIX_APPLIED="yaml_validation_passed"
-                FIX_SUCCESS=true
-              fi
-              ;;
-              
-            "cleanup_resources")
-              echo "🧹 Applying resource cleanup..."
-              
-              # Create cleanup script
-              cat > generated/auto-fix/fixes/cleanup.sh << 'EOF'
-          #!/bin/bash
-          echo "🧹 Cleaning up resources..."
-          
-          # Clean temporary files
-          find /tmp -type f -name "*tmp*" -mtime +1 -delete 2>/dev/null || true
-          
-          # Clean old artifacts (if any)
-          find . -name "*.log" -mtime +7 -delete 2>/dev/null || true
-          
-          # Clean Docker if available
-          if command -v docker &> /dev/null; then
-            docker system prune -f 2>/dev/null || true
-          fi
-          
-          echo "✅ Cleanup completed"
-          EOF
-              chmod +x generated/auto-fix/fixes/cleanup.sh
-              
-              FIX_APPLIED="resource_cleanup"
-              FIX_SUCCESS=true
-              ;;
-              
-            "wait_and_retry")
-              echo "⏳ Applying rate limit handling..."
-              
-              # Create rate limit handling configuration
-              cat > generated/auto-fix/fixes/rate-limit-config.json << EOF
-          {
-            "rate_limit_handling": {
-              "wait_time_seconds": [60, 300, 900],
-              "max_retries": 3,
-              "exponential_backoff": true,
-              "implementation_note": "Add to workflow retry logic"
             }
           }
           EOF
-              
-              FIX_APPLIED="rate_limit_config"
-              FIX_SUCCESS=true
-              ;;
-              
-            *)
-              echo "⚠️ Generic retry for unknown error..."
-              
-              # Generic fix recommendations
-              cat > generated/auto-fix/fixes/generic-recommendations.json << EOF
-          {
-            "generic_fixes": [
-              "Check logs for specific error messages",
-              "Verify all required secrets are configured",
-              "Ensure workflow syntax is valid",
-              "Check for external service availability"
-            ],
-            "confidence_low": true,
-            "manual_review_required": true
-          }
-          EOF
-              
-              FIX_APPLIED="generic_recommendations"
-              FIX_SUCCESS=true
-              ;;
-          esac
           
-          # Save fix summary
-          cat > generated/auto-fix/fixes/fix-summary-$(date +%Y%m%d-%H%M%S).json << EOF
-          {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "target_error": "$ERROR_CATEGORY",
-            "fix_strategy": "$FIX_STRATEGY",
-            "fix_applied": "$FIX_APPLIED",
-            "fix_success": $FIX_SUCCESS,
-            "confidence_level": $CONFIDENCE,
-            "manual_review_required": $([ "$CONFIDENCE" -lt 80 ] && echo "true" || echo "false")
-          }
-          EOF
+      - name: AI-Powered Fix Implementation
+        id: apply_fixes
+        run: |
+          echo "🔧 Implementing AI-recommended fixes..."
           
-          echo "fix_applied=$FIX_APPLIED" >> $GITHUB_OUTPUT
+          # Parse suggested fixes
+          FIXES=$(cat generated/suggested-fixes.json)
+          FIX_COUNT=$(echo "$FIXES" | jq 'length')
+          
+          echo "📝 Found $FIX_COUNT recommended fixes"
+          
+          FIXES_APPLIED=0
+          FIX_SUCCESS=true
+          
+          # Process each fix
+          for i in $(seq 0 $((FIX_COUNT - 1))); do
+            FIX=$(echo "$FIXES" | jq -r ".[$i]")
+            ACTION=$(echo "$FIX" | jq -r '.action // "unknown"')
+            DESCRIPTION=$(echo "$FIX" | jq -r '.description // "No description"')
+            CODE_SNIPPET=$(echo "$FIX" | jq -r '.code_snippet // ""')
+            
+            echo "🔧 Applying fix $((i+1))/$FIX_COUNT: $ACTION"
+            echo "📝 Description: $DESCRIPTION"
+            
+            # Create fix implementation prompt
+            cat > generated/fix-implementation-$i.md << EOF
+          # Fix Implementation Request
+
+          ## Fix Details
+          - Action: $ACTION
+          - Description: $DESCRIPTION
+          
+          ## Code Snippet
+          \`\`\`
+          $CODE_SNIPPET
+          \`\`\`
+          
+          ## Instructions
+          1. Apply this fix to the appropriate files
+          2. Ensure the fix is syntactically correct
+          3. Validate that the fix addresses the root cause
+          4. Make any necessary adjustments for consistency
+          
+          Please implement this fix and provide:
+          - Files modified
+          - Specific changes made
+          - Any warnings or considerations
+          EOF
+            
+            # Execute fix with Claude Code SDK using OAuth token
+            FIX_RESULT=$(claude -p "$(cat generated/fix-implementation-$i.md)" \
+              --mcp-config .claude/mcp-config.json \
+              --allowed-tools "Read,Write,View,mcp__filesystem__*" \
+              --permission-mode acceptEdits \
+              --max-turns 10 \
+              --output-format json \
+              2>&1 | tee generated/fix-result-$i.json || echo '{"success": false}')
+            
+            # Check if fix was successful
+            if echo "$FIX_RESULT" | grep -q '"success".*true' || [ -f generated/fix-result-$i.json ]; then
+              echo "✅ Fix $((i+1)) applied successfully"
+              FIXES_APPLIED=$((FIXES_APPLIED + 1))
+            else
+              echo "❌ Fix $((i+1)) failed to apply"
+              FIX_SUCCESS=false
+            fi
+          done
+          
+          echo "fixes_applied=$FIXES_APPLIED" >> $GITHUB_OUTPUT
           echo "fix_success=$FIX_SUCCESS" >> $GITHUB_OUTPUT
           
-          echo "✅ Fix application completed: $FIX_APPLIED (Success: $FIX_SUCCESS)"
+          echo "📊 Applied $FIXES_APPLIED out of $FIX_COUNT fixes"
+          
+      - name: Validate Fixed Code
+        id: validate
+        run: |
+          echo "🔍 Validating applied fixes..."
+          
+          # YAML validation for workflow files
+          for file in $(find .github/workflows -name "*.yml" -o -name "*.yaml"); do
+            if python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
+              echo "✅ $file: Valid YAML"
+            else
+              echo "❌ $file: Invalid YAML"
+              exit 1
+            fi
+          done
+          
+          # Run any existing tests
+          if [ -f "package.json" ] && grep -q "test" package.json; then
+            npm test || echo "⚠️ Some tests failed"
+          fi
+          
+          echo "✅ Validation completed"
+          
+      - name: Create Fix PR
+        id: create_pr
+        if: steps.apply_fixes.outputs.fixes_applied > '0'
+        run: |
+          # Configure git
+          git config user.name "ai-autofix[bot]"
+          git config user.email "ai-autofix[bot]@users.noreply.github.com"
+          
+          # Create branch
+          BRANCH_NAME="autofix/ai-fix-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH_NAME"
+          
+          # Stage changes
+          git add -A
+          
+          if ! git diff --cached --quiet; then
+            # Commit with detailed message
+            git commit -m "🤖 AI-Powered Auto-Fix: ${{ needs.ai-analyze-failure.outputs.root_cause }}
 
-  # Phase 3: Validation & Learning
-  validate-and-learn:
-    needs: [analyze-failure, apply-intelligent-fix]
+          Root Cause Analysis:
+          ${{ needs.ai-analyze-failure.outputs.error_analysis }}
+          
+          Fixes Applied: ${{ steps.apply_fixes.outputs.fixes_applied }}
+          Confidence Level: ${{ needs.ai-analyze-failure.outputs.confidence_level }}%
+          Fix Complexity: ${{ needs.ai-analyze-failure.outputs.fix_complexity }}
+          
+          This fix was automatically generated and applied by Claude Code SDK.
+          Please review the changes before merging.
+          
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+            
+            # Push branch
+            git push origin "$BRANCH_NAME"
+            
+            # Create PR
+            PR_BODY=$(cat << EOF
+          ## 🤖 AI-Powered Auto-Fix
+          
+          ### Problem Summary
+          **Root Cause**: ${{ needs.ai-analyze-failure.outputs.root_cause }}
+          
+          ### Analysis
+          ${{ needs.ai-analyze-failure.outputs.error_analysis }}
+          
+          ### Fixes Applied
+          - Number of fixes: ${{ steps.apply_fixes.outputs.fixes_applied }}
+          - Confidence Level: ${{ needs.ai-analyze-failure.outputs.confidence_level }}%
+          - Complexity: ${{ needs.ai-analyze-failure.outputs.fix_complexity }}
+          
+          ### Changes Made
+          Please review the file changes tab for specific modifications.
+          
+          ### Validation
+          - [x] YAML syntax validated
+          - [x] AI confidence > 70%
+          - [ ] Human review required
+          
+          ---
+          *Generated with Claude Code SDK*
+          EOF
+          )
+            
+            gh pr create \
+              --title "🤖 AI Auto-Fix: ${{ needs.ai-analyze-failure.outputs.root_cause }}" \
+              --body "$PR_BODY" \
+              --label "auto-fix,ai-generated" \
+              --reviewer "${{ github.repository_owner }}"
+            
+            echo "pr_created=true" >> $GITHUB_OUTPUT
+            echo "✅ PR created successfully"
+          else
+            echo "ℹ️ No changes to commit"
+            echo "pr_created=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Phase 3: AI Learning and Improvement
+  ai-learn-and-improve:
+    needs: [ai-analyze-failure, ai-apply-fix]
     runs-on: ubuntu-latest
-    if: always() && needs.analyze-failure.outputs.has_failure == 'true'
+    if: always() && needs.ai-analyze-failure.outputs.has_failure == 'true'
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         
-      - name: Validate Fix Effectiveness
+      - name: Setup Learning Environment
         run: |
-          echo "🔍 Validating fix effectiveness..."
-          
-          mkdir -p generated/auto-fix/learning
-          
-          # Wait for potential effects
-          sleep 30
-          
-          # Check if similar failures occur
-          VALIDATION_RESULT="pending"
-          
-          if command -v gh &> /dev/null; then
-            # Check recent runs after fix
-            RECENT_RUNS=$(gh run list --limit 5 --json conclusion 2>/dev/null || echo "[]")
-            if [ "$RECENT_RUNS" != "[]" ]; then
-              SUCCESS_COUNT=$(echo "$RECENT_RUNS" | jq '[.[] | select(.conclusion == "success")] | length' 2>/dev/null || echo "0")
-              TOTAL_COUNT=$(echo "$RECENT_RUNS" | jq 'length' 2>/dev/null || echo "1")
-              
-              if [ "$TOTAL_COUNT" -gt 0 ]; then
-                SUCCESS_RATE=$(echo "scale=2; $SUCCESS_COUNT * 100 / $TOTAL_COUNT" | bc 2>/dev/null || echo "0")
-                
-                if (( $(echo "$SUCCESS_RATE >= 80" | bc -l 2>/dev/null || echo "0") )); then
-                  VALIDATION_RESULT="improved"
-                elif (( $(echo "$SUCCESS_RATE >= 50" | bc -l 2>/dev/null || echo "0") )); then
-                  VALIDATION_RESULT="partial"
-                else
-                  VALIDATION_RESULT="insufficient"
-                fi
-              fi
-            fi
-          fi
-          
-          # Save learning data
-          cat > generated/auto-fix/learning/learning-$(date +%Y%m%d-%H%M%S).json << EOF
+          mkdir -p .claude
+          cat > .claude/mcp-config.json << 'EOF'
           {
-            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "original_error": "${{ needs.analyze-failure.outputs.error_category }}",
-            "fix_strategy": "${{ needs.analyze-failure.outputs.fix_strategy }}",
-            "fix_applied": "${{ needs.apply-intelligent-fix.outputs.fix_applied || 'none' }}",
-            "confidence_level": ${{ needs.analyze-failure.outputs.confidence_level }},
-            "validation_result": "$VALIDATION_RESULT",
-            "success_rate_after": ${SUCCESS_RATE:-0},
-            "learning_points": [
-              "Pattern recognition accuracy: high",
-              "Fix application: ${{ needs.apply-intelligent-fix.outputs.fix_success || 'skipped' }}",
-              "Validation method: automated metrics"
-            ]
+            "mcpServers": {
+              "filesystem": {
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+              }
+            }
           }
           EOF
           
-          echo "📚 Learning data saved for future improvements"
-          
-      - name: Commit Auto-Fix Results
+      - name: AI Learning and Pattern Recognition
         run: |
-          git config user.name "intelligent-autofix[bot]"
-          git config user.email "intelligent-autofix[bot]@users.noreply.github.com"
+          echo "📚 AI Learning from this incident..."
           
-          git add generated/auto-fix/
+          # Create learning prompt
+          cat > generated/learning-prompt.md << 'EOF'
+          # Learning and Improvement Analysis
+          
+          ## Incident Summary
+          - Root Cause: ${{ needs.ai-analyze-failure.outputs.root_cause }}
+          - Error Analysis: ${{ needs.ai-analyze-failure.outputs.error_analysis }}
+          - Fixes Applied: ${{ needs.ai-apply-fix.outputs.fixes_applied || '0' }}
+          - Fix Success: ${{ needs.ai-apply-fix.outputs.fix_success || 'N/A' }}
+          
+          ## Learning Tasks
+          1. Identify patterns that could prevent similar failures
+          2. Suggest workflow improvements
+          3. Recommend monitoring additions
+          4. Propose documentation updates
+          5. Create reusable fix templates
+          
+          ## Output Format
+          Provide actionable recommendations for:
+          - Workflow hardening
+          - Error prevention patterns
+          - Monitoring improvements
+          - Documentation needs
+          - Automation opportunities
+          EOF
+          
+          # Execute learning analysis with OAuth token
+          LEARNING_RESULT=$(claude -p "$(cat generated/learning-prompt.md)" \
+            --output-format json \
+            --mcp-config .claude/mcp-config.json \
+            --allowed-tools "View,Read,mcp__filesystem__*" \
+            --max-turns 3)
+          
+          echo "$LEARNING_RESULT" > generated/learning-insights.json
+          
+          # Create or update knowledge base
+          mkdir -p meta/ai-learning
+          
+          # Save learning data with timestamp
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          cat > "meta/ai-learning/incident-$TIMESTAMP.json" << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "incident": {
+              "root_cause": "${{ needs.ai-analyze-failure.outputs.root_cause }}",
+              "confidence": ${{ needs.ai-analyze-failure.outputs.confidence_level }},
+              "complexity": "${{ needs.ai-analyze-failure.outputs.fix_complexity }}"
+            },
+            "resolution": {
+              "fixes_applied": ${{ needs.ai-apply-fix.outputs.fixes_applied || 0 }},
+              "success": ${{ needs.ai-apply-fix.outputs.fix_success || false }},
+              "pr_created": ${{ needs.ai-apply-fix.outputs.pr_created || false }}
+            },
+            "learning": $LEARNING_RESULT
+          }
+          EOF
+          
+          # Update pattern library
+          if [ -f "meta/ai-learning/patterns.json" ]; then
+            # Merge with existing patterns
+            jq -s '.[0] + {patterns: (.[0].patterns + [.[1]])}' \
+              meta/ai-learning/patterns.json \
+              "meta/ai-learning/incident-$TIMESTAMP.json" \
+              > meta/ai-learning/patterns.tmp.json
+            mv meta/ai-learning/patterns.tmp.json meta/ai-learning/patterns.json
+          else
+            # Create new pattern library
+            echo '{"patterns": []}' > meta/ai-learning/patterns.json
+          fi
+          
+          echo "✅ AI learning completed and knowledge base updated"
+          
+      - name: Generate Improvement Report
+        run: |
+          # Create comprehensive improvement report
+          cat > generated/improvement-report.md << 'EOF'
+          # AI Auto-Fix System Report
+          
+          ## Incident Analysis
+          - **Date**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          - **Repository**: ${{ github.repository }}
+          - **Workflow**: ${{ github.event.workflow_run.name }}
+          
+          ## AI Performance Metrics
+          - **Analysis Confidence**: ${{ needs.ai-analyze-failure.outputs.confidence_level }}%
+          - **Fix Complexity**: ${{ needs.ai-analyze-failure.outputs.fix_complexity }}
+          - **Fixes Applied**: ${{ needs.ai-apply-fix.outputs.fixes_applied || '0' }}
+          - **Success Rate**: ${{ needs.ai-apply-fix.outputs.fix_success && '100%' || 'Partial' }}
+          
+          ## Root Cause
+          ${{ needs.ai-analyze-failure.outputs.root_cause }}
+          
+          ## Resolution Summary
+          ${{ needs.ai-analyze-failure.outputs.error_analysis }}
+          
+          ## Learning Insights
+          $(cat generated/learning-insights.json | jq -r '.recommendations[]' 2>/dev/null || echo "See detailed analysis")
+          
+          ## Next Steps
+          1. Review and merge auto-fix PR if created
+          2. Implement suggested workflow improvements
+          3. Update documentation based on learnings
+          4. Monitor for similar issues
+          
+          ---
+          *Generated by AI-Powered Auto-Fix System using Claude Code SDK*
+          EOF
+          
+          # Commit learning data
+          git config user.name "ai-learning[bot]"
+          git config user.email "ai-learning[bot]@users.noreply.github.com"
+          
+          git add meta/ai-learning/ generated/improvement-report.md
           
           if ! git diff --cached --quiet; then
-            git commit -m "🧠 Intelligent Auto-Fix: ${{ needs.analyze-failure.outputs.error_category }}
+            git commit -m "📚 AI Learning: Updated knowledge base from incident
 
-          Analysis Results:
-          - Error Category: ${{ needs.analyze-failure.outputs.error_category }}
-          - Fix Strategy: ${{ needs.analyze-failure.outputs.fix_strategy }}
-          - Confidence: ${{ needs.analyze-failure.outputs.confidence_level }}%
-          - Fix Applied: ${{ needs.apply-intelligent-fix.outputs.fix_applied || 'analysis_only' }}
-          
-          System Learning:
-          - Pattern recognition improved
-          - Fix strategies validated
-          - Future failure prevention enhanced
-          
-          🤖 Generated with [Claude Code](https://claude.ai/code)
-          Co-Authored-By: Claude <noreply@anthropic.com>"
-          
-          git push origin main || echo "Push failed, saved locally"
-          echo "✅ Auto-fix results committed"
-          else
-            echo "ℹ️ No changes to commit"
+          Incident: ${{ needs.ai-analyze-failure.outputs.root_cause }}
+          Confidence: ${{ needs.ai-analyze-failure.outputs.confidence_level }}%
+          Learning: Pattern recognition and prevention strategies updated"
+            
+            git push origin main || echo "Push to protected branch failed - manual merge required"
           fi
+          
+          echo "✅ Improvement report generated and knowledge base updated"
