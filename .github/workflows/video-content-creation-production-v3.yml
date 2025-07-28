@@ -296,16 +296,19 @@ jobs:
         with:
           prompt: |
             STEPS for scene ${{ matrix.scene.scene }}:
-            1. Read results.json and find scene ${{ matrix.scene.scene }} local_file
-            2. Convert local PNG file to base64 data URI for MCP service
-            3. Submit to i2v-fal-hailuo-02-pro with:
-               - image_url as data URI (data:image/png;base64,...)
-               - duration from plan.json timing
-            4. Poll hailuo_02_result until COMPLETED
-            5. Download video to scene_${{ matrix.scene.scene }}_video.mp4
-            6. Create info.json with scene details
+            1. Read generated/images/results.json and find scene ${{ matrix.scene.scene }} info
+            2. Find the corresponding PNG file for scene ${{ matrix.scene.scene }}
+            3. CRITICAL Base64 conversion steps:
+               a. Use bash command: base64 -i <image_file> to convert PNG to base64
+               b. Remove ALL newlines/whitespace from base64 output with tr -d '\n\r '
+               c. Create proper data URI: "data:image/png;base64," + clean_base64_string
+               d. Verify base64 string contains only valid characters [A-Za-z0-9+/=]
+            4. Submit to i2v-fal-hailuo-02-pro with validated data URI
+            5. Poll hailuo_02_result until COMPLETED status
+            6. Download video to scene_${{ matrix.scene.scene }}_video.mp4
+            7. Create scene_${{ matrix.scene.scene }}_info.json with metadata
             
-            CRITICAL: Convert local files to data URIs for MCP compatibility
+            IMPORTANT: Ensure base64 data is clean and properly formatted before MCP submission
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
             Generate video clip for scene ${{ matrix.scene.scene }} only.
