@@ -415,23 +415,52 @@ jobs:
             exit 1
           fi
           
-          # Verify video file was created
-          if [ -f "scene_${{ matrix.scene.scene }}_video.mp4" ]; then
+          # Check for video file in multiple possible locations
+          echo "🔍 Checking for video files in multiple locations..."
+          
+          # Possible file locations based on Claude Code behavior
+          POSSIBLE_LOCATIONS=(
+            "scene_${{ matrix.scene.scene }}_video.mp4"
+            "projects/current-session/temp/scene_${{ matrix.scene.scene }}_video.mp4"
+            "temp/scene_${{ matrix.scene.scene }}_video.mp4"
+            "*/scene_${{ matrix.scene.scene }}_video.mp4"
+          )
+          
+          VIDEO_FILE_FOUND=""
+          for location in "${POSSIBLE_LOCATIONS[@]}"; do
+            # Use find to handle wildcard patterns
+            FOUND_FILES=$(find . -path "./$location" -type f 2>/dev/null | head -1)
+            if [ -n "$FOUND_FILES" ]; then
+              VIDEO_FILE_FOUND="$FOUND_FILES"
+              echo "✅ Found video file at: $VIDEO_FILE_FOUND"
+              break
+            fi
+          done
+          
+          # If Claude Code generated video in different location, copy it
+          if [ -n "$VIDEO_FILE_FOUND" ]; then
+            if [ "$VIDEO_FILE_FOUND" != "./scene_${{ matrix.scene.scene }}_video.mp4" ]; then
+              echo "📂 Copying video file to expected location..."
+              cp "$VIDEO_FILE_FOUND" "scene_${{ matrix.scene.scene }}_video.mp4"
+              echo "✅ Video file copied to: scene_${{ matrix.scene.scene }}_video.mp4"
+            fi
+            
             FILE_SIZE=$(stat -c%s "scene_${{ matrix.scene.scene }}_video.mp4" 2>/dev/null || stat -f%z "scene_${{ matrix.scene.scene }}_video.mp4")
-            echo "✅ Video file created: scene_${{ matrix.scene.scene }}_video.mp4 (${FILE_SIZE} bytes)"
+            echo "✅ Final video file: scene_${{ matrix.scene.scene }}_video.mp4 (${FILE_SIZE} bytes)"
             
             # Verify file is not corrupted (minimum 50KB for valid video)
             if [ "$FILE_SIZE" -lt 50000 ]; then
               echo "⚠️ Warning: File size is very small (${FILE_SIZE} bytes) - may be corrupted"
-              # Try to get file info
               file "scene_${{ matrix.scene.scene }}_video.mp4" || echo "File command failed"
             else
               echo "✅ File size looks good (${FILE_SIZE} bytes)"
             fi
           else
-            echo "❌ ERROR: Video file not found after download attempt!"
-            echo "📁 Current directory contents:"
-            ls -la
+            echo "❌ ERROR: Video file not found in any expected location!"
+            echo "🔍 Searching for any MP4 files..."
+            find . -name "*.mp4" -type f 2>/dev/null | head -10
+            echo "📁 Current directory structure:"
+            find . -maxdepth 3 -type d 2>/dev/null | head -20
             exit 1
           fi
         env:
