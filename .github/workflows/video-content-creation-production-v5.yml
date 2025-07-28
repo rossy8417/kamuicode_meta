@@ -339,13 +339,55 @@ jobs:
           echo "📋 Claude Code response:"
           cat claude_response.json | jq '.'
           
-          # Extract video URL from Claude Code response and download
+          # Extract video URL from Claude Code response and download (2-stage URL handling)
           echo "🔍 Extracting video URL from Claude Code response..."
+          
+          # First, try direct video URL (old format)
           VIDEO_URL=$(cat claude_response.json | jq -r '.result' | grep -o 'https://v3\.fal\.media/files/[^"]*\.mp4' | head -1)
           
           if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
-            echo "📥 Found video URL: $VIDEO_URL"
-            echo "⬇️ Downloading video file..."
+            echo "📥 Found direct video URL: $VIDEO_URL"
+          else
+            # Try queue URL (new format) - extract and resolve
+            echo "🔍 Searching for queue URL..."
+            QUEUE_URL=$(cat claude_response.json | jq -r '.result' | grep -o 'https://queue\.fal\.run/[^`]*' | head -1)
+            
+            if [ -n "$QUEUE_URL" ] && [ "$QUEUE_URL" != "null" ]; then
+              echo "📥 Found queue URL: $QUEUE_URL"
+              echo "🔄 Resolving queue URL to get actual video URL..."
+              
+              # Resolve queue URL to get video URL
+              for resolve_attempt in 1 2 3; do
+                echo "🔗 Queue resolve attempt $resolve_attempt/3..."
+                QUEUE_RESPONSE=$(curl -s "$QUEUE_URL" --connect-timeout 15 --max-time 60)
+                if [ $? -eq 0 ]; then
+                  # Try multiple JSON paths for video URL
+                  VIDEO_URL=$(echo "$QUEUE_RESPONSE" | jq -r '.video // .result.video // .data.video // .output.video // empty' 2>/dev/null)
+                  if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
+                    echo "✅ Resolved video URL: $VIDEO_URL"
+                    break
+                  else
+                    echo "⚠️ Queue response received but no video URL found, retrying..."
+                    sleep 3
+                  fi
+                else
+                  echo "❌ Queue resolve attempt $resolve_attempt failed"
+                  sleep 3
+                fi
+              done
+            else
+              # Try any other URL patterns
+              echo "🔍 Searching for alternative URL patterns..."
+              VIDEO_URL=$(cat claude_response.json | jq -r '.result' | grep -oE 'https?://[^\s"`]+\.mp4' | head -1)
+              if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
+                echo "📥 Found alternative video URL: $VIDEO_URL"
+              fi
+            fi
+          fi
+          
+          # Download video if URL was found
+          if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
+            echo "⬇️ Downloading video file from: $VIDEO_URL"
             
             # Download video with retry logic
             DOWNLOAD_SUCCESS=false
@@ -366,17 +408,10 @@ jobs:
               exit 1
             fi
           else
-            echo "❌ No video URL found in Claude Code response!"
-            echo "🔍 Searching for alternative URL patterns..."
-            # Try alternative URL extraction patterns
-            VIDEO_URL=$(cat claude_response.json | jq -r '.result' | grep -oE 'https?://[^\s"]+\.mp4' | head -1)
-            if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
-              echo "📥 Found alternative video URL: $VIDEO_URL"
-              curl -L -o "scene_${{ matrix.scene.scene }}_video.mp4" "$VIDEO_URL" --connect-timeout 30 --max-time 300
-            else
-              echo "❌ No video URL found with any pattern!"
-              exit 1
-            fi
+            echo "❌ No video URL found with any method!"
+            echo "🔍 Debug: Claude Code response content:"
+            cat claude_response.json | jq -r '.result' | head -10
+            exit 1
           fi
           
           # Verify video file was created
