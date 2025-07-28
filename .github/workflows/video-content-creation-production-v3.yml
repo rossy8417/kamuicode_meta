@@ -97,25 +97,31 @@ jobs:
         run: |
           mkdir -p generated/concept
           
+          # Generate concept plan with Claude Code SDK and save to file
           claude -p "Create a detailed video concept plan for: '${{ github.event.inputs.video_concept }}'
           Target audience: ${{ github.event.inputs.target_audience }}
           Duration: ${{ github.event.inputs.video_length }} seconds
           Style: ${{ github.event.inputs.video_style }}
           
-          Save the plan to generated/concept/plan.json with:
-          - scenes: array of scene descriptions with dialogue/narration
-          - prompts: specific prompts for each scene
-          - timing: scene durations and transitions
-          - dialogue: array of dialogue/narration for each scene
-          - audio_cues: background music and sound effects timing
+          Return ONLY a valid JSON object with the following structure:
+          {
+            \"title\": \"video title\",
+            \"target_audience\": \"${{ github.event.inputs.target_audience }}\",
+            \"duration\": ${{ github.event.inputs.video_length }},
+            \"style\": \"${{ github.event.inputs.video_style }}\",
+            \"total_scenes\": number_of_scenes,
+            \"scenes\": [array of scene objects with descriptions],
+            \"prompts\": {scene-specific prompts for image generation},
+            \"timing\": {scene timing information},
+            \"dialogue\": [array of dialogue/narration for each scene],
+            \"audio_cues\": {background music and sound effects timing}
+          }
           
           IMPORTANT: 
-          - Each scene should have specific dialogue or narration text
-          - Include timing for when dialogue should play
-          - Consider the total duration of ${{ github.event.inputs.video_length }} seconds
-          - Plan smooth transitions between scenes
-          - Generate appropriate number of scenes based on duration (roughly 3-5 seconds per scene)" \
-          --output-format json
+          - Generate 3-5 scenes based on ${{ github.event.inputs.video_length }} second duration
+          - Include specific dialogue or narration text for each scene
+          - Output ONLY valid JSON, no additional text or explanations" \
+          --output-format json > generated/concept/plan.json
           
           # Verify generated plan
           echo "📋 Generated concept plan:"
@@ -373,35 +379,36 @@ jobs:
           
       - name: Assemble final video with Claude Code SDK
         run: |
+          # Generate FFmpeg assembly script with Claude Code SDK
           claude -p "You are an expert video editor working with FFmpeg. 
           
-          TASK: Create a comprehensive FFmpeg workflow to assemble a final video from multiple scene videos.
+          TASK: Create a comprehensive FFmpeg bash script to assemble a final video from multiple scene videos.
           
           CURRENT SITUATION:
           - Scene video files are in the videos/ directory (scene_1_video.mp4, scene_2_video.mp4, etc.)
           - Background music file may be available as background_music.wav
           - Audio dialogue files may be available as scene_*_dialogue.wav
           
-          REQUIREMENTS:
-          1. Create a bash script that:
-             a. Lists all available scene videos in proper order (scene_1, scene_2, etc.)
-             b. Creates an FFmpeg concat file for video concatenation
-             c. Concatenates all scene videos into one video
-             d. Mixes background music and dialogue audio if available
-             e. Applies final video optimization (H.264, AAC audio, web-optimized)
-             f. Outputs final_video.mp4
+          OUTPUT REQUIREMENTS:
+          Return ONLY a complete bash script that:
+          1. Lists all available scene videos in proper order (scene_1, scene_2, etc.)
+          2. Creates an FFmpeg concat file for video concatenation
+          3. Concatenates all scene videos into one video
+          4. Mixes background music and dialogue audio if available
+          5. Applies final video optimization (H.264, AAC audio, web-optimized)
+          6. Outputs final_video.mp4
+          7. Handles missing files gracefully
+          8. Includes error checking and logging
           
-          2. Handle missing files gracefully (if some scenes are missing)
-          3. Use proper FFmpeg flags for web-optimized output
-          4. Include error checking and logging
-          
-          Save the complete bash script as assemble_video.sh and make it executable.
-          
-          IMPORTANT: Generate a complete, working bash script that I can execute directly." \
-          --output-format text
+          IMPORTANT: Output ONLY the bash script content, no explanations or markdown formatting." \
+          --output-format text > assemble_video.sh
           
           # Make the script executable and run it
           chmod +x assemble_video.sh
+          echo "🎬 Generated FFmpeg assembly script:"
+          cat assemble_video.sh
+          echo ""
+          echo "🎥 Executing video assembly..."
           ./assemble_video.sh
           
           echo "✅ Video assembly complete!"
