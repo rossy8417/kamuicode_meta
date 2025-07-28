@@ -272,7 +272,7 @@ jobs:
     strategy:
       matrix:
         scene: ${{ fromJson(needs.video-generation-prep.outputs.scene_matrix) }}
-      max-parallel: 3  # Limit parallel jobs to avoid overload
+      max-parallel: 1  # Process scenes sequentially to avoid resource conflicts
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -295,16 +295,17 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
-            QUICK STEPS for scene ${{ matrix.scene.scene }}:
+            STEPS for scene ${{ matrix.scene.scene }}:
             1. Read results.json and find scene ${{ matrix.scene.scene }} local_file
-            2. Use the LOCAL image file (should be scene${matrix.scene.scene}_*.png) 
-            3. Submit to i2v-fal-hailuo-02-pro with duration from plan.json
-            4. Get result URL immediately from submit response
-            5. Poll hailuo_02_result with the URL until COMPLETED (max 20 polls)
-            6. Download video to scene_${{ matrix.scene.scene }}_video.mp4
-            7. Write minimal info.json and exit
+            2. Convert local PNG file to base64 data URI for MCP service
+            3. Submit to i2v-fal-hailuo-02-pro with:
+               - image_url as data URI (data:image/png;base64,...)
+               - duration from plan.json timing
+            4. Poll hailuo_02_result until COMPLETED
+            5. Download video to scene_${{ matrix.scene.scene }}_video.mp4
+            6. Create info.json with scene details
             
-            CRITICAL: Work only with LOCAL files, no URL downloads needed!
+            CRITICAL: Convert local files to data URIs for MCP compatibility
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
             Generate video clip for scene ${{ matrix.scene.scene }} only.
