@@ -308,31 +308,58 @@ jobs:
                - Duration: appropriate for this scene from concept plan
                - Quality settings as needed
             4. Poll hailuo_02_result until COMPLETED status
-            5. Download video to scene_${{ matrix.scene.scene }}_video.mp4
-            6. Create scene_${{ matrix.scene.scene }}_video_info.json with metadata
+            5. CRITICAL: Download video file using the final result URL:
+               a. Get the final video URL from the completed result
+               b. Use wget or curl to download to scene_${{ matrix.scene.scene }}_video.mp4
+               c. Verify the MP4 file exists and has valid size (> 100KB)
+               d. If download fails, retry up to 3 times with different methods
+            6. Create scene_${{ matrix.scene.scene }}_video_info.json with:
+               - download_status: "completed" (if successful)
+               - video_file_path: "scene_${{ matrix.scene.scene }}_video.mp4"
+               - file_size: actual file size
+               - verification_status: "verified"
             
             CRITICAL SUCCESS FACTORS:
             - Use image_url directly (proven working method from V1)
             - NO base64 conversion needed
             - Image was just generated so URL is fresh
-            - This follows the successful pattern from previous working workflows
+            - MUST actually download the MP4 file to local filesystem
+            - Verify file exists before completing the step
           system_prompt: |
             You are Claude Code in CI/CD. Generate video for scene ${{ matrix.scene.scene }} using
-            the fresh image URL from the previous step. Use the proven direct URL method.
+            the fresh image URL from the previous step. CRITICAL: You must successfully download
+            the final MP4 file to the local filesystem for FFmpeg processing.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: "25"
-          timeout_minutes: 15
+          max_turns: "30"
+          timeout_minutes: 18
+          
+      - name: Verify video file exists
+        run: |
+          echo "🔍 Verifying scene ${{ matrix.scene.scene }} video file..."
+          if [ -f "scene_${{ matrix.scene.scene }}_video.mp4" ]; then
+            FILE_SIZE=$(stat -f%z "scene_${{ matrix.scene.scene }}_video.mp4" 2>/dev/null || stat -c%s "scene_${{ matrix.scene.scene }}_video.mp4")
+            echo "✅ Video file found: scene_${{ matrix.scene.scene }}_video.mp4 (${FILE_SIZE} bytes)"
+            if [ $FILE_SIZE -lt 100000 ]; then
+              echo "⚠️ Warning: File size is small (${FILE_SIZE} bytes)"
+            fi
+          else
+            echo "❌ ERROR: Video file not found!"
+            echo "📁 Current directory contents:"
+            ls -la
+            exit 1
+          fi
           
       - name: Upload scene assets
         uses: actions/upload-artifact@v4
         with:
           name: scene-${{ matrix.scene.scene }}-${{ github.run_number }}
           path: |
-            scene_${{ matrix.scene.scene }}_*.mp4
+            scene_${{ matrix.scene.scene }}_video.mp4
             scene_${{ matrix.scene.scene }}_*.json
+          if-no-files-found: error
             
   # Phase 6: 動画・音声結合 (Claude Code SDK Node)
   video-assembly:
@@ -360,16 +387,37 @@ jobs:
           echo "🎥 Analyzing available video files..."
           mkdir -p videos generated/assembly
           
-          # Find all scene video files
-          find . -name "scene_*_video.mp4" -type f
-          for file in scene_*_video.mp4; do
-            if [ -f "$file" ]; then
-              echo "Found: $file"
-              mv "$file" videos/
-            fi
+          echo "📁 Current directory structure:"
+          find . -name "*.mp4" -type f 2>/dev/null || echo "No MP4 files found in current directory"
+          
+          echo "📁 All downloaded artifacts:"
+          find . -name "scene_*" -type f 2>/dev/null || echo "No scene files found"
+          
+          # Find all scene video files with more flexible search
+          echo "🔍 Searching for scene video files..."
+          FOUND_VIDEOS=0
+          
+          # Check multiple possible locations
+          for pattern in "scene_*_video.mp4" "*/scene_*_video.mp4" "scene-*/scene_*_video.mp4"; do
+            for file in $pattern; do
+              if [ -f "$file" ]; then
+                echo "✅ Found: $file"
+                cp "$file" videos/
+                FOUND_VIDEOS=$((FOUND_VIDEOS + 1))
+              fi
+            done
           done
           
+          echo "📊 Found $FOUND_VIDEOS video files"
+          echo "📁 Videos directory contents:"
           ls -la videos/
+          
+          if [ $FOUND_VIDEOS -eq 0 ]; then
+            echo "❌ No video files found! Checking all files..."
+            find . -type f -name "*.mp4" -o -name "*video*" | head -20
+            echo "📋 Directory structure:"
+            find . -maxdepth 3 -type d | head -20
+          fi
           
       - name: Assemble final video with Claude Code SDK
         run: |
