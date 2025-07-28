@@ -1,0 +1,70 @@
+name: "Test MCP with Settings Parameter"
+run-name: "🧪 Testing MCP with settings parameter approach"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-settings-parameter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Read MCP permissions from file
+        id: read_permissions
+        run: |
+          echo "📖 Reading MCP permissions..."
+          # Extract just the MCP permissions from settings.local.json
+          MCP_PERMS=$(cat .claude/settings.local.json | jq -r '.permissions.allow[] | select(startswith("mcp__"))' | jq -R -s -c 'split("\n")[:-1]')
+          echo "MCP_PERMISSIONS=$MCP_PERMS" >> $GITHUB_OUTPUT
+          
+          # Also read the full settings
+          FULL_SETTINGS=$(cat .claude/settings.local.json | jq -c .)
+          echo "FULL_SETTINGS=$FULL_SETTINGS" >> $GITHUB_OUTPUT
+          
+      - name: Test with settings parameter (JSON string)
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Test MCP services with settings parameter:
+            1. Generate image using t2i-fal-imagen4-fast: "A futuristic city at night"
+            2. Check if permissions work
+            3. Save to test-settings-param.txt
+          system_prompt: |
+            Testing with settings parameter containing MCP permissions
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ${{ steps.read_permissions.outputs.FULL_SETTINGS }}
+          allowed_tools: "mcp__t2i-fal-imagen4-fast__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Test with embedded permissions
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Test video generation:
+            1. Use i2v-fal-hailuo-02-pro
+            2. Report if permissions are applied
+            3. Save to test-video-settings.txt
+          system_prompt: |
+            You are Claude Code in CI/CD with pre-configured MCP permissions.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "mcp__*"
+                ],
+                "deny": []
+              },
+              "alwaysApproveTools": true,
+              "enableAllProjectMcpServers": true
+            }
+          allowed_tools: "mcp__*,Write,Read,Bash"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: settings-param-test-${{ github.run_number }}
+          path: test-*.txt
