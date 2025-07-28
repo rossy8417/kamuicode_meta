@@ -318,6 +318,23 @@ projects/project-name/assets/result.png             # Project assets
 - **After task completion**: Verify no files were created in root directory
 - **Violation penalty**: Task must be redone with correct file placement
 
+### 🧹 **Cleanup and Organization Guidelines**
+
+For file deletion and directory organization tasks, refer to:
+**📋 `docs/analysis/CLEANUP_PROTOCOL.md`**
+
+This document contains:
+- **バルス Protocol**: Complete system reset guidelines
+- **整理整頓ガイドライン**: Directory organization standards and criteria
+- **判定基準**: Classification criteria for deletion/integration/preservation
+- **実行チェックリスト**: Pre/post organization verification steps
+
+**When asked to "整理整頓" or organize directories:**
+1. Review the guidelines in `CLEANUP_PROTOCOL.md`
+2. Apply the established criteria (プロジェクト中心主義, 重複解消原則, シンプル構造原則)
+3. Confirm with user before executing major changes
+4. Update relevant documentation after changes
+
 #### Ultra-Detailed Task Breakdown
 Each workflow must include:
 - **Human unconscious thought process simulation**
