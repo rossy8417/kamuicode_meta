@@ -302,21 +302,28 @@ jobs:
           prompt: |
             TASK: Generate video for scene ${{ matrix.scene.scene }} with mandatory download
             
-            STEP 1: Generate video flexibly
-            1. First, check if scene_${{ matrix.scene.scene }}_image_info.json exists
-            2. IF EXISTS: Extract image_url and use i2v-fal-hailuo-02-pro
-            3. IF NOT EXISTS: Read generated/concept/plan.json for scene ${{ matrix.scene.scene }} and use t2v-fal-veo3-fast directly
-            4. Poll until COMPLETED status
-            5. Get FULL video URL from result
+            STEP 1: Prepare image and generate video
+            1. Read scene_${{ matrix.scene.scene }}_image_info.json
+            2. Extract image_url from the JSON
+            3. If image_url starts with "gs://":
+               a. Download the image using: curl -L -o "./scene_${{ matrix.scene.scene }}_image.png" "[URL]"
+               b. Convert to base64 data URI: base64 -i scene_${{ matrix.scene.scene }}_image.png
+               c. Create data URI: "data:image/png;base64,[base64_content]"
+               d. Use this data URI as image_url for i2v-fal-hailuo-02-pro
+            4. If image_url starts with "https://":
+               a. Use the URL directly with i2v-fal-hailuo-02-pro
+            5. Submit to i2v-fal-hailuo-02-pro with prompt from concept plan
+            6. Poll until COMPLETED status
+            7. Get FULL video URL from result
             
             STEP 2: MANDATORY DOWNLOAD
-            6. IMMEDIATELY after generation: Download video file
-            7. Use curl -L -o './scene_${{ matrix.scene.scene }}_video.mp4' with FULL URL
-            8. Verify file exists and size > 100KB
-            9. Show full file path of saved video
+            8. IMMEDIATELY after generation: Download video file
+            9. Use curl -L -o './scene_${{ matrix.scene.scene }}_video.mp4' with FULL URL
+            10. Verify file exists and size > 100KB
+            11. Show full file path of saved video
             
             STEP 3: Create result info
-            10. Save scene_${{ matrix.scene.scene }}_video_info.json with:
+            12. Save scene_${{ matrix.scene.scene }}_video_info.json with:
                 - scene_number: ${{ matrix.scene.scene }}
                 - video_url: (the actual video URL)
                 - video_file_path: ./scene_${{ matrix.scene.scene }}_video.mp4
