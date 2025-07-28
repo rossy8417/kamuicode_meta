@@ -259,8 +259,9 @@ jobs:
           echo "scene_count=$SCENE_COUNT" >> $GITHUB_OUTPUT
           
           # Create matrix for parallel processing
-          MATRIX_JSON=$(jq -c '[range(.scenes | length) | {scene: . + 1}]' generated/concept/plan.json)
+          MATRIX_JSON=$(jq -c '[range(0; .scenes | length) | {scene: (. + 1)}]' generated/concept/plan.json)
           echo "scene_matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          echo "Matrix JSON: $MATRIX_JSON"
           
   # Phase 6: 動画生成（動的マトリックス）
   video-generation:
