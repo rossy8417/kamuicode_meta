@@ -1,0 +1,110 @@
+name: "Test MCP Services Detail"
+run-name: "🧪 Testing Individual MCP Services"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-google-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Test Google Image (t2i-google-imagen3)
+        uses: anthropics/claude-code-base-action@beta
+        env:
+          CLAUDE_CODE_CI_MODE: "true"
+          CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+        with:
+          prompt: |
+            Test t2i-google-imagen3:
+            1. Generate a simple test image with prompt "A red cube"
+            2. Report if it works or requires permission
+            3. Save result to test-google-image.txt
+          system_prompt: |
+            Testing Google services. Report exact error if any.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "mcp__t2i-google-imagen3__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Test Google Music (t2m-google-lyria)
+        uses: anthropics/claude-code-base-action@beta
+        env:
+          CLAUDE_CODE_CI_MODE: "true"
+          CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+        with:
+          prompt: |
+            Test t2m-google-lyria:
+            1. Generate a 10 second test music
+            2. Report if it works or requires permission
+            3. Save result to test-google-music.txt
+          system_prompt: |
+            Testing Google services. Report exact error if any.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "mcp__t2m-google-lyria__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  test-fal-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Test Fal.ai Image (t2i-fal-imagen4-fast)
+        uses: anthropics/claude-code-base-action@beta
+        env:
+          CLAUDE_CODE_CI_MODE: "true"
+          CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+        with:
+          prompt: |
+            Test t2i-fal-imagen4-fast:
+            1. Generate a simple test image with prompt "A blue sphere"
+            2. Report if it works or requires permission
+            3. Save result to test-fal-image.txt
+          system_prompt: |
+            Testing Fal.ai services. Report exact error if any.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "mcp__t2i-fal-imagen4-fast__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Test Fal.ai Video (i2v-fal-hailuo-02-pro)
+        uses: anthropics/claude-code-base-action@beta
+        env:
+          CLAUDE_CODE_CI_MODE: "true"
+          CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+        with:
+          prompt: |
+            Test i2v-fal-hailuo-02-pro:
+            1. Try to submit a request (even without image)
+            2. Report exact error message
+            3. Check if it's permission or other error
+            4. Save result to test-fal-video.txt
+          system_prompt: |
+            Testing Fal.ai video service. Report exact error message.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "mcp__i2v-fal-hailuo-02-pro__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Test Different URL Service
+        uses: anthropics/claude-code-base-action@beta
+        env:
+          CLAUDE_CODE_CI_MODE: "true"
+          CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+        with:
+          prompt: |
+            Test i2v-fal-bytedance-seedance-v1-lite:
+            1. Try to use this service
+            2. Report if it works or what error occurs
+            3. Save result to test-bytedance.txt
+          system_prompt: |
+            Testing service with different URL pattern.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          allowed_tools: "mcp__i2v-fal-bytedance-seedance-v1-lite__*,Write"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: test-*.txt
