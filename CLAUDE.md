@@ -16,7 +16,7 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 - **Never mix CLI and automation outputs**
 
 ### File Management Priority
-1. **CLI-Protected**: `cli_generated/`, `.claude/settings.local.json`, `.claude_mcp_defaults.md`
+1. **CLI-Protected**: `cli_generated/`, `cli_config/`, `.claude/settings.local.json`
 2. **Shared**: `.claude/mcp-kamuicode.json` (coordinate updates)
 3. **GitHub Actions**: `generated/`, `.github/workflows/`
 
