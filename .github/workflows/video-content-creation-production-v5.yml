@@ -297,177 +297,43 @@ jobs:
           max_turns: "15"
           
       - name: Generate video for scene ${{ matrix.scene.scene }} (immediate)
-        run: |
-          echo "🎬 Generating video for scene ${{ matrix.scene.scene }} using Claude Code SDK..."
-          
-          # Use GitHub Actions settings file directly (already contains all permissions)
-          echo "📋 Using GitHub Actions settings with all permissions..."
-          cp .claude/settings.github-actions.json combined-settings.json
-          echo "✅ Settings file copied to combined-settings.json"
-          
-          claude -p "TASK: Generate video for scene ${{ matrix.scene.scene }} with mandatory download
-          
-          CRITICAL: Follow LOCAL SUCCESS PATTERN that works:
-          'For images/videos/3D generation: After generation completes, ALWAYS do URL download and open. Download to current directory. Always use full authenticated URL path (long for Google, short for FAL). No abbreviations. For I2V/I2I inputs use Google URLs, no abbreviations (not file paths!). Show saved file location with full path from ~.'
-          
-          STEP 1: Read image info and generate video
-          1. Read scene_${{ matrix.scene.scene }}_image_info.json
-          2. Extract image_url (fresh, no expiration)
-          3. Use i2v-fal-hailuo-02-pro with image_url directly
-          4. Poll until COMPLETED status
-          5. Get FULL video URL from result
-          
-          STEP 2: MANDATORY DOWNLOAD (Critical Success Pattern)
-          6. IMMEDIATELY after generation: Download video file
-          7. Use FULL authenticated URL (no shortcuts/省略)
-          8. Execute: curl -o 'scene_${{ matrix.scene.scene }}_video.mp4' '<FULL_VIDEO_URL>'
-          9. Verify: ls -la scene_${{ matrix.scene.scene }}_video.mp4
-          10. Check file size > 100KB
-          11. Show full file path of saved video
-          
-          STEP 3: Create result info
-          12. Save scene_${{ matrix.scene.scene }}_video_info.json with:
-              - download_status: completed
-              - video_file_path: scene_${{ matrix.scene.scene }}_video.mp4
-              - file_size: actual bytes
-              - full_path: complete file location
-          
-          REQUIREMENTS:
-          - Video generation MUST be followed by immediate download  
-          - Use complete authenticated URL without abbreviations
-          - File must exist on filesystem before completion
-          - Show full path of downloaded file" \
-          --mcp-config .claude/mcp-kamuicode.json \
-          --settings combined-settings.json \
-          --output-format json > claude_response.json
-          
-          # Extract and verify result
-          echo "📋 Claude Code response:"
-          cat claude_response.json | jq '.'
-          
-          # Extract video URL from Claude Code response and download (2-stage URL handling)
-          echo "🔍 Extracting video URL from Claude Code response..."
-          
-          # First, try direct video URL (old format)
-          VIDEO_URL=$(cat claude_response.json | jq -r '.result' | grep -o 'https://v3\.fal\.media/files/[^"]*\.mp4' | head -1)
-          
-          if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
-            echo "📥 Found direct video URL: $VIDEO_URL"
-          else
-            # Try queue URL (new format) - extract and resolve
-            echo "🔍 Searching for queue URL..."
-            QUEUE_URL=$(cat claude_response.json | jq -r '.result' | grep -o 'https://queue\.fal\.run/[^`]*' | head -1)
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            TASK: Generate video for scene ${{ matrix.scene.scene }} with mandatory download
             
-            if [ -n "$QUEUE_URL" ] && [ "$QUEUE_URL" != "null" ]; then
-              echo "📥 Found queue URL: $QUEUE_URL"
-              echo "🔄 Resolving queue URL to get actual video URL..."
-              
-              # Resolve queue URL to get video URL
-              for resolve_attempt in 1 2 3; do
-                echo "🔗 Queue resolve attempt $resolve_attempt/3..."
-                QUEUE_RESPONSE=$(curl -s "$QUEUE_URL" --connect-timeout 15 --max-time 60)
-                if [ $? -eq 0 ]; then
-                  # Try multiple JSON paths for video URL
-                  VIDEO_URL=$(echo "$QUEUE_RESPONSE" | jq -r '.video // .result.video // .data.video // .output.video // empty' 2>/dev/null)
-                  if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
-                    echo "✅ Resolved video URL: $VIDEO_URL"
-                    break
-                  else
-                    echo "⚠️ Queue response received but no video URL found, retrying..."
-                    sleep 3
-                  fi
-                else
-                  echo "❌ Queue resolve attempt $resolve_attempt failed"
-                  sleep 3
-                fi
-              done
-            else
-              # Try any other URL patterns
-              echo "🔍 Searching for alternative URL patterns..."
-              VIDEO_URL=$(cat claude_response.json | jq -r '.result' | grep -oE 'https?://[^\s"`]+\.mp4' | head -1)
-              if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
-                echo "📥 Found alternative video URL: $VIDEO_URL"
-              fi
-            fi
-          fi
-          
-          # Download video if URL was found
-          if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
-            echo "⬇️ Downloading video file from: $VIDEO_URL"
+            STEP 1: Read image info and generate video
+            1. Read scene_${{ matrix.scene.scene }}_image_info.json
+            2. Extract image_url (fresh Google Cloud Storage URL)
+            3. Use i2v-fal-hailuo-02-pro with image_url directly
+            4. Poll until COMPLETED status
+            5. Get FULL video URL from result
             
-            # Download video with retry logic
-            DOWNLOAD_SUCCESS=false
-            for attempt in 1 2 3; do
-              echo "📡 Download attempt $attempt/3..."
-              if curl -L -o "scene_${{ matrix.scene.scene }}_video.mp4" "$VIDEO_URL" --connect-timeout 30 --max-time 300; then
-                echo "✅ Download attempt $attempt succeeded"
-                DOWNLOAD_SUCCESS=true
-                break
-              else
-                echo "❌ Download attempt $attempt failed"
-                sleep 5
-              fi
-            done
+            STEP 2: MANDATORY DOWNLOAD
+            6. IMMEDIATELY after generation: Download video file
+            7. Use curl -L -o './scene_${{ matrix.scene.scene }}_video.mp4' with FULL URL
+            8. Verify file exists and size > 100KB
+            9. Show full file path of saved video
             
-            if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
-              echo "❌ All download attempts failed!"
-              exit 1
-            fi
-          else
-            echo "❌ No video URL found with any method!"
-            echo "🔍 Debug: Claude Code response content:"
-            cat claude_response.json | jq -r '.result' | head -10
-            exit 1
-          fi
-          
-          # Check for video file in multiple possible locations
-          echo "🔍 Checking for video files in multiple locations..."
-          
-          # Possible file locations based on Claude Code behavior
-          POSSIBLE_LOCATIONS=(
-            "scene_${{ matrix.scene.scene }}_video.mp4"
-            "projects/current-session/temp/scene_${{ matrix.scene.scene }}_video.mp4"
-            "temp/scene_${{ matrix.scene.scene }}_video.mp4"
-            "*/scene_${{ matrix.scene.scene }}_video.mp4"
-          )
-          
-          VIDEO_FILE_FOUND=""
-          for location in "${POSSIBLE_LOCATIONS[@]}"; do
-            # Use find to handle wildcard patterns
-            FOUND_FILES=$(find . -path "./$location" -type f 2>/dev/null | head -1)
-            if [ -n "$FOUND_FILES" ]; then
-              VIDEO_FILE_FOUND="$FOUND_FILES"
-              echo "✅ Found video file at: $VIDEO_FILE_FOUND"
-              break
-            fi
-          done
-          
-          # If Claude Code generated video in different location, copy it
-          if [ -n "$VIDEO_FILE_FOUND" ]; then
-            if [ "$VIDEO_FILE_FOUND" != "./scene_${{ matrix.scene.scene }}_video.mp4" ]; then
-              echo "📂 Copying video file to expected location..."
-              cp "$VIDEO_FILE_FOUND" "scene_${{ matrix.scene.scene }}_video.mp4"
-              echo "✅ Video file copied to: scene_${{ matrix.scene.scene }}_video.mp4"
-            fi
+            STEP 3: Create result info
+            10. Save scene_${{ matrix.scene.scene }}_video_info.json with:
+                - scene_number: ${{ matrix.scene.scene }}
+                - video_url: (the actual video URL)
+                - video_file_path: ./scene_${{ matrix.scene.scene }}_video.mp4
+                - file_size: actual bytes
+                - download_status: completed
+                - generation_method: i2v-fal-hailuo-02-pro
+                - timing: (from concept plan)
             
-            FILE_SIZE=$(stat -c%s "scene_${{ matrix.scene.scene }}_video.mp4" 2>/dev/null || stat -f%z "scene_${{ matrix.scene.scene }}_video.mp4")
-            echo "✅ Final video file: scene_${{ matrix.scene.scene }}_video.mp4 (${FILE_SIZE} bytes)"
-            
-            # Verify file is not corrupted (minimum 50KB for valid video)
-            if [ "$FILE_SIZE" -lt 50000 ]; then
-              echo "⚠️ Warning: File size is very small (${FILE_SIZE} bytes) - may be corrupted"
-              file "scene_${{ matrix.scene.scene }}_video.mp4" || echo "File command failed"
-            else
-              echo "✅ File size looks good (${FILE_SIZE} bytes)"
-            fi
-          else
-            echo "❌ ERROR: Video file not found in any expected location!"
-            echo "🔍 Searching for any MP4 files..."
-            find . -name "*.mp4" -type f 2>/dev/null | head -10
-            echo "📁 Current directory structure:"
-            find . -maxdepth 3 -type d 2>/dev/null | head -20
-            exit 1
-          fi
+            CRITICAL: Download to current directory (./) not any subdirectory!
+          system_prompt: |
+            You are Claude Code in CI/CD. Generate video for scene ${{ matrix.scene.scene }}.
+            Download video to current directory immediately after generation.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
+          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          max_turns: "30"
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           CLAUDE_CODE_CI_MODE: true
