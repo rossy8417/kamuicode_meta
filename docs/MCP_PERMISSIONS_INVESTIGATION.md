@@ -60,8 +60,52 @@ Check if there's a specific version or branch of the action that supports CI/CD 
 ## Test Workflow Created
 Created `test-mcp-permissions.yml` to systematically test different approaches.
 
+## Test Results Summary
+
+### Environment Variables Tested
+- `CLAUDE_CODE_CI_MODE=true` + `CLAUDE_CODE_AUTO_APPROVE_MCP=true` - ❌ Still requires permission
+- Alternative env vars (CI, HEADLESS, NON_INTERACTIVE) - ❌ No effect
+- Settings parameter with auto-approval flags - ❌ No effect
+- `.claude/settings.json` with various flags - ❌ No effect
+
+### Current Findings
+1. MCP permissions in GitHub Actions require manual approval
+2. No current environment variable or setting bypasses this requirement
+3. Some MCP services work (image generation) while others don't (video generation)
+4. This appears to be a limitation of the current Claude Code GitHub Action
+
+## Recommended Solution
+
+### Immediate Workaround: Hybrid Approach
+1. Use Claude Code for non-MCP tasks (concept, planning, file operations)
+2. For MCP-dependent tasks, use one of these approaches:
+   - Generate parameters with Claude Code, execute with custom scripts
+   - Use alternative services that don't require MCP
+   - Create manual intervention points in the workflow
+
+### Example Implementation
+```yaml
+# Phase 1: Generate parameters
+- name: Generate Video Parameters
+  uses: anthropics/claude-code-base-action@beta
+  with:
+    prompt: |
+      Create video generation parameters:
+      1. Read image URL from results
+      2. Create video prompt
+      3. Save to video-params.json
+    allowed_tools: "Read,Write,Bash"
+
+# Phase 2: Direct API call (outside Claude Code)
+- name: Generate Video via API
+  run: |
+    # Custom script that reads params and calls MCP endpoint
+    python scripts/generate_video.py --params video-params.json
+```
+
 ## Next Steps
-1. Run the test workflow to see which approach works
-2. Check Claude Code documentation for CI/CD specific guidance
-3. Consider reaching out to Anthropic support if no solution is found
-4. Implement workaround using direct API calls if necessary
+1. ✅ Document current limitations
+2. ✅ Create workaround strategies
+3. 🔄 Implement hybrid workflow for video production
+4. 📝 Report issue to Anthropic for future improvements
+5. 🔧 Create helper scripts for common MCP operations

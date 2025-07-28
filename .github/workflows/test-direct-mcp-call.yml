@@ -1,0 +1,49 @@
+name: "Test Direct MCP Call"
+run-name: "🧪 Testing Direct MCP API Calls"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-direct-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Read MCP Config
+        id: mcp_config
+        run: |
+          echo "Reading MCP configuration..."
+          # Extract a specific service URL (example with jq)
+          if command -v jq &> /dev/null; then
+            echo "Using jq to parse JSON"
+            SERVICE_URL=$(cat .claude/mcp-kamuicode.json | jq -r '.mcpServers."t2i-google-imagen3".url' || echo "")
+            echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
+          else
+            echo "jq not found, installing..."
+            sudo apt-get update && sudo apt-get install -y jq
+            SERVICE_URL=$(cat .claude/mcp-kamuicode.json | jq -r '.mcpServers."t2i-google-imagen3".url' || echo "")
+            echo "SERVICE_URL=$SERVICE_URL" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Test Direct API Call (if URL exists)
+        if: steps.mcp_config.outputs.SERVICE_URL != ''
+        run: |
+          echo "Testing direct API call to MCP service..."
+          # This is just an example - actual API call would need proper authentication
+          echo "Service URL found: ${{ steps.mcp_config.outputs.SERVICE_URL }}"
+          
+      - name: Alternative - Use Claude Code with Script
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Create a bash script that:
+            1. Reads the MCP config from .claude/mcp-kamuicode.json
+            2. Extracts the service URLs
+            3. Prepares a template for making direct API calls
+            4. Save as scripts/mcp-direct-call.sh
+          system_prompt: |
+            Help create a workaround for MCP permission issues.
+          allowed_tools: "View,Read,Write,Bash"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
