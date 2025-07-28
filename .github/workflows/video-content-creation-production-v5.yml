@@ -339,12 +339,63 @@ jobs:
           echo "📋 Claude Code response:"
           cat claude_response.json | jq '.'
           
+          # Extract video URL from Claude Code response and download
+          echo "🔍 Extracting video URL from Claude Code response..."
+          VIDEO_URL=$(cat claude_response.json | jq -r '.result' | grep -o 'https://v3\.fal\.media/files/[^"]*\.mp4' | head -1)
+          
+          if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
+            echo "📥 Found video URL: $VIDEO_URL"
+            echo "⬇️ Downloading video file..."
+            
+            # Download video with retry logic
+            DOWNLOAD_SUCCESS=false
+            for attempt in 1 2 3; do
+              echo "📡 Download attempt $attempt/3..."
+              if curl -L -o "scene_${{ matrix.scene.scene }}_video.mp4" "$VIDEO_URL" --connect-timeout 30 --max-time 300; then
+                echo "✅ Download attempt $attempt succeeded"
+                DOWNLOAD_SUCCESS=true
+                break
+              else
+                echo "❌ Download attempt $attempt failed"
+                sleep 5
+              fi
+            done
+            
+            if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
+              echo "❌ All download attempts failed!"
+              exit 1
+            fi
+          else
+            echo "❌ No video URL found in Claude Code response!"
+            echo "🔍 Searching for alternative URL patterns..."
+            # Try alternative URL extraction patterns
+            VIDEO_URL=$(cat claude_response.json | jq -r '.result' | grep -oE 'https?://[^\s"]+\.mp4' | head -1)
+            if [ -n "$VIDEO_URL" ] && [ "$VIDEO_URL" != "null" ]; then
+              echo "📥 Found alternative video URL: $VIDEO_URL"
+              curl -L -o "scene_${{ matrix.scene.scene }}_video.mp4" "$VIDEO_URL" --connect-timeout 30 --max-time 300
+            else
+              echo "❌ No video URL found with any pattern!"
+              exit 1
+            fi
+          fi
+          
           # Verify video file was created
           if [ -f "scene_${{ matrix.scene.scene }}_video.mp4" ]; then
             FILE_SIZE=$(stat -c%s "scene_${{ matrix.scene.scene }}_video.mp4" 2>/dev/null || stat -f%z "scene_${{ matrix.scene.scene }}_video.mp4")
             echo "✅ Video file created: scene_${{ matrix.scene.scene }}_video.mp4 (${FILE_SIZE} bytes)"
+            
+            # Verify file is not corrupted (minimum 50KB for valid video)
+            if [ "$FILE_SIZE" -lt 50000 ]; then
+              echo "⚠️ Warning: File size is very small (${FILE_SIZE} bytes) - may be corrupted"
+              # Try to get file info
+              file "scene_${{ matrix.scene.scene }}_video.mp4" || echo "File command failed"
+            else
+              echo "✅ File size looks good (${FILE_SIZE} bytes)"
+            fi
           else
-            echo "❌ ERROR: Video file not found!"
+            echo "❌ ERROR: Video file not found after download attempt!"
+            echo "📁 Current directory contents:"
+            ls -la
             exit 1
           fi
         env:
