@@ -151,19 +151,20 @@ jobs:
             1. Read the concept from generated/concept/plan.json
             2. For each scene, generate an image using t2i-google-imagen3
             3. Use aspect ratio 1:1 (default) and quality: ${{ github.event.inputs.quality_setting }}
-            4. Download each image to current directory with wget using FULL authenticated URLs
+            4. IMPORTANT: Download each image IMMEDIATELY to current directory after generation
             5. Save all results to generated/images/results.json with:
                - scene_name
                - prompt_used
-               - image_url (full URL)
-               - local_file (downloaded file name)
-            6. Display full paths of downloaded files
+               - local_file (downloaded file name) - THIS IS CRITICAL
+               - generation_time
+            6. DO NOT store URLs in results.json - only local file paths
+            7. Verify all image files exist locally before completing
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
             IMPORTANT: Always use FULL authenticated URLs for downloads.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "View,mcp__t2i-google-imagen3__*,Bash,Write"
+          allowed_tools: "Read,Write,Bash,mcp__t2i-google-imagen3__*"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "20"
           
@@ -294,20 +295,16 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
-            1. Read generated/images/results.json and generated/concept/plan.json
-            2. Generate video for scene ${{ matrix.scene.scene }} ONLY:
-               a. Find the image for scene ${{ matrix.scene.scene }} from results.json
-               b. IMPORTANT: First download the image using wget/curl if it's a URL
-               c. Use i2v-fal-hailuo-02-pro to generate video clip with LOCAL image file
-               d. Duration should match the scene timing from plan.json  
-               e. Poll for completion using hailuo_02_result until COMPLETED
-               f. Download video as scene_${{ matrix.scene.scene }}_video.mp4
-            3. Create generated/video/scene_${{ matrix.scene.scene }}_info.json with:
-               - Scene number: ${{ matrix.scene.scene }}
-               - Video file path
-               - Duration
-               - Generation status
-            4. Verify the mp4 file exists after download
+            QUICK STEPS for scene ${{ matrix.scene.scene }}:
+            1. Read results.json and find scene ${{ matrix.scene.scene }} local_file
+            2. Use the LOCAL image file (should be scene${matrix.scene.scene}_*.png) 
+            3. Submit to i2v-fal-hailuo-02-pro with duration from plan.json
+            4. Get result URL immediately from submit response
+            5. Poll hailuo_02_result with the URL until COMPLETED (max 20 polls)
+            6. Download video to scene_${{ matrix.scene.scene }}_video.mp4
+            7. Write minimal info.json and exit
+            
+            CRITICAL: Work only with LOCAL files, no URL downloads needed!
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
             Generate video clip for scene ${{ matrix.scene.scene }} only.
@@ -315,7 +312,8 @@ jobs:
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: "30"
+          max_turns: "25"
+          timeout_minutes: 12
           
       - name: Upload scene video
         uses: actions/upload-artifact@v4
