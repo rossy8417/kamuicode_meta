@@ -253,6 +253,66 @@ if [ ! -d "$(dirname "$TARGET_FILE")" ]; then
 fi
 ```
 
+### 🚨 MANDATORY FILE ORGANIZATION RULES 🚨
+
+**CRITICAL**: Follow these rules EXACTLY. No exceptions. No creativity.
+
+#### **Temporary File Creation Rules**
+```bash
+# ✅ CORRECT - Use existing directory structure
+generated/scripts/          # Temporary scripts (auto-delete eligible)
+generated/temp/            # Temporary files
+generated/logs/            # Execution logs
+generated/metadata/        # Analysis metadata
+
+# ❌ FORBIDDEN - Never create these patterns
+./new_directory/           # No new root directories
+./temp_something/          # No root temp directories  
+./*_temp/                 # No root temp patterns
+./script_*.py             # No root script files
+./output_*.json           # No root output files
+```
+
+#### **Script Generation Rules**
+```bash
+# ✅ CORRECT - Temporary scripts location
+generated/scripts/workflow_script.py    # Auto-delete eligible
+generated/scripts/temp_processing.sh    # Auto-delete eligible
+
+# ✅ CORRECT - Permanent utility scripts (rare)
+scripts/utility_tool.py                 # Only if truly reusable
+
+# ❌ FORBIDDEN - Never place scripts here
+./script.py                             # Root directory
+./temp_script.sh                        # Root directory
+./process_*.py                          # Root directory
+```
+
+#### **Output File Rules**
+```bash
+# ✅ CORRECT - Structured output locations
+generated/final/output.mp4              # Final deliverables
+generated/temp/intermediate.json        # Temporary processing
+downloads/project-name/result.png       # Downloaded assets
+
+# ❌ FORBIDDEN - Root directory pollution
+./output.mp4                            # Root directory
+./result.json                           # Root directory
+./scene_*.mp4                          # Root directory (clean up existing!)
+```
+
+#### **Directory Creation Rules**
+1. **NEVER create new directories in root** without explicit approval
+2. **ALWAYS use existing directory structure**: `generated/`, `downloads/`, `docs/`, `scripts/`
+3. **Check directory existence** before creating subdirectories
+4. **Use proper subdirectory naming**: `generated/[purpose]/[files]`
+
+#### **Enforcement Protocol**
+- **Before creating any file**: Check if target directory exists in approved structure
+- **Before mkdir**: Verify it's within approved directory tree
+- **After task completion**: Verify no files were created in root directory
+- **Violation penalty**: Task must be redone with correct file placement
+
 #### Ultra-Detailed Task Breakdown
 Each workflow must include:
 - **Human unconscious thought process simulation**
