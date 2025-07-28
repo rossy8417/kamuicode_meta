@@ -241,29 +241,26 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
-            1. Read image results from generated/images/results.json
-            2. Use the first image's FULL URL as input for i2v-fal-hailuo-02-pro
-            3. Generate video with duration: ${{ github.event.inputs.video_length }} seconds
-            4. Download video using FULL URL
-            5. Create directory: mkdir -p generated/video
-            6. Save video as generated/video/output.mp4
-            7. Save metadata to generated/video/result.json
+            Read generated/images/results.json and use first image URL with i2v-fal-hailuo-02-pro.
+            Duration: ${{ github.event.inputs.video_length }} seconds.
+            Download video and save to output.mp4.
+            Just generate the video, don't create directories or metadata files.
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
-            Use FULL Google URLs as input, not file paths!
+            Focus on video generation only. Be concise.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "View,mcp__i2v-fal-hailuo-02-pro__*,Bash,Write,Read"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: "30"
+          max_turns: "50"
           
       - name: Upload video
         uses: actions/upload-artifact@v4
         with:
           name: video-${{ github.run_number }}
           path: |
-            generated/video/
             *.mp4
+            generated/video/
             
   # Phase 6: 最終パッケージ
   final-package:
