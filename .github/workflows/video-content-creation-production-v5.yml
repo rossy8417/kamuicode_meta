@@ -302,10 +302,10 @@ jobs:
           prompt: |
             TASK: Generate video for scene ${{ matrix.scene.scene }} with mandatory download
             
-            STEP 1: Read image info and generate video
-            1. Read scene_${{ matrix.scene.scene }}_image_info.json
-            2. Extract image_url (fresh Google Cloud Storage URL)
-            3. Use i2v-fal-hailuo-02-pro with image_url directly
+            STEP 1: Generate video flexibly
+            1. First, check if scene_${{ matrix.scene.scene }}_image_info.json exists
+            2. IF EXISTS: Extract image_url and use i2v-fal-hailuo-02-pro
+            3. IF NOT EXISTS: Read generated/concept/plan.json for scene ${{ matrix.scene.scene }} and use t2v-fal-veo3-fast directly
             4. Poll until COMPLETED status
             5. Get FULL video URL from result
             
