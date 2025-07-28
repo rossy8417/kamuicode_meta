@@ -308,27 +308,33 @@ jobs:
                - Duration: appropriate for this scene from concept plan
                - Quality settings as needed
             4. Poll hailuo_02_result until COMPLETED status
-            5. CRITICAL: Download video file using the final result URL:
+            5. CRITICAL: Download video file using Bash tool (V1 proven method):
                a. Get the final video URL from the completed result
-               b. Use wget or curl to download to scene_${{ matrix.scene.scene }}_video.mp4
+               b. Execute: Bash tool with curl -o "scene_${{ matrix.scene.scene }}_video.mp4" "<video_url>"
                c. Verify the MP4 file exists and has valid size (> 100KB)
-               d. If download fails, retry up to 3 times with different methods
+               d. If download fails, retry up to 3 times with different curl commands
             6. Create scene_${{ matrix.scene.scene }}_video_info.json with:
                - download_status: "completed" (if successful)
                - video_file_path: "scene_${{ matrix.scene.scene }}_video.mp4"
                - file_size: actual file size
                - verification_status: "verified"
             
-            CRITICAL SUCCESS FACTORS:
+            CRITICAL SUCCESS FACTORS (Based on V1 success):
             - Use image_url directly (proven working method from V1)
             - NO base64 conversion needed
             - Image was just generated so URL is fresh
-            - MUST actually download the MP4 file to local filesystem
-            - Verify file exists before completing the step
+            - MUST use Bash tool with curl command to download MP4 file (V1 method)
+            - Example from V1: curl -o "output.mp4" "https://v3.fal.media/.../output.mp4"
+            - Verify file exists with ls -la after curl command
           system_prompt: |
             You are Claude Code in CI/CD. Generate video for scene ${{ matrix.scene.scene }} using
-            the fresh image URL from the previous step. CRITICAL: You must successfully download
-            the final MP4 file to the local filesystem for FFmpeg processing.
+            the fresh image URL from the previous step. 
+            
+            CRITICAL SUCCESS REQUIREMENT: You must use the Bash tool to download the video file.
+            Based on V1 success pattern: After getting video URL from MCP, execute Bash tool with:
+            curl -o "scene_${{ matrix.scene.scene }}_video.mp4" "<video_url>"
+            
+            The task is NOT complete until the MP4 file exists on the filesystem.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*"
