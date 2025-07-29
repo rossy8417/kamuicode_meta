@@ -242,7 +242,7 @@ jobs:
           
   # Phase 5: Scene 1 Processing (独立ジョブ)
   scene-1-processing:
-    needs: [concept-planning, video-generation-prep]
+    needs: [concept-planning, audio-generation, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 1
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -343,7 +343,7 @@ jobs:
             
   # Scene 2 Processing (独立ジョブ)
   scene-2-processing:
-    needs: [concept-planning, video-generation-prep]
+    needs: [concept-planning, audio-generation, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 2
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -444,7 +444,7 @@ jobs:
             
   # Scene 3 Processing (独立ジョブ)
   scene-3-processing:
-    needs: [concept-planning, video-generation-prep]
+    needs: [concept-planning, audio-generation, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 3
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -545,7 +545,7 @@ jobs:
             
   # Scene 4 Processing (独立ジョブ)
   scene-4-processing:
-    needs: [concept-planning, video-generation-prep]
+    needs: [concept-planning, audio-generation, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 4
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -646,7 +646,7 @@ jobs:
             
   # Scene 5 Processing (独立ジョブ)
   scene-5-processing:
-    needs: [concept-planning, video-generation-prep]
+    needs: [concept-planning, audio-generation, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 5
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -747,7 +747,7 @@ jobs:
             
   # Phase 6: 動画・音声結合 (Claude Code SDK Node)
   video-assembly:
-    needs: [scene-1-processing, scene-2-processing, scene-3-processing, scene-4-processing, scene-5-processing, audio-generation]
+    needs: [scene-1-processing, scene-2-processing, scene-3-processing, scene-4-processing, scene-5-processing]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -787,7 +787,14 @@ jobs:
             for file in $pattern; do
               if [ -f "$file" ]; then
                 echo "✅ Found: $file"
-                cp "$file" videos/
+                # Copy only if not already in videos directory
+                TARGET_FILE="videos/$(basename "$file")"
+                if [ "$file" != "$TARGET_FILE" ] && [ ! -f "$TARGET_FILE" ]; then
+                  cp "$file" videos/
+                  echo "  → Copied to videos/"
+                else
+                  echo "  → Already in videos/ directory"
+                fi
                 FOUND_VIDEOS=$((FOUND_VIDEOS + 1))
               fi
             done
