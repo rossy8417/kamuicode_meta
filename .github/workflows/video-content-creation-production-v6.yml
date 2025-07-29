@@ -703,46 +703,83 @@ jobs:
             find . -maxdepth 3 -type d | head -20
           fi
           
-      - name: Assemble final video with Claude Code SDK
+      - name: Create intelligent video assembly script
         run: |
-          # Generate FFmpeg assembly script with Claude Code SDK
-          claude -p "You are an expert video editor working with FFmpeg. 
+          # Create a safe base script that Claude Code can enhance
+          cat > base_assemble.sh << 'SCRIPT_END'
+#!/bin/bash
+set -e
+
+echo "🎥 Starting video assembly..."
+
+# Create concat list
+echo "📝 Creating video list..."
+> concat_list.txt
+for i in 1 2 3 4 5; do
+  if [ -f "videos/scene_${i}_video.mp4" ]; then
+    echo "file 'videos/scene_${i}_video.mp4'" >> concat_list.txt
+    echo "✅ Found scene $i"
+  fi
+done
+
+# Basic concatenation
+echo "🎬 Concatenating videos..."
+ffmpeg -f concat -safe 0 -i concat_list.txt -c copy temp_concat.mp4
+
+# Check for audio files
+if [ -f "background_music.wav" ]; then
+  echo "🎵 Adding background music..."
+  ffmpeg -i temp_concat.mp4 -i background_music.wav \
+    -c:v copy -c:a aac -b:a 192k \
+    -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
+    -movflags +faststart final_video.mp4
+else
+  echo "📹 Optimizing video..."
+  ffmpeg -i temp_concat.mp4 -c:v libx264 -preset fast -crf 22 \
+    -c:a aac -b:a 192k -movflags +faststart final_video.mp4
+fi
+
+rm -f temp_concat.mp4
+echo "✅ Assembly complete!"
+SCRIPT_END
+
+          chmod +x base_assemble.sh
           
-          TASK: Create a comprehensive FFmpeg bash script to assemble a final video from multiple scene videos.
+      - name: Enhance with Claude Code intelligence
+        run: |
+          # Use Claude Code to analyze and enhance the script
+          claude -p "Analyze the video assembly situation and enhance the script if needed:
           
-          CURRENT SITUATION:
-          - Scene video files are in the videos/ directory (scene_1_video.mp4, scene_2_video.mp4, etc.)
-          - Background music file may be available as background_music.wav
-          - Audio dialogue files may be available as scene_*_dialogue.wav
+          1. Check videos/ directory for available scene videos
+          2. Check for narration/dialogue files (scene_*_dialogue.wav)
+          3. Read generated/concept/plan.json for timing information
+          4. If dialogue files exist, create an enhanced version of base_assemble.sh that:
+             - Properly syncs dialogue with video scenes
+             - Adjusts audio levels intelligently
+             - Adds smooth transitions if appropriate
+          5. If no enhancements needed, just run: ./base_assemble.sh
           
-          OUTPUT REQUIREMENTS:
-          Return ONLY a complete bash script that:
-          1. Lists all available scene videos in proper order (scene_1, scene_2, etc.)
-          2. Creates an FFmpeg concat file for video concatenation
-          3. Concatenates all scene videos into one video
-          4. Mixes background music and dialogue audio if available
-          5. Applies final video optimization (H.264, AAC audio, web-optimized)
-          6. Outputs final_video.mp4
-          7. Handles missing files gracefully
-          8. Includes error checking and logging
+          IMPORTANT: 
+          - Use simple echo commands, no date formatting
+          - Test file existence before operations
+          - Create executable scripts named enhanced_assemble.sh if enhancing
+          - Run the appropriate script at the end" \
+          --output-format text
           
-          IMPORTANT: Output ONLY the bash script content, no explanations or markdown formatting." \
-          --output-format text > assemble_video.sh
-          
-          # Make the script executable and run it
-          chmod +x assemble_video.sh
-          echo "🎬 Generated FFmpeg assembly script:"
-          cat assemble_video.sh
-          echo ""
-          echo "🎥 Executing video assembly..."
-          ./assemble_video.sh
-          
-          echo "✅ Video assembly complete!"
+          # Verify final output
           if [ -f "final_video.mp4" ]; then
+            echo "✅ Final video created successfully!"
             ls -lh final_video.mp4
           else
-            echo "❌ final_video.mp4 not found"
-            ls -la
+            echo "⚠️ No enhanced script created, running base assembly..."
+            ./base_assemble.sh
+            if [ -f "final_video.mp4" ]; then
+              echo "✅ Final video created with base script!"
+              ls -lh final_video.mp4
+            else
+              echo "❌ Failed to create final video"
+              exit 1
+            fi
           fi
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
