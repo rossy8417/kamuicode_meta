@@ -1,5 +1,5 @@
-name: "Video Content Creation Production V6"
-run-name: "🎥 Production V6: ${{ github.event.inputs.video_concept }}"
+name: "Video Content Creation Production V7"
+run-name: "🎥 Production V7: ${{ github.event.inputs.video_concept }}"
 
 on:
   workflow_dispatch:
@@ -242,7 +242,7 @@ jobs:
           
   # Phase 5: Scene 1 Processing (独立ジョブ)
   scene-1-processing:
-    needs: [concept-planning, audio-generation, video-generation-prep]
+    needs: [concept-planning, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 1
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -298,9 +298,9 @@ jobs:
         with:
           prompt: |
             1. Read scene_1_image_info.json
-            2. Use first image URL with i2v-fal-hailuo-02-pro to generate video
+            2. Use first image URL with i2v-fal-bytedance-seedance-v1-lite to generate video
             3. Duration: based on scene timing in concept plan
-            4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
+            4. IMPORTANT: Poll for completion using seedance_v1_lite_result until status is COMPLETED
             5. When completed, download the video URL to scene_1_video.mp4
             6. Verify the mp4 file exists after download
           system_prompt: |
@@ -308,7 +308,7 @@ jobs:
             IMPORTANT: You must wait for video generation to complete and download the result.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*,View"
+          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-bytedance-seedance-v1-lite__*,View"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "100"
         env:
@@ -343,7 +343,7 @@ jobs:
             
   # Scene 2 Processing (独立ジョブ)
   scene-2-processing:
-    needs: [concept-planning, audio-generation, video-generation-prep]
+    needs: [concept-planning, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 2
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -399,9 +399,9 @@ jobs:
         with:
           prompt: |
             1. Read scene_2_image_info.json
-            2. Use first image URL with i2v-fal-hailuo-02-pro to generate video
+            2. Use first image URL with i2v-fal-bytedance-seedance-v1-lite to generate video
             3. Duration: based on scene timing in concept plan
-            4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
+            4. IMPORTANT: Poll for completion using seedance_v1_lite_result until status is COMPLETED
             5. When completed, download the video URL to scene_2_video.mp4
             6. Verify the mp4 file exists after download
           system_prompt: |
@@ -409,7 +409,7 @@ jobs:
             IMPORTANT: You must wait for video generation to complete and download the result.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*,View"
+          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-bytedance-seedance-v1-lite__*,View"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "100"
         env:
@@ -444,7 +444,7 @@ jobs:
             
   # Scene 3 Processing (独立ジョブ)
   scene-3-processing:
-    needs: [concept-planning, audio-generation, video-generation-prep]
+    needs: [concept-planning, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 3
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -500,9 +500,9 @@ jobs:
         with:
           prompt: |
             1. Read scene_3_image_info.json
-            2. Use first image URL with i2v-fal-hailuo-02-pro to generate video
+            2. Use first image URL with i2v-fal-bytedance-seedance-v1-lite to generate video
             3. Duration: based on scene timing in concept plan
-            4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
+            4. IMPORTANT: Poll for completion using seedance_v1_lite_result until status is COMPLETED
             5. When completed, download the video URL to scene_3_video.mp4
             6. Verify the mp4 file exists after download
           system_prompt: |
@@ -510,7 +510,7 @@ jobs:
             IMPORTANT: You must wait for video generation to complete and download the result.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*,View"
+          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-bytedance-seedance-v1-lite__*,View"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "100"
         env:
@@ -545,7 +545,7 @@ jobs:
             
   # Scene 4 Processing (独立ジョブ)
   scene-4-processing:
-    needs: [concept-planning, audio-generation, video-generation-prep]
+    needs: [concept-planning, video-generation-prep]
     if: needs.video-generation-prep.outputs.scene_count >= 4
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -601,9 +601,9 @@ jobs:
         with:
           prompt: |
             1. Read scene_4_image_info.json
-            2. Use first image URL with i2v-fal-hailuo-02-pro to generate video
+            2. Use first image URL with i2v-fal-bytedance-seedance-v1-lite to generate video
             3. Duration: based on scene timing in concept plan
-            4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
+            4. IMPORTANT: Poll for completion using seedance_v1_lite_result until status is COMPLETED
             5. When completed, download the video URL to scene_4_video.mp4
             6. Verify the mp4 file exists after download
           system_prompt: |
@@ -611,7 +611,7 @@ jobs:
             IMPORTANT: You must wait for video generation to complete and download the result.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*,View"
+          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-bytedance-seedance-v1-lite__*,View"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           max_turns: "100"
         env:
@@ -644,110 +644,9 @@ jobs:
             scene_4_*.json
           if-no-files-found: error
             
-  # Scene 5 Processing (独立ジョブ)
-  scene-5-processing:
-    needs: [concept-planning, audio-generation, video-generation-prep]
-    if: needs.video-generation-prep.outputs.scene_count >= 5
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Download concept
-        uses: actions/download-artifact@v4
-        with:
-          name: concept-${{ github.run_number }}
-          path: generated/concept/
-          
-      - name: Read MCP permissions from settings
-        id: mcp_permissions
-        run: |
-          echo "📖 Reading MCP permissions..."
-          FULL_SETTINGS=$(cat .claude/settings.github-actions.json | jq -c .)
-          echo "FULL_SETTINGS=$FULL_SETTINGS" >> $GITHUB_OUTPUT
-          
-      - name: Generate image for scene 5
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: |
-            TASK: Generate ONLY scene 5 image
-            
-            1. Read generated/concept/plan.json
-            2. Find scene 5 prompt and description
-            3. Generate ONLY this scene's image using t2i-google-imagen3:
-               - Use the specific prompt for scene 5
-               - Quality: ${{ github.event.inputs.quality_setting }}
-               - Aspect ratio: 1:1 (default)
-            4. Save scene info to scene_5_image_info.json with:
-               - scene_number: 5
-               - image_url: (the direct URL from Imagen3 - CRITICAL for immediate use)
-               - prompt_used: (the actual prompt used)
-               - generation_time: (timestamp)
-               - description: (scene description)
-            5. DO NOT download the image - keep the URL fresh for immediate video generation
-            
-            IMPORTANT: Save the image_url immediately for next step usage!
-          system_prompt: |
-            You are Claude Code in CI/CD. Generate only scene 5 image.
-            Keep the image_url fresh by NOT downloading - it will be used immediately for video generation.
-          mcp_config: ".claude/mcp-kamuicode.json"
-          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "Read,Write,mcp__t2i-google-imagen3__*"
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: "15"
-          
-      - name: Generate video for scene 5 (immediate)
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt: |
-            1. Read scene_5_image_info.json
-            2. Use first image URL with i2v-fal-hailuo-02-pro to generate video
-            3. Duration: based on scene timing in concept plan
-            4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
-            5. When completed, download the video URL to scene_5_video.mp4
-            6. Verify the mp4 file exists after download
-          system_prompt: |
-            You are Claude Code in CI/CD with pre-configured MCP permissions.
-            IMPORTANT: You must wait for video generation to complete and download the result.
-          mcp_config: ".claude/mcp-kamuicode.json"
-          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
-          allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*,View"
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          max_turns: "100"
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          CLAUDE_CODE_CI_MODE: true
-          CLAUDE_CODE_AUTO_APPROVE_MCP: true
-          
-      - name: Verify video file exists
-        run: |
-          echo "🔍 Verifying scene 5 video file..."
-          if [ -f "scene_5_video.mp4" ]; then
-            FILE_SIZE=$(stat -f%z "scene_5_video.mp4" 2>/dev/null || stat -c%s "scene_5_video.mp4")
-            echo "✅ Video file found: scene_5_video.mp4 (${FILE_SIZE} bytes)"
-            if [ $FILE_SIZE -lt 100000 ]; then
-              echo "⚠️ Warning: File size is small (${FILE_SIZE} bytes)"
-            fi
-          else
-            echo "❌ ERROR: Video file not found!"
-            echo "📁 Current directory contents:"
-            ls -la
-            exit 1
-          fi
-          
-      - name: Upload scene assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: scene-5-${{ github.run_number }}
-          path: |
-            scene_5_video.mp4
-            scene_5_*.json
-          if-no-files-found: error
-            
   # Phase 6: 動画・音声結合 (Claude Code SDK Node)
   video-assembly:
-    needs: [scene-1-processing, scene-2-processing, scene-3-processing, scene-4-processing, scene-5-processing]
+    needs: [scene-1-processing, scene-2-processing, scene-3-processing, scene-4-processing, audio-generation]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -787,14 +686,7 @@ jobs:
             for file in $pattern; do
               if [ -f "$file" ]; then
                 echo "✅ Found: $file"
-                # Copy only if not already in videos directory
-                TARGET_FILE="videos/$(basename "$file")"
-                if [ "$file" != "$TARGET_FILE" ] && [ ! -f "$TARGET_FILE" ]; then
-                  cp "$file" videos/
-                  echo "  → Copied to videos/"
-                else
-                  echo "  → Already in videos/ directory"
-                fi
+                cp "$file" videos/
                 FOUND_VIDEOS=$((FOUND_VIDEOS + 1))
               fi
             done
@@ -940,7 +832,7 @@ jobs:
       - name: Upload final package
         uses: actions/upload-artifact@v4
         with:
-          name: final-package-v6-${{ github.run_number }}
+          name: final-package-v7-${{ github.run_number }}
           path: |
             generated/final/
           retention-days: 90
@@ -948,7 +840,7 @@ jobs:
       - name: Upload production video
         uses: actions/upload-artifact@v4
         with:
-          name: production-video-v6-${{ github.run_number }}
+          name: production-video-v7-${{ github.run_number }}
           path: |
             final_video.mp4
           retention-days: 90
@@ -968,8 +860,8 @@ jobs:
           echo "- **Final Video**: production-video-v6-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Full Package**: final-package-v6-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ✨ V6 New Features" >> $GITHUB_STEP_SUMMARY
-          echo "- **Independent Jobs**: Each scene runs as separate job for better visibility" >> $GITHUB_STEP_SUMMARY
-          echo "- **Parallel Processing**: All scenes process simultaneously" >> $GITHUB_STEP_SUMMARY
-          echo "- **Better Error Isolation**: Failed scenes don't block others" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitHub UI Clarity**: Each scene appears as separate job in UI" >> $GITHUB_STEP_SUMMARY
+          echo "### ✨ V7 Improvements" >> $GITHUB_STEP_SUMMARY
+          echo "- **Stable Video Generation**: Using ByteDance SeeDance v1 Lite for reliability" >> $GITHUB_STEP_SUMMARY
+          echo "- **Direct FFmpeg Assembly**: Removed problematic script generation" >> $GITHUB_STEP_SUMMARY
+          echo "- **Better Success Rate**: Optimized for consistent video production" >> $GITHUB_STEP_SUMMARY
+          echo "- **All V6 Features**: Maintains parallel processing and job isolation" >> $GITHUB_STEP_SUMMARY
