@@ -304,8 +304,10 @@ jobs:
             2. Use first image URL with i2v-fal-hailuo-02-pro to generate video
             3. Duration: based on scene timing in concept plan
             4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
-            5. When completed, download the video URL to scene_${{ matrix.scene.scene }}_video.mp4
-            6. Verify the mp4 file exists after download
+            5. When completed, get the video URL from the result
+            6. Download video using Bash tool with curl: curl -L -o scene_${{ matrix.scene.scene }}_video.mp4 "[video_url]"
+            7. If curl fails, retry with wget: wget -O scene_${{ matrix.scene.scene }}_video.mp4 "[video_url]"
+            8. Verify the mp4 file exists and has size > 100KB
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
             IMPORTANT: You must wait for video generation to complete and download the result.
