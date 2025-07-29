@@ -248,7 +248,7 @@ jobs:
     strategy:
       matrix:
         scene: ${{ fromJson(needs.video-generation-prep.outputs.scene_matrix) }}
-      max-parallel: 1  # 逐次処理でURL期限切れ防止
+      max-parallel: 2  # 2並列に制限して負荷分散
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -300,17 +300,23 @@ jobs:
         uses: anthropics/claude-code-base-action@beta
         with:
           prompt: |
-            1. Read scene_${{ matrix.scene.scene }}_image_info.json
-            2. Use first image URL with i2v-fal-hailuo-02-pro to generate video
-            3. Duration: based on scene timing in concept plan
-            4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
-            5. When completed, get the video URL from the result
-            6. Download video using Bash tool with curl: curl -L -o scene_${{ matrix.scene.scene }}_video.mp4 "[video_url]"
-            7. If curl fails, retry with wget: wget -O scene_${{ matrix.scene.scene }}_video.mp4 "[video_url]"
-            8. Verify the mp4 file exists and has size > 100KB
+            TASK: Generate video for scene ${{ matrix.scene.scene }} and save to scene_${{ matrix.scene.scene }}_video.mp4
+            
+            1. Read scene_${{ matrix.scene.scene }}_image_info.json to get the image URL
+            2. Generate video using i2v-fal-hailuo-02-pro with the image URL
+            3. CRITICAL: Poll for completion using hailuo_02_result until status is COMPLETED
+            4. When completed, extract the video URL from the result
+            5. Download the video file using one of these methods:
+               a. Try MCP download if available
+               b. Use Bash: curl -L -o scene_${{ matrix.scene.scene }}_video.mp4 "VIDEO_URL_HERE"
+               c. If curl fails: wget -O scene_${{ matrix.scene.scene }}_video.mp4 "VIDEO_URL_HERE"
+            6. VERIFY: Check that scene_${{ matrix.scene.scene }}_video.mp4 exists and is > 100KB
+            
+            IMPORTANT: The video file MUST be saved as scene_${{ matrix.scene.scene }}_video.mp4 in the current directory.
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
-            IMPORTANT: You must wait for video generation to complete and download the result.
+            Your primary goal is to generate and download the video file successfully.
+            The file MUST exist in the current directory when you're done.
           mcp_config: ".claude/mcp-kamuicode.json"
           settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
           allowed_tools: "Read,Write,Bash,mcp__i2v-fal-hailuo-02-pro__*,View"
