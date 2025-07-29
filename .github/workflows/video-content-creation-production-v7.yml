@@ -681,12 +681,19 @@ jobs:
           echo "🔍 Searching for scene video files..."
           FOUND_VIDEOS=0
           
-          # Check multiple possible locations
+          # Check multiple possible locations and copy to videos directory
           for pattern in "scene_*_video.mp4" "*/scene_*_video.mp4" "scene-*/scene_*_video.mp4"; do
             for file in $pattern; do
               if [ -f "$file" ]; then
                 echo "✅ Found: $file"
-                cp "$file" videos/
+                # Copy only if not already in videos directory
+                TARGET_FILE="videos/$(basename "$file")"
+                if [ "$file" != "$TARGET_FILE" ] && [ ! -f "$TARGET_FILE" ]; then
+                  cp "$file" videos/
+                  echo "  → Copied to videos/"
+                else
+                  echo "  → Already in videos/ directory"
+                fi
                 FOUND_VIDEOS=$((FOUND_VIDEOS + 1))
               fi
             done
