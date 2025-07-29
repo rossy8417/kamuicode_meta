@@ -305,13 +305,7 @@ jobs:
             3. Duration: based on scene timing in concept plan
             4. IMPORTANT: Poll for completion using hailuo_02_result until status is COMPLETED
             5. When completed, download the video URL to scene_${{ matrix.scene.scene }}_video.mp4
-            6. If download fails with MCP tool:
-               a. Save the request_id to scene_${{ matrix.scene.scene }}_request_id.txt
-               b. Try direct curl download with the video URL
-               c. If curl fails, try wget
-               d. If all fail, save download_failed.json with request_id and video_url
-            7. Verify the mp4 file exists after download
-            8. If mp4 exists, save scene_${{ matrix.scene.scene }}_video_info.json with all metadata
+            6. Verify the mp4 file exists after download
           system_prompt: |
             You are Claude Code in CI/CD with pre-configured MCP permissions.
             IMPORTANT: You must wait for video generation to complete and download the result.
@@ -333,24 +327,11 @@ jobs:
             echo "✅ Video file found: scene_${{ matrix.scene.scene }}_video.mp4 (${FILE_SIZE} bytes)"
             if [ $FILE_SIZE -lt 100000 ]; then
               echo "⚠️ Warning: File size is small (${FILE_SIZE} bytes)"
-              # Check if we have request_id for retry
-              if [ -f "scene_${{ matrix.scene.scene }}_request_id.txt" ]; then
-                echo "🔄 Request ID available for potential retry: $(cat scene_${{ matrix.scene.scene }}_request_id.txt)"
-              fi
-              if [ -f "download_failed.json" ]; then
-                echo "📋 Download failure info:"
-                cat download_failed.json
-              fi
             fi
           else
             echo "❌ ERROR: Video file not found!"
             echo "📁 Current directory contents:"
             ls -la
-            # Check for alternative outputs
-            if [ -f "scene_${{ matrix.scene.scene }}_request_id.txt" ]; then
-              echo "🔄 Request ID saved: $(cat scene_${{ matrix.scene.scene }}_request_id.txt)"
-              echo "Video generation may have succeeded but download failed."
-            fi
             exit 1
           fi
           
@@ -361,9 +342,7 @@ jobs:
           path: |
             scene_${{ matrix.scene.scene }}_video.mp4
             scene_${{ matrix.scene.scene }}_*.json
-            scene_${{ matrix.scene.scene }}_request_id.txt
-            download_failed.json
-          if-no-files-found: warn
+          if-no-files-found: error
             
   # Phase 6: 動画・音声結合 (Claude Code SDK Node)
   video-assembly:
@@ -385,23 +364,6 @@ jobs:
           sudo apt-get install -y ffmpeg
           npm install -g @anthropic-ai/claude-code@latest
           ffmpeg -version
-          
-      - name: Retry failed downloads if needed
-        run: |
-          echo "🔄 Checking for failed downloads..."
-          
-          # Check each scene for failed downloads
-          for i in 1 2 3 4; do
-            if [ -f "scene_${i}_request_id.txt" ] && [ ! -f "scene_${i}_video.mp4" ]; then
-              echo "⚠️ Scene ${i} video missing but request_id exists"
-              REQUEST_ID=$(cat "scene_${i}_request_id.txt")
-              echo "Request ID: $REQUEST_ID"
-              
-              # Try to get video URL from FAL API (if we had the key)
-              echo "❌ Cannot retry without FAL_KEY environment variable"
-              echo "Request ID saved for manual retry: $REQUEST_ID"
-            fi
-          done
           
       - name: Analyze and prepare video files
         run: |
