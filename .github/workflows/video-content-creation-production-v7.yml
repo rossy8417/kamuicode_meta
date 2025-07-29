@@ -762,49 +762,52 @@ jobs:
             if [ "$DIALOGUE_EXISTS" = true ]; then
               echo "🎙️ Found narration files, creating complex audio mix..."
               
-              # Create filter complex command for mixing BGM with dialogues
+              # Calculate video durations and match with narrations
+              echo "📊 Calculating video durations for narration synchronization..."
+              CUMULATIVE_TIME=0
               FILTER_COMPLEX="[1:a]volume=0.3[bg];"
               AUDIO_INPUTS="-i generated/audio/background_music.wav"
               INPUT_INDEX=2
               DIALOGUE_COUNT=0
               DIALOGUE_LABELS=""
               
-              # Add each dialogue file at the correct timing
-              if [ -f "generated/audio/scene_1_dialogue.mp3" ]; then
-                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_1_dialogue.mp3"
-                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=0|0[d1];"
-                DIALOGUE_LABELS="${DIALOGUE_LABELS}[d1]"
-                INPUT_INDEX=$((INPUT_INDEX + 1))
-                DIALOGUE_COUNT=$((DIALOGUE_COUNT + 1))
-              fi
-              
-              if [ -f "generated/audio/scene_2_dialogue.mp3" ]; then
-                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_2_dialogue.mp3"
-                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=6000|6000[d2];"
-                DIALOGUE_LABELS="${DIALOGUE_LABELS}[d2]"
-                INPUT_INDEX=$((INPUT_INDEX + 1))
-                DIALOGUE_COUNT=$((DIALOGUE_COUNT + 1))
-              fi
-              
-              if [ -f "generated/audio/scene_3_dialogue.mp3" ]; then
-                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_3_dialogue.mp3"
-                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=14000|14000[d3];"
-                DIALOGUE_LABELS="${DIALOGUE_LABELS}[d3]"
-                INPUT_INDEX=$((INPUT_INDEX + 1))
-                DIALOGUE_COUNT=$((DIALOGUE_COUNT + 1))
-              fi
-              
-              if [ -f "generated/audio/scene_4_dialogue.mp3" ]; then
-                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_4_dialogue.mp3"
-                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=24000|24000[d4];"
-                DIALOGUE_LABELS="${DIALOGUE_LABELS}[d4]"
-                INPUT_INDEX=$((INPUT_INDEX + 1))
-                DIALOGUE_COUNT=$((DIALOGUE_COUNT + 1))
-              fi
+              # Process each scene in order
+              for i in 1 2 3 4 5; do
+                if [ -f "videos/scene_${i}_video.mp4" ] && [ -f "generated/audio/scene_${i}_dialogue.mp3" ]; then
+                  echo "🎬 Scene $i: Video ✓ Narration ✓"
+                  
+                  # Calculate delay in milliseconds
+                  DELAY_MS=$((CUMULATIVE_TIME * 1000))
+                  
+                  # Add dialogue with calculated delay
+                  AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_${i}_dialogue.mp3"
+                  FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=${DELAY_MS}|${DELAY_MS}[d${i}];"
+                  DIALOGUE_LABELS="${DIALOGUE_LABELS}[d${i}]"
+                  INPUT_INDEX=$((INPUT_INDEX + 1))
+                  DIALOGUE_COUNT=$((DIALOGUE_COUNT + 1))
+                  
+                  # Get video duration for next scene's timing
+                  DURATION=$(ffmpeg -i "videos/scene_${i}_video.mp4" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F: '{print ($1*3600)+($2*60)+$3}')
+                  # Default to 6 seconds if duration can't be determined
+                  DURATION=${DURATION:-6}
+                  CUMULATIVE_TIME=$(echo "$CUMULATIVE_TIME + $DURATION" | bc 2>/dev/null || echo "$CUMULATIVE_TIME")
+                  
+                  echo "  → Narration starts at: ${DELAY_MS}ms"
+                  echo "  → Video duration: ${DURATION}s"
+                elif [ -f "videos/scene_${i}_video.mp4" ]; then
+                  echo "🎬 Scene $i: Video ✓ Narration ✗ (no narration will be added)"
+                  # Still need to account for video duration
+                  DURATION=$(ffmpeg -i "videos/scene_${i}_video.mp4" 2>&1 | grep Duration | awk '{print $2}' | tr -d , | awk -F: '{print ($1*3600)+($2*60)+$3}')
+                  DURATION=${DURATION:-6}
+                  CUMULATIVE_TIME=$(echo "$CUMULATIVE_TIME + $DURATION" | bc 2>/dev/null || echo "$CUMULATIVE_TIME")
+                else
+                  echo "🎬 Scene $i: Video ✗ (skipping)"
+                fi
+              done
               
               # Mix all audio streams - BGM + dialogues
               TOTAL_INPUTS=$((DIALOGUE_COUNT + 1))
-              echo "🎵 Mixing $TOTAL_INPUTS audio streams (BGM + $DIALOGUE_COUNT dialogues)"
+              echo "🎵 Mixing $TOTAL_INPUTS audio streams (BGM + $DIALOGUE_COUNT synchronized dialogues)"
               FILTER_COMPLEX="${FILTER_COMPLEX}[bg]${DIALOGUE_LABELS}amix=inputs=${TOTAL_INPUTS}:duration=first:dropout_transition=2[final]"
               
               # Execute FFmpeg with complex audio
