@@ -748,17 +748,18 @@ jobs:
           
           # Check for background music in generated/audio directory
           if [ -f "generated/audio/background_music.wav" ]; then
-            echo "🎵 Found background music, creating final video with audio mix..."
+            echo "🎵 Found background music, adding to video..."
+            # SeeDance videos don't have audio, so we add the background music
             ffmpeg -i temp_concat.mp4 -i generated/audio/background_music.wav \
               -c:v copy -c:a aac -b:a 192k \
-              -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
-              -movflags +faststart final_video.mp4
+              -map 0:v -map 1:a \
+              -shortest -movflags +faststart final_video.mp4
           elif [ -f "background_music.wav" ]; then
-            echo "🎵 Found background music in current directory, creating final video with audio mix..."
+            echo "🎵 Found background music in current directory, adding to video..."
             ffmpeg -i temp_concat.mp4 -i background_music.wav \
               -c:v copy -c:a aac -b:a 192k \
-              -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
-              -movflags +faststart final_video.mp4
+              -map 0:v -map 1:a \
+              -shortest -movflags +faststart final_video.mp4
           else
             echo "📹 No background music found, optimizing video..."
             ffmpeg -i temp_concat.mp4 -c:v libx264 -preset fast -crf 22 \
