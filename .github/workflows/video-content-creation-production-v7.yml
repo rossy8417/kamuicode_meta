@@ -719,7 +719,8 @@ jobs:
           ls -la videos/
           
           echo "🎵 Available audio files:"
-          ls -la *.wav 2>/dev/null || echo "No WAV files found"
+          ls -la generated/audio/*.wav 2>/dev/null || echo "No WAV files in generated/audio/"
+          ls -la generated/audio/*.mp3 2>/dev/null || echo "No MP3 files in generated/audio/"
           
           # Create concat list
           echo "📝 Creating concat list..."
@@ -745,9 +746,15 @@ jobs:
           echo "🎬 Concatenating videos..."
           ffmpeg -f concat -safe 0 -i concat_list.txt -c copy temp_concat.mp4
           
-          # Check for background music and add if exists
-          if [ -f "background_music.wav" ]; then
+          # Check for background music in generated/audio directory
+          if [ -f "generated/audio/background_music.wav" ]; then
             echo "🎵 Found background music, creating final video with audio mix..."
+            ffmpeg -i temp_concat.mp4 -i generated/audio/background_music.wav \
+              -c:v copy -c:a aac -b:a 192k \
+              -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
+              -movflags +faststart final_video.mp4
+          elif [ -f "background_music.wav" ]; then
+            echo "🎵 Found background music in current directory, creating final video with audio mix..."
             ffmpeg -i temp_concat.mp4 -i background_music.wav \
               -c:v copy -c:a aac -b:a 192k \
               -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
