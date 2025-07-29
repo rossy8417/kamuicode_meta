@@ -703,84 +703,64 @@ jobs:
             find . -maxdepth 3 -type d | head -20
           fi
           
-      - name: Create intelligent video assembly script
-        run: |
-          # Create a safe base script that Claude Code can enhance
-          cat > base_assemble.sh << 'SCRIPT_END'
-#!/bin/bash
-set -e
-
-echo "🎥 Starting video assembly..."
-
-# Create concat list
-echo "📝 Creating video list..."
-> concat_list.txt
-for i in 1 2 3 4 5; do
-  if [ -f "videos/scene_${i}_video.mp4" ]; then
-    echo "file 'videos/scene_${i}_video.mp4'" >> concat_list.txt
-    echo "✅ Found scene $i"
-  fi
-done
-
-# Basic concatenation
-echo "🎬 Concatenating videos..."
-ffmpeg -f concat -safe 0 -i concat_list.txt -c copy temp_concat.mp4
-
-# Check for audio files
-if [ -f "background_music.wav" ]; then
-  echo "🎵 Adding background music..."
-  ffmpeg -i temp_concat.mp4 -i background_music.wav \
-    -c:v copy -c:a aac -b:a 192k \
-    -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
-    -movflags +faststart final_video.mp4
-else
-  echo "📹 Optimizing video..."
-  ffmpeg -i temp_concat.mp4 -c:v libx264 -preset fast -crf 22 \
-    -c:a aac -b:a 192k -movflags +faststart final_video.mp4
-fi
-
-rm -f temp_concat.mp4
-echo "✅ Assembly complete!"
-SCRIPT_END
-
-          chmod +x base_assemble.sh
-          
-      - name: Enhance with Claude Code intelligence
-        run: |
-          # Use Claude Code to analyze and enhance the script
-          claude -p "Analyze the video assembly situation and enhance the script if needed:
-          
-          1. Check videos/ directory for available scene videos
-          2. Check for narration/dialogue files (scene_*_dialogue.wav)
-          3. Read generated/concept/plan.json for timing information
-          4. If dialogue files exist, create an enhanced version of base_assemble.sh that:
-             - Properly syncs dialogue with video scenes
-             - Adjusts audio levels intelligently
-             - Adds smooth transitions if appropriate
-          5. If no enhancements needed, just run: ./base_assemble.sh
-          
-          IMPORTANT: 
-          - Use simple echo commands, no date formatting
-          - Test file existence before operations
-          - Create executable scripts named enhanced_assemble.sh if enhancing
-          - Run the appropriate script at the end" \
-          --output-format text
-          
-          # Verify final output
-          if [ -f "final_video.mp4" ]; then
-            echo "✅ Final video created successfully!"
-            ls -lh final_video.mp4
-          else
-            echo "⚠️ No enhanced script created, running base assembly..."
-            ./base_assemble.sh
-            if [ -f "final_video.mp4" ]; then
-              echo "✅ Final video created with base script!"
-              ls -lh final_video.mp4
-            else
-              echo "❌ Failed to create final video"
-              exit 1
-            fi
-          fi
+      - name: Assemble final video with intelligent editing
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            TASK: Assemble final video from scene videos with intelligent editing
+            
+            CURRENT STATE:
+            1. Scene videos are in videos/ directory
+            2. Background music may be in current directory as background_music.wav
+            3. Dialogue files may be as scene_*_dialogue.wav
+            4. Concept plan is in generated/concept/plan.json
+            
+            EXECUTION STEPS:
+            1. First, list all available files:
+               - ls -la videos/
+               - ls -la *.wav 2>/dev/null || echo "No audio files"
+               
+            2. Create FFmpeg concat list:
+               ```bash
+               > concat_list.txt
+               for i in 1 2 3 4 5; do
+                 if [ -f "videos/scene_${i}_video.mp4" ]; then
+                   echo "file 'videos/scene_${i}_video.mp4'" >> concat_list.txt
+                 fi
+               done
+               ```
+            
+            3. Basic video concatenation:
+               ```bash
+               ffmpeg -f concat -safe 0 -i concat_list.txt -c copy temp_video.mp4
+               ```
+            
+            4. Intelligent audio mixing (if dialogue/music exists):
+               - Check for dialogue files and create audio mix
+               - Balance dialogue (priority) with background music (30% volume)
+               - Use filter_complex for professional mixing
+            
+            5. Final optimization:
+               ```bash
+               ffmpeg -i temp_video.mp4 -c:v libx264 -preset fast -crf 22 \
+                      -c:a aac -b:a 192k -movflags +faststart final_video.mp4
+               ```
+            
+            CONSTRAINTS:
+            - NO date commands with brackets
+            - Use simple echo for logging
+            - Test file existence before operations
+            - Clean up temp files after use
+            
+            OUTPUT: Create final_video.mp4 with professional quality
+          system_prompt: |
+            You are Claude Code, an expert video editor. Execute FFmpeg commands directly.
+            Focus on creating a high-quality final video with proper audio mixing.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ${{ steps.mcp_permissions.outputs.FULL_SETTINGS }}
+          allowed_tools: "Read,Write,Bash,View"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          max_turns: "30"
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           
