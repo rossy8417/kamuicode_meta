@@ -746,14 +746,68 @@ jobs:
           echo "🎬 Concatenating videos..."
           ffmpeg -f concat -safe 0 -i concat_list.txt -c copy temp_concat.mp4
           
-          # Check for background music in generated/audio directory
+          # Check for audio files and create complex audio mix
           if [ -f "generated/audio/background_music.wav" ]; then
-            echo "🎵 Found background music, adding to video..."
-            # SeeDance videos don't have audio, so we add the background music
-            ffmpeg -i temp_concat.mp4 -i generated/audio/background_music.wav \
-              -c:v copy -c:a aac -b:a 192k \
-              -map 0:v -map 1:a \
-              -shortest -movflags +faststart final_video.mp4
+            echo "🎵 Found background music and checking for narration..."
+            
+            # Check if dialogue files exist
+            DIALOGUE_EXISTS=false
+            for i in 1 2 3 4; do
+              if [ -f "generated/audio/scene_${i}_dialogue.mp3" ]; then
+                DIALOGUE_EXISTS=true
+                break
+              fi
+            done
+            
+            if [ "$DIALOGUE_EXISTS" = true ]; then
+              echo "🎙️ Found narration files, creating complex audio mix..."
+              
+              # Create filter complex command for mixing BGM with dialogues
+              FILTER_COMPLEX="[1:a]volume=0.3[bg];"
+              AUDIO_INPUTS="-i generated/audio/background_music.wav"
+              INPUT_INDEX=2
+              
+              # Add each dialogue file at the correct timing
+              if [ -f "generated/audio/scene_1_dialogue.mp3" ]; then
+                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_1_dialogue.mp3"
+                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=0|0[d1];"
+                INPUT_INDEX=$((INPUT_INDEX + 1))
+              fi
+              
+              if [ -f "generated/audio/scene_2_dialogue.mp3" ]; then
+                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_2_dialogue.mp3"
+                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=6000|6000[d2];"
+                INPUT_INDEX=$((INPUT_INDEX + 1))
+              fi
+              
+              if [ -f "generated/audio/scene_3_dialogue.mp3" ]; then
+                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_3_dialogue.mp3"
+                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=14000|14000[d3];"
+                INPUT_INDEX=$((INPUT_INDEX + 1))
+              fi
+              
+              if [ -f "generated/audio/scene_4_dialogue.mp3" ]; then
+                AUDIO_INPUTS="$AUDIO_INPUTS -i generated/audio/scene_4_dialogue.mp3"
+                FILTER_COMPLEX="${FILTER_COMPLEX}[${INPUT_INDEX}:a]adelay=24000|24000[d4];"
+                INPUT_INDEX=$((INPUT_INDEX + 1))
+              fi
+              
+              # Mix all audio streams
+              FILTER_COMPLEX="${FILTER_COMPLEX}[bg][d1][d2][d3][d4]amix=inputs=5:duration=first:dropout_transition=2[final]"
+              
+              # Execute FFmpeg with complex audio
+              ffmpeg -i temp_concat.mp4 $AUDIO_INPUTS \
+                -filter_complex "$FILTER_COMPLEX" \
+                -map 0:v -map "[final]" \
+                -c:v copy -c:a aac -b:a 192k \
+                -shortest -movflags +faststart final_video.mp4
+            else
+              echo "🎵 No narration found, adding background music only..."
+              ffmpeg -i temp_concat.mp4 -i generated/audio/background_music.wav \
+                -c:v copy -c:a aac -b:a 192k \
+                -map 0:v -map 1:a \
+                -shortest -movflags +faststart final_video.mp4
+            fi
           elif [ -f "background_music.wav" ]; then
             echo "🎵 Found background music in current directory, adding to video..."
             ffmpeg -i temp_concat.mp4 -i background_music.wav \
