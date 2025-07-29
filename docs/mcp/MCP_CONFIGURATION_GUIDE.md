@@ -22,24 +22,25 @@ This guide documents how to configure MCP (Model Control Protocol) services for 
 }
 ```
 
-## Available MCP Service Types
+## Available MCP Service Types (24 Services Total)
 
 ### Text-to-Image (T2I) Services
 Services that generate images from text descriptions:
 - `t2i-google-imagen3`: Google's image generation model
 - `t2i-fal-imagen4-ultra`: High-quality image generation ⭐
 - `t2i-fal-imagen4-fast`: Speed-optimized image generation ⭐
-- `t2i-fal-flux-schnell`: Fast image generation
-- `t2i-fal-rundiffusion-photo-flux`: Photorealistic image generation
+- `t2i-fal-flux-schnell`: Fast image generation ⭐
+- `t2i-fal-rundiffusion-photo-flux`: Photorealistic image generation ⭐
 
 ### Text-to-Video (T2V) Services
 Services that create videos from text prompts:
 - `t2v-fal-veo3-fast`: Fast text-to-video generation ⭐
+- `t2v-fal-wan-v2-2-a14b-t2v`: High-quality video with visual quality and motion diversity ⭐
 
 ### Image-to-Video (I2V) Services
 Services that animate static images into videos:
 - `i2v-fal-hailuo-02-pro`: Professional image-to-video animation ⭐
-- `i2v-fal-bytedance-seedance-v1-lite`: Lightweight image animation
+- `i2v-fal-bytedance-seedance-v1-lite`: Lightweight image animation ⭐
 
 ### Text-to-Music (T2M) Services
 Services that compose music from text descriptions:
@@ -61,15 +62,16 @@ Services that modify or enhance existing videos:
 - `v2v-fal-pixverse-lipsync`: High-quality lip sync generation ⭐
 - `v2v-fal-minimax-voice-design`: Custom voice generation ⭐
 - `v2v-fal-pixverse-extend`: Video extension and enhancement ⭐
+- `v2v-fal-topaz-upscale-video`: Advanced video upscaling, frame interpolation, and enhancement ⭐
+
+### Image-to-Image (I2I) Services
+Services for image editing and enhancement:
+- `i2i-fal-flux-kontext-max`: Advanced image enhancement ⭐
+- `i2i-fal-flux-kontext-lora`: Image editing with LoRA support ⭐
 
 ### Image-to-3D (I2I3D) Services
 Services that convert 2D images to 3D models:
 - `i2i3d-fal-hunyuan3d-v21`: Image-to-3D model generation ⭐
-
-### Image Enhancement Services
-Services for image editing and enhancement:
-- `i2i-fal-flux-kontext-max`: Advanced image enhancement ⭐
-- `i2i-fal-flux-kontext-lora`: Image editing with LoRA support ⭐
 
 ### Training Services
 Services for model training:

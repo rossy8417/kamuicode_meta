@@ -230,14 +230,18 @@ generated/               # Metadata and logs storage
 ### MCP Integration Rules
 **MCP Configuration**: See `docs/MCP_CONFIGURATION_GUIDE.md` for complete service list and setup instructions.
 
-**Key MCP Services** (from `.claude/mcp-kamuicode.json`):
-- **T2I**: `t2i-google-imagen3`, `t2i-fal-imagen4-ultra`, `t2i-fal-imagen4-fast`
-- **T2V**: `t2v-fal-veo3-fast`
+**Key MCP Services** (from `.claude/mcp-kamuicode.json`) - 24 services total:
+- **T2I**: `t2i-google-imagen3`, `t2i-fal-imagen4-ultra`, `t2i-fal-imagen4-fast`, `t2i-fal-flux-schnell`, `t2i-fal-rundiffusion-photo-flux`
+- **T2V**: `t2v-fal-veo3-fast`, `t2v-fal-wan-v2-2-a14b-t2v`
 - **I2V**: `i2v-fal-hailuo-02-pro`, `i2v-fal-bytedance-seedance-v1-lite`
 - **T2M**: `t2m-google-lyria`
+- **T2S**: `t2s-fal-minimax-speech-02-turbo`
 - **V2A**: `v2a-fal-thinksound`
-- **V2V**: `v2v-fal-luma-ray2-modify`, `v2v-fal-creatify-lipsync`, `v2v-fal-pixverse-lipsync`
+- **V2V**: `v2v-fal-luma-ray2-modify`, `v2v-fal-creatify-lipsync`, `v2v-fal-pixverse-lipsync`, `v2v-fal-minimax-voice-design`, `v2v-fal-pixverse-extend`, `v2v-fal-bria-background-removal`, `v2v-fal-topaz-upscale-video`
+- **I2I**: `i2i-fal-flux-kontext-max`, `i2i-fal-flux-kontext-lora`
 - **I2I3D**: `i2i3d-fal-hunyuan3d-v21`
+- **R2V**: `r2v-fal-vidu-q1`
+- **Training**: `train-fal-flux-kontext-trainer`
 
 **IMPORTANT**: 
 - Do NOT reference non-existent MCP services (e.g., `web-search`, `rss-parser`, `generic kamuicode`). Use external API calls instead.
