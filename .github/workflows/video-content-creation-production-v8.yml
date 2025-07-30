@@ -1,0 +1,671 @@
+name: "Video Content Creation Production V8"
+run-name: "🎥 V8 Modular Production: ${{ github.event.inputs.video_concept }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_concept:
+        description: '動画コンセプト・テーマ'
+        required: true
+        default: 'AIとロボットが協力する未来の製品紹介動画'
+        type: string
+      target_audience:
+        description: 'ターゲット視聴者'
+        required: true
+        default: 'professional'
+        type: choice
+        options:
+        - general
+        - business
+        - young_adult
+        - professional
+        - creative
+      video_length:
+        description: '動画尺 (秒)'
+        required: true
+        default: '30'
+        type: choice
+        options:
+        - '15'
+        - '30'
+        - '60'
+      video_style:
+        description: '動画スタイル'
+        required: true
+        default: 'cinematic'
+        type: choice
+        options:
+        - cinematic
+        - commercial
+        - documentary
+        - educational
+        - artistic
+      quality_setting:
+        description: '画質設定'
+        required: true
+        default: 'high'
+        type: choice
+        options:
+        - ultra
+        - high
+        - standard
+      model_preference:
+        description: 'モデル優先順位'
+        required: true
+        default: 'balanced'
+        type: choice
+        options:
+        - quality_first  # imagen4-ultra, hailuo-02-pro
+        - speed_first    # imagen4-fast, veo3-fast
+        - balanced       # 品質と速度のバランス
+        - experimental   # 新しいモデル (wan-v2.2, seedance)
+      enable_lipsync:
+        description: 'リップシンク有効化'
+        required: true
+        default: 'true'
+        type: boolean
+      enable_upscale:
+        description: '動画アップスケール'
+        required: true
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  # ========================
+  # Phase 1: Setup & Planning
+  # ========================
+  
+  module-setup-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      branch_name: ${{ steps.setup.outputs.branch_name }}
+      folder_name: ${{ steps.setup.outputs.folder_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Create branch and directories
+        id: setup
+        run: |
+          # モジュール: module-setup-branch.yml
+          # ユニット: git-branch-setup.yml
+          
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          SAFE_CONCEPT=$(echo "${{ github.event.inputs.video_concept }}" | sed 's/[^a-zA-Z0-9]/-/g' | tr '[:upper:]' '[:lower:]' | cut -c1-30)
+          BRANCH_NAME="video-v8-${SAFE_CONCEPT}-${TIMESTAMP}"
+          FOLDER_NAME="projects/video-v8-${TIMESTAMP}"
+          
+          # Create branch
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH_NAME"
+          
+          # Create directories
+          mkdir -p "$FOLDER_NAME"/{concept,images,audio,video,lipsync,final,metadata}
+          
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "folder_name=$FOLDER_NAME" >> $GITHUB_OUTPUT
+          
+      - name: Verify MCP configuration
+        run: |
+          if [ -f ".claude/mcp-kamuicode.json" ]; then
+            echo "✅ MCP config found (24 services available)"
+            jq -r '.mcpServers | keys[]' .claude/mcp-kamuicode.json | wc -l
+          else
+            echo "❌ MCP config not found"
+            exit 1
+          fi
+
+  module-planning-ccsdk:
+    needs: module-setup-branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+        
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code@latest
+          
+      - name: Generate detailed plan
+        run: |
+          # モジュール: module-planning-ccsdk.yml
+          # ユニット: planning-ccsdk.yml
+          
+          FOLDER="${{ needs.module-setup-branch.outputs.folder_name }}"
+          
+          # Calculate scene count based on video length
+          case "${{ github.event.inputs.video_length }}" in
+            "15") SCENE_COUNT=3 ;;
+            "30") SCENE_COUNT=5 ;;
+            "60") SCENE_COUNT=8 ;;
+          esac
+          
+          claude -p "Create a comprehensive video production plan for: '${{ github.event.inputs.video_concept }}'
+          
+          Target audience: ${{ github.event.inputs.target_audience }}
+          Duration: ${{ github.event.inputs.video_length }} seconds
+          Style: ${{ github.event.inputs.video_style }}
+          Scene count: $SCENE_COUNT
+          
+          Generate a detailed JSON plan with:
+          1. Scene breakdown (exactly $SCENE_COUNT scenes)
+          2. For each scene:
+             - Image generation prompt (optimized for ${{ github.event.inputs.quality_setting }} quality)
+             - Video motion prompt
+             - Dialogue/narration text
+             - Duration in seconds
+             - Transition type
+          3. Audio specifications:
+             - Background music style and mood
+             - Sound effects timing
+             - Voice character (professional/casual/energetic)
+          4. Technical specifications for model preference: ${{ github.event.inputs.model_preference }}
+          
+          Return ONLY valid JSON, no explanations." \
+          --output-format json > claude_plan.json
+          
+          # Extract and save plan
+          jq -r '.result // .' claude_plan.json | \
+            sed -n '/```json/,/```/p' | sed '1d;$d' > "$FOLDER/concept/master_plan.json" || \
+            jq -r '.result // .' claude_plan.json > "$FOLDER/concept/master_plan.json"
+          
+          # Generate individual scene files
+          jq -r '.scenes[]' "$FOLDER/concept/master_plan.json" > "$FOLDER/concept/scenes.jsonl"
+          
+          # Generate prompt files for each scene
+          SCENE_NUM=1
+          while IFS= read -r scene; do
+            echo "$scene" | jq -r '.image_prompt' > "$FOLDER/concept/image-prompt-${SCENE_NUM}.txt"
+            echo "$scene" | jq -r '.video_prompt' > "$FOLDER/concept/video-concept-${SCENE_NUM}.txt"
+            echo "$scene" | jq -r '.dialogue' > "$FOLDER/concept/dialogue-${SCENE_NUM}.txt"
+            ((SCENE_NUM++))
+          done < "$FOLDER/concept/scenes.jsonl"
+          
+          echo "📋 Generated plan summary:"
+          jq '{title, total_scenes, duration, style}' "$FOLDER/concept/master_plan.json"
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+      - name: Upload planning artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/concept/
+
+  # ========================
+  # Phase 2: Parallel Generation
+  # ========================
+  
+  module-image-generation-multi-model:
+    needs: [module-setup-branch, module-planning-ccsdk]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scene: [1, 2, 3, 4, 5]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Download planning artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/concept/
+          
+      - name: Generate images for scene ${{ matrix.scene }}
+        uses: anthropics/claude-code-base-action@beta
+        if: hashFiles(format('{0}/concept/image-prompt-{1}.txt', needs.module-setup-branch.outputs.folder_name, matrix.scene)) != ''
+        with:
+          prompt: |
+            Generate high-quality image for scene ${{ matrix.scene }}:
+            1. Read prompt from ${{ needs.module-setup-branch.outputs.folder_name }}/concept/image-prompt-${{ matrix.scene }}.txt
+            2. Based on model preference "${{ github.event.inputs.model_preference }}":
+               - quality_first: Use t2i-fal-imagen4-ultra
+               - speed_first: Use t2i-fal-imagen4-fast
+               - balanced: Use t2i-google-imagen3
+               - experimental: Use t2i-fal-flux-schnell
+            3. Generate with aspect ratio 16:9 and quality setting: ${{ github.event.inputs.quality_setting }}
+            4. Save to ${{ needs.module-setup-branch.outputs.folder_name }}/images/scene_${{ matrix.scene }}_base.png
+            5. If quality is "ultra", also use i2i-fal-flux-kontext-max for enhancement
+            6. Create metadata file with generation details
+          system_prompt: |
+            You are Claude Code with MCP access. Generate images efficiently using the specified models.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ".claude/settings.github-actions.json"
+          allowed_tools: "View,mcp__t2i-*,mcp__i2i-*,Bash,Write,Read"
+          
+      - name: Upload image artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-scene-${{ matrix.scene }}-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/images/
+          
+  module-audio-generation-multi-voice:
+    needs: [module-setup-branch, module-planning-ccsdk]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Download planning artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/concept/
+          
+      - name: Generate audio assets
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Create comprehensive audio for the video:
+            
+            1. Read master plan from ${{ needs.module-setup-branch.outputs.folder_name }}/concept/master_plan.json
+            
+            2. Generate dialogue/narration for each scene:
+               - Use t2s-fal-minimax-speech-02-turbo
+               - Read dialogue text from dialogue-X.txt files
+               - Select voice based on target audience: ${{ github.event.inputs.target_audience }}
+               - Save as ${{ needs.module-setup-branch.outputs.folder_name }}/audio/scene_X_dialogue.mp3
+            
+            3. Generate background music:
+               - Use t2m-google-lyria
+               - Style: ${{ github.event.inputs.video_style }} mood
+               - Duration: ${{ github.event.inputs.video_length }} seconds
+               - Save as ${{ needs.module-setup-branch.outputs.folder_name }}/audio/background_music.mp3
+            
+            4. Create audio manifest with timing and mixing instructions
+            
+            5. If lipsync is enabled (${{ github.event.inputs.enable_lipsync }}), prepare voice segments
+          system_prompt: |
+            You are Claude Code with audio generation capabilities via MCP.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ".claude/settings.github-actions.json"
+          allowed_tools: "View,mcp__t2s-*,mcp__t2m-*,mcp__v2v-fal-minimax-voice-design__*,Bash,Write,Read"
+          
+      - name: Upload audio artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/audio/
+
+  # ========================
+  # Phase 3: Video Generation
+  # ========================
+  
+  module-video-generation-adaptive:
+    needs: [module-setup-branch, module-planning-ccsdk, module-image-generation-multi-model]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scene: [1, 2, 3, 4, 5]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Download all artifacts
+        run: |
+          # Download planning
+          gh run download ${{ github.run_id }} -n planning-${{ github.run_number }} -D ${{ needs.module-setup-branch.outputs.folder_name }}/concept/
+          
+          # Download images for this scene
+          gh run download ${{ github.run_id }} -n images-scene-${{ matrix.scene }}-${{ github.run_number }} -D ${{ needs.module-setup-branch.outputs.folder_name }}/images/ || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          
+      - name: Generate video for scene ${{ matrix.scene }}
+        uses: anthropics/claude-code-base-action@beta
+        if: hashFiles(format('{0}/images/scene_{1}_base.png', needs.module-setup-branch.outputs.folder_name, matrix.scene)) != ''
+        with:
+          prompt: |
+            Generate video for scene ${{ matrix.scene }}:
+            
+            1. Read inputs:
+               - Image: ${{ needs.module-setup-branch.outputs.folder_name }}/images/scene_${{ matrix.scene }}_base.png
+               - Video prompt: ${{ needs.module-setup-branch.outputs.folder_name }}/concept/video-concept-${{ matrix.scene }}.txt
+            
+            2. Select model based on preference "${{ github.event.inputs.model_preference }}":
+               - quality_first: Use i2v-fal-hailuo-02-pro
+               - speed_first: Use t2v-fal-veo3-fast  
+               - balanced: Use i2v-fal-hailuo-02-pro with standard settings
+               - experimental: Use t2v-fal-wan-v2-2-a14b-t2v or i2v-fal-bytedance-seedance-v1-lite
+            
+            3. Generate video with appropriate duration for this scene
+            
+            4. Save as ${{ needs.module-setup-branch.outputs.folder_name }}/video/scene_${{ matrix.scene }}_raw.mp4
+            
+            5. If scene requires special effects, apply them
+            
+            6. Create scene metadata with timing info
+          system_prompt: |
+            You are Claude Code with video generation capabilities. Use the best model for the requirements.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ".claude/settings.github-actions.json"
+          allowed_tools: "View,mcp__i2v-*,mcp__t2v-*,mcp__v2v-*,Bash,Write,Read"
+          
+      - name: Upload video artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-scene-${{ matrix.scene }}-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/video/
+
+  # ========================
+  # Phase 4: Post-Processing
+  # ========================
+  
+  module-lipsync-generation:
+    if: github.event.inputs.enable_lipsync == 'true'
+    needs: [module-setup-branch, module-video-generation-adaptive, module-audio-generation-multi-voice]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Download all artifacts
+        run: |
+          # Download videos
+          for i in {1..5}; do
+            gh run download ${{ github.run_id }} -n video-scene-${i}-${{ github.run_number }} -D ${{ needs.module-setup-branch.outputs.folder_name }}/video/ || true
+          done
+          
+          # Download audio
+          gh run download ${{ github.run_id }} -n audio-${{ github.run_number }} -D ${{ needs.module-setup-branch.outputs.folder_name }}/audio/
+        env:
+          GH_TOKEN: ${{ github.token }}
+          
+      - name: Generate lipsync videos
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Create lipsync videos for scenes with dialogue:
+            
+            1. Check pixverse quota using quota guard logic
+            
+            2. For each scene with dialogue audio:
+               - Video: ${{ needs.module-setup-branch.outputs.folder_name }}/video/scene_X_raw.mp4
+               - Audio: ${{ needs.module-setup-branch.outputs.folder_name }}/audio/scene_X_dialogue.mp3
+               - Use v2v-fal-pixverse-lipsync or v2v-fal-creatify-lipsync
+               - Save as scene_X_lipsync.mp4
+            
+            3. Generate subtitles for each scene
+            
+            4. Create lipsync metadata with sync quality scores
+          system_prompt: |
+            You are Claude Code with lipsync generation capabilities.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ".claude/settings.github-actions.json"
+          allowed_tools: "View,mcp__v2v-fal-pixverse-lipsync__*,mcp__v2v-fal-creatify-lipsync__*,Bash,Write,Read"
+          
+      - name: Upload lipsync artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lipsync-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/lipsync/
+
+  module-video-assembly:
+    needs: [module-setup-branch, module-video-generation-adaptive, module-audio-generation-multi-voice, module-lipsync-generation]
+    if: always() && needs.module-video-generation-adaptive.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Download all artifacts
+        run: |
+          # Download all generated content
+          FOLDER="${{ needs.module-setup-branch.outputs.folder_name }}"
+          
+          # Videos
+          for i in {1..5}; do
+            gh run download ${{ github.run_id }} -n video-scene-${i}-${{ github.run_number }} -D $FOLDER/video/ || true
+          done
+          
+          # Audio
+          gh run download ${{ github.run_id }} -n audio-${{ github.run_number }} -D $FOLDER/audio/
+          
+          # Lipsync (if available)
+          gh run download ${{ github.run_id }} -n lipsync-${{ github.run_number }} -D $FOLDER/lipsync/ || true
+          
+          # Planning
+          gh run download ${{ github.run_id }} -n planning-${{ github.run_number }} -D $FOLDER/concept/
+        env:
+          GH_TOKEN: ${{ github.token }}
+          
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          
+      - name: Assemble final video
+        run: |
+          FOLDER="${{ needs.module-setup-branch.outputs.folder_name }}"
+          
+          # Create concat list
+          echo "# Video Assembly List" > $FOLDER/final/concat_list.txt
+          
+          # Determine which videos to use (lipsync or raw)
+          for i in {1..5}; do
+            if [ -f "$FOLDER/lipsync/scene_${i}_lipsync.mp4" ]; then
+              echo "file '../lipsync/scene_${i}_lipsync.mp4'" >> $FOLDER/final/concat_list.txt
+            elif [ -f "$FOLDER/video/scene_${i}_raw.mp4" ]; then
+              echo "file '../video/scene_${i}_raw.mp4'" >> $FOLDER/final/concat_list.txt
+            fi
+          done
+          
+          # Count available dialogue files
+          DIALOGUE_COUNT=$(ls $FOLDER/audio/scene_*_dialogue.mp3 2>/dev/null | wc -l)
+          echo "Found $DIALOGUE_COUNT dialogue files"
+          
+          # Concatenate videos
+          if [ -s "$FOLDER/final/concat_list.txt" ]; then
+            cd $FOLDER/final
+            ffmpeg -f concat -safe 0 -i concat_list.txt -c copy concat_video.mp4
+            
+            # Mix audio based on available files
+            if [ "$DIALOGUE_COUNT" -gt 0 ] && [ -f "../audio/background_music.mp3" ]; then
+              # Create audio mix with dialogues and background music
+              echo "Mixing $DIALOGUE_COUNT dialogue files with background music..."
+              
+              # Build complex filter for audio mixing
+              FILTER_COMPLEX="[1:a]volume=0.3[bg];"
+              AUDIO_INPUTS="-i concat_video.mp4 -i ../audio/background_music.mp3"
+              MIX_INPUTS="[bg]"
+              
+              # Add dialogue files dynamically
+              DIALOGUE_INDEX=2
+              for dialogue_file in ../audio/scene_*_dialogue.mp3; do
+                if [ -f "$dialogue_file" ]; then
+                  AUDIO_INPUTS="$AUDIO_INPUTS -i $dialogue_file"
+                  FILTER_COMPLEX="${FILTER_COMPLEX}[${DIALOGUE_INDEX}:a]volume=1.0[d${DIALOGUE_INDEX}];"
+                  MIX_INPUTS="${MIX_INPUTS}[d${DIALOGUE_INDEX}]"
+                  ((DIALOGUE_INDEX++))
+                fi
+              done
+              
+              # Complete the filter
+              FILTER_COMPLEX="${FILTER_COMPLEX}${MIX_INPUTS}amix=inputs=$((DIALOGUE_COUNT + 1)):duration=longest:dropout_transition=2[aout]"
+              
+              ffmpeg $AUDIO_INPUTS \
+                -filter_complex "$FILTER_COMPLEX" \
+                -map 0:v -map "[aout]" \
+                -c:v copy -c:a aac -b:a 192k \
+                final_video.mp4
+            else
+              # No dialogue or no background music
+              if [ -f "../audio/background_music.mp3" ]; then
+                echo "Adding only background music..."
+                ffmpeg -i concat_video.mp4 -i ../audio/background_music.mp3 \
+                  -filter_complex "[1:a]volume=0.5[a]" \
+                  -map 0:v -map "[a]" -c:v copy -c:a aac -shortest \
+                  final_video.mp4
+              else
+                echo "No audio files found, using video as is..."
+                cp concat_video.mp4 final_video.mp4
+              fi
+            fi
+            
+            # Generate thumbnail
+            ffmpeg -i final_video.mp4 -vf "select=eq(n\,0)" -q:v 3 thumbnail.jpg
+            
+            echo "✅ Final video created successfully!"
+            ls -la final_video.mp4
+          else
+            echo "❌ No video files found to concatenate"
+            exit 1
+          fi
+          
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video-${{ github.run_number }}
+          path: |
+            ${{ needs.module-setup-branch.outputs.folder_name }}/final/final_video.mp4
+            ${{ needs.module-setup-branch.outputs.folder_name }}/final/thumbnail.jpg
+
+  # ========================
+  # Phase 5: Upscale & Publish
+  # ========================
+  
+  module-video-upscale:
+    if: github.event.inputs.enable_upscale == 'true'
+    needs: [module-setup-branch, module-video-assembly]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Download final video
+        uses: actions/download-artifact@v4
+        with:
+          name: final-video-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/final/
+          
+      - name: Upscale video
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt: |
+            Upscale the final video to higher quality:
+            
+            1. Read video from ${{ needs.module-setup-branch.outputs.folder_name }}/final/final_video.mp4
+            
+            2. Use v2v-fal-topaz-upscale-video with settings:
+               - Target resolution: 4K if quality is "ultra", 1080p otherwise
+               - Frame interpolation for smoother motion
+               - Enhancement level based on ${{ github.event.inputs.quality_setting }}
+            
+            3. Save as final_video_upscaled.mp4
+            
+            4. Create quality comparison metrics
+          system_prompt: |
+            You are Claude Code with video upscaling capabilities.
+          mcp_config: ".claude/mcp-kamuicode.json"
+          settings: ".claude/settings.github-actions.json"
+          allowed_tools: "View,mcp__v2v-fal-topaz-upscale-video__*,Bash,Write,Read"
+          
+      - name: Upload upscaled video
+        uses: actions/upload-artifact@v4
+        with:
+          name: upscaled-video-${{ github.run_number }}
+          path: ${{ needs.module-setup-branch.outputs.folder_name }}/final/final_video_upscaled.mp4
+
+  module-create-summary:
+    needs: [module-setup-branch, module-video-assembly]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Download all artifacts
+        run: |
+          # Download everything for summary
+          FOLDER="${{ needs.module-setup-branch.outputs.folder_name }}"
+          
+          gh run download ${{ github.run_id }} -n planning-${{ github.run_number }} -D $FOLDER/concept/ || true
+          gh run download ${{ github.run_id }} -n final-video-${{ github.run_number }} -D $FOLDER/final/ || true
+          gh run download ${{ github.run_id }} -n upscaled-video-${{ github.run_number }} -D $FOLDER/final/ || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          
+      - name: Create production summary
+        run: |
+          FOLDER="${{ needs.module-setup-branch.outputs.folder_name }}"
+          
+          cat > $FOLDER/PRODUCTION_SUMMARY.md << 'EOF'
+          # Video Production Summary V8
+          
+          ## 🎬 Production Details
+          - **Concept**: ${{ github.event.inputs.video_concept }}
+          - **Duration**: ${{ github.event.inputs.video_length }} seconds
+          - **Style**: ${{ github.event.inputs.video_style }}
+          - **Target Audience**: ${{ github.event.inputs.target_audience }}
+          - **Quality**: ${{ github.event.inputs.quality_setting }}
+          - **Model Preference**: ${{ github.event.inputs.model_preference }}
+          
+          ## 🛠️ Features Used
+          - **Lipsync**: ${{ github.event.inputs.enable_lipsync }}
+          - **Upscaling**: ${{ github.event.inputs.enable_upscale }}
+          
+          ## 📁 Generated Assets
+          EOF
+          
+          # List all generated files
+          echo "### Images" >> $FOLDER/PRODUCTION_SUMMARY.md
+          ls -la $FOLDER/images/*.png 2>/dev/null | awk '{print "- "$9}' >> $FOLDER/PRODUCTION_SUMMARY.md || echo "- No images generated" >> $FOLDER/PRODUCTION_SUMMARY.md
+          
+          echo "### Videos" >> $FOLDER/PRODUCTION_SUMMARY.md
+          ls -la $FOLDER/video/*.mp4 2>/dev/null | awk '{print "- "$9}' >> $FOLDER/PRODUCTION_SUMMARY.md || echo "- No videos generated" >> $FOLDER/PRODUCTION_SUMMARY.md
+          
+          echo "### Audio" >> $FOLDER/PRODUCTION_SUMMARY.md
+          ls -la $FOLDER/audio/*.mp3 2>/dev/null | awk '{print "- "$9}' >> $FOLDER/PRODUCTION_SUMMARY.md || echo "- No audio generated" >> $FOLDER/PRODUCTION_SUMMARY.md
+          
+          echo "### Final Output" >> $FOLDER/PRODUCTION_SUMMARY.md
+          if [ -f "$FOLDER/final/final_video_upscaled.mp4" ]; then
+            echo "- ✅ final_video_upscaled.mp4 (Enhanced)" >> $FOLDER/PRODUCTION_SUMMARY.md
+          elif [ -f "$FOLDER/final/final_video.mp4" ]; then
+            echo "- ✅ final_video.mp4" >> $FOLDER/PRODUCTION_SUMMARY.md
+          else
+            echo "- ❌ No final video created" >> $FOLDER/PRODUCTION_SUMMARY.md
+          fi
+          
+          echo "" >> $FOLDER/PRODUCTION_SUMMARY.md
+          echo "## 🚀 Workflow Performance" >> $FOLDER/PRODUCTION_SUMMARY.md
+          echo "- **Workflow**: Video Content Creation Production V8 (Modular)" >> $FOLDER/PRODUCTION_SUMMARY.md
+          echo "- **Run Number**: ${{ github.run_number }}" >> $FOLDER/PRODUCTION_SUMMARY.md
+          echo "- **Status**: Complete" >> $FOLDER/PRODUCTION_SUMMARY.md
+          
+          # Commit all changes
+          git add -A
+          git commit -m "feat: Video Production V8 - ${{ github.event.inputs.video_concept }}" || echo "No changes to commit"
+          git push origin ${{ needs.module-setup-branch.outputs.branch_name }}
+          
+      - name: Create Pull Request
+        run: |
+          gh pr create \
+            --title "🎥 V8 Production: ${{ github.event.inputs.video_concept }}" \
+            --body-file ${{ needs.module-setup-branch.outputs.folder_name }}/PRODUCTION_SUMMARY.md \
+            --base main \
+            --head ${{ needs.module-setup-branch.outputs.branch_name }} \
+            --label "video-production,v8,automated"
+        env:
+          GH_TOKEN: ${{ github.token }}
