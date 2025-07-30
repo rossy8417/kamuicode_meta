@@ -121,7 +121,7 @@ jobs:
 
   git-branch-setup:
     needs: setup-environment
-    uses: ./.github/workflows/minimal-units/git-ops/git-branch-setup.yml
+    uses: ./minimal-units/git-ops/git-branch-setup.yml
     with:
       branch_name: video-production-v8-${{ github.run_number }}
       base_branch: main
@@ -132,7 +132,7 @@ jobs:
   # ========================================
   concept-planning:
     needs: [setup-environment, git-branch-setup]
-    uses: ./.github/workflows/minimal-units/planning/planning-ccsdk.yml
+    uses: ./minimal-units/planning/planning-ccsdk.yml
     with:
       concept: ${{ github.event.inputs.video_concept }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/concept
@@ -145,7 +145,7 @@ jobs:
   video-prompt-optimization:
     needs: [concept-planning, setup-environment]
     if: needs.concept-planning.outputs.plan_path != ''
-    uses: ./.github/workflows/minimal-units/video/video-prompt-opt.yml
+    uses: ./minimal-units/video/video-prompt-opt.yml
     with:
       plan_path: ${{ needs.concept-planning.outputs.plan_path }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/concept
@@ -160,7 +160,7 @@ jobs:
     strategy:
       matrix:
         scene: [intro, main, outro]
-    uses: ./.github/workflows/minimal-units/image/image-t2i.yml
+    uses: ./minimal-units/image/image-t2i.yml
     with:
       prompt: ${{ needs.video-prompt-optimization.outputs['prompt_' + matrix.scene] || needs.concept-planning.outputs['image_prompt_' + matrix.scene] }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/images
@@ -172,7 +172,7 @@ jobs:
   generate-audio-narration:
     needs: [concept-planning, setup-environment]
     if: needs.concept-planning.outputs.audio_scripts != ''
-    uses: ./.github/workflows/minimal-units/audio/audio-minimax.yml
+    uses: ./minimal-units/audio/audio-minimax.yml
     with:
       text: ${{ needs.concept-planning.outputs.audio_script_main }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/audio
@@ -182,7 +182,7 @@ jobs:
 
   generate-background-music:
     needs: [concept-planning, setup-environment]
-    uses: ./.github/workflows/minimal-units/audio/bgm-generate.yml
+    uses: ./minimal-units/audio/bgm-generate.yml
     with:
       prompt: ${{ github.event.inputs.video_style }} style background music for ${{ github.event.inputs.video_concept }}
       duration: ${{ github.event.inputs.video_length }}
@@ -197,7 +197,7 @@ jobs:
     strategy:
       matrix:
         scene: [intro, main, outro]
-    uses: ./.github/workflows/minimal-units/image/image-analysis.yml
+    uses: ./minimal-units/image/image-analysis.yml
     with:
       image_path: ${{ needs.generate-keyframe-images.outputs['image_path_' + matrix.scene] }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/metadata
@@ -209,7 +209,7 @@ jobs:
     strategy:
       matrix:
         scene: [intro, main, outro]
-    uses: ./.github/workflows/minimal-units/video/video-generation.yml
+    uses: ./minimal-units/video/video-generation.yml
     with:
       mode: "i2v"
       input_path: ${{ needs.generate-keyframe-images.outputs['image_path_' + matrix.scene] }}
@@ -225,7 +225,7 @@ jobs:
   check-lipsync-quota:
     needs: [generate-scene-videos, generate-audio-narration]
     if: github.event.inputs.enable_lipsync == 'true' && needs.generate-audio-narration.outputs.audio_path != ''
-    uses: ./.github/workflows/minimal-units/lipsync/pixverse-quota-guard.yml
+    uses: ./minimal-units/lipsync/pixverse-quota-guard.yml
     with:
       check_type: "pre-flight"
     secrets: inherit
@@ -233,7 +233,7 @@ jobs:
   apply-lipsync:
     needs: [check-lipsync-quota, generate-scene-videos, generate-audio-narration, setup-environment]
     if: github.event.inputs.enable_lipsync == 'true' && needs.check-lipsync-quota.outputs.quota_available == 'true'
-    uses: ./.github/workflows/minimal-units/lipsync/lipsync-pixverse.yml
+    uses: ./minimal-units/lipsync/lipsync-pixverse.yml
     with:
       video_path: ${{ needs.generate-scene-videos.outputs.video_path_main }}
       audio_path: ${{ needs.generate-audio-narration.outputs.audio_path }}
@@ -243,7 +243,7 @@ jobs:
   generate-subtitles:
     needs: [generate-audio-narration, setup-environment]
     if: github.event.inputs.enable_subtitles == 'true' && needs.generate-audio-narration.outputs.audio_path != ''
-    uses: ./.github/workflows/minimal-units/lipsync/srt-make.yml
+    uses: ./minimal-units/lipsync/srt-make.yml
     with:
       audio_path: ${{ needs.generate-audio-narration.outputs.audio_path }}
       text: ${{ needs.concept-planning.outputs.audio_script_main }}
@@ -277,7 +277,7 @@ jobs:
 
   concatenate-videos:
     needs: [prepare-video-concat, generate-background-music, setup-environment]
-    uses: ./.github/workflows/minimal-units/assembly/video-concat.yml
+    uses: ./minimal-units/assembly/video-concat.yml
     with:
       video_paths: ${{ needs.prepare-video-concat.outputs.video_list }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/temp
@@ -288,7 +288,7 @@ jobs:
   apply-subtitles:
     needs: [concatenate-videos, generate-subtitles, setup-environment]
     if: github.event.inputs.enable_subtitles == 'true' && needs.generate-subtitles.outputs.srt_path != ''
-    uses: ./.github/workflows/minimal-units/lipsync/subtitle-overlay.yml
+    uses: ./minimal-units/lipsync/subtitle-overlay.yml
     with:
       video_path: ${{ needs.concatenate-videos.outputs.video_path }}
       srt_path: ${{ needs.generate-subtitles.outputs.srt_path }}
@@ -298,7 +298,7 @@ jobs:
 
   add-title-frame:
     needs: [concatenate-videos, apply-subtitles, setup-environment]
-    uses: ./.github/workflows/minimal-units/video/title-composition.yml
+    uses: ./minimal-units/video/title-composition.yml
     with:
       video_path: ${{ needs.apply-subtitles.outputs.video_path || needs.concatenate-videos.outputs.video_path }}
       title: ${{ github.event.inputs.video_concept }}
@@ -312,7 +312,7 @@ jobs:
   enhance-video-style:
     needs: [add-title-frame, setup-environment]
     if: github.event.inputs.quality_setting == 'ultra'
-    uses: ./.github/workflows/minimal-units/video/v2v-luma-ray2.yml
+    uses: ./minimal-units/video/v2v-luma-ray2.yml
     with:
       video_path: ${{ needs.add-title-frame.outputs.video_path }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/temp
@@ -323,7 +323,7 @@ jobs:
   upscale-video:
     needs: [add-title-frame, enhance-video-style, setup-environment]
     if: github.event.inputs.quality_setting != 'standard'
-    uses: ./.github/workflows/minimal-units/video/upscale-topaz.yml
+    uses: ./minimal-units/video/upscale-topaz.yml
     with:
       video_path: ${{ needs.enhance-video-style.outputs.video_path || needs.add-title-frame.outputs.video_path }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/final
@@ -335,7 +335,7 @@ jobs:
   # ========================================
   analyze-final-video:
     needs: [upscale-video, add-title-frame, setup-environment]
-    uses: ./.github/workflows/minimal-units/video/video-analysis.yml
+    uses: ./minimal-units/video/video-analysis.yml
     with:
       video_path: ${{ needs.upscale-video.outputs.video_path || needs.add-title-frame.outputs.video_path }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/metadata
@@ -344,7 +344,7 @@ jobs:
 
   upload-final-video:
     needs: [analyze-final-video, upscale-video, add-title-frame, setup-environment]
-    uses: ./.github/workflows/minimal-units/assembly/fal-upload.yml
+    uses: ./minimal-units/assembly/fal-upload.yml
     with:
       asset_path: ${{ needs.upscale-video.outputs.video_path || needs.add-title-frame.outputs.video_path }}
       output_dir: ${{ needs.setup-environment.outputs.project_dir }}/final
@@ -353,7 +353,7 @@ jobs:
 
   create-summary-report:
     needs: [upload-final-video, analyze-final-video, setup-environment]
-    uses: ./.github/workflows/minimal-units/planning/markdown-summary.yml
+    uses: ./minimal-units/planning/markdown-summary.yml
     with:
       input_data: |
         {
@@ -375,7 +375,7 @@ jobs:
 
   create-pull-request:
     needs: [create-summary-report, git-branch-setup]
-    uses: ./.github/workflows/minimal-units/external/git-pr-create.yml
+    uses: ./minimal-units/external/git-pr-create.yml
     with:
       branch_name: ${{ needs.git-branch-setup.outputs.branch_name }}
       title: "🎥 Video Production v8: ${{ github.event.inputs.video_concept }}"
