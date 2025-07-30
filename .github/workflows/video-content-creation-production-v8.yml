@@ -1,0 +1,433 @@
+name: "Video Content Creation Production v8"
+run-name: "🎥 V8 Production: ${{ github.event.inputs.video_concept || 'Video Creation' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_concept:
+        description: '動画コンセプト・テーマ'
+        required: true
+        default: '商品紹介動画、美しい風景と共に新製品の魅力を伝える'
+        type: string
+      target_audience:
+        description: 'ターゲット視聴者'
+        required: true
+        default: 'general'
+        type: choice
+        options:
+        - general
+        - business
+        - young_adult
+        - professional
+        - creative
+      video_length:
+        description: '動画尺 (秒)'
+        required: true
+        default: '60'
+        type: choice
+        options:
+        - '15'
+        - '30'
+        - '60'
+        - '120'
+        - '180'
+      video_style:
+        description: '動画スタイル'
+        required: true
+        default: 'cinematic'
+        type: choice
+        options:
+        - cinematic
+        - commercial
+        - documentary
+        - educational
+        - artistic
+      quality_setting:
+        description: '画質設定'
+        required: true
+        default: 'high'
+        type: choice
+        options:
+        - ultra
+        - high
+        - standard
+      enable_lipsync:
+        description: 'リップシンク有効化'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      enable_subtitles:
+        description: '字幕有効化'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+permissions:
+  contents: write
+  issues: read
+  actions: read
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  PROJECT_DIR: projects/video-production-v8-${{ github.run_number }}
+
+jobs:
+  # ========================================
+  # Phase 1: 初期セットアップ
+  # ========================================
+  setup-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment_ready: ${{ steps.setup.outputs.environment_ready }}
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Project Environment
+        id: setup
+        run: |
+          echo "⚙️ Setting up project environment..."
+          
+          # プロジェクトディレクトリ作成
+          PROJECT_DIR="${{ env.PROJECT_DIR }}"
+          mkdir -p "$PROJECT_DIR"/{concept,images,videos,audio,final,metadata,logs,temp}
+          
+          # 環境情報を記録
+          echo '{' > "$PROJECT_DIR/metadata/environment.json"
+          echo '  "project_dir": "'$PROJECT_DIR'",' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '  "workflow_version": "v8",' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '  "run_number": "'${{ github.run_number }}'",' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '}' >> "$PROJECT_DIR/metadata/environment.json"
+          
+          echo "environment_ready=true" >> $GITHUB_OUTPUT
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Project environment ready"
+          
+      - name: Upload Environment Info
+        uses: actions/upload-artifact@v4
+        with:
+          name: environment-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/metadata/
+          retention-days: 30
+
+  git-branch-setup:
+    needs: setup-environment
+    uses: ./.github/workflows/minimal-units/git-ops/git-branch-setup.yml
+    with:
+      branch_name: video-production-v8-${{ github.run_number }}
+      base_branch: main
+    secrets: inherit
+
+  # ========================================
+  # Phase 2: 企画・計画
+  # ========================================
+  concept-planning:
+    needs: [setup-environment, git-branch-setup]
+    uses: ./.github/workflows/minimal-units/planning/planning-ccsdk.yml
+    with:
+      concept: ${{ github.event.inputs.video_concept }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/concept
+      model_preference: "claude-3-5-sonnet"
+      target_audience: ${{ github.event.inputs.target_audience }}
+      video_length: ${{ github.event.inputs.video_length }}
+      video_style: ${{ github.event.inputs.video_style }}
+    secrets: inherit
+
+  video-prompt-optimization:
+    needs: [concept-planning, setup-environment]
+    if: needs.concept-planning.outputs.plan_path != ''
+    uses: ./.github/workflows/minimal-units/video/video-prompt-opt.yml
+    with:
+      plan_path: ${{ needs.concept-planning.outputs.plan_path }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/concept
+      video_style: ${{ github.event.inputs.video_style }}
+    secrets: inherit
+
+  # ========================================
+  # Phase 3: 並列素材生成
+  # ========================================
+  generate-keyframe-images:
+    needs: [video-prompt-optimization, setup-environment]
+    strategy:
+      matrix:
+        scene: [intro, main, outro]
+    uses: ./.github/workflows/minimal-units/image/image-t2i.yml
+    with:
+      prompt: ${{ needs.video-prompt-optimization.outputs['prompt_' + matrix.scene] || needs.concept-planning.outputs['image_prompt_' + matrix.scene] }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/images
+      model: "t2i-google-imagen3"
+      quality: ${{ github.event.inputs.quality_setting }}
+      scene_id: ${{ matrix.scene }}
+    secrets: inherit
+
+  generate-audio-narration:
+    needs: [concept-planning, setup-environment]
+    if: needs.concept-planning.outputs.audio_scripts != ''
+    uses: ./.github/workflows/minimal-units/audio/audio-minimax.yml
+    with:
+      text: ${{ needs.concept-planning.outputs.audio_script_main }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/audio
+      voice_id: "Wise_Woman"
+      language: "Japanese"
+    secrets: inherit
+
+  generate-background-music:
+    needs: [concept-planning, setup-environment]
+    uses: ./.github/workflows/minimal-units/audio/bgm-generate.yml
+    with:
+      prompt: ${{ github.event.inputs.video_style }} style background music for ${{ github.event.inputs.video_concept }}
+      duration: ${{ github.event.inputs.video_length }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/audio
+    secrets: inherit
+
+  # ========================================
+  # Phase 4: 動画生成
+  # ========================================
+  analyze-keyframes:
+    needs: [generate-keyframe-images, setup-environment]
+    strategy:
+      matrix:
+        scene: [intro, main, outro]
+    uses: ./.github/workflows/minimal-units/image/image-analysis.yml
+    with:
+      image_path: ${{ needs.generate-keyframe-images.outputs['image_path_' + matrix.scene] }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/metadata
+      analysis_type: "quality"
+    secrets: inherit
+
+  generate-scene-videos:
+    needs: [generate-keyframe-images, analyze-keyframes, setup-environment]
+    strategy:
+      matrix:
+        scene: [intro, main, outro]
+    uses: ./.github/workflows/minimal-units/video/video-generation.yml
+    with:
+      mode: "i2v"
+      input_path: ${{ needs.generate-keyframe-images.outputs['image_path_' + matrix.scene] }}
+      prompt: ${{ needs.video-prompt-optimization.outputs['video_prompt_' + matrix.scene] || 'Dynamic video based on image' }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/videos
+      model: "i2v-fal-hailuo-02-pro"
+      scene_id: ${{ matrix.scene }}
+    secrets: inherit
+
+  # ========================================
+  # Phase 5: ポストプロダクション
+  # ========================================
+  check-lipsync-quota:
+    needs: [generate-scene-videos, generate-audio-narration]
+    if: github.event.inputs.enable_lipsync == 'true' && needs.generate-audio-narration.outputs.audio_path != ''
+    uses: ./.github/workflows/minimal-units/lipsync/pixverse-quota-guard.yml
+    with:
+      check_type: "pre-flight"
+    secrets: inherit
+
+  apply-lipsync:
+    needs: [check-lipsync-quota, generate-scene-videos, generate-audio-narration, setup-environment]
+    if: github.event.inputs.enable_lipsync == 'true' && needs.check-lipsync-quota.outputs.quota_available == 'true'
+    uses: ./.github/workflows/minimal-units/lipsync/lipsync-pixverse.yml
+    with:
+      video_path: ${{ needs.generate-scene-videos.outputs.video_path_main }}
+      audio_path: ${{ needs.generate-audio-narration.outputs.audio_path }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/videos
+    secrets: inherit
+
+  generate-subtitles:
+    needs: [generate-audio-narration, setup-environment]
+    if: github.event.inputs.enable_subtitles == 'true' && needs.generate-audio-narration.outputs.audio_path != ''
+    uses: ./.github/workflows/minimal-units/lipsync/srt-make.yml
+    with:
+      audio_path: ${{ needs.generate-audio-narration.outputs.audio_path }}
+      text: ${{ needs.concept-planning.outputs.audio_script_main }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/audio
+    secrets: inherit
+
+  # 動画連結準備
+  prepare-video-concat:
+    needs: [generate-scene-videos, apply-lipsync, setup-environment]
+    runs-on: ubuntu-latest
+    outputs:
+      video_list: ${{ steps.prepare.outputs.video_list }}
+    steps:
+      - name: Prepare Video List
+        id: prepare
+        run: |
+          echo "📋 Preparing video concatenation list..."
+          
+          # リップシンク適用の有無でメイン動画を選択
+          if [[ "${{ github.event.inputs.enable_lipsync }}" == "true" && -n "${{ needs.apply-lipsync.outputs.video_path }}" ]]; then
+            MAIN_VIDEO="${{ needs.apply-lipsync.outputs.video_path }}"
+          else
+            MAIN_VIDEO="${{ needs.generate-scene-videos.outputs.video_path_main }}"
+          fi
+          
+          # 動画リストを作成
+          VIDEO_LIST="${{ needs.generate-scene-videos.outputs.video_path_intro }},$MAIN_VIDEO,${{ needs.generate-scene-videos.outputs.video_path_outro }}"
+          
+          echo "video_list=$VIDEO_LIST" >> $GITHUB_OUTPUT
+          echo "✅ Video list prepared: $VIDEO_LIST"
+
+  concatenate-videos:
+    needs: [prepare-video-concat, generate-background-music, setup-environment]
+    uses: ./.github/workflows/minimal-units/assembly/video-concat.yml
+    with:
+      video_paths: ${{ needs.prepare-video-concat.outputs.video_list }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/temp
+      bgm_path: ${{ needs.generate-background-music.outputs.audio_path }}
+      bgm_volume: "0.3"
+    secrets: inherit
+
+  apply-subtitles:
+    needs: [concatenate-videos, generate-subtitles, setup-environment]
+    if: github.event.inputs.enable_subtitles == 'true' && needs.generate-subtitles.outputs.srt_path != ''
+    uses: ./.github/workflows/minimal-units/lipsync/subtitle-overlay.yml
+    with:
+      video_path: ${{ needs.concatenate-videos.outputs.video_path }}
+      srt_path: ${{ needs.generate-subtitles.outputs.srt_path }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/temp
+      style: '{"font_size": 24, "font_color": "white", "background_color": "black", "background_opacity": 0.5}'
+    secrets: inherit
+
+  add-title-frame:
+    needs: [concatenate-videos, apply-subtitles, setup-environment]
+    uses: ./.github/workflows/minimal-units/video/title-composition.yml
+    with:
+      video_path: ${{ needs.apply-subtitles.outputs.video_path || needs.concatenate-videos.outputs.video_path }}
+      title: ${{ github.event.inputs.video_concept }}
+      subtitle: "Created with Kamui Rossy v8"
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/temp
+    secrets: inherit
+
+  # ========================================
+  # Phase 6: 品質向上
+  # ========================================
+  enhance-video-style:
+    needs: [add-title-frame, setup-environment]
+    if: github.event.inputs.quality_setting == 'ultra'
+    uses: ./.github/workflows/minimal-units/video/v2v-luma-ray2.yml
+    with:
+      video_path: ${{ needs.add-title-frame.outputs.video_path }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/temp
+      mode: "flex_1"
+      prompt: "Enhance video quality, improve visual aesthetics"
+    secrets: inherit
+
+  upscale-video:
+    needs: [add-title-frame, enhance-video-style, setup-environment]
+    if: github.event.inputs.quality_setting != 'standard'
+    uses: ./.github/workflows/minimal-units/video/upscale-topaz.yml
+    with:
+      video_path: ${{ needs.enhance-video-style.outputs.video_path || needs.add-title-frame.outputs.video_path }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/final
+      upscale_factor: ${{ github.event.inputs.quality_setting == 'ultra' && '4' || '2' }}
+    secrets: inherit
+
+  # ========================================
+  # Phase 7: 最終分析と配信
+  # ========================================
+  analyze-final-video:
+    needs: [upscale-video, add-title-frame, setup-environment]
+    uses: ./.github/workflows/minimal-units/video/video-analysis.yml
+    with:
+      video_path: ${{ needs.upscale-video.outputs.video_path || needs.add-title-frame.outputs.video_path }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/metadata
+      analysis_type: "comprehensive"
+    secrets: inherit
+
+  upload-final-video:
+    needs: [analyze-final-video, upscale-video, add-title-frame, setup-environment]
+    uses: ./.github/workflows/minimal-units/assembly/fal-upload.yml
+    with:
+      asset_path: ${{ needs.upscale-video.outputs.video_path || needs.add-title-frame.outputs.video_path }}
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/final
+      asset_type: "video"
+    secrets: inherit
+
+  create-summary-report:
+    needs: [upload-final-video, analyze-final-video, setup-environment]
+    uses: ./.github/workflows/minimal-units/planning/markdown-summary.yml
+    with:
+      input_data: |
+        {
+          "title": "Video Content Creation Production v8 Report",
+          "concept": "${{ github.event.inputs.video_concept }}",
+          "video_url": "${{ needs.upload-final-video.outputs.asset_url }}",
+          "analysis": "${{ needs.analyze-final-video.outputs.analysis_result }}",
+          "settings": {
+            "style": "${{ github.event.inputs.video_style }}",
+            "quality": "${{ github.event.inputs.quality_setting }}",
+            "duration": "${{ github.event.inputs.video_length }}",
+            "lipsync": "${{ github.event.inputs.enable_lipsync }}",
+            "subtitles": "${{ github.event.inputs.enable_subtitles }}"
+          }
+        }
+      output_dir: ${{ needs.setup-environment.outputs.project_dir }}/final
+      template: "video_production_report"
+    secrets: inherit
+
+  create-pull-request:
+    needs: [create-summary-report, git-branch-setup]
+    uses: ./.github/workflows/minimal-units/external/git-pr-create.yml
+    with:
+      branch_name: ${{ needs.git-branch-setup.outputs.branch_name }}
+      title: "🎥 Video Production v8: ${{ github.event.inputs.video_concept }}"
+      body: |
+        ## Video Content Creation Production v8
+        
+        ### Summary
+        - **Concept**: ${{ github.event.inputs.video_concept }}
+        - **Style**: ${{ github.event.inputs.video_style }}
+        - **Quality**: ${{ github.event.inputs.quality_setting }}
+        - **Duration**: ${{ github.event.inputs.video_length }} seconds
+        - **Features**: 
+          - Lipsync: ${{ github.event.inputs.enable_lipsync }}
+          - Subtitles: ${{ github.event.inputs.enable_subtitles }}
+        
+        ### Results
+        - Final Video: ${{ needs.upload-final-video.outputs.asset_url }}
+        - Full Report: ${{ needs.create-summary-report.outputs.summary_path }}
+        
+        ### Workflow Run
+        - Run ID: ${{ github.run_id }}
+        - Run Number: ${{ github.run_number }}
+        
+        ---
+        🤖 Generated with Kamui Rossy v8 - Minimum Unit Architecture
+    secrets: inherit
+
+  # ========================================
+  # Phase 8: 完了通知
+  # ========================================
+  completion-notification:
+    needs: [create-pull-request, upload-final-video]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate Completion Report
+        run: |
+          echo "📊 Video Content Creation Production v8 - Completion Report"
+          echo "========================================================="
+          echo ""
+          echo "🎬 Project: ${{ github.event.inputs.video_concept }}"
+          echo "📁 Output: ${{ needs.upload-final-video.outputs.asset_url || 'Failed to generate' }}"
+          echo "🔗 PR: ${{ needs.create-pull-request.outputs.pr_url || 'No PR created' }}"
+          echo ""
+          echo "⚙️ Settings:"
+          echo "  - Style: ${{ github.event.inputs.video_style }}"
+          echo "  - Quality: ${{ github.event.inputs.quality_setting }}"
+          echo "  - Duration: ${{ github.event.inputs.video_length }}s"
+          echo "  - Lipsync: ${{ github.event.inputs.enable_lipsync }}"
+          echo "  - Subtitles: ${{ github.event.inputs.enable_subtitles }}"
+          echo ""
+          echo "🏁 Status: ${{ job.status }}"
+          echo "⏱️ Completed at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+          echo "✨ Video Content Creation Production v8 with Minimum Units completed!"
