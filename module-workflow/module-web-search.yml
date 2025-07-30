@@ -1,0 +1,207 @@
+name: module-web-search
+
+on:
+  workflow_call:
+    inputs:
+      concept:
+        description: 'ニュース検索キーワード'
+        required: true
+        type: string
+      search-date:
+        description: '検索対象日（yesterday, today, 2024-01-01など）'
+        required: false
+        type: string
+        default: 'yesterday'
+      target-language:
+        description: '検索言語 (japanese/english)'
+        required: false
+        type: string
+        default: 'japanese'
+      branch-name:
+        description: 'ワーキングブランチ名'
+        required: true
+        type: string
+      folder-name:
+        description: 'プロジェクトフォルダ名'
+        required: true
+        type: string
+      search_index:
+        description: '検索インデックス'
+        required: false
+        type: string
+        default: '1'
+    outputs:
+      completed:
+        description: '完了ステータス'
+        value: ${{ jobs.web-search.outputs.completed }}
+      search-results:
+        description: '検索結果（JSON形式）'
+        value: ${{ jobs.web-search.outputs.search-results }}
+      found-sources:
+        description: '実際に見つかったソースURL'
+        value: ${{ jobs.web-search.outputs.found-sources }}
+      search-summary:
+        description: '検索結果要約'
+        value: ${{ jobs.web-search.outputs.search-summary }}
+    secrets:
+      gemini_api_key:
+        description: 'Gemini API Key'
+        required: true
+      github_pat:
+        description: 'GitHub Token'
+        required: true
+
+jobs:
+  web-search:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      completed: ${{ steps.search-results.outputs.completed }}
+      search-results: ${{ steps.search-results.outputs.search-results }}
+      found-sources: ${{ steps.search-results.outputs.found-sources }}
+      search-summary: ${{ steps.search-results.outputs.search-summary }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch-name }}
+      
+      - name: Gemini API Web Search with Google Search Grounding
+        id: gemini-search
+        run: |
+          echo "🔍 Executing Gemini API with Google Search Grounding..."
+          
+          # 検索クエリの構築
+          SEARCH_QUERY="${{ inputs.concept }} ${{ inputs.search-date == 'yesterday' && 'yesterday' || inputs.search-date == 'today' && 'today' || inputs.search-date }} AI news"
+          
+          # Gemini API呼び出し（Google Search Grounding有効）
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+            -H "x-goog-api-key: ${{ secrets.gemini_api_key }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [
+                {
+                  \"parts\": [
+                    {\"text\": \"Please search for recent news about: ${SEARCH_QUERY}. Focus on finding actual, real news articles from reliable sources like Reuters, Bloomberg, TechCrunch, VentureBeat, Nikkei, etc. Provide the search results with URLs and brief summaries.\"}
+                  ]
+                }
+              ],
+              \"tools\": [
+                {\"google_search\": {}}
+              ]
+            }")
+          
+          # レスポンスをファイルに保存
+          echo "$RESPONSE" > gemini_response.json
+          
+          # デバッグ用：レスポンス内容を確認
+          echo "📋 Gemini API Response:"
+          cat gemini_response.json | jq '.' || echo "JSON parsing failed, showing raw response:" && cat gemini_response.json
+          
+          # レスポンスをGitHub環境変数に設定
+          echo "GEMINI_RESPONSE<<EOF" >> $GITHUB_ENV
+          cat gemini_response.json >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+      - name: Process search results
+        id: search-results
+        run: |
+          echo "📊 Processing Gemini API search results..."
+          
+          # 検索結果の解析
+          SEARCH_RESULTS_DIR="${{ inputs.folder-name }}/search-${{ inputs.search_index }}"
+          mkdir -p "$SEARCH_RESULTS_DIR"
+          
+          # Geminiレスポンスから情報を抽出
+          CONTENT=$(echo "$GEMINI_RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "No content found"')
+          
+          # GroundingMetadataの確認
+          GROUNDING_METADATA=$(echo "$GEMINI_RESPONSE" | jq '.candidates[0].groundingMetadata // null')
+          
+          if [ "$GROUNDING_METADATA" != "null" ] && [ "$GROUNDING_METADATA" != "" ]; then
+            echo "✅ Grounding metadata found - real web search executed!"
+            
+            # ソースURLを抽出（webSearchQueriesから）
+            SEARCH_QUERIES=$(echo "$GEMINI_RESPONSE" | jq -r '.candidates[0].groundingMetadata.webSearchQueries[]? // empty' | tr '\n' ', ')
+            
+            # GroundingChunksからソースURLを抽出（より正確）
+            CHUNK_URLS=$(echo "$GEMINI_RESPONSE" | jq -r '.candidates[0].groundingMetadata.groundingChunks[]?.web.uri // empty' | head -5 | tr '\n' ', ')
+            
+            # どちらか利用可能な方を使用
+            if [ -n "$CHUNK_URLS" ] && [ "$CHUNK_URLS" != ", " ]; then
+              SOURCES="$CHUNK_URLS"
+              echo "🔗 Found chunk URLs: $SOURCES"
+            else
+              SOURCES="$SEARCH_QUERIES"
+              echo "🔗 Found search queries: $SOURCES"
+            fi
+            
+            # 検索結果を保存
+            echo "$CONTENT" > "$SEARCH_RESULTS_DIR/search-content.txt"
+            echo "$GROUNDING_METADATA" | jq '.' > "$SEARCH_RESULTS_DIR/grounding-metadata.json"
+            echo "$SOURCES" > "$SEARCH_RESULTS_DIR/sources.txt"
+            
+            # GitHub出力設定（特殊文字をエスケープ）
+            CONTENT_CLEAN=$(echo "$CONTENT" | tr -d '\n\r' | sed 's/[*]/\\*/g' | head -c 8000)
+            SOURCES_CLEAN=$(echo "$SOURCES" | tr -d '\n\r' | head -c 2000)
+            
+            echo "search-results=$CONTENT_CLEAN" >> $GITHUB_OUTPUT
+            echo "found-sources=$SOURCES_CLEAN" >> $GITHUB_OUTPUT
+            echo "search-summary=Real web search executed successfully. Found sources available." >> $GITHUB_OUTPUT
+            
+          else
+            echo "❌ No grounding metadata found - search may not have been executed"
+            
+            # 検索失敗の場合
+            echo "No real web search results found for: ${{ inputs.concept }}" > "$SEARCH_RESULTS_DIR/search-content.txt"
+            echo "[]" > "$SEARCH_RESULTS_DIR/grounding-metadata.json"
+            echo "No sources found" > "$SEARCH_RESULTS_DIR/sources.txt"
+            
+            # GitHub出力設定
+            echo "search-results=$CONTENT" >> $GITHUB_OUTPUT
+            echo "found-sources=No sources found" >> $GITHUB_OUTPUT
+            echo "search-summary=Web search executed but no real sources found. Content may be from internal knowledge." >> $GITHUB_OUTPUT
+          fi
+          
+          # 完了フラグ設定
+          echo "completed=true" >> $GITHUB_OUTPUT
+          
+          # 結果表示
+          echo "📄 Search Content Preview:"
+          head -10 "$SEARCH_RESULTS_DIR/search-content.txt"
+          
+      - name: Commit search results
+        env:
+          GH_TOKEN: ${{ secrets.github_pat }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ inputs.folder-name }}/
+          if git diff --cached --quiet; then
+            echo "No search result files to commit"
+          else
+            git commit -m "Add web search results: ${{ inputs.concept }}
+
+            Search date: ${{ inputs.search-date }}
+            Language: ${{ inputs.target-language }}
+            Method: Gemini API + Google Search Grounding
+
+            🤖 Generated with [Claude Code](https://claude.ai/code)
+
+            Co-Authored-By: Claude <noreply@anthropic.com>"
+            # 並列実行での競合を回避するためのリトライ処理
+            for i in {1..3}; do
+              git pull --rebase origin ${{ inputs.branch-name }} || true
+              if git push origin ${{ inputs.branch-name }}; then
+                echo "✅ Push successful on attempt $i"
+                break
+              else
+                echo "⚠️ Push failed on attempt $i, retrying..."
+                # ランダムな待機時間（1-5秒）
+                sleep $((RANDOM % 5 + 1))
+              fi
+            done
+          fi
