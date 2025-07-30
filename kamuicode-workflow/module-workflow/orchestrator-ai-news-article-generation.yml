@@ -1,0 +1,134 @@
+name: orchestrator-ai-news-article-generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      concept:
+        description: 'ニュース検索キーワード（例：AI技術 機械学習 人工知能）'
+        required: false
+        type: string
+        default: 'AI技術 機械学習 人工知能 最新ニュース'
+      search-date:
+        description: '検索対象日'
+        required: false
+        type: choice
+        options:
+          - yesterday
+          - today
+          - 2-days-ago
+          - 1-week-ago
+        default: 'yesterday'
+      target-language:
+        description: '記事作成言語'
+        required: false
+        type: choice
+        options:
+          - japanese
+          - english
+        default: 'japanese'
+      article-style:
+        description: '記事スタイル'
+        required: false
+        type: choice
+        options:
+          - news
+          - blog
+          - summary
+          - analysis
+        default: 'news'
+      article-length:
+        description: '記事の長さ'
+        required: false
+        type: choice
+        options:
+          - short
+          - medium
+          - long
+        default: 'medium'
+      audio-model:
+        description: '音声生成モデル'
+        required: true
+        type: choice
+        options:
+          - t2s-fal-minimax-speech-02-turbo
+        default: t2s-fal-minimax-speech-02-turbo
+      voice-settings:
+        description: '音声設定（JSON形式、空の場合は自動設定）'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  create-branch:
+    uses: ./.github/workflows/module-setup-branch.yml
+    with:
+      concept: ${{ inputs.concept }}
+      project_prefix: "ai-news-article"
+
+  # ステップ1: ウェブ検索 (Gemini API + Google Search Grounding)
+  web-search:
+    needs: [create-branch]
+    uses: ./.github/workflows/module-web-search.yml
+    with:
+      concept: ${{ inputs.concept }}
+      search-date: ${{ inputs.search-date }}
+      target-language: ${{ inputs.target-language }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      search_index: "1"
+    secrets:
+      gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ2: 記事作成 (Claude Code SDK)
+  article-creation:
+    needs: [create-branch, web-search]
+    uses: ./.github/workflows/module-article-creation-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      search-results: ${{ needs.web-search.outputs.search-results }}
+      found-sources: ${{ needs.web-search.outputs.found-sources }}
+      target-language: ${{ inputs.target-language }}
+      article-style: ${{ inputs.article-style }}
+      article-length: ${{ inputs.article-length }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      article_index: "1"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ3: 音声生成（記事を音声化）
+  audio-generation:
+    needs: [create-branch, article-creation]
+    uses: ./.github/workflows/module-audio-generation-kc-multi-model-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      model-type: ${{ inputs.audio-model }}
+      text-prompt: ${{ needs.article-creation.outputs.audio-script }}
+      voice-settings: |
+        ${{ inputs.voice-settings != '' && inputs.voice-settings || '{"voice_type": "japanese_female_news_anchor", "speaking_rate": 1.0, "pitch": 0.0, "volume": 1.0, "language": "ja", "style": "professional_news"}' }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      audio_index: "1"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ4: プルリクエスト作成
+  create-pr:
+    needs: [create-branch, web-search, article-creation, audio-generation]
+    if: always() && needs.article-creation.result == 'success'
+    uses: ./.github/workflows/module-create-pr.yml
+    with:
+      concept: ${{ inputs.concept }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      github_pat: ${{ secrets.PAT_TOKEN }}
+

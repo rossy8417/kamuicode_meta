@@ -1,0 +1,109 @@
+name: orchestrator-i2v-fal-upload-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      concept:
+        description: '動画のコンセプト'
+        required: true
+        type: string
+      input_image_path:
+        description: 'アップロードする画像ファイルのパス（相対パス）'
+        required: true
+        type: string
+        default: 'images/sample.jpg'
+      video_model_type:
+        description: '使用する動画生成モデル'
+        required: true
+        type: choice
+        options:
+          - 'i2v-fal-hailuo-02-pro'
+          - 'i2v-fal-runway-gen3'
+          - 'i2v-fal-luma-dream-machine'
+        default: 'i2v-fal-hailuo-02-pro'
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  # 1. ブランチ・フォルダセットアップ
+  setup:
+    uses: ./.github/workflows/module-setup-branch.yml
+    with:
+      concept: ${{ inputs.concept }}
+      project_prefix: 'i2v-fal-test'
+
+  # 2. 画像をFALにアップロード
+  upload-image:
+    needs: setup
+    uses: ./.github/workflows/module-upload-fal-ccsdk.yml
+    with:
+      file-path: ${{ inputs.input_image_path }}
+      branch-name: ${{ needs.setup.outputs.branch-name }}
+      folder-name: ${{ needs.setup.outputs.folder-name }}
+      output-filename: 'input-image-url.txt'
+      video_index: '1'
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      fal_key: ${{ secrets.FAL_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # 3. AI企画（1動画用）
+  planning:
+    needs: [setup, upload-image]
+    uses: ./.github/workflows/module-planning-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      total_videos: '1'
+      image-model-type: 'none'
+      video-model-type: ${{ inputs.video_model_type }}
+      branch-name: ${{ needs.setup.outputs.branch-name }}
+      folder-name: ${{ needs.setup.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # 4. 動画プロンプト最適化（アップロード画像使用）
+  video-optimization:
+    needs: [setup, upload-image, planning]
+    uses: ./.github/workflows/module-video-prompt-optimization-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      video-concept: ${{ needs.planning.outputs.video-concept-1 }}
+      image-url: ${{ needs.upload-image.outputs.fal-url }}
+      video_index: '1'
+      branch-name: ${{ needs.setup.outputs.branch-name }}
+      folder-name: ${{ needs.setup.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # 5. マルチモデル動画生成（アップロード画像使用）
+  video-generation:
+    needs: [setup, upload-image, planning, video-optimization]
+    uses: ./.github/workflows/module-video-generation-kc-multi-model-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      model-type: ${{ inputs.video_model_type }}
+      video-prompt: ${{ needs.video-optimization.outputs.video-prompt }}
+      image-url: ${{ needs.upload-image.outputs.fal-url }}
+      video_index: '1'
+      branch-name: ${{ needs.setup.outputs.branch-name }}
+      folder-name: ${{ needs.setup.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # 6. プルリクエスト作成
+  create-pr:
+    needs: [setup, video-generation]
+    if: ${{ always() && !cancelled() && needs.setup.result == 'success' && needs.video-generation.result == 'success' }}
+    uses: ./.github/workflows/module-create-pr.yml
+    with:
+      concept: ${{ inputs.concept }}
+      branch-name: ${{ needs.setup.outputs.branch-name }}
+      folder-name: ${{ needs.setup.outputs.folder-name }}
+    secrets:
+      github_pat: ${{ secrets.PAT_TOKEN }}
