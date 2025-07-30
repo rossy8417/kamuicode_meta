@@ -1,0 +1,143 @@
+name: t2s-google
+description: Google Text-to-Speech音声生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      text:
+        description: '音声化するテキスト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      language_code:
+        description: '言語コード（ja-JP, en-US等）'
+        required: false
+        type: string
+        default: 'ja-JP'
+      voice_name:
+        description: '音声名'
+        required: false
+        type: string
+        default: 'ja-JP-Neural2-B'
+      speaking_rate:
+        description: '話速（0.25-4.0）'
+        required: false
+        type: string
+        default: '1.0'
+      pitch:
+        description: 'ピッチ（-20.0-20.0）'
+        required: false
+        type: string
+        default: '0.0'
+    outputs:
+      audio_path:
+        description: '生成された音声ファイルパス'
+        value: ${{ jobs.generate.outputs.audio_path }}
+      duration:
+        description: '音声の長さ（秒）'
+        value: ${{ jobs.generate.outputs.duration }}
+      format:
+        description: '音声フォーマット'
+        value: ${{ jobs.generate.outputs.format }}
+    secrets:
+      google_api_key:
+        description: 'Google Cloud API Key'
+        required: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      audio_path: ${{ steps.execute.outputs.audio_path }}
+      duration: ${{ steps.execute.outputs.duration }}
+      format: ${{ steps.execute.outputs.format }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install google-cloud-texttospeech
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate Audio with Google TTS
+        id: execute
+        env:
+          GOOGLE_API_KEY: ${{ secrets.google_api_key }}
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # Google TTS APIコール（シミュレーション）
+          python3 -c "
+import json
+import base64
+import os
+
+# Google TTS設定
+synthesis_input = {
+    'text': '''${{ inputs.text }}'''
+}
+
+voice = {
+    'languageCode': '${{ inputs.language_code }}',
+    'name': '${{ inputs.voice_name }}'
+}
+
+audio_config = {
+    'audioEncoding': 'MP3',
+    'speakingRate': float('${{ inputs.speaking_rate }}'),
+    'pitch': float('${{ inputs.pitch }}')
+}
+
+# APIレスポンスをシミュレート
+# 実際の実装:
+# from google.cloud import texttospeech
+# client = texttospeech.TextToSpeechClient()
+# response = client.synthesize_speech(
+#     input=synthesis_input,
+#     voice=voice,
+#     audio_config=audio_config
+# )
+
+# シミュレート用の結果
+result = {
+    'audioContent': 'base64_encoded_audio_data_here',
+    'metadata': {
+        'language_code': '${{ inputs.language_code }}',
+        'voice_name': '${{ inputs.voice_name }}',
+        'speaking_rate': float('${{ inputs.speaking_rate }}'),
+        'pitch': float('${{ inputs.pitch }}'),
+        'text_length': len(synthesis_input['text'])
+    }
+}
+
+# メタデータを保存
+with open('${{ inputs.output_dir }}/google_tts_metadata.json', 'w') as f:
+    json.dump(result['metadata'], f, indent=2)
+
+print(f'Google TTS generation completed')
+print(f'Voice: {voice[\"name\"]}')
+print(f'Language: {voice[\"languageCode\"]}')
+"
+          
+          # 仮の音声ファイルを生成（テスト用）
+          # 実際はGoogle TTSの結果をデコードして保存
+          ffmpeg -f lavfi -i "sine=frequency=440:duration=5" \
+            -ar 22050 -ac 1 -ab 64k \
+            "${{ inputs.output_dir }}/audio.mp3"
+          
+          # 音声の長さを取得
+          DURATION=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.output_dir }}/audio.mp3")
+          
+          # 結果を設定
+          echo "audio_path=${{ inputs.output_dir }}/audio.mp3" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+          echo "format=MP3" >> $GITHUB_OUTPUT

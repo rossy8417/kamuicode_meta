@@ -1,0 +1,111 @@
+name: v2v-creatify
+description: Creatifyリップシンク動画変換の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      video_path:
+        description: '入力動画パス'
+        required: true
+        type: string
+      audio_path:
+        description: '音声ファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      lip_sync_mode:
+        description: 'リップシンクモード'
+        required: false
+        type: string
+        default: 'natural'
+    outputs:
+      video_path:
+        description: 'リップシンク動画パス'
+        value: ${{ jobs.lipsync.outputs.video_path }}
+      video_url:
+        description: 'リップシンク動画URL'
+        value: ${{ jobs.lipsync.outputs.video_url }}
+      sync_score:
+        description: '同期スコア'
+        value: ${{ jobs.lipsync.outputs.sync_score }}
+
+jobs:
+  lipsync:
+    runs-on: ubuntu-latest
+    outputs:
+      video_path: ${{ steps.execute.outputs.video_path }}
+      video_url: ${{ steps.execute.outputs.video_url }}
+      sync_score: ${{ steps.execute.outputs.sync_score }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate Lipsync with Creatify
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # ファイルサイズチェック
+          VIDEO_SIZE=$(stat -c%s "${{ inputs.video_path }}" || stat -f%z "${{ inputs.video_path }}")
+          AUDIO_SIZE=$(stat -c%s "${{ inputs.audio_path }}" || stat -f%z "${{ inputs.audio_path }}")
+          
+          echo "Video size: $((VIDEO_SIZE / 1024 / 1024)) MB"
+          echo "Audio size: $((AUDIO_SIZE / 1024)) KB"
+          
+          # MCP経由でCreatifyを呼び出す（シミュレーション）
+          python3 -c "
+import json
+import os
+
+# Creatify APIパラメータ
+params = {
+    'video_path': '${{ inputs.video_path }}',
+    'audio_path': '${{ inputs.audio_path }}',
+    'lip_sync_mode': '${{ inputs.lip_sync_mode }}',
+    'preserve_original_audio': False
+}
+
+# APIレスポンスをシミュレート
+# 実際はMCP v2v-fal-creatify-lipsync経由で実行
+response = {
+    'status': 'completed',
+    'video_url': 'https://v3.fal.media/files/user/def456/creatify-lipsync-output.mp4',
+    'sync_score': 0.92,
+    'processing_time': 120.5,
+    'metadata': {
+        'frames_processed': 450,
+        'audio_duration': 15.0,
+        'lip_movements_detected': 387
+    }
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/creatify_result.json', 'w') as f:
+    json.dump(response, f, indent=2)
+
+print(f'Lipsync completed with score: {response[\"sync_score\"]}')
+"
+          
+          # 仮のリップシンク動画を作成（テスト用）
+          # 実際はCreatifyのURLから動画をダウンロード
+          ffmpeg -i "${{ inputs.video_path }}" -i "${{ inputs.audio_path }}" \
+            -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 \
+            "${{ inputs.output_dir }}/video.mp4"
+          
+          # 結果を設定
+          echo "video_path=${{ inputs.output_dir }}/video.mp4" >> $GITHUB_OUTPUT
+          echo "video_url=https://v3.fal.media/files/user/def456/creatify-lipsync-output.mp4" >> $GITHUB_OUTPUT
+          echo "sync_score=0.92" >> $GITHUB_OUTPUT

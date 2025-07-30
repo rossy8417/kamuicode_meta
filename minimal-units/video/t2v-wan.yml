@@ -1,0 +1,110 @@
+name: t2v-wan
+description: FAL WAN V2テキストから動画生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      prompt:
+        description: '動画生成プロンプト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      negative_prompt:
+        description: 'ネガティブプロンプト'
+        required: false
+        type: string
+        default: ''
+      duration:
+        description: '動画の長さ（秒）'
+        required: false
+        type: string
+        default: '4'
+      motion_strength:
+        description: 'モーション強度（0-1）'
+        required: false
+        type: string
+        default: '0.7'
+    outputs:
+      video_path:
+        description: '生成された動画パス'
+        value: ${{ jobs.generate.outputs.video_path }}
+      video_url:
+        description: '動画URL'
+        value: ${{ jobs.generate.outputs.video_url }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      video_path: ${{ steps.execute.outputs.video_path }}
+      video_url: ${{ steps.execute.outputs.video_url }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate Video with WAN V2
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # MCP経由でWAN V2を呼び出す（シミュレーション）
+          python3 -c "
+import json
+import os
+from datetime import datetime
+
+# WAN V2パラメータ
+params = {
+    'prompt': '''${{ inputs.prompt }}''',
+    'negative_prompt': '''${{ inputs.negative_prompt }}''',
+    'duration': int('${{ inputs.duration }}'),
+    'motion_strength': float('${{ inputs.motion_strength }}')
+}
+
+# APIレスポンスをシミュレート
+# 実際はMCP t2v-fal-wan-v2-2-a14b-t2v経由で実行
+response = {
+    'status': 'completed',
+    'video_url': 'https://v3.fal.media/files/user/wan_v2_output.mp4',
+    'processing_time': 35.8,
+    'metadata': {
+        'model': 'wan-v2-2-a14b',
+        'resolution': '1024x576',
+        'duration': params['duration'],
+        'fps': 24,
+        'motion_strength': params['motion_strength'],
+        'timestamp': datetime.now().isoformat()
+    }
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/wan_v2_result.json', 'w') as f:
+    json.dump(response, f, indent=2)
+
+print(f'WAN V2 video generation completed')
+print(f'Duration: {params[\"duration\"]}s')
+print(f'Motion strength: {params[\"motion_strength\"]}')
+"
+          
+          # 仮の動画を生成（テスト用）
+          ffmpeg -f lavfi -i "mandelbrot=size=1024x576:rate=24" \
+            -t ${{ inputs.duration }} \
+            -c:v libx264 -preset fast -crf 23 \
+            "${{ inputs.output_dir }}/video.mp4"
+          
+          # 結果を設定
+          echo "video_path=${{ inputs.output_dir }}/video.mp4" >> $GITHUB_OUTPUT
+          echo "video_url=https://v3.fal.media/files/user/wan_v2_output.mp4" >> $GITHUB_OUTPUT

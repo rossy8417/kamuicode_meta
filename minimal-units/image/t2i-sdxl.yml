@@ -1,0 +1,140 @@
+name: t2i-sdxl
+description: Stable Diffusion XLテキストから画像生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      prompt:
+        description: '画像生成プロンプト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      negative_prompt:
+        description: 'ネガティブプロンプト'
+        required: false
+        type: string
+        default: 'low quality, blurry, distorted'
+      width:
+        description: '画像幅'
+        required: false
+        type: string
+        default: '1024'
+      height:
+        description: '画像高さ'
+        required: false
+        type: string
+        default: '1024'
+      guidance_scale:
+        description: 'ガイダンススケール（1-20）'
+        required: false
+        type: string
+        default: '7.5'
+      num_inference_steps:
+        description: '推論ステップ数'
+        required: false
+        type: string
+        default: '30'
+    outputs:
+      image_path:
+        description: '生成された画像パス'
+        value: ${{ jobs.generate.outputs.image_path }}
+      image_url:
+        description: '画像URL'
+        value: ${{ jobs.generate.outputs.image_url }}
+      seed:
+        description: '使用されたシード値'
+        value: ${{ jobs.generate.outputs.seed }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      image_path: ${{ steps.execute.outputs.image_path }}
+      image_url: ${{ steps.execute.outputs.image_url }}
+      seed: ${{ steps.execute.outputs.seed }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: pip install Pillow numpy
+      
+      - name: Generate Image with SDXL
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # SDXL生成（シミュレーション）
+          python3 -c "
+import json
+import os
+import random
+from datetime import datetime
+
+# SDXLパラメータ
+params = {
+    'prompt': '''${{ inputs.prompt }}''',
+    'negative_prompt': '''${{ inputs.negative_prompt }}''',
+    'width': int('${{ inputs.width }}'),
+    'height': int('${{ inputs.height }}'),
+    'guidance_scale': float('${{ inputs.guidance_scale }}'),
+    'num_inference_steps': int('${{ inputs.num_inference_steps }}'),
+    'seed': random.randint(0, 2147483647)
+}
+
+# APIレスポンスをシミュレート
+response = {
+    'status': 'completed',
+    'image_url': 'https://v3.fal.media/files/user/sdxl_output.png',
+    'processing_time': 12.3,
+    'metadata': {
+        'model': 'stable-diffusion-xl-base-1.0',
+        'resolution': f'{params[\"width\"]}x{params[\"height\"]}',
+        'guidance_scale': params['guidance_scale'],
+        'steps': params['num_inference_steps'],
+        'seed': params['seed'],
+        'timestamp': datetime.now().isoformat()
+    }
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/sdxl_result.json', 'w') as f:
+    json.dump(response, f, indent=2)
+
+# 仮の画像を生成（テスト用）
+from PIL import Image, ImageDraw
+import numpy as np
+
+# ノイズパターンを生成
+img = Image.new('RGB', (params['width'], params['height']), 'white')
+draw = ImageDraw.Draw(img)
+
+# ランダムな図形を描画
+for _ in range(50):
+    x1 = random.randint(0, params['width'])
+    y1 = random.randint(0, params['height'])
+    x2 = random.randint(0, params['width'])
+    y2 = random.randint(0, params['height'])
+    color = tuple(random.randint(0, 255) for _ in range(3))
+    draw.rectangle([x1, y1, x2, y2], fill=color, outline=color)
+
+img.save('${{ inputs.output_dir }}/image.png')
+
+print(f'SDXL image generated: {params[\"width\"]}x{params[\"height\"]}')
+print(f'Seed: {params[\"seed\"]}')
+"
+          
+          # シード値を取得
+          SEED=$(cat "${{ inputs.output_dir }}/sdxl_result.json" | jq -r '.metadata.seed')
+          
+          # 結果を設定
+          echo "image_path=${{ inputs.output_dir }}/image.png" >> $GITHUB_OUTPUT
+          echo "image_url=https://v3.fal.media/files/user/sdxl_output.png" >> $GITHUB_OUTPUT
+          echo "seed=$SEED" >> $GITHUB_OUTPUT

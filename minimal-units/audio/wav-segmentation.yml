@@ -1,0 +1,79 @@
+name: wav-segmentation
+description: 音声ファイルセグメンテーションの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      audio_path:
+        description: '入力音声ファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      segment_duration:
+        description: 'セグメント長（秒）'
+        required: false
+        type: string
+        default: '10'
+      silence_threshold:
+        description: '無音判定閾値（dB）'
+        required: false
+        type: string
+        default: '-40'
+    outputs:
+      segment_count:
+        description: 'セグメント数'
+        value: ${{ jobs.segment.outputs.segment_count }}
+      segments_list:
+        description: 'セグメントファイルリスト'
+        value: ${{ jobs.segment.outputs.segments_list }}
+
+jobs:
+  segment:
+    runs-on: ubuntu-latest
+    outputs:
+      segment_count: ${{ steps.execute.outputs.segment_count }}
+      segments_list: ${{ steps.execute.outputs.segments_list }}
+    
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Segment Audio
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # 音声ファイルの情報を取得
+          DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.audio_path }}")
+          echo "Total duration: $DURATION seconds"
+          
+          # セグメント分割
+          ffmpeg -i "${{ inputs.audio_path }}" \
+            -f segment \
+            -segment_time ${{ inputs.segment_duration }} \
+            -c copy \
+            "${{ inputs.output_dir }}/segment_%03d.wav"
+          
+          # セグメント数をカウント
+          SEGMENT_COUNT=$(ls "${{ inputs.output_dir }}"/segment_*.wav | wc -l)
+          echo "segment_count=$SEGMENT_COUNT" >> $GITHUB_OUTPUT
+          
+          # セグメントリストを作成
+          SEGMENTS_LIST=$(ls "${{ inputs.output_dir }}"/segment_*.wav | tr '\n' ',' | sed 's/,$//')
+          echo "segments_list=$SEGMENTS_LIST" >> $GITHUB_OUTPUT
+          
+          # 無音検出オプション（高度な処理）
+          if [ "${{ inputs.silence_threshold }}" != "skip" ]; then
+            echo "Analyzing silence in segments..."
+            for segment in "${{ inputs.output_dir }}"/segment_*.wav; do
+              # 無音レベルを測定
+              SILENCE_LEVEL=$(ffmpeg -i "$segment" -af "volumedetect" -f null - 2>&1 | grep mean_volume | awk '{print $5}')
+              echo "Segment $(basename $segment): Mean volume = $SILENCE_LEVEL dB"
+            done
+          fi

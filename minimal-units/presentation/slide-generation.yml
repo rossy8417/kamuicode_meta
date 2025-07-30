@@ -1,0 +1,199 @@
+name: slide-generation
+description: プレゼンテーションスライド生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      content_path:
+        description: 'コンテンツファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      template:
+        description: 'スライドテンプレート'
+        required: false
+        type: string
+        default: 'modern'
+      slides_count:
+        description: 'スライド数'
+        required: false
+        type: string
+        default: '10'
+      aspect_ratio:
+        description: 'アスペクト比（16:9, 4:3）'
+        required: false
+        type: string
+        default: '16:9'
+    outputs:
+      slides_path:
+        description: 'スライドファイルパス'
+        value: ${{ jobs.generate.outputs.slides_path }}
+      slide_images:
+        description: 'スライド画像パス一覧'
+        value: ${{ jobs.generate.outputs.slide_images }}
+      total_slides:
+        description: '生成されたスライド数'
+        value: ${{ jobs.generate.outputs.total_slides }}
+    secrets:
+      anthropic_api_key:
+        description: 'Anthropic API Key'
+        required: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      slides_path: ${{ steps.execute.outputs.slides_path }}
+      slide_images: ${{ steps.execute.outputs.slide_images }}
+      total_slides: ${{ steps.execute.outputs.total_slides }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install Pillow matplotlib
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: npm install @anthropic-ai/claude-code
+      
+      - name: Generate Presentation Slides
+        id: execute
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # プロンプトの構築
+          PROMPT="Create presentation slides from the content at '${{ inputs.content_path }}':
+
+          Template: ${{ inputs.template }}
+          Number of Slides: ${{ inputs.slides_count }}
+          Aspect Ratio: ${{ inputs.aspect_ratio }}
+
+          Tasks:
+          1. Read and analyze the content
+          2. Structure the presentation flow
+          3. Create slide content for each slide
+          4. Generate visual slide representations
+          5. Save slide data to '${{ inputs.output_dir }}/slides.json'
+
+          Slide structure:
+          {
+            \"title\": \"Presentation Title\",
+            \"slides\": [
+              {
+                \"number\": 1,
+                \"type\": \"title/content/image/chart\",
+                \"title\": \"Slide Title\",
+                \"content\": \"Main content\",
+                \"bullet_points\": [],
+                \"notes\": \"Speaker notes\",
+                \"visual_description\": \"Visual elements description\"
+              }
+            ],
+            \"metadata\": {
+              \"total_slides\": number,
+              \"template\": \"${{ inputs.template }}\",
+              \"aspect_ratio\": \"${{ inputs.aspect_ratio }}\"
+            }
+          }
+
+          Ensure slides are:
+          - Well-structured and logical
+          - Visually balanced
+          - Not text-heavy
+          - Professional and engaging"
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write,Bash" \
+            --max-turns 15 \
+            --permission-mode "acceptEdits" \
+            -p "$PROMPT"
+          
+          # スライド画像を生成
+          python3 -c "
+import json
+import os
+from PIL import Image, ImageDraw, ImageFont
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+# スライドデータを読み込み
+try:
+    with open('${{ inputs.output_dir }}/slides.json', 'r') as f:
+        slides_data = json.load(f)
+except:
+    slides_data = {
+        'title': 'Presentation',
+        'slides': [
+            {'number': i+1, 'title': f'Slide {i+1}', 'content': 'Content here'}
+            for i in range(int('${{ inputs.slides_count }}'))
+        ]
+    }
+
+# アスペクト比から解像度を決定
+aspect = '${{ inputs.aspect_ratio }}'
+if aspect == '16:9':
+    width, height = 1920, 1080
+else:
+    width, height = 1024, 768
+
+# 各スライドを画像として生成
+slide_images = []
+for slide in slides_data['slides']:
+    fig, ax = plt.subplots(figsize=(width/100, height/100))
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    ax.axis('off')
+    
+    # 背景
+    if '${{ inputs.template }}' == 'modern':
+        bg = patches.Rectangle((0, 0), 10, 10, facecolor='#f0f0f0')
+        ax.add_patch(bg)
+    
+    # タイトル
+    ax.text(5, 8, slide.get('title', f'Slide {slide[\"number\"]}'), 
+            ha='center', va='center', fontsize=24, weight='bold')
+    
+    # コンテンツ
+    content = slide.get('content', '')
+    if content:
+        ax.text(5, 5, content[:100] + '...', 
+                ha='center', va='center', fontsize=16, wrap=True)
+    
+    # スライド番号
+    ax.text(9.5, 0.5, f'{slide[\"number\"]}', 
+            ha='right', va='bottom', fontsize=12, style='italic')
+    
+    # 保存
+    slide_path = f'${{ inputs.output_dir }}/slide_{slide[\"number\"]:02d}.png'
+    plt.savefig(slide_path, dpi=150, bbox_inches='tight', facecolor='white')
+    plt.close()
+    
+    slide_images.append(slide_path)
+
+print(f'Generated {len(slide_images)} slides')
+"
+          
+          # 結果確認
+          SLIDE_COUNT=$(find "${{ inputs.output_dir }}" -name "slide_*.png" | wc -l)
+          SLIDE_IMAGES=$(find "${{ inputs.output_dir }}" -name "slide_*.png" | sort | tr '\n' ',' | sed 's/,$//')
+          
+          # 出力設定
+          echo "slides_path=${{ inputs.output_dir }}/slides.json" >> $GITHUB_OUTPUT
+          echo "slide_images=$SLIDE_IMAGES" >> $GITHUB_OUTPUT
+          echo "total_slides=$SLIDE_COUNT" >> $GITHUB_OUTPUT

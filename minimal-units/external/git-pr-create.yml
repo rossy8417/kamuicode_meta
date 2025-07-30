@@ -1,0 +1,92 @@
+name: git-pr-create
+description: GitHubプルリクエスト作成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      branch_name:
+        description: 'PRを作成するブランチ名'
+        required: true
+        type: string
+      base_branch:
+        description: 'マージ先のベースブランチ'
+        required: false
+        type: string
+        default: 'main'
+      title:
+        description: 'PRのタイトル'
+        required: true
+        type: string
+      body_file:
+        description: 'PR本文のファイルパス'
+        required: false
+        type: string
+      labels:
+        description: 'PRに付けるラベル（カンマ区切り）'
+        required: false
+        type: string
+        default: 'automated'
+    outputs:
+      pr_url:
+        description: '作成されたPRのURL'
+        value: ${{ jobs.create-pr.outputs.pr_url }}
+      pr_number:
+        description: 'PR番号'
+        value: ${{ jobs.create-pr.outputs.pr_number }}
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_url: ${{ steps.create.outputs.pr_url }}
+      pr_number: ${{ steps.create.outputs.pr_number }}
+    
+    steps:
+      - name: Create Pull Request
+        id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # PR本文の準備
+          if [ -n "${{ inputs.body_file }}" ] && [ -f "${{ inputs.body_file }}" ]; then
+            PR_BODY=$(cat "${{ inputs.body_file }}")
+          else
+            PR_BODY="Automated pull request from workflow
+
+            Branch: ${{ inputs.branch_name }}
+            
+            🤖 Generated with Claude Code"
+          fi
+          
+          # PRの作成
+          PR_OUTPUT=$(gh pr create \
+            --title "${{ inputs.title }}" \
+            --body "$PR_BODY" \
+            --base "${{ inputs.base_branch }}" \
+            --head "${{ inputs.branch_name }}" \
+            --label "${{ inputs.labels }}" \
+            2>&1) || {
+            echo "PR creation failed. Output: $PR_OUTPUT"
+            
+            # PRが既に存在する場合の処理
+            if echo "$PR_OUTPUT" | grep -q "already exists"; then
+              echo "PR already exists for this branch"
+              # 既存のPR情報を取得
+              PR_INFO=$(gh pr list --head "${{ inputs.branch_name }}" --json url,number --jq '.[0]')
+              PR_URL=$(echo "$PR_INFO" | jq -r '.url')
+              PR_NUMBER=$(echo "$PR_INFO" | jq -r '.number')
+              echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+              exit 0
+            else
+              exit 1
+            fi
+          }
+          
+          # PR URLとNumber抽出
+          PR_URL=$(echo "$PR_OUTPUT" | grep -oE 'https://github.com/[^/]+/[^/]+/pull/[0-9]+' | head -1)
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          
+          echo "✅ PR created: $PR_URL"
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT

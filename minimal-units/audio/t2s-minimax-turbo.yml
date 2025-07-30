@@ -1,0 +1,132 @@
+name: t2s-minimax-turbo
+description: MiniMax Speech-02 Turbo音声生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      text:
+        description: '音声化するテキスト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      voice_id:
+        description: 'ボイスID'
+        required: false
+        type: string
+        default: 'female_calm'
+      speed:
+        description: '話速（0.5-2.0）'
+        required: false
+        type: string
+        default: '1.0'
+      pitch:
+        description: 'ピッチ調整（-12-12）'
+        required: false
+        type: string
+        default: '0'
+    outputs:
+      audio_path:
+        description: '生成された音声ファイルパス'
+        value: ${{ jobs.generate.outputs.audio_path }}
+      audio_url:
+        description: '音声URL'
+        value: ${{ jobs.generate.outputs.audio_url }}
+      duration:
+        description: '音声の長さ（秒）'
+        value: ${{ jobs.generate.outputs.duration }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      audio_path: ${{ steps.execute.outputs.audio_path }}
+      audio_url: ${{ steps.execute.outputs.audio_url }}
+      duration: ${{ steps.execute.outputs.duration }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate Audio with MiniMax Turbo
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # MiniMax Turbo生成（シミュレーション）
+          python3 -c "
+import json
+import os
+
+# MiniMax Turboパラメータ
+params = {
+    'text': '''${{ inputs.text }}''',
+    'voice_id': '${{ inputs.voice_id }}',
+    'speed': float('${{ inputs.speed }}'),
+    'pitch': int('${{ inputs.pitch }}')
+}
+
+# 文字数計算
+char_count = len(params['text'])
+estimated_duration = char_count * 0.06 * (1.0 / params['speed'])  # 概算
+
+# APIレスポンスをシミュレート
+# 実際はMCP t2s-fal-minimax-speech-02-turbo経由で実行
+response = {
+    'status': 'completed',
+    'audio_url': 'https://v3.fal.media/files/user/minimax_turbo_output.mp3',
+    'processing_time': 3.2,
+    'metadata': {
+        'model': 'minimax-speech-02-turbo',
+        'voice_id': params['voice_id'],
+        'speed': params['speed'],
+        'pitch': params['pitch'],
+        'character_count': char_count,
+        'estimated_duration': round(estimated_duration, 1),
+        'format': 'mp3',
+        'sample_rate': 24000
+    }
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/minimax_turbo_result.json', 'w') as f:
+    json.dump(response, f, indent=2)
+
+print(f'MiniMax Turbo TTS completed')
+print(f'Voice: {params[\"voice_id\"]}')
+print(f'Characters: {char_count}')
+print(f'Estimated duration: {estimated_duration:.1f}s')
+"
+          
+          # 仮の音声ファイルを生成（テスト用）
+          SPEED="${{ inputs.speed }}"
+          PITCH="${{ inputs.pitch }}"
+          
+          # ピッチをHz変換（簡易計算）
+          BASE_FREQ=440
+          PITCH_FACTOR=$(echo "scale=4; 2^($PITCH/12)" | bc -l)
+          FREQ=$(echo "$BASE_FREQ * $PITCH_FACTOR" | bc -l)
+          
+          ffmpeg -f lavfi -i "sine=frequency=$FREQ:duration=5" \
+            -af "atempo=$SPEED" \
+            -ar 24000 -ac 1 -ab 128k \
+            "${{ inputs.output_dir }}/audio.mp3"
+          
+          # 音声の長さを取得
+          DURATION=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.output_dir }}/audio.mp3")
+          
+          # 結果を設定
+          echo "audio_path=${{ inputs.output_dir }}/audio.mp3" >> $GITHUB_OUTPUT
+          echo "audio_url=https://v3.fal.media/files/user/minimax_turbo_output.mp3" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT

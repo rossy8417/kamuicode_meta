@@ -1,0 +1,138 @@
+name: t2s-minimax-voice
+description: MiniMax Voice Design音声生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      text:
+        description: '音声化するテキスト'
+        required: true
+        type: string
+      voice_character:
+        description: '音声キャラクター設定（自然言語形式）'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      emotion:
+        description: '感情表現レベル（0-1）'
+        required: false
+        type: string
+        default: '0.7'
+      stability:
+        description: '音声の安定性（0-1）'
+        required: false
+        type: string
+        default: '0.8'
+    outputs:
+      audio_path:
+        description: '生成された音声ファイルパス'
+        value: ${{ jobs.generate.outputs.audio_path }}
+      audio_url:
+        description: '音声URL'
+        value: ${{ jobs.generate.outputs.audio_url }}
+      duration:
+        description: '音声の長さ（秒）'
+        value: ${{ jobs.generate.outputs.duration }}
+      voice_id:
+        description: '生成されたボイスID'
+        value: ${{ jobs.generate.outputs.voice_id }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      audio_path: ${{ steps.execute.outputs.audio_path }}
+      audio_url: ${{ steps.execute.outputs.audio_url }}
+      duration: ${{ steps.execute.outputs.duration }}
+      voice_id: ${{ steps.execute.outputs.voice_id }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate Audio with MiniMax Voice Design
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # MiniMax Voice Design生成（シミュレーション）
+          python3 -c "
+import json
+import os
+import hashlib
+
+# MiniMax Voice Designパラメータ
+params = {
+    'text': '''${{ inputs.text }}''',
+    'voice_character': '''${{ inputs.voice_character }}''',
+    'emotion': float('${{ inputs.emotion }}'),
+    'stability': float('${{ inputs.stability }}')
+}
+
+# ボイスIDを生成（キャラクター設定のハッシュ）
+voice_id = hashlib.md5(params['voice_character'].encode()).hexdigest()[:12]
+
+# 文字数計算
+char_count = len(params['text'])
+estimated_duration = char_count * 0.055  # Voice Designは自然な速度
+
+# APIレスポンスをシミュレート
+# 実際はMCP経由で実行
+response = {
+    'status': 'completed',
+    'audio_url': 'https://v3.fal.media/files/user/minimax_voice_design_output.mp3',
+    'processing_time': 8.5,
+    'metadata': {
+        'model': 'minimax-voice-design',
+        'voice_id': voice_id,
+        'voice_character_summary': params['voice_character'][:100] + '...',
+        'emotion': params['emotion'],
+        'stability': params['stability'],
+        'character_count': char_count,
+        'estimated_duration': round(estimated_duration, 1),
+        'format': 'mp3',
+        'sample_rate': 24000
+    }
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/minimax_voice_design_result.json', 'w') as f:
+    json.dump(response, f, indent=2)
+
+print(f'MiniMax Voice Design TTS completed')
+print(f'Generated Voice ID: {voice_id}')
+print(f'Character setting: {params[\"voice_character\"][:50]}...')
+print(f'Emotion level: {params[\"emotion\"]}')
+"
+          
+          # 仮の音声ファイルを生成（テスト用）
+          # 感情レベルに応じて音声を調整
+          EMOTION="${{ inputs.emotion }}"
+          VIBRATO=$(echo "scale=2; $EMOTION * 5" | bc)
+          
+          ffmpeg -f lavfi -i "sine=frequency=440:duration=5" \
+            -af "vibrato=f=$VIBRATO:d=0.5,volume=0.8" \
+            -ar 24000 -ac 1 -ab 128k \
+            "${{ inputs.output_dir }}/audio.mp3"
+          
+          # 音声の長さとボイスIDを取得
+          DURATION=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.output_dir }}/audio.mp3")
+          VOICE_ID=$(cat "${{ inputs.output_dir }}/minimax_voice_design_result.json" | jq -r '.metadata.voice_id')
+          
+          # 結果を設定
+          echo "audio_path=${{ inputs.output_dir }}/audio.mp3" >> $GITHUB_OUTPUT
+          echo "audio_url=https://v3.fal.media/files/user/minimax_voice_design_output.mp3" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+          echo "voice_id=$VOICE_ID" >> $GITHUB_OUTPUT

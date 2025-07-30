@@ -1,0 +1,87 @@
+name: video-concat
+description: 動画結合の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      video_list:
+        description: '結合する動画ファイルのリスト（カンマ区切り）'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      audio_path:
+        description: 'BGM音声ファイルパス（オプション）'
+        required: false
+        type: string
+      transition:
+        description: 'トランジション効果'
+        required: false
+        type: string
+        default: 'none'
+    outputs:
+      video_path:
+        description: '結合された動画のパス'
+        value: ${{ jobs.concat.outputs.video_path }}
+      duration:
+        description: '動画の長さ（秒）'
+        value: ${{ jobs.concat.outputs.duration }}
+
+jobs:
+  concat:
+    runs-on: ubuntu-latest
+    outputs:
+      video_path: ${{ steps.execute.outputs.video_path }}
+      duration: ${{ steps.execute.outputs.duration }}
+    
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Concatenate Videos
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # 動画リストをファイルに書き込み
+          echo "# Video concat list" > "${{ inputs.output_dir }}/concat_list.txt"
+          IFS=',' read -ra VIDEO_ARRAY <<< "${{ inputs.video_list }}"
+          for video in "${VIDEO_ARRAY[@]}"; do
+            echo "file '$video'" >> "${{ inputs.output_dir }}/concat_list.txt"
+          done
+          
+          # 動画を結合
+          if [ "${{ inputs.transition }}" = "none" ]; then
+            # シンプルな結合
+            ffmpeg -f concat -safe 0 -i "${{ inputs.output_dir }}/concat_list.txt" \
+              -c copy -y "${{ inputs.output_dir }}/concat_temp.mp4"
+          else
+            # トランジション付き結合（複雑な処理のため簡易版）
+            ffmpeg -f concat -safe 0 -i "${{ inputs.output_dir }}/concat_list.txt" \
+              -c:v libx264 -preset fast -crf 23 \
+              -c:a aac -b:a 192k \
+              -y "${{ inputs.output_dir }}/concat_temp.mp4"
+          fi
+          
+          # BGMを追加（オプション）
+          if [ -n "${{ inputs.audio_path }}" ] && [ -f "${{ inputs.audio_path }}" ]; then
+            ffmpeg -i "${{ inputs.output_dir }}/concat_temp.mp4" \
+              -i "${{ inputs.audio_path }}" \
+              -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
+              -c:v copy -c:a aac -b:a 192k \
+              -y "${{ inputs.output_dir }}/final_video.mp4"
+          else
+            mv "${{ inputs.output_dir }}/concat_temp.mp4" "${{ inputs.output_dir }}/final_video.mp4"
+          fi
+          
+          # 動画の長さを取得
+          DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.output_dir }}/final_video.mp4")
+          
+          # 出力設定
+          echo "video_path=${{ inputs.output_dir }}/final_video.mp4" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT

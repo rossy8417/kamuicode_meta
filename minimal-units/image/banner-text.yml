@@ -1,0 +1,157 @@
+name: banner-text
+description: バナーテキストオーバーレイの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      image_path:
+        description: '背景画像パス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      text:
+        description: 'オーバーレイするテキスト'
+        required: true
+        type: string
+      font_size:
+        description: 'フォントサイズ'
+        required: false
+        type: string
+        default: '72'
+      font_color:
+        description: 'フォントカラー（hex）'
+        required: false
+        type: string
+        default: '#FFFFFF'
+      position:
+        description: 'テキスト位置（center/top/bottom）'
+        required: false
+        type: string
+        default: 'center'
+      shadow:
+        description: 'ドロップシャドウを追加'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      image_path:
+        description: 'テキスト付き画像パス'
+        value: ${{ jobs.overlay.outputs.image_path }}
+      dimensions:
+        description: '画像サイズ'
+        value: ${{ jobs.overlay.outputs.dimensions }}
+
+jobs:
+  overlay:
+    runs-on: ubuntu-latest
+    outputs:
+      image_path: ${{ steps.execute.outputs.image_path }}
+      dimensions: ${{ steps.execute.outputs.dimensions }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install Pillow
+          # 日本語フォントのインストール
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+      
+      - name: Add Text to Banner
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # Pythonスクリプトでテキストオーバーレイ
+          python3 -c "
+from PIL import Image, ImageDraw, ImageFont
+import os
+
+# 画像を読み込み
+img = Image.open('${{ inputs.image_path }}')
+width, height = img.size
+
+# RGBAモードに変換
+if img.mode != 'RGBA':
+    img = img.convert('RGBA')
+
+# オーバーレイ用の透明レイヤーを作成
+overlay = Image.new('RGBA', img.size, (255, 255, 255, 0))
+draw = ImageDraw.Draw(overlay)
+
+# フォント設定
+font_size = int('${{ inputs.font_size }}')
+try:
+    # 日本語対応フォント
+    font = ImageFont.truetype('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc', font_size)
+except:
+    font = ImageFont.load_default()
+
+# テキスト
+text = '''${{ inputs.text }}'''
+
+# テキストサイズを取得
+bbox = draw.textbbox((0, 0), text, font=font)
+text_width = bbox[2] - bbox[0]
+text_height = bbox[3] - bbox[1]
+
+# 位置計算
+position = '${{ inputs.position }}'
+if position == 'center':
+    x = (width - text_width) // 2
+    y = (height - text_height) // 2
+elif position == 'top':
+    x = (width - text_width) // 2
+    y = height // 10
+elif position == 'bottom':
+    x = (width - text_width) // 2
+    y = height - (height // 10) - text_height
+else:
+    x = (width - text_width) // 2
+    y = (height - text_height) // 2
+
+# カラー変換
+font_color = '${{ inputs.font_color }}'
+if font_color.startswith('#'):
+    r = int(font_color[1:3], 16)
+    g = int(font_color[3:5], 16)
+    b = int(font_color[5:7], 16)
+    color = (r, g, b, 255)
+else:
+    color = (255, 255, 255, 255)
+
+# ドロップシャドウ
+if '${{ inputs.shadow }}' == 'true':
+    # 影を描画
+    shadow_offset = max(2, font_size // 20)
+    draw.text((x + shadow_offset, y + shadow_offset), text, 
+              font=font, fill=(0, 0, 0, 128))
+
+# テキストを描画
+draw.text((x, y), text, font=font, fill=color)
+
+# 背景画像とオーバーレイを合成
+img_with_text = Image.alpha_composite(img, overlay)
+
+# RGB形式で保存
+output_path = '${{ inputs.output_dir }}/banner.png'
+img_with_text.convert('RGB').save(output_path, 'PNG', quality=95)
+
+print(f'Banner created: {width}x{height}')
+print(f'Text position: {position} at ({x}, {y})')
+"
+          
+          # 画像情報を取得
+          DIMENSIONS=$(identify -format "%wx%h" "${{ inputs.output_dir }}/banner.png" 2>/dev/null || echo "unknown")
+          
+          # 結果を設定
+          echo "image_path=${{ inputs.output_dir }}/banner.png" >> $GITHUB_OUTPUT
+          echo "dimensions=$DIMENSIONS" >> $GITHUB_OUTPUT

@@ -1,0 +1,74 @@
+name: pixverse-quota-guard
+description: Pixverse利用可能枠チェックの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      required_quota:
+        description: '必要なQuota数'
+        required: false
+        type: string
+        default: '1'
+      quota_type:
+        description: 'Quotaタイプ（video/audio）'
+        required: false
+        type: string
+        default: 'video'
+    outputs:
+      quota_available:
+        description: 'Quota利用可能フラグ'
+        value: ${{ jobs.check.outputs.quota_available }}
+      remaining_quota:
+        description: '残りQuota数'
+        value: ${{ jobs.check.outputs.remaining_quota }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      quota_available: ${{ steps.execute.outputs.quota_available }}
+      remaining_quota: ${{ steps.execute.outputs.remaining_quota }}
+    
+    steps:
+      - name: Check Pixverse Quota
+        id: execute
+        run: |
+          # Pixverse Quota チェック（実際のAPIでは認証が必要）
+          # ここではシミュレーション実装
+          
+          # 現在時刻から擬似的なQuotaを計算
+          HOUR=$(date +%H)
+          DAY_OF_WEEK=$(date +%u)
+          
+          # 平日朝は混雑、週末や深夜は空いているという仮定
+          if [ $DAY_OF_WEEK -le 5 ] && [ $HOUR -ge 9 ] && [ $HOUR -le 17 ]; then
+            # 平日日中（混雑時）
+            REMAINING_QUOTA=$((RANDOM % 5))
+          elif [ $HOUR -ge 0 ] && [ $HOUR -le 6 ]; then
+            # 深夜（空いている）
+            REMAINING_QUOTA=$((RANDOM % 20 + 10))
+          else
+            # その他の時間
+            REMAINING_QUOTA=$((RANDOM % 10 + 5))
+          fi
+          
+          echo "Current quota check:"
+          echo "- Type: ${{ inputs.quota_type }}"
+          echo "- Required: ${{ inputs.required_quota }}"
+          echo "- Remaining: $REMAINING_QUOTA"
+          
+          # Quota利用可能性チェック
+          if [ $REMAINING_QUOTA -ge ${{ inputs.required_quota }} ]; then
+            echo "✅ Sufficient quota available"
+            echo "quota_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Insufficient quota"
+            echo "quota_available=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "remaining_quota=$REMAINING_QUOTA" >> $GITHUB_OUTPUT
+          
+          # 警告メッセージ
+          if [ $REMAINING_QUOTA -lt 5 ]; then
+            echo "::warning::Low Pixverse quota remaining: $REMAINING_QUOTA"
+          fi

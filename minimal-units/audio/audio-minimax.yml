@@ -1,0 +1,104 @@
+name: audio-minimax
+description: MiniMax音声生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      text:
+        description: '音声生成用テキスト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      voice_character:
+        description: '音声キャラクター設定（自然言語）'
+        required: false
+        type: string
+        default: '日本語に適した自然で魅力的な女性の声'
+      model:
+        description: '使用するモデル (t2s-fal-minimax-speech-02-turbo, v2v-fal-minimax-voice-design)'
+        required: false
+        type: string
+        default: 't2s-fal-minimax-speech-02-turbo'
+    outputs:
+      audio_url:
+        description: '生成された音声のURL'
+        value: ${{ jobs.generate.outputs.audio_url }}
+      audio_path:
+        description: 'ローカル保存された音声パス'
+        value: ${{ jobs.generate.outputs.audio_path }}
+    secrets:
+      anthropic_api_key:
+        description: 'Anthropic API Key'
+        required: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      audio_url: ${{ steps.execute.outputs.audio_url }}
+      audio_path: ${{ steps.execute.outputs.audio_path }}
+    
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: npm install @anthropic-ai/claude-code
+      
+      - name: Generate Audio
+        id: execute
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # モデル固有のツール名を設定
+          case "${{ inputs.model }}" in
+            "t2s-fal-minimax-speech-02-turbo")
+              SUBMIT_TOOL="mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit"
+              STATUS_TOOL="mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status"
+              RESULT_TOOL="mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result"
+              ;;
+            "v2v-fal-minimax-voice-design")
+              SUBMIT_TOOL="mcp__v2v-fal-minimax-voice-design__submit"
+              STATUS_TOOL="mcp__v2v-fal-minimax-voice-design__status"
+              RESULT_TOOL="mcp__v2v-fal-minimax-voice-design__result"
+              ;;
+          esac
+          
+          # プロンプト構築
+          PROMPT="Generate audio using ${{ inputs.model }} with:
+          
+          **Text**: ${{ inputs.text }}
+          **Voice Character**: ${{ inputs.voice_character }}
+          
+          Steps:
+          1. Use $SUBMIT_TOOL to start generation
+          2. Monitor status with $STATUS_TOOL
+          3. Get result with $RESULT_TOOL
+          4. Save audio URL to ${{ inputs.output_dir }}/audio-url.txt
+          5. Download to ${{ inputs.output_dir }}/audio.mp3"
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            --mcp-config=".claude/mcp-kamuicode.json" \
+            --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$PROMPT"
+          
+          # 結果確認
+          if [ -f "${{ inputs.output_dir }}/audio-url.txt" ]; then
+            AUDIO_URL=$(cat "${{ inputs.output_dir }}/audio-url.txt")
+            echo "audio_url=$AUDIO_URL" >> $GITHUB_OUTPUT
+            echo "audio_path=${{ inputs.output_dir }}/audio.mp3" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Audio generation failed"
+            exit 1
+          fi

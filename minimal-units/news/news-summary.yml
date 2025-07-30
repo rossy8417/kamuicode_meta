@@ -1,0 +1,136 @@
+name: news-summary
+description: ニュース要約の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      sources_path:
+        description: 'ニュースソースファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      summary_length:
+        description: '要約の長さ（words）'
+        required: false
+        type: string
+        default: '200'
+      include_quotes:
+        description: '引用を含めるか'
+        required: false
+        type: boolean
+        default: true
+      language:
+        description: '要約言語'
+        required: false
+        type: string
+        default: 'japanese'
+    outputs:
+      summary_path:
+        description: '要約ファイルパス'
+        value: ${{ jobs.summarize.outputs.summary_path }}
+      summary_text:
+        description: '要約テキスト'
+        value: ${{ jobs.summarize.outputs.summary_text }}
+      key_points:
+        description: '重要ポイント'
+        value: ${{ jobs.summarize.outputs.key_points }}
+    secrets:
+      anthropic_api_key:
+        description: 'Anthropic API Key'
+        required: true
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    outputs:
+      summary_path: ${{ steps.execute.outputs.summary_path }}
+      summary_text: ${{ steps.execute.outputs.summary_text }}
+      key_points: ${{ steps.execute.outputs.key_points }}
+    
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: npm install @anthropic-ai/claude-code
+      
+      - name: Summarize News
+        id: execute
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # プロンプトの構築
+          PROMPT="Summarize the news content from '${{ inputs.sources_path }}' with the following requirements:
+
+          Summary Length: ${{ inputs.summary_length }} words
+          Include Quotes: ${{ inputs.include_quotes }}
+          Language: ${{ inputs.language }}
+
+          Tasks:
+          1. Read and analyze the news sources
+          2. Extract key information and facts
+          3. Create a concise summary
+          4. Identify important quotes if requested
+          5. Save the summary to '${{ inputs.output_dir }}/news_summary.json'
+
+          Output format:
+          {
+            \"summary\": \"Main summary text\",
+            \"key_points\": [
+              \"Key point 1\",
+              \"Key point 2\"
+            ],
+            \"quotes\": [
+              {
+                \"text\": \"quote text\",
+                \"source\": \"source name\"
+              }
+            ],
+            \"facts\": [
+              \"Important fact 1\",
+              \"Important fact 2\"
+            ],
+            \"metadata\": {
+              \"word_count\": number,
+              \"sources_analyzed\": number,
+              \"language\": \"${{ inputs.language }}\"
+            }
+          }
+
+          Ensure the summary is:
+          - Accurate and factual
+          - Written in ${{ inputs.language }}
+          - Within ${{ inputs.summary_length }} words
+          - Clear and concise"
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write" \
+            --max-turns 10 \
+            --permission-mode "acceptEdits" \
+            -p "$PROMPT"
+          
+          # 結果確認
+          if [ -f "${{ inputs.output_dir }}/news_summary.json" ]; then
+            SUMMARY=$(cat "${{ inputs.output_dir }}/news_summary.json")
+            SUMMARY_TEXT=$(echo "$SUMMARY" | jq -r '.summary // "No summary"' | tr '\n' ' ')
+            KEY_POINTS=$(echo "$SUMMARY" | jq -c '.key_points // []')
+            
+            echo "summary_path=${{ inputs.output_dir }}/news_summary.json" >> $GITHUB_OUTPUT
+            echo "summary_text=$SUMMARY_TEXT" >> $GITHUB_OUTPUT
+            echo "key_points=$KEY_POINTS" >> $GITHUB_OUTPUT
+          else
+            # フォールバック
+            echo "{\"error\": \"Summarization failed\"}" > "${{ inputs.output_dir }}/news_summary.json"
+            echo "summary_path=${{ inputs.output_dir }}/news_summary.json" >> $GITHUB_OUTPUT
+            echo "summary_text=Summarization failed" >> $GITHUB_OUTPUT
+            echo "key_points=[]" >> $GITHUB_OUTPUT
+          fi

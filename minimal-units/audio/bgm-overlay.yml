@@ -1,0 +1,123 @@
+name: bgm-overlay
+description: BGMオーバーレイの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      video_path:
+        description: '入力動画パス'
+        required: true
+        type: string
+      bgm_path:
+        description: 'BGM音声ファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      bgm_volume:
+        description: 'BGM音量（0-1）'
+        required: false
+        type: string
+        default: '0.3'
+      fade_in:
+        description: 'フェードイン時間（秒）'
+        required: false
+        type: string
+        default: '2'
+      fade_out:
+        description: 'フェードアウト時間（秒）'
+        required: false
+        type: string
+        default: '2'
+      preserve_original:
+        description: '元の音声を保持'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      video_path:
+        description: 'BGM付き動画パス'
+        value: ${{ jobs.overlay.outputs.video_path }}
+      audio_tracks:
+        description: '音声トラック数'
+        value: ${{ jobs.overlay.outputs.audio_tracks }}
+
+jobs:
+  overlay:
+    runs-on: ubuntu-latest
+    outputs:
+      video_path: ${{ steps.execute.outputs.video_path }}
+      audio_tracks: ${{ steps.execute.outputs.audio_tracks }}
+    
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Overlay BGM
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # 動画の長さを取得
+          VIDEO_DURATION=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.video_path }}")
+          echo "Video duration: $VIDEO_DURATION seconds"
+          
+          # BGMの長さを取得
+          BGM_DURATION=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.bgm_path }}")
+          echo "BGM duration: $BGM_DURATION seconds"
+          
+          # フェード計算
+          FADE_IN="${{ inputs.fade_in }}"
+          FADE_OUT="${{ inputs.fade_out }}"
+          BGM_VOLUME="${{ inputs.bgm_volume }}"
+          
+          # BGMを動画の長さに合わせてループ・トリム
+          ffmpeg -stream_loop -1 -i "${{ inputs.bgm_path }}" \
+            -t "$VIDEO_DURATION" \
+            -af "afade=t=in:st=0:d=$FADE_IN,afade=t=out:st=$(echo "$VIDEO_DURATION - $FADE_OUT" | bc):d=$FADE_OUT,volume=$BGM_VOLUME" \
+            "${{ inputs.output_dir }}/bgm_processed.aac"
+          
+          if [ "${{ inputs.preserve_original }}" = "true" ]; then
+            # 元の音声がある場合はミックス
+            if ffprobe -v quiet -select_streams a:0 -show_entries stream=codec_name -of csv=s=x:p=0 "${{ inputs.video_path }}" 2>/dev/null | grep -q .; then
+              echo "Mixing with original audio..."
+              
+              # 元の音声を抽出
+              ffmpeg -i "${{ inputs.video_path }}" -vn -acodec copy "${{ inputs.output_dir }}/original_audio.aac"
+              
+              # 音声をミックス
+              ffmpeg -i "${{ inputs.video_path }}" -i "${{ inputs.output_dir }}/bgm_processed.aac" -i "${{ inputs.output_dir }}/original_audio.aac" \
+                -filter_complex "[1:a][2:a]amix=inputs=2:duration=longest[aout]" \
+                -map 0:v -map "[aout]" \
+                -c:v copy -c:a aac -b:a 192k \
+                "${{ inputs.output_dir }}/video.mp4"
+              
+              AUDIO_TRACKS="2"
+            else
+              echo "No original audio found, adding BGM only..."
+              ffmpeg -i "${{ inputs.video_path }}" -i "${{ inputs.output_dir }}/bgm_processed.aac" \
+                -map 0:v -map 1:a \
+                -c:v copy -c:a copy \
+                "${{ inputs.output_dir }}/video.mp4"
+              
+              AUDIO_TRACKS="1"
+            fi
+          else
+            # BGMのみ（元の音声を置き換え）
+            echo "Replacing audio with BGM..."
+            ffmpeg -i "${{ inputs.video_path }}" -i "${{ inputs.output_dir }}/bgm_processed.aac" \
+              -map 0:v -map 1:a \
+              -c:v copy -c:a copy \
+              "${{ inputs.output_dir }}/video.mp4"
+            
+            AUDIO_TRACKS="1"
+          fi
+          
+          # 結果を設定
+          echo "video_path=${{ inputs.output_dir }}/video.mp4" >> $GITHUB_OUTPUT
+          echo "audio_tracks=$AUDIO_TRACKS" >> $GITHUB_OUTPUT

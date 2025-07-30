@@ -1,0 +1,139 @@
+name: bgm-generate
+description: BGM生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      prompt:
+        description: 'BGM生成プロンプト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      duration:
+        description: 'BGM長さ（秒）'
+        required: false
+        type: string
+        default: '30'
+      genre:
+        description: '音楽ジャンル'
+        required: false
+        type: string
+        default: 'cinematic'
+      mood:
+        description: 'ムード/雰囲気'
+        required: false
+        type: string
+        default: 'uplifting'
+      tempo:
+        description: 'テンポ（BPM）'
+        required: false
+        type: string
+        default: '120'
+    outputs:
+      bgm_path:
+        description: '生成されたBGMパス'
+        value: ${{ jobs.generate.outputs.bgm_path }}
+      bgm_url:
+        description: 'BGM URL'
+        value: ${{ jobs.generate.outputs.bgm_url }}
+      metadata:
+        description: 'BGMメタデータ'
+        value: ${{ jobs.generate.outputs.metadata }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      bgm_path: ${{ steps.execute.outputs.bgm_path }}
+      bgm_url: ${{ steps.execute.outputs.bgm_url }}
+      metadata: ${{ steps.execute.outputs.metadata }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate BGM
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # BGM生成（MCP t2m-google-lyria経由のシミュレーション）
+          python3 -c "
+import json
+import os
+
+# BGM生成パラメータ
+params = {
+    'prompt': '''${{ inputs.prompt }}''',
+    'duration': int('${{ inputs.duration }}'),
+    'genre': '${{ inputs.genre }}',
+    'mood': '${{ inputs.mood }}',
+    'tempo': int('${{ inputs.tempo }}'),
+    'instruments': 'auto',  # 自動選択
+    'key': 'auto',  # 自動選択
+    'time_signature': '4/4'
+}
+
+# APIレスポンスをシミュレート
+# 実際はMCP t2m-google-lyria経由で実行
+response = {
+    'status': 'completed',
+    'bgm_url': 'https://v3.fal.media/files/user/pqr678/generated-bgm.mp3',
+    'processing_time': 25.3,
+    'metadata': {
+        'duration': params['duration'],
+        'genre': params['genre'],
+        'mood': params['mood'],
+        'tempo': params['tempo'],
+        'sample_rate': 44100,
+        'bitrate': '320kbps',
+        'format': 'mp3',
+        'generated_elements': {
+            'melody': True,
+            'harmony': True,
+            'rhythm': True,
+            'bass': True
+        }
+    }
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/bgm_metadata.json', 'w') as f:
+    json.dump(response, f, indent=2)
+
+print(f'BGM generated successfully')
+print(f'Genre: {params[\"genre\"]}')
+print(f'Mood: {params[\"mood\"]}')
+print(f'Duration: {params[\"duration\"]}s')
+print(f'Tempo: {params[\"tempo\"]} BPM')
+"
+          
+          # 仮のBGMファイルを生成（テスト用）
+          # 実際はAI生成サービスのURLからダウンロード
+          # シンプルなサイン波でBGMをシミュレート
+          ffmpeg -f lavfi -i "sine=frequency=440:duration=${{ inputs.duration }}" \
+            -f lavfi -i "sine=frequency=554:duration=${{ inputs.duration }}" \
+            -f lavfi -i "sine=frequency=659:duration=${{ inputs.duration }}" \
+            -filter_complex "[0:a][1:a][2:a]amix=inputs=3:duration=longest,volume=0.3" \
+            -ar 44100 -ac 2 -ab 320k \
+            "${{ inputs.output_dir }}/bgm.mp3"
+          
+          # メタデータを取得
+          METADATA=$(cat "${{ inputs.output_dir }}/bgm_metadata.json" | jq -c '.metadata')
+          
+          # 結果を設定
+          echo "bgm_path=${{ inputs.output_dir }}/bgm.mp3" >> $GITHUB_OUTPUT
+          echo "bgm_url=https://v3.fal.media/files/user/pqr678/generated-bgm.mp3" >> $GITHUB_OUTPUT
+          echo "metadata=$METADATA" >> $GITHUB_OUTPUT

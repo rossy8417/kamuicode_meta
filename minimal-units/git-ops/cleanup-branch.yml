@@ -1,0 +1,75 @@
+name: cleanup-branch
+description: ブランチクリーンアップの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      branch_name:
+        description: '削除するブランチ名'
+        required: true
+        type: string
+      delete_remote:
+        description: 'リモートブランチも削除するか'
+        required: false
+        type: boolean
+        default: true
+      force:
+        description: '強制削除するか'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      cleanup_status:
+        description: 'クリーンアップステータス'
+        value: ${{ jobs.cleanup.outputs.status }}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.execute.outputs.status }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Cleanup Branch
+        id: execute
+        run: |
+          # 現在のブランチを確認
+          CURRENT_BRANCH=$(git branch --show-current)
+          
+          # 削除対象ブランチにいる場合は先に移動
+          if [ "$CURRENT_BRANCH" = "${{ inputs.branch_name }}" ]; then
+            echo "Currently on target branch, switching to main"
+            git checkout main || git checkout master
+          fi
+          
+          # ローカルブランチの削除
+          if git show-ref --verify --quiet refs/heads/${{ inputs.branch_name }}; then
+            if [ "${{ inputs.force }}" = "true" ]; then
+              git branch -D "${{ inputs.branch_name }}"
+              echo "✅ Local branch forcefully deleted: ${{ inputs.branch_name }}"
+            else
+              git branch -d "${{ inputs.branch_name }}" || {
+                echo "⚠️ Branch has unmerged changes. Use force=true to delete anyway."
+                echo "status=unmerged" >> $GITHUB_OUTPUT
+                exit 0
+              }
+              echo "✅ Local branch deleted: ${{ inputs.branch_name }}"
+            fi
+          else
+            echo "ℹ️ Local branch not found: ${{ inputs.branch_name }}"
+          fi
+          
+          # リモートブランチの削除
+          if [ "${{ inputs.delete_remote }}" = "true" ]; then
+            if git ls-remote --heads origin "${{ inputs.branch_name }}" | grep -q .; then
+              git push origin --delete "${{ inputs.branch_name }}"
+              echo "✅ Remote branch deleted: ${{ inputs.branch_name }}"
+            else
+              echo "ℹ️ Remote branch not found: ${{ inputs.branch_name }}"
+            fi
+          fi
+          
+          echo "status=cleaned" >> $GITHUB_OUTPUT

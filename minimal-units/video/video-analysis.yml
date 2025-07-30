@@ -1,0 +1,146 @@
+name: video-analysis
+description: 動画分析の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      video_path:
+        description: '分析する動画パス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      analysis_type:
+        description: '分析タイプ（content/technical/scene/motion）'
+        required: false
+        type: string
+        default: 'content'
+      extract_frames:
+        description: 'キーフレームを抽出するか'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      analysis_path:
+        description: '分析結果パス'
+        value: ${{ jobs.analyze.outputs.analysis_path }}
+      key_frames:
+        description: 'キーフレーム画像パス'
+        value: ${{ jobs.analyze.outputs.key_frames }}
+      summary:
+        description: '分析サマリー'
+        value: ${{ jobs.analyze.outputs.summary }}
+    secrets:
+      anthropic_api_key:
+        description: 'Anthropic API Key'
+        required: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    outputs:
+      analysis_path: ${{ steps.execute.outputs.analysis_path }}
+      key_frames: ${{ steps.execute.outputs.key_frames }}
+      summary: ${{ steps.execute.outputs.summary }}
+    
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: npm install @anthropic-ai/claude-code
+      
+      - name: Analyze Video
+        id: execute
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # 動画情報を取得
+          DURATION=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.video_path }}")
+          WIDTH=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width -of csv=s=x:p=0 "${{ inputs.video_path }}")
+          HEIGHT=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=height -of csv=s=x:p=0 "${{ inputs.video_path }}")
+          FPS=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=r_frame_rate -of csv=s=x:p=0 "${{ inputs.video_path }}")
+          
+          echo "Video: ${WIDTH}x${HEIGHT} @ ${FPS} fps, ${DURATION}s"
+          
+          # キーフレーム抽出
+          if [ "${{ inputs.extract_frames }}" = "true" ]; then
+            # 5つのキーフレームを抽出
+            for i in 0 25 50 75 95; do
+              TIME=$(echo "scale=2; $DURATION * $i / 100" | bc)
+              ffmpeg -ss "$TIME" -i "${{ inputs.video_path }}" -vframes 1 \
+                "${{ inputs.output_dir }}/frame_${i}pct.jpg" -y
+            done
+            
+            KEY_FRAMES=$(find "${{ inputs.output_dir }}" -name "frame_*.jpg" | tr '\n' ',' | sed 's/,$//')
+          else
+            KEY_FRAMES=""
+          fi
+          
+          # 分析プロンプトの構築
+          ANALYSIS_PROMPT="Analyze the video at '${{ inputs.video_path }}' with the following focus:
+
+          Analysis Type: ${{ inputs.analysis_type }}
+          Video Info: ${WIDTH}x${HEIGHT}, ${DURATION}s, ${FPS} fps
+          
+          Tasks:
+          1. Analyze extracted frames in '${{ inputs.output_dir }}'
+          2. Provide ${{ inputs.analysis_type }} analysis
+          3. Create detailed analysis report
+          4. Save to '${{ inputs.output_dir }}/video_analysis.json'
+
+          Analysis should include:
+          - Content: scenes, objects, activities, narrative
+          - Technical: quality, encoding, color grading, stability
+          - Scene: scene changes, transitions, composition
+          - Motion: movement patterns, camera work, pacing
+
+          Output format:
+          {
+            \"summary\": \"Overall video summary\",
+            \"duration\": $DURATION,
+            \"resolution\": \"${WIDTH}x${HEIGHT}\",
+            \"fps\": \"$FPS\",
+            \"analysis\": {
+              \"type\": \"${{ inputs.analysis_type }}\",
+              \"findings\": [],
+              \"quality_score\": 0-100,
+              \"recommendations\": []
+            },
+            \"scenes\": [],
+            \"key_moments\": []
+          }"
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write" \
+            --max-turns 10 \
+            --permission-mode "acceptEdits" \
+            -p "$ANALYSIS_PROMPT"
+          
+          # 結果確認
+          if [ -f "${{ inputs.output_dir }}/video_analysis.json" ]; then
+            SUMMARY=$(cat "${{ inputs.output_dir }}/video_analysis.json" | jq -r '.summary // "Analysis completed"' | tr '\n' ' ')
+            
+            echo "analysis_path=${{ inputs.output_dir }}/video_analysis.json" >> $GITHUB_OUTPUT
+            echo "key_frames=$KEY_FRAMES" >> $GITHUB_OUTPUT
+            echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          else
+            # フォールバック
+            echo "{\"error\": \"Analysis failed\"}" > "${{ inputs.output_dir }}/video_analysis.json"
+            echo "analysis_path=${{ inputs.output_dir }}/video_analysis.json" >> $GITHUB_OUTPUT
+            echo "key_frames=$KEY_FRAMES" >> $GITHUB_OUTPUT
+            echo "summary=Video analysis failed" >> $GITHUB_OUTPUT
+          fi

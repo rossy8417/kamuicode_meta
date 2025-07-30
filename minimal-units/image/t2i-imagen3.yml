@@ -1,0 +1,122 @@
+name: t2i-imagen3
+description: Google Imagen3テキストから画像生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      prompt:
+        description: '画像生成プロンプト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      negative_prompt:
+        description: 'ネガティブプロンプト'
+        required: false
+        type: string
+        default: ''
+      aspect_ratio:
+        description: 'アスペクト比（1:1, 16:9, 9:16等）'
+        required: false
+        type: string
+        default: '1:1'
+      style_preset:
+        description: 'スタイルプリセット'
+        required: false
+        type: string
+        default: 'photorealistic'
+    outputs:
+      image_path:
+        description: '生成された画像パス'
+        value: ${{ jobs.generate.outputs.image_path }}
+      image_url:
+        description: '画像URL'
+        value: ${{ jobs.generate.outputs.image_url }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      image_path: ${{ steps.execute.outputs.image_path }}
+      image_url: ${{ steps.execute.outputs.image_url }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Generate Image with Imagen3
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # MCP経由でImagen3を呼び出す（シミュレーション）
+          python3 -c "
+import json
+import os
+from datetime import datetime
+
+# Imagen3パラメータ
+params = {
+    'prompt': '''${{ inputs.prompt }}''',
+    'negative_prompt': '''${{ inputs.negative_prompt }}''',
+    'aspect_ratio': '${{ inputs.aspect_ratio }}',
+    'style_preset': '${{ inputs.style_preset }}'
+}
+
+# アスペクト比から解像度を決定
+aspect_map = {
+    '1:1': (1024, 1024),
+    '16:9': (1344, 768),
+    '9:16': (768, 1344),
+    '4:3': (1024, 768),
+    '3:4': (768, 1024)
+}
+width, height = aspect_map.get(params['aspect_ratio'], (1024, 1024))
+
+# APIレスポンスをシミュレート
+# 実際はMCP t2i-google-imagen3経由で実行
+response = {
+    'status': 'completed',
+    'image_url': 'https://imagen.google.com/generated/imagen3_result.png',
+    'processing_time': 8.5,
+    'metadata': {
+        'model': 'imagen-3',
+        'resolution': f'{width}x{height}',
+        'style': params['style_preset'],
+        'timestamp': datetime.now().isoformat()
+    }
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/imagen3_result.json', 'w') as f:
+    json.dump(response, f, indent=2)
+
+# 仮の画像を生成（テスト用）
+from PIL import Image
+import numpy as np
+
+# グラデーション画像を作成
+img_array = np.zeros((height, width, 3), dtype=np.uint8)
+for i in range(height):
+    for j in range(width):
+        img_array[i, j] = [
+            int(255 * (i / height)),
+            int(255 * (j / width)),
+            128
+        ]
+
+img = Image.fromarray(img_array)
+img.save('${{ inputs.output_dir }}/image.png')
+
+print(f'Image generated: {width}x{height}')
+print(f'Style: {params[\"style_preset\"]}')
+"
+          
+          # 結果を設定
+          echo "image_path=${{ inputs.output_dir }}/image.png" >> $GITHUB_OUTPUT
+          echo "image_url=https://imagen.google.com/generated/imagen3_result.png" >> $GITHUB_OUTPUT

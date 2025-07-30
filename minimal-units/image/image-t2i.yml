@@ -1,0 +1,123 @@
+name: image-t2i
+description: Text-to-Image生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      prompt:
+        description: '画像生成用プロンプト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      model:
+        description: '使用するモデル (t2i-google-imagen3, t2i-fal-imagen4-ultra, t2i-fal-imagen4-fast, t2i-fal-flux-schnell)'
+        required: false
+        type: string
+        default: 't2i-fal-imagen4-ultra'
+      aspect_ratio:
+        description: 'アスペクト比'
+        required: false
+        type: string
+        default: '16:9'
+    outputs:
+      image_url:
+        description: '生成された画像のURL'
+        value: ${{ jobs.generate.outputs.image_url }}
+      image_path:
+        description: 'ローカル保存された画像パス'
+        value: ${{ jobs.generate.outputs.image_path }}
+    secrets:
+      anthropic_api_key:
+        description: 'Anthropic API Key'
+        required: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      image_url: ${{ steps.execute.outputs.image_url }}
+      image_path: ${{ steps.execute.outputs.image_path }}
+    
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: npm install @anthropic-ai/claude-code
+      
+      - name: Check MCP config
+        run: |
+          if [ -f ".claude/mcp-kamuicode.json" ]; then
+            echo "✅ MCP config found"
+          else
+            echo "❌ MCP config not found"
+            exit 1
+          fi
+      
+      - name: Generate Image
+        id: execute
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # モデル固有のツール名を設定
+          case "${{ inputs.model }}" in
+            "t2i-google-imagen3")
+              SUBMIT_TOOL="mcp__t2i-google-imagen3__imagen_t2i"
+              STATUS_TOOL=""
+              RESULT_TOOL=""
+              ;;
+            "t2i-fal-imagen4-ultra")
+              SUBMIT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit"
+              STATUS_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status"
+              RESULT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result"
+              ;;
+            "t2i-fal-imagen4-fast")
+              SUBMIT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_submit"
+              STATUS_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_status"
+              RESULT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_result"
+              ;;
+            "t2i-fal-flux-schnell")
+              SUBMIT_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_submit"
+              STATUS_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_status"
+              RESULT_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_result"
+              ;;
+          esac
+          
+          # プロンプト構築
+          PROMPT="Generate an image using ${{ inputs.model }} with the following prompt:
+          
+          **Prompt**: ${{ inputs.prompt }}
+          **Aspect Ratio**: ${{ inputs.aspect_ratio }}
+          
+          Steps:
+          1. Use $SUBMIT_TOOL to start generation
+          2. Monitor status with $STATUS_TOOL (if available)
+          3. Get result with $RESULT_TOOL (if available)
+          4. Save the image URL to ${{ inputs.output_dir }}/image-url.txt
+          5. Download the image to ${{ inputs.output_dir }}/image.png using curl"
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            --mcp-config=".claude/mcp-kamuicode.json" \
+            --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$PROMPT"
+          
+          # 結果確認
+          if [ -f "${{ inputs.output_dir }}/image-url.txt" ]; then
+            IMAGE_URL=$(cat "${{ inputs.output_dir }}/image-url.txt")
+            echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+            echo "image_path=${{ inputs.output_dir }}/image.png" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Image generation failed"
+            exit 1
+          fi

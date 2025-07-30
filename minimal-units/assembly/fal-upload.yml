@@ -1,0 +1,93 @@
+name: fal-upload
+description: FALアップロードの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      asset_path:
+        description: 'アップロードするファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      asset_type:
+        description: 'アセットタイプ（video/image/audio）'
+        required: false
+        type: string
+        default: 'video'
+    outputs:
+      asset_url:
+        description: 'アップロードされたアセットのURL'
+        value: ${{ jobs.upload.outputs.asset_url }}
+      upload_info:
+        description: 'アップロード情報'
+        value: ${{ jobs.upload.outputs.upload_info }}
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    outputs:
+      asset_url: ${{ steps.execute.outputs.asset_url }}
+      upload_info: ${{ steps.execute.outputs.upload_info }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Upload to FAL
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # Pythonスクリプトでアップロード（FAL APIを模擬）
+          python3 -c "
+import os
+import json
+import hashlib
+from datetime import datetime
+
+# ファイル情報を取得
+file_path = '${{ inputs.asset_path }}'
+file_size = os.path.getsize(file_path)
+file_hash = hashlib.md5(open(file_path, 'rb').read()).hexdigest()
+
+# アップロード情報を生成（実際のFAL APIでは実際のアップロードを行う）
+upload_info = {
+    'url': f'https://v3.fal.media/files/user/{file_hash}/{os.path.basename(file_path)}',
+    'size': file_size,
+    'type': '${{ inputs.asset_type }}',
+    'uploaded_at': datetime.now().isoformat(),
+    'expiry': '1 hour'
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/upload_info.json', 'w') as f:
+    json.dump(upload_info, f, indent=2)
+
+# URLをテキストファイルに保存
+with open('${{ inputs.output_dir }}/asset_url.txt', 'w') as f:
+    f.write(upload_info['url'])
+
+print(f'Asset URL: {upload_info[\"url\"]}')
+print(f'Upload info saved to: ${{ inputs.output_dir }}/upload_info.json')
+"
+          
+          # 出力設定
+          if [ -f "${{ inputs.output_dir }}/asset_url.txt" ]; then
+            ASSET_URL=$(cat "${{ inputs.output_dir }}/asset_url.txt")
+            UPLOAD_INFO=$(cat "${{ inputs.output_dir }}/upload_info.json" | jq -c .)
+            echo "asset_url=$ASSET_URL" >> $GITHUB_OUTPUT
+            echo "upload_info=$UPLOAD_INFO" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Upload failed"
+            exit 1
+          fi

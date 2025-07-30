@@ -1,0 +1,79 @@
+name: web-search
+description: Web検索実行の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      query:
+        description: '検索クエリ'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      search_date:
+        description: '検索対象日（yesterday, today, 2024-01-01など）'
+        required: false
+        type: string
+        default: 'today'
+      language:
+        description: '検索言語'
+        required: false
+        type: string
+        default: 'japanese'
+    outputs:
+      search_results:
+        description: '検索結果'
+        value: ${{ jobs.search.outputs.results }}
+      sources:
+        description: 'ソースURL'
+        value: ${{ jobs.search.outputs.sources }}
+    secrets:
+      gemini_api_key:
+        description: 'Gemini API Key'
+        required: true
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    outputs:
+      results: ${{ steps.execute.outputs.results }}
+      sources: ${{ steps.execute.outputs.sources }}
+    
+    steps:
+      - name: Execute Web Search with Gemini
+        id: execute
+        run: |
+          # 検索クエリの構築
+          SEARCH_QUERY="${{ inputs.query }} ${{ inputs.search_date }} news"
+          
+          # Gemini API呼び出し（Google Search Grounding有効）
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+            -H "x-goog-api-key: ${{ secrets.gemini_api_key }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": \"Please search for: ${SEARCH_QUERY}. Find actual news articles from reliable sources. Provide results with URLs and summaries.\"
+                }]
+              }],
+              \"tools\": [{\"google_search\": {}}]
+            }")
+          
+          # 結果の保存
+          mkdir -p "${{ inputs.output_dir }}"
+          echo "$RESPONSE" > "${{ inputs.output_dir }}/search-response.json"
+          
+          # 結果の抽出
+          CONTENT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "No content"')
+          URLS=$(echo "$RESPONSE" | jq -r '.candidates[0].groundingMetadata.groundingChunks[]?.web.uri // empty' | head -5 | tr '\n' ', ')
+          
+          # ファイル保存
+          echo "$CONTENT" > "${{ inputs.output_dir }}/search-results.txt"
+          echo "$URLS" > "${{ inputs.output_dir }}/sources.txt"
+          
+          # 出力設定
+          echo "results=$CONTENT" >> $GITHUB_OUTPUT
+          echo "sources=$URLS" >> $GITHUB_OUTPUT

@@ -1,0 +1,114 @@
+name: markdown-summary
+description: Markdownサマリー生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      content_paths:
+        description: 'コンテンツファイルパスのリスト（カンマ区切り）'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      title:
+        description: 'サマリーのタイトル'
+        required: false
+        type: string
+        default: 'Production Summary'
+      include_metadata:
+        description: 'メタデータを含めるか'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      summary_path:
+        description: '生成されたサマリーのパス'
+        value: ${{ jobs.generate.outputs.summary_path }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      summary_path: ${{ steps.execute.outputs.summary_path }}
+    
+    steps:
+      - name: Generate Markdown Summary
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # サマリー生成開始
+          cat > "${{ inputs.output_dir }}/summary.md" << 'EOF'
+          # ${{ inputs.title }}
+          
+          Generated on: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          ## 📁 Generated Assets
+          
+          EOF
+          
+          # コンテンツファイルの情報を追加
+          IFS=',' read -ra CONTENT_ARRAY <<< "${{ inputs.content_paths }}"
+          for content_path in "${CONTENT_ARRAY[@]}"; do
+            if [ -f "$content_path" ]; then
+              FILE_NAME=$(basename "$content_path")
+              FILE_SIZE=$(stat -c%s "$content_path" 2>/dev/null || stat -f%z "$content_path" 2>/dev/null || echo "unknown")
+              FILE_TYPE="${FILE_NAME##*.}"
+              
+              echo "### $FILE_NAME" >> "${{ inputs.output_dir }}/summary.md"
+              echo "- **Type**: $FILE_TYPE" >> "${{ inputs.output_dir }}/summary.md"
+              echo "- **Size**: $FILE_SIZE bytes" >> "${{ inputs.output_dir }}/summary.md"
+              echo "- **Path**: \`$content_path\`" >> "${{ inputs.output_dir }}/summary.md"
+              echo "" >> "${{ inputs.output_dir }}/summary.md"
+              
+              # 特定のファイルタイプの場合、内容のプレビューを追加
+              case "$FILE_TYPE" in
+                md|txt)
+                  echo "**Preview**:" >> "${{ inputs.output_dir }}/summary.md"
+                  echo '```' >> "${{ inputs.output_dir }}/summary.md"
+                  head -10 "$content_path" >> "${{ inputs.output_dir }}/summary.md"
+                  echo '```' >> "${{ inputs.output_dir }}/summary.md"
+                  echo "" >> "${{ inputs.output_dir }}/summary.md"
+                  ;;
+                json)
+                  echo "**Structure**:" >> "${{ inputs.output_dir }}/summary.md"
+                  echo '```json' >> "${{ inputs.output_dir }}/summary.md"
+                  jq -r 'keys' "$content_path" 2>/dev/null | head -10 >> "${{ inputs.output_dir }}/summary.md" || echo "Invalid JSON"
+                  echo '```' >> "${{ inputs.output_dir }}/summary.md"
+                  echo "" >> "${{ inputs.output_dir }}/summary.md"
+                  ;;
+              esac
+            else
+              echo "### ❌ Missing: $content_path" >> "${{ inputs.output_dir }}/summary.md"
+              echo "" >> "${{ inputs.output_dir }}/summary.md"
+            fi
+          done
+          
+          # メタデータセクション
+          if [ "${{ inputs.include_metadata }}" = "true" ]; then
+            cat >> "${{ inputs.output_dir }}/summary.md" << 'EOF'
+          
+          ## 🔧 Metadata
+          
+          - **Workflow Run ID**: ${{ github.run_id }}
+          - **Workflow Run Number**: ${{ github.run_number }}
+          - **Repository**: ${{ github.repository }}
+          - **Branch**: ${{ github.ref_name }}
+          - **Commit SHA**: ${{ github.sha }}
+          
+          EOF
+          fi
+          
+          # フッター
+          cat >> "${{ inputs.output_dir }}/summary.md" << 'EOF'
+          
+          ---
+          
+          🤖 Generated with Claude Code
+          EOF
+          
+          # 出力設定
+          echo "summary_path=${{ inputs.output_dir }}/summary.md" >> $GITHUB_OUTPUT

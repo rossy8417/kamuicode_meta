@@ -1,0 +1,175 @@
+name: pdf-create
+description: PDF作成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      content_path:
+        description: 'コンテンツファイルパス（Markdown/HTML）'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      title:
+        description: 'PDFタイトル'
+        required: false
+        type: string
+        default: 'Document'
+      author:
+        description: '著者名'
+        required: false
+        type: string
+        default: 'Claude Code'
+      paper_size:
+        description: '用紙サイズ（A4/Letter）'
+        required: false
+        type: string
+        default: 'A4'
+    outputs:
+      pdf_path:
+        description: '生成されたPDFパス'
+        value: ${{ jobs.create.outputs.pdf_path }}
+      page_count:
+        description: 'ページ数'
+        value: ${{ jobs.create.outputs.page_count }}
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    outputs:
+      pdf_path: ${{ steps.execute.outputs.pdf_path }}
+      page_count: ${{ steps.execute.outputs.page_count }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install markdown pdfkit
+          sudo apt-get update
+          sudo apt-get install -y wkhtmltopdf fonts-noto-cjk
+      
+      - name: Create PDF
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # Pythonスクリプトで
+          python3 -c "
+import os
+import markdown
+import pdfkit
+from datetime import datetime
+
+# コンテンツファイルを読み込み
+with open('${{ inputs.content_path }}', 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# ファイル拡張子を確認
+file_ext = os.path.splitext('${{ inputs.content_path }}')[1].lower()
+
+# MarkdownをHTMLに変換
+if file_ext == '.md':
+    html_content = markdown.markdown(content, extensions=['extra', 'codehilite', 'toc'])
+elif file_ext in ['.html', '.htm']:
+    html_content = content
+else:
+    # プレーンテキストの場合
+    html_content = f'<pre>{content}</pre>'
+
+# HTMLテンプレート
+html_template = f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"utf-8\">
+    <title>${{ inputs.title }}</title>
+    <style>
+        body {{
+            font-family: 'Noto Sans CJK JP', Arial, sans-serif;
+            margin: 40px;
+            line-height: 1.6;
+        }}
+        h1, h2, h3 {{
+            color: #333;
+        }}
+        code {{
+            background-color: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }}
+        pre {{
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }}
+        th {{
+            background-color: #f2f2f2;
+        }}
+    </style>
+</head>
+<body>
+    <h1>${{ inputs.title }}</h1>
+    <p><strong>Author:</strong> ${{ inputs.author }}</p>
+    <p><strong>Generated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <hr>
+    {html_content}
+</body>
+</html>
+'''
+
+# 一時HTMLファイルを作成
+temp_html = '${{ inputs.output_dir }}/temp.html'
+with open(temp_html, 'w', encoding='utf-8') as f:
+    f.write(html_template)
+
+# PDF生成オプション
+options = {
+    'page-size': '${{ inputs.paper_size }}',
+    'margin-top': '20mm',
+    'margin-right': '20mm',
+    'margin-bottom': '20mm',
+    'margin-left': '20mm',
+    'encoding': 'UTF-8',
+    'no-outline': None,
+    'enable-local-file-access': None
+}
+
+# PDFを生成
+output_pdf = '${{ inputs.output_dir }}/document.pdf'
+pdfkit.from_file(temp_html, output_pdf, options=options)
+
+# 一時ファイルを削除
+os.remove(temp_html)
+
+print(f'PDF created: {output_pdf}')
+"
+          
+          # ページ数を取得（pdftkがあれば使用）
+          if command -v pdftk >/dev/null 2>&1; then
+            PAGE_COUNT=$(pdftk "${{ inputs.output_dir }}/document.pdf" dump_data | grep NumberOfPages | awk '{print $2}')
+          else
+            # 簡易的な推定
+            PAGE_COUNT="1"
+          fi
+          
+          # 結果を設定
+          echo "pdf_path=${{ inputs.output_dir }}/document.pdf" >> $GITHUB_OUTPUT
+          echo "page_count=$PAGE_COUNT" >> $GITHUB_OUTPUT

@@ -1,0 +1,165 @@
+name: srt-sync
+description: SRT字幕タイミング同期の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      srt_path:
+        description: '入力SRTファイルパス'
+        required: true
+        type: string
+      audio_path:
+        description: '参照音声ファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      offset:
+        description: 'タイミングオフセット（秒）'
+        required: false
+        type: string
+        default: '0'
+      speed_factor:
+        description: '速度調整係数'
+        required: false
+        type: string
+        default: '1.0'
+    outputs:
+      synced_path:
+        description: '同期済みSRTファイルパス'
+        value: ${{ jobs.sync.outputs.synced_path }}
+      adjustments:
+        description: '調整情報'
+        value: ${{ jobs.sync.outputs.adjustments }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      synced_path: ${{ steps.execute.outputs.synced_path }}
+      adjustments: ${{ steps.execute.outputs.adjustments }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install pysrt
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Sync SRT Timing
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # 音声の長さを取得
+          AUDIO_DURATION=$(ffprobe -v quiet -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.audio_path }}")
+          echo "Audio duration: $AUDIO_DURATION seconds"
+          
+          # Pythonスクリプトで字幕同期
+          python3 -c "
+import re
+import json
+from datetime import timedelta
+
+# SRTタイムスタンプをパース
+def parse_timestamp(ts):
+    hours, minutes, seconds_ms = ts.strip().split(':')
+    seconds, ms = seconds_ms.split(',')
+    total_seconds = int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(ms) / 1000
+    return total_seconds
+
+# 秒数をSRTタイムスタンプに変換
+def format_timestamp(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    ms = int((seconds % 1) * 1000)
+    return f'{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}'
+
+# SRTファイル読み込み
+with open('${{ inputs.srt_path }}', 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# エントリーをパース
+entries = re.split(r'\n\n+', content.strip())
+synced_entries = []
+adjustments = []
+
+offset = float('${{ inputs.offset }}')
+speed_factor = float('${{ inputs.speed_factor }}')
+audio_duration = float('$AUDIO_DURATION')
+
+for entry in entries:
+    lines = entry.strip().split('\n')
+    if len(lines) >= 3:
+        num = lines[0]
+        timestamp_line = lines[1]
+        text = '\n'.join(lines[2:])
+        
+        # タイムスタンプを解析
+        match = re.match(r'(\d+:\d+:\d+,\d+) --> (\d+:\d+:\d+,\d+)', timestamp_line)
+        if match:
+            start_time = parse_timestamp(match.group(1))
+            end_time = parse_timestamp(match.group(2))
+            
+            # タイミング調整
+            adjusted_start = (start_time * speed_factor) + offset
+            adjusted_end = (end_time * speed_factor) + offset
+            
+            # 音声の長さを超えないように制限
+            adjusted_start = max(0, min(adjusted_start, audio_duration))
+            adjusted_end = max(adjusted_start, min(adjusted_end, audio_duration))
+            
+            # 調整情報を記録
+            adjustments.append({
+                'entry': int(num),
+                'original_start': start_time,
+                'adjusted_start': adjusted_start,
+                'shift': adjusted_start - start_time
+            })
+            
+            # 新しいタイムスタンプ
+            new_timestamp = f'{format_timestamp(adjusted_start)} --> {format_timestamp(adjusted_end)}'
+            
+            # 同期済みエントリー
+            synced_entry = f'{num}\n{new_timestamp}\n{text}'
+            synced_entries.append(synced_entry)
+
+# 同期済みSRTを保存
+output_path = '${{ inputs.output_dir }}/synced.srt'
+with open(output_path, 'w', encoding='utf-8') as f:
+    f.write('\n\n'.join(synced_entries))
+
+# 調整情報を保存
+adjustments_summary = {
+    'total_entries': len(synced_entries),
+    'offset_applied': offset,
+    'speed_factor': speed_factor,
+    'audio_duration': audio_duration,
+    'average_shift': sum(a['shift'] for a in adjustments) / len(adjustments) if adjustments else 0
+}
+
+with open('${{ inputs.output_dir }}/sync_adjustments.json', 'w') as f:
+    json.dump(adjustments_summary, f, indent=2)
+
+print(f'Synced {len(synced_entries)} subtitles')
+print(f'Average shift: {adjustments_summary[\"average_shift\"]:.2f} seconds')
+"
+          
+          # 結果確認
+          if [ -f "${{ inputs.output_dir }}/synced.srt" ]; then
+            ADJUSTMENTS=$(cat "${{ inputs.output_dir }}/sync_adjustments.json" | jq -c .)
+            echo "synced_path=${{ inputs.output_dir }}/synced.srt" >> $GITHUB_OUTPUT
+            echo "adjustments=$ADJUSTMENTS" >> $GITHUB_OUTPUT
+          else
+            echo "❌ SRT sync failed"
+            exit 1
+          fi

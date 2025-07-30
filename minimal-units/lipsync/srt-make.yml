@@ -1,0 +1,132 @@
+name: srt-make
+description: SRT字幕生成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      audio_path:
+        description: '音声ファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      language:
+        description: '字幕言語'
+        required: false
+        type: string
+        default: 'ja'
+      segments_json:
+        description: 'セグメント情報JSON（オプション）'
+        required: false
+        type: string
+    outputs:
+      srt_path:
+        description: '生成されたSRTファイルパス'
+        value: ${{ jobs.generate.outputs.srt_path }}
+      segments_count:
+        description: 'セグメント数'
+        value: ${{ jobs.generate.outputs.segments_count }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      srt_path: ${{ steps.execute.outputs.srt_path }}
+      segments_count: ${{ steps.execute.outputs.segments_count }}
+    
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate SRT from Audio
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # SRTファイル生成
+          if [ -n "${{ inputs.segments_json }}" ]; then
+            # セグメント情報がある場合はそれを使用
+            echo "${{ inputs.segments_json }}" > "${{ inputs.output_dir }}/segments.json"
+            
+            # JSONからSRT形式に変換
+            python3 -c "
+import json
+import sys
+
+segments = json.loads('${{ inputs.segments_json }}')
+srt_content = []
+
+for i, seg in enumerate(segments, 1):
+    start_time = seg.get('start', 0)
+    end_time = seg.get('end', start_time + 1)
+    text = seg.get('text', '')
+    
+    # タイムコード変換
+    def format_time(seconds):
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f'{hours:02d}:{minutes:02d}:{secs:06.3f}'.replace('.', ',')
+    
+    srt_content.append(f'{i}')
+    srt_content.append(f'{format_time(start_time)} --> {format_time(end_time)}')
+    srt_content.append(text)
+    srt_content.append('')
+
+with open('${{ inputs.output_dir }}/subtitles.srt', 'w', encoding='utf-8') as f:
+    f.write('\\n'.join(srt_content))
+
+print(f'Generated {len(segments)} segments')
+"
+            SEGMENTS_COUNT=$(python3 -c "import json; print(len(json.loads('${{ inputs.segments_json }}')))")
+          else
+            # セグメント情報がない場合は音声から推定
+            # 簡易的な実装：固定長セグメントを生成
+            DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ inputs.audio_path }}" || echo "10")
+            
+            # 5秒ごとのセグメントを作成
+            python3 -c "
+duration = float('$DURATION')
+segments = []
+current_time = 0
+segment_length = 5
+
+while current_time < duration:
+    end_time = min(current_time + segment_length, duration)
+    segments.append({
+        'start': current_time,
+        'end': end_time,
+        'text': f'Segment {len(segments) + 1}'
+    })
+    current_time = end_time
+
+# SRT生成
+srt_content = []
+for i, seg in enumerate(segments, 1):
+    def format_time(seconds):
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f'{hours:02d}:{minutes:02d}:{secs:06.3f}'.replace('.', ',')
+    
+    srt_content.append(f'{i}')
+    srt_content.append(f'{format_time(seg['start'])} --> {format_time(seg['end'])}')
+    srt_content.append(seg['text'])
+    srt_content.append('')
+
+with open('${{ inputs.output_dir }}/subtitles.srt', 'w', encoding='utf-8') as f:
+    f.write('\\n'.join(srt_content))
+
+print(f'Generated {len(segments)} segments')
+"
+            SEGMENTS_COUNT=$(python3 -c "print(int(float('$DURATION') / 5) + 1)")
+          fi
+          
+          # 出力設定
+          echo "srt_path=${{ inputs.output_dir }}/subtitles.srt" >> $GITHUB_OUTPUT
+          echo "segments_count=$SEGMENTS_COUNT" >> $GITHUB_OUTPUT

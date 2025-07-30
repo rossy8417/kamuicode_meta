@@ -1,0 +1,90 @@
+name: planning-ccsdk
+description: AI動画制作計画立案の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      concept:
+        description: 'ユーザーのコンセプト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      total_videos:
+        description: '生成する動画の数'
+        required: false
+        type: string
+        default: '1'
+    outputs:
+      planning_completed:
+        description: '企画完了ステータス'
+        value: ${{ jobs.planning.outputs.completed }}
+      video_plan_path:
+        description: '計画書のパス'
+        value: ${{ jobs.planning.outputs.video_plan_path }}
+    secrets:
+      anthropic_api_key:
+        description: 'Anthropic API Key'
+        required: true
+
+jobs:
+  planning:
+    runs-on: ubuntu-latest
+    outputs:
+      completed: ${{ steps.execute.outputs.completed }}
+      video_plan_path: ${{ steps.execute.outputs.video_plan_path }}
+    
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: npm install @anthropic-ai/claude-code
+      
+      - name: Create output directory
+        run: mkdir -p ${{ inputs.output_dir }}
+      
+      - name: Execute Planning Agent
+        id: execute
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          # プロンプトの構築
+          PROMPT="あなたは動画制作の専門プランナーです。ユーザーの指示から${{ inputs.total_videos }}つの動画を生成するための詳細な計画を立ててください。
+
+          **ユーザーの指示**: ${{ inputs.concept }}
+          **生成する動画数**: ${{ inputs.total_videos }}
+
+          **タスク**:
+          1. ユーザーの指示を分析し、${{ inputs.total_videos }}つの動画コンセプトを企画
+          2. 各動画用の高品質な画像生成プロンプトを作成（英語）
+          3. 各動画のコンセプトと方向性を定義
+          4. 計画書を「${{ inputs.output_dir }}/video-plan.md」に保存
+          5. 各動画用のファイルを作成：
+             - ${{ inputs.output_dir }}/image-prompt-{番号}.txt（画像生成プロンプト、英語、1行）
+             - ${{ inputs.output_dir }}/video-concept-{番号}.txt（動画コンセプト）
+
+          **重要**: 
+          - 必ず${{ inputs.total_videos }}個分のファイルを作成
+          - 画像生成プロンプトは英語で作成
+          - txtファイルは機械処理用（1行テキスト）"
+          
+          # Claude Code CLIの実行
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write,Edit" \
+            --max-turns 25 \
+            --permission-mode "acceptEdits" \
+            -p "$PROMPT"
+          
+          # 出力の確認
+          if [ -f "${{ inputs.output_dir }}/video-plan.md" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "video_plan_path=${{ inputs.output_dir }}/video-plan.md" >> $GITHUB_OUTPUT
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi

@@ -1,0 +1,192 @@
+name: data-visualization
+description: データ可視化の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      data_path:
+        description: 'データファイルパス（CSV/JSON）'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      chart_types:
+        description: 'グラフタイプ（カンマ区切り：bar,line,scatter,pie,heatmap）'
+        required: false
+        type: string
+        default: 'bar,line'
+      theme:
+        description: 'ビジュアルテーマ'
+        required: false
+        type: string
+        default: 'modern'
+      interactive:
+        description: 'インタラクティブグラフを生成'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      visualization_paths:
+        description: '生成されたグラフのパス一覧'
+        value: ${{ jobs.visualize.outputs.visualization_paths }}
+      chart_count:
+        description: '生成されたグラフ数'
+        value: ${{ jobs.visualize.outputs.chart_count }}
+      html_report:
+        description: 'HTMLレポートパス'
+        value: ${{ jobs.visualize.outputs.html_report }}
+
+jobs:
+  visualize:
+    runs-on: ubuntu-latest
+    outputs:
+      visualization_paths: ${{ steps.execute.outputs.visualization_paths }}
+      chart_count: ${{ steps.execute.outputs.chart_count }}
+      html_report: ${{ steps.execute.outputs.html_report }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install pandas matplotlib seaborn plotly bokeh
+      
+      - name: Create Visualizations
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # Pythonスクリプトで可視化
+          python3 -c "
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import json
+import os
+
+# テーマ設定
+theme = '${{ inputs.theme }}'
+if theme == 'modern':
+    plt.style.use('seaborn-v0_8-darkgrid')
+    sns.set_palette('husl')
+elif theme == 'classic':
+    plt.style.use('classic')
+elif theme == 'minimal':
+    plt.style.use('seaborn-v0_8-whitegrid')
+
+# データ読み込み
+data_path = '${{ inputs.data_path }}'
+if data_path.endswith('.csv'):
+    df = pd.read_csv(data_path)
+elif data_path.endswith('.json'):
+    df = pd.read_json(data_path)
+else:
+    # テストデータ
+    df = pd.DataFrame({
+        'category': ['A', 'B', 'C', 'D', 'E'],
+        'values': [23, 45, 56, 78, 32],
+        'trend': [10, 25, 45, 60, 55]
+    })
+
+# グラフタイプをパース
+chart_types = '${{ inputs.chart_types }}'.split(',')
+generated_charts = []
+
+# 各グラフタイプを生成
+for i, chart_type in enumerate(chart_types):
+    plt.figure(figsize=(10, 6))
+    
+    if chart_type == 'bar' and 'category' in df.columns and 'values' in df.columns:
+        plt.bar(df['category'], df['values'])
+        plt.title('Bar Chart')
+        plt.xlabel('Category')
+        plt.ylabel('Values')
+    
+    elif chart_type == 'line' and 'trend' in df.columns:
+        plt.plot(df.index, df['trend'], marker='o')
+        plt.title('Line Chart')
+        plt.xlabel('Index')
+        plt.ylabel('Trend')
+    
+    elif chart_type == 'scatter' and len(df.columns) >= 2:
+        plt.scatter(df.iloc[:, 0], df.iloc[:, 1])
+        plt.title('Scatter Plot')
+        plt.xlabel(df.columns[0])
+        plt.ylabel(df.columns[1])
+    
+    elif chart_type == 'pie' and 'values' in df.columns:
+        plt.pie(df['values'][:5], labels=df.iloc[:5, 0], autopct='%1.1f%%')
+        plt.title('Pie Chart')
+    
+    elif chart_type == 'heatmap' and len(df.select_dtypes(include=['float64', 'int64']).columns) > 1:
+        numeric_df = df.select_dtypes(include=['float64', 'int64'])
+        sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm')
+        plt.title('Correlation Heatmap')
+    
+    else:
+        # デフォルト：最初の数値列をプロット
+        numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
+        if len(numeric_cols) > 0:
+            plt.plot(df[numeric_cols[0]])
+            plt.title(f'{chart_type.capitalize()} Chart')
+    
+    # 保存
+    chart_path = f'${{ inputs.output_dir }}/chart_{i+1}_{chart_type}.png'
+    plt.tight_layout()
+    plt.savefig(chart_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    generated_charts.append(chart_path)
+
+# HTMLレポート生成
+html_content = '''<!DOCTYPE html>
+<html>
+<head>
+    <title>Data Visualization Report</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 40px; }}
+        .chart {{ margin: 20px 0; text-align: center; }}
+        img {{ max-width: 100%; height: auto; }}
+    </style>
+</head>
+<body>
+    <h1>Data Visualization Report</h1>
+    <p>Generated charts: {}</p>
+    {}
+</body>
+</html>'''.format(
+    len(generated_charts),
+    '\\n'.join([f'<div class=\"chart\"><img src=\"{os.path.basename(c)}\" /></div>' for c in generated_charts])
+)
+
+with open('${{ inputs.output_dir }}/report.html', 'w') as f:
+    f.write(html_content)
+
+# 結果を保存
+result = {
+    'charts': generated_charts,
+    'count': len(generated_charts),
+    'data_shape': list(df.shape),
+    'columns': list(df.columns)
+}
+
+with open('${{ inputs.output_dir }}/visualization_metadata.json', 'w') as f:
+    json.dump(result, f, indent=2)
+
+print(f'Generated {len(generated_charts)} charts')
+"
+          
+          # 結果を確認
+          CHART_COUNT=$(find "${{ inputs.output_dir }}" -name "*.png" | wc -l)
+          VIZ_PATHS=$(find "${{ inputs.output_dir }}" -name "*.png" | tr '\n' ',' | sed 's/,$//')
+          
+          # 出力設定
+          echo "visualization_paths=$VIZ_PATHS" >> $GITHUB_OUTPUT
+          echo "chart_count=$CHART_COUNT" >> $GITHUB_OUTPUT
+          echo "html_report=${{ inputs.output_dir }}/report.html" >> $GITHUB_OUTPUT

@@ -1,0 +1,73 @@
+name: subtitle-overlay
+description: 字幕焼き込みの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      video_path:
+        description: '入力動画ファイルパス'
+        required: true
+        type: string
+      srt_path:
+        description: 'SRT字幕ファイルパス'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      font_size:
+        description: 'フォントサイズ'
+        required: false
+        type: string
+        default: '24'
+      font_color:
+        description: 'フォントカラー'
+        required: false
+        type: string
+        default: 'white'
+      background_color:
+        description: '背景カラー'
+        required: false
+        type: string
+        default: 'black@0.5'
+    outputs:
+      video_path:
+        description: '字幕付き動画のパス'
+        value: ${{ jobs.overlay.outputs.video_path }}
+
+jobs:
+  overlay:
+    runs-on: ubuntu-latest
+    outputs:
+      video_path: ${{ steps.execute.outputs.video_path }}
+    
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Overlay Subtitles
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # 字幕スタイル設定
+          SUBTITLE_STYLE="FontSize=${{ inputs.font_size }},FontName=Arial,PrimaryColour=&HFFFFFF&,BackColour=&H80000000&,BorderStyle=4,Outline=1"
+          
+          # FFmpegで字幕を焼き込み
+          ffmpeg -i "${{ inputs.video_path }}" \
+            -vf "subtitles='${{ inputs.srt_path }}':force_style='$SUBTITLE_STYLE'" \
+            -c:a copy \
+            -y "${{ inputs.output_dir }}/video_with_subtitles.mp4"
+          
+          # 結果確認
+          if [ -f "${{ inputs.output_dir }}/video_with_subtitles.mp4" ]; then
+            echo "✅ Subtitles overlaid successfully"
+            echo "video_path=${{ inputs.output_dir }}/video_with_subtitles.mp4" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Subtitle overlay failed"
+            exit 1
+          fi

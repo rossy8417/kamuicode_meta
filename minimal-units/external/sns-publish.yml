@@ -1,0 +1,127 @@
+name: sns-publish
+description: SNS投稿の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      content:
+        description: '投稿内容'
+        required: true
+        type: string
+      media_paths:
+        description: 'メディアファイルパス（カンマ区切り）'
+        required: false
+        type: string
+        default: ''
+      platform:
+        description: 'SNSプラットフォーム（twitter/facebook/instagram）'
+        required: false
+        type: string
+        default: 'twitter'
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+    outputs:
+      post_id:
+        description: '投稿ID'
+        value: ${{ jobs.publish.outputs.post_id }}
+      post_url:
+        description: '投稿URL'
+        value: ${{ jobs.publish.outputs.post_url }}
+      status:
+        description: '投稿ステータス'
+        value: ${{ jobs.publish.outputs.status }}
+    secrets:
+      sns_api_key:
+        description: 'SNS API Key'
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      post_id: ${{ steps.execute.outputs.post_id }}
+      post_url: ${{ steps.execute.outputs.post_url }}
+      status: ${{ steps.execute.outputs.status }}
+    
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Publish to SNS
+        id: execute
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # SNS投稿シミュレーション
+          python3 -c "
+import json
+import os
+import hashlib
+from datetime import datetime
+
+# 投稿内容
+content = '''${{ inputs.content }}'''
+media_paths = '${{ inputs.media_paths }}'.split(',') if '${{ inputs.media_paths }}' else []
+platform = '${{ inputs.platform }}'
+
+# 投稿IDを生成（シミュレーション）
+post_id = hashlib.md5(f'{content}{datetime.now()}'.encode()).hexdigest()[:10]
+
+# プラットフォーム別の処理
+if platform == 'twitter':
+    # 文字数制限チェック
+    if len(content) > 280:
+        content = content[:277] + '...'
+    post_url = f'https://twitter.com/status/{post_id}'
+    char_limit = 280
+elif platform == 'facebook':
+    post_url = f'https://facebook.com/posts/{post_id}'
+    char_limit = 63206
+elif platform == 'instagram':
+    post_url = f'https://instagram.com/p/{post_id}'
+    char_limit = 2200
+else:
+    post_url = f'https://{platform}.com/posts/{post_id}'
+    char_limit = 5000
+
+# 投稿結果をシミュレート
+result = {
+    'post_id': post_id,
+    'post_url': post_url,
+    'platform': platform,
+    'content': content,
+    'media_count': len(media_paths),
+    'character_count': len(content),
+    'character_limit': char_limit,
+    'posted_at': datetime.now().isoformat(),
+    'status': 'published'
+}
+
+# 結果を保存
+with open('${{ inputs.output_dir }}/sns_post_result.json', 'w') as f:
+    json.dump(result, f, indent=2)
+
+# ログ出力
+print(f'Posted to {platform}')
+print(f'Post ID: {post_id}')
+print(f'URL: {post_url}')
+print(f'Character count: {len(content)}/{char_limit}')
+if media_paths:
+    print(f'Media files: {len(media_paths)}')
+"
+          
+          # 結果を取得
+          RESULT=$(cat "${{ inputs.output_dir }}/sns_post_result.json")
+          POST_ID=$(echo "$RESULT" | jq -r '.post_id')
+          POST_URL=$(echo "$RESULT" | jq -r '.post_url')
+          STATUS=$(echo "$RESULT" | jq -r '.status')
+          
+          # 出力設定
+          echo "post_id=$POST_ID" >> $GITHUB_OUTPUT
+          echo "post_url=$POST_URL" >> $GITHUB_OUTPUT
+          echo "status=$STATUS" >> $GITHUB_OUTPUT

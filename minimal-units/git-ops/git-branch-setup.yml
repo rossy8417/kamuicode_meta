@@ -1,0 +1,57 @@
+name: git-branch-setup
+description: Gitブランチ作成の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      branch_prefix:
+        description: 'ブランチ名のプレフィックス'
+        required: false
+        type: string
+        default: 'feature'
+      folder_prefix:
+        description: 'フォルダ名のプレフィックス'
+        required: false
+        type: string
+        default: 'project'
+    outputs:
+      branch_name:
+        description: '作成されたブランチ名'
+        value: ${{ jobs.setup-branch.outputs.branch_name }}
+      folder_name:
+        description: '作成されたフォルダ名'
+        value: ${{ jobs.setup-branch.outputs.folder_name }}
+
+jobs:
+  setup-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      branch_name: ${{ steps.create.outputs.branch_name }}
+      folder_name: ${{ steps.create.outputs.folder_name }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Create branch
+        id: create
+        run: |
+          # ブランチ名とフォルダ名の生成
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BRANCH_NAME="${{ inputs.branch_prefix }}/${TIMESTAMP}-${{ github.run_id }}"
+          FOLDER_NAME="${{ inputs.folder_prefix }}-${TIMESTAMP}"
+          
+          # Git設定
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # ブランチ作成とプッシュ
+          git checkout -b "$BRANCH_NAME"
+          git push origin "$BRANCH_NAME"
+          
+          # 出力の設定
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "folder_name=$FOLDER_NAME" >> $GITHUB_OUTPUT
+          
+          echo "✅ Created branch: $BRANCH_NAME"
+          echo "📁 Folder name: $FOLDER_NAME"
