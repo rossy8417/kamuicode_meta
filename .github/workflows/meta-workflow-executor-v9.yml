@@ -111,6 +111,12 @@ jobs:
           echo "$STEPBACK_ANSWERS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           
+      - name: Upload Requirements (Internal)
+        uses: actions/upload-artifact@v4
+        with:
+          name: requirements-metadata
+          path: generated/metadata/requirements/
+          retention-days: 1
 
   # Phase 2: Ultra-Detailed Task Decomposition with Claude Code SDK
   decompose-tasks:
@@ -271,6 +277,12 @@ jobs:
           echo "- Parallel groups: $(echo $PARALLEL_GROUPS | jq 'keys | length')"
           echo "- Estimated duration: $(jq -r '.total_estimated_duration' generated/metadata/task-decomposition/task-plan.json)"
           
+      - name: Upload Task Plan (Internal)
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-decomposition
+          path: generated/metadata/task-decomposition/
+          retention-days: 1
 
   # Phase 3: Select Minimal Units from All 55 Available Units
   select-minimal-units:
@@ -295,6 +307,11 @@ jobs:
           npm init -y
           npm install @anthropic-ai/claude-code js-yaml
           
+      - name: Download Task Plan (Internal)
+        uses: actions/download-artifact@v4
+        with:
+          name: task-decomposition
+          path: generated/metadata/task-decomposition/
           
       - name: Select Minimal Units with Full Catalog
         id: select
@@ -497,6 +514,12 @@ jobs:
           echo "- Parallel optimization: $(echo $PARALLEL_OPT | jq -r '.strategy')"
           echo "- Categories covered: $(jq -r '.unit_statistics.by_category | keys | join(", ")' generated/metadata/unit-selection/selected-units.json)"
           
+      - name: Upload Unit Selection (Internal)
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-selection
+          path: generated/metadata/unit-selection/
+          retention-days: 1
 
   # Phase 4A: Compose Original Dynamic Workflow
   compose-original-workflow:
