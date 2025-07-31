@@ -33,13 +33,16 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
 
 ## Current Architecture (v9.0)
 
-### Minimal Unit Based Dynamic Meta Workflow System
+### Minimal Unit Based Dual-Approach Meta Workflow System
 - **Claude Code SDK Integration**: Dynamic task decomposition using Claude Code SDK
 - **55 Minimal Units**: Complete catalog of reusable workflow components
+- **Dual Workflow Generation**:
+  - **Original Approach**: Dynamic composition from minimal units
+  - **Orchestrator Approach**: Following kamuicode-workflow patterns
+- **Best-of-Both Selection**: Compare and merge the best elements from both approaches
 - **Ultra-Detailed Task Decomposition**: Human-like task breakdown with proper dependencies
 - **Task Dependency Management**: Strict execution order based on data flow and prerequisites
 - **Optimal Parallel Processing**: 3-way, 4-way, or 5-way parallel execution where dependencies allow
-- **Human Thought Process Simulation**: Natural workflow patterns following human logic
 - **Quality Validation**: YAML syntax, GitHub Actions structure, dependency verification
 - **Safe Deployment**: Generated workflows deployed with .disabled extension for review
 
@@ -387,14 +390,17 @@ Each workflow must include:
 - **Validation criteria and error handling**
 - **Duration estimates (5-60 minutes total)**
 
-#### Dynamic Workflow Generation Implementation
+#### Dual-Approach Workflow Generation Implementation
 The main workflow now uses:
 1. **Task Decomposition** → Ultra-detailed task breakdown using Claude Code SDK
 2. **Unit Selection** → Select from 55 minimal units based on task requirements
-3. **Dependency Analysis** → Determine execution order and parallel opportunities
-4. **Workflow Composition** → Generate workflow following kamuicode-workflow patterns
-5. **Validation** → YAML syntax, GitHub Actions structure, dependency verification
-6. **Safe Deployment** → `.github/workflows/generated/` with .disabled extension
+3. **Parallel Workflow Generation**:
+   - **Original Approach**: Dynamic composition from minimal units
+   - **Orchestrator Approach**: Following kamuicode-workflow patterns
+4. **Comparison & Merge** → Analyze both workflows and select best elements
+5. **Final Composition** → Create hybrid workflow with best-of-both approach
+6. **Validation** → YAML syntax, GitHub Actions structure, dependency verification
+7. **Safe Deployment** → `.github/workflows/generated/` with .disabled extension
 
 ### Development Best Practices
 

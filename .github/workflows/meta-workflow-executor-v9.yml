@@ -519,8 +519,8 @@ jobs:
           path: generated/metadata/unit-selection/
           retention-days: 1
 
-  # Phase 4: Compose Human-like Dynamic Workflow
-  compose-workflow:
+  # Phase 4A: Compose Original Dynamic Workflow
+  compose-original-workflow:
     needs: [extract-requirements, select-minimal-units, decompose-tasks]
     runs-on: ubuntu-latest
     outputs:
@@ -554,11 +554,11 @@ jobs:
           
           mkdir -p generated/workflows
           
-          # Create enhanced composition prompt
-          cat > generated/metadata/compose-prompt.md << 'EOF'
-          # Human-like Workflow Composition with Optimal Parallelization
+          # Create original approach composition prompt
+          cat > generated/metadata/compose-original-prompt.md << 'EOF'
+          # Original Dynamic Workflow Composition
           
-          Compose a comprehensive GitHub Actions workflow that mimics human workflow patterns:
+          Create a workflow based on minimal units using original approach:
           
           ## Selected Units
           $(cat generated/metadata/unit-selection/selected-units.json)
@@ -569,7 +569,7 @@ jobs:
           ## User Requirements
           ${{ needs.extract-requirements.outputs.user_request }}
           
-          ## Composition Guidelines
+          ## Composition Guidelines (Original Approach)
           
           ### 1. Human-like Workflow Structure
           Create a workflow that follows natural human patterns:
@@ -657,7 +657,7 @@ jobs:
               ...
           ```
           
-          Save the complete workflow as generated/workflows/dynamic-workflow.yml
+          Save the complete workflow as generated/workflows/original-workflow.yml
           
           Also create a complexity report in generated/workflows/workflow-complexity.json:
           ```json
@@ -671,15 +671,15 @@ jobs:
           ```
           EOF
           
-          # Execute comprehensive composition
+          # Execute original approach composition
           npx @anthropic-ai/claude-code \
-            -f generated/metadata/compose-prompt.md \
+            -f generated/metadata/compose-original-prompt.md \
             --allowedTools "Read,Write,Edit" \
             --permission-mode "acceptEdits" \
             --max-tokens 12000 || {
               # Create fallback workflow
               echo "⚠️ Creating fallback workflow..."
-              cat > generated/workflows/dynamic-workflow.yml << 'FALLBACK'
+              cat > generated/workflows/original-workflow.yml << 'FALLBACK'
           name: "Fallback Dynamic Workflow"
           run-name: "🚀 Fallback Workflow | ${{ github.actor }}"
           
@@ -705,44 +705,320 @@ jobs:
             }
           
           # Validate and analyze generated workflow
-          if [ -f "generated/workflows/dynamic-workflow.yml" ]; then
+          if [ -f "generated/workflows/original-workflow.yml" ]; then
             echo "workflow_ready=true" >> $GITHUB_OUTPUT
-            echo "workflow_path=generated/workflows/dynamic-workflow.yml" >> $GITHUB_OUTPUT
+            echo "workflow_path=generated/workflows/original-workflow.yml" >> $GITHUB_OUTPUT
             
             # Calculate complexity
-            JOB_COUNT=$(grep -c "^\s*[a-zA-Z0-9_-]*:\s*$" generated/workflows/dynamic-workflow.yml | grep -A1 "jobs:" | tail -1 || echo "1")
+            JOB_COUNT=$(grep -c "^\s*[a-zA-Z0-9_-]*:\s*$" generated/workflows/original-workflow.yml | grep -A1 "jobs:" | tail -1 || echo "1")
             COMPLEXITY=$(jq -r '.complexity_score // 50' generated/workflows/workflow-complexity.json 2>/dev/null || echo "50")
             
             echo "workflow_complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
-            echo "📊 Workflow Complexity Score: $COMPLEXITY/100"
+            echo "📊 Original Workflow Complexity Score: $COMPLEXITY/100"
           else
             echo "workflow_ready=false" >> $GITHUB_OUTPUT
             echo "workflow_complexity=0" >> $GITHUB_OUTPUT
           fi
           
-      - name: Upload Generated Workflow
+      - name: Upload Original Workflow
         if: steps.compose.outputs.workflow_ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: generated-workflow
+          name: original-workflow
           path: generated/workflows/
           retention-days: 7
 
-  # Phase 5: Validate & Deploy with Quality Assessment
-  validate-and-deploy:
-    needs: [compose-workflow, select-minimal-units, decompose-tasks, validate-trigger]
+  # Phase 4B: Compose Orchestrator-based Workflow
+  compose-orchestrator-workflow:
+    needs: [extract-requirements, select-minimal-units, decompose-tasks]
     runs-on: ubuntu-latest
-    if: needs.compose-workflow.outputs.workflow_ready == 'true'
+    outputs:
+      workflow_path: ${{ steps.compose.outputs.workflow_path }}
+      workflow_ready: ${{ steps.compose.outputs.workflow_ready }}
+      workflow_complexity: ${{ steps.compose.outputs.workflow_complexity }}
     
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Download Generated Workflow
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code js-yaml
+          
+      - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: generated-workflow
+          path: generated/metadata/
+          
+      - name: Compose Orchestrator-based Workflow
+        id: compose
+        run: |
+          echo "🔧 Composing orchestrator-pattern workflow..."
+          
+          mkdir -p generated/workflows
+          
+          # Create orchestrator approach composition prompt
+          cat > generated/metadata/compose-orchestrator-prompt.md << 'EOF'
+          # Orchestrator-based Workflow Composition
+          
+          Create a workflow based on kamuicode-workflow orchestrator patterns:
+          
+          ## Selected Units
+          $(cat generated/metadata/unit-selection/selected-units.json)
+          
+          ## Task Decomposition
+          $(cat generated/metadata/task-decomposition/task-plan.json)
+          
+          ## User Requirements
+          ${{ needs.extract-requirements.outputs.user_request }}
+          
+          ## Composition Guidelines (Orchestrator Pattern)
+          
+          ### 1. Reference kamuicode-workflow patterns
+          Study the orchestrator patterns in kamuicode-workflow/module-workflow/:
+          - orchestrator-video-generation.yml
+          - orchestrator-banner-advertisement-creation.yml
+          - orchestrator-news-video-generation.yml
+          
+          ### 2. Module Integration Pattern
+          Follow the module integration approach:
+          - Setup branch module
+          - Planning module
+          - Generation modules
+          - Assembly modules
+          - PR creation module
+          
+          ### 3. Workflow Structure
+          ```yaml
+          name: orchestrator-{{workflow-type}}
+          
+          on:
+            workflow_dispatch:
+              inputs:
+                concept:
+                  description: 'Workflow concept'
+                  required: true
+                  type: string
+          
+          jobs:
+            # 1. Setup
+            setup:
+              uses: ./.github/workflows/module-setup-branch.yml
+              with:
+                concept: ${{ inputs.concept }}
+                
+            # 2. Planning
+            planning:
+              needs: setup
+              uses: ./.github/workflows/module-planning-ccsdk.yml
+              # ...
+          ```
+          
+          Save the complete workflow as generated/workflows/orchestrator-workflow.yml
+          
+          Create a complexity report in generated/workflows/orchestrator-complexity.json
+          EOF
+          
+          # Execute orchestrator approach composition
+          npx @anthropic-ai/claude-code \
+            -f generated/metadata/compose-orchestrator-prompt.md \
+            --allowedTools "Read,Write,Edit" \
+            --permission-mode "acceptEdits" \
+            --max-tokens 12000 || {
+              # Create fallback workflow
+              echo "⚠️ Creating fallback orchestrator workflow..."
+              cat > generated/workflows/orchestrator-workflow.yml << 'FALLBACK'
+          name: "Fallback Orchestrator Workflow"
+          run-name: "🚀 Fallback Orchestrator | ${{ github.actor }}"
+          
+          on:
+            workflow_dispatch:
+              inputs:
+                concept:
+                  description: 'Concept'
+                  required: true
+                  type: string
+          
+          jobs:
+            execute:
+              runs-on: ubuntu-latest
+              steps:
+                - name: Fallback Execution
+                  run: echo "Fallback orchestrator executed"
+          FALLBACK
+              
+              echo '{"total_jobs":1,"parallel_groups":1,"max_parallel_jobs":1,"estimated_duration":"5 minutes","complexity_score":10}' \
+                > generated/workflows/orchestrator-complexity.json
+            }
+          
+          # Validate and analyze generated workflow
+          if [ -f "generated/workflows/orchestrator-workflow.yml" ]; then
+            echo "workflow_ready=true" >> $GITHUB_OUTPUT
+            echo "workflow_path=generated/workflows/orchestrator-workflow.yml" >> $GITHUB_OUTPUT
+            
+            # Calculate complexity
+            JOB_COUNT=$(grep -c "^\s*[a-zA-Z0-9_-]*:\s*$" generated/workflows/orchestrator-workflow.yml | grep -A1 "jobs:" | tail -1 || echo "1")
+            COMPLEXITY=$(jq -r '.complexity_score // 50' generated/workflows/orchestrator-complexity.json 2>/dev/null || echo "50")
+            
+            echo "workflow_complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
+            echo "📊 Orchestrator Workflow Complexity Score: $COMPLEXITY/100"
+          else
+            echo "workflow_ready=false" >> $GITHUB_OUTPUT
+            echo "workflow_complexity=0" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Orchestrator Workflow
+        if: steps.compose.outputs.workflow_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-workflow
           path: generated/workflows/
+          retention-days: 7
+
+  # Phase 5: Compare and Merge Best Approaches
+  compare-and-merge:
+    needs: [compose-original-workflow, compose-orchestrator-workflow]
+    runs-on: ubuntu-latest
+    outputs:
+      final_workflow_path: ${{ steps.merge.outputs.final_path }}
+      final_workflow_ready: ${{ steps.merge.outputs.ready }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code js-yaml
+          
+      - name: Download Original Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: original-workflow
+          path: generated/workflows/original/
+          
+      - name: Download Orchestrator Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: orchestrator-workflow
+          path: generated/workflows/orchestrator/
+          
+      - name: Compare and Merge Best of Both
+        id: merge
+        run: |
+          echo "🔄 Comparing and merging best aspects of both workflows..."
+          
+          mkdir -p generated/workflows/final
+          
+          # Create comparison and merge prompt
+          cat > generated/metadata/compare-merge-prompt.md << 'EOF'
+          # Compare and Merge Workflow Approaches
+          
+          Analyze both workflows and create a final workflow that combines the best aspects:
+          
+          ## Original Workflow
+          $(cat generated/workflows/original/original-workflow.yml 2>/dev/null || echo "Not available")
+          
+          ## Orchestrator Workflow
+          $(cat generated/workflows/orchestrator/orchestrator-workflow.yml 2>/dev/null || echo "Not available")
+          
+          ## Comparison Criteria
+          1. **Structure Clarity**: Which has clearer organization?
+          2. **Dependency Management**: Which handles dependencies better?
+          3. **Parallel Optimization**: Which implements better parallelization?
+          4. **Error Handling**: Which has better error recovery?
+          5. **Extensibility**: Which is easier to extend?
+          6. **Minimal Unit Integration**: Which integrates units more effectively?
+          
+          ## Merge Strategy
+          1. Take the best structural approach
+          2. Use the most efficient dependency management
+          3. Implement the optimal parallelization strategy
+          4. Combine error handling approaches
+          5. Ensure maximum extensibility
+          6. Create a hybrid that leverages strengths of both
+          
+          Save the final merged workflow as generated/workflows/final/final-workflow.yml
+          
+          Create a merge report in generated/workflows/final/merge-report.json:
+          ```json
+          {
+            "structure_from": "original|orchestrator|hybrid",
+            "dependency_management_from": "original|orchestrator|hybrid",
+            "parallelization_from": "original|orchestrator|hybrid",
+            "error_handling_from": "original|orchestrator|hybrid",
+            "improvements": ["list of improvements made"],
+            "final_complexity_score": 85
+          }
+          ```
+          EOF
+          
+          # Execute comparison and merge
+          npx @anthropic-ai/claude-code \
+            -f generated/metadata/compare-merge-prompt.md \
+            --allowedTools "Read,Write" \
+            --permission-mode "acceptEdits" \
+            --max-tokens 12000 || {
+              # Fallback: use original if available, otherwise orchestrator
+              if [ -f "generated/workflows/original/original-workflow.yml" ]; then
+                cp generated/workflows/original/original-workflow.yml \
+                   generated/workflows/final/final-workflow.yml
+                echo "⚠️ Using original workflow as fallback"
+              elif [ -f "generated/workflows/orchestrator/orchestrator-workflow.yml" ]; then
+                cp generated/workflows/orchestrator/orchestrator-workflow.yml \
+                   generated/workflows/final/final-workflow.yml
+                echo "⚠️ Using orchestrator workflow as fallback"
+              else
+                echo "❌ No workflows available to merge"
+                exit 1
+              fi
+            }
+          
+          # Validate final workflow
+          if [ -f "generated/workflows/final/final-workflow.yml" ]; then
+            echo "ready=true" >> $GITHUB_OUTPUT
+            echo "final_path=generated/workflows/final/final-workflow.yml" >> $GITHUB_OUTPUT
+            echo "✅ Final merged workflow created successfully"
+          else
+            echo "ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Failed to create final workflow"
+          fi
+          
+      - name: Upload Final Workflow
+        if: steps.merge.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-workflow
+          path: generated/workflows/final/
+          retention-days: 7
+
+  # Phase 6: Validate & Deploy Final Workflow
+  validate-and-deploy:
+    needs: [compare-and-merge, select-minimal-units, decompose-tasks, validate-trigger]
+    runs-on: ubuntu-latest
+    if: needs.compare-and-merge.outputs.final_workflow_ready == 'true'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Final Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: final-workflow
+          path: generated/workflows/final/
           
       - name: Comprehensive Workflow Validation
         id: validate
@@ -750,7 +1026,7 @@ jobs:
           echo "✅ Performing comprehensive workflow validation..."
           
           # YAML syntax check
-          python3 -c "import yaml; yaml.safe_load(open('generated/workflows/dynamic-workflow.yml'))" || {
+          python3 -c "import yaml; yaml.safe_load(open('generated/workflows/final/final-workflow.yml'))" || {
             echo "❌ YAML syntax error"
             exit 1
           }
@@ -759,11 +1035,11 @@ jobs:
           VALIDATION_SCORE=0
           
           # Check required fields
-          grep -q "^name:" generated/workflows/dynamic-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: name"
-          grep -q "^on:" generated/workflows/dynamic-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: on trigger"
-          grep -q "^jobs:" generated/workflows/dynamic-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: jobs"
-          grep -q "runs-on:" generated/workflows/dynamic-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: runs-on"
-          grep -q "steps:" generated/workflows/dynamic-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: steps"
+          grep -q "^name:" generated/workflows/final/final-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: name"
+          grep -q "^on:" generated/workflows/final/final-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: on trigger"
+          grep -q "^jobs:" generated/workflows/final/final-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: jobs"
+          grep -q "runs-on:" generated/workflows/final/final-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: runs-on"
+          grep -q "steps:" generated/workflows/final/final-workflow.yml && ((VALIDATION_SCORE+=20)) || echo "Missing: steps"
           
           echo "📊 Validation Score: $VALIDATION_SCORE/100"
           
@@ -772,18 +1048,13 @@ jobs:
             exit 1
           fi
           
-          # Check complexity report
-          if [ -f "generated/workflows/workflow-complexity.json" ]; then
-            COMPLEXITY="${{ needs.compose-workflow.outputs.workflow_complexity }}"
-            echo "📊 Workflow Complexity: $COMPLEXITY/100"
+          # Check merge report
+          if [ -f "generated/workflows/final/merge-report.json" ]; then
+            echo "📊 Merge Report:"
+            cat generated/workflows/final/merge-report.json | jq '.'
             
-            JOBS=$(jq -r '.total_jobs' generated/workflows/workflow-complexity.json)
-            PARALLEL=$(jq -r '.max_parallel_jobs' generated/workflows/workflow-complexity.json)
-            DURATION=$(jq -r '.estimated_duration' generated/workflows/workflow-complexity.json)
-            
-            echo "- Total Jobs: $JOBS"
-            echo "- Max Parallel: $PARALLEL"
-            echo "- Est. Duration: $DURATION"
+            COMPLEXITY=$(jq -r '.final_complexity_score // 50' generated/workflows/final/merge-report.json)
+            echo "📊 Final Workflow Complexity: $COMPLEXITY/100"
           fi
           
           echo "✅ Workflow validation passed!"
@@ -804,7 +1075,7 @@ jobs:
           mkdir -p .github/workflows/generated
           
           # Copy with .disabled for safety
-          cp generated/workflows/dynamic-workflow.yml \
+          cp generated/workflows/final/final-workflow.yml \
             .github/workflows/generated/${WORKFLOW_NAME}.disabled
           
           # Create comprehensive deployment summary
@@ -814,17 +1085,25 @@ jobs:
           **Workflow**: `$WORKFLOW_NAME`
           **Issue**: #$ISSUE_NUMBER
           **Status**: ✅ Deployed (disabled for safety)
-          **Complexity**: ${{ needs.compose-workflow.outputs.workflow_complexity }}/100
+          **Approach**: Best-of-both (Original + Orchestrator)
           
-          ### 📊 Workflow Statistics
+          ### 📊 Workflow Generation Approach
           EOF
           
-          if [ -f "generated/workflows/workflow-complexity.json" ]; then
-            cat >> deployment-summary.md << 'EOF'
-          - **Total Jobs**: $(jq -r '.total_jobs' generated/workflows/workflow-complexity.json)
-          - **Parallel Groups**: $(jq -r '.parallel_groups' generated/workflows/workflow-complexity.json)
-          - **Max Parallel Execution**: $(jq -r '.max_parallel_jobs' generated/workflows/workflow-complexity.json)
-          - **Estimated Duration**: $(jq -r '.estimated_duration' generated/workflows/workflow-complexity.json)
+          if [ -f "generated/workflows/final/merge-report.json" ]; then
+            cat >> deployment-summary.md << EOF
+          This workflow was created by comparing two approaches:
+          1. **Original Approach**: Dynamic composition based on minimal units
+          2. **Orchestrator Approach**: Following kamuicode-workflow patterns
+          
+          ### 🔄 Best-of-Both Selection
+          $(cat generated/workflows/final/merge-report.json | jq -r '
+            "- Structure: " + .structure_from + "\n" +
+            "- Dependencies: " + .dependency_management_from + "\n" +
+            "- Parallelization: " + .parallelization_from + "\n" +
+            "- Error Handling: " + .error_handling_from + "\n" +
+            "- Final Complexity Score: " + (.final_complexity_score | tostring) + "/100"
+          ')
           
           EOF
           fi
@@ -857,12 +1136,12 @@ jobs:
           
           ### 📝 Generated Workflow Preview
           ```yaml
-          $(head -100 generated/workflows/dynamic-workflow.yml)
+          $(head -100 generated/workflows/final/final-workflow.yml)
           ...
           ```
           
           ---
-          Generated by **Kamui Rossy v9.0** - Ultra-detailed minimal-unit based meta workflow system
+          Generated by **Kamui Rossy v9.0** - Dual-approach comparison with best-of-both selection
           EOF
           
           # Post comprehensive summary to issue
