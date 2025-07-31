@@ -569,7 +569,8 @@ jobs:
           
           # ナレーションスクリプトを読み込む
           if [ -f "${{ env.PROJECT_DIR }}/concept/narration-script.txt" ]; then
-            NARRATION_TEXT=$(cat "${{ env.PROJECT_DIR }}/concept/narration-script.txt")
+            # 改行を除去して1行にする
+            NARRATION_TEXT=$(cat "${{ env.PROJECT_DIR }}/concept/narration-script.txt" | tr '\n' ' ' | sed 's/  */ /g')
           else
             NARRATION_TEXT="${{ github.event.inputs.video_concept }}についての説明です。"
           fi
@@ -619,7 +620,7 @@ jobs:
           
           echo "audio_path=${{ env.PROJECT_DIR }}/audio/narration.mp3" >> $GITHUB_OUTPUT
           echo "audio_url=$AUDIO_URL" >> $GITHUB_OUTPUT
-          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+          echo "duration=${DURATION:-30}" >> $GITHUB_OUTPUT
           
           echo "✅ Narration generation completed"
           
@@ -813,10 +814,14 @@ jobs:
           # 最終出力ディレクトリ
           mkdir -p "${{ env.PROJECT_DIR }}/final"
           
-          # 動画ファイルリストを作成
-          echo "file '$INTRO_VIDEO'" > "${{ env.PROJECT_DIR }}/final/videos.txt"
-          echo "file '$MAIN_VIDEO'" >> "${{ env.PROJECT_DIR }}/final/videos.txt"
-          echo "file '$OUTRO_VIDEO'" >> "${{ env.PROJECT_DIR }}/final/videos.txt"
+          # 動画ファイルリストを作成（絶対パスで記述）
+          echo "file '$(pwd)/$INTRO_VIDEO'" > "${{ env.PROJECT_DIR }}/final/videos.txt"
+          echo "file '$(pwd)/$MAIN_VIDEO'" >> "${{ env.PROJECT_DIR }}/final/videos.txt"
+          echo "file '$(pwd)/$OUTRO_VIDEO'" >> "${{ env.PROJECT_DIR }}/final/videos.txt"
+          
+          # デバッグ情報
+          echo "📋 Video list content:"
+          cat "${{ env.PROJECT_DIR }}/final/videos.txt"
           
           # 動画を結合
           ffmpeg -f concat -safe 0 -i "${{ env.PROJECT_DIR }}/final/videos.txt" \
