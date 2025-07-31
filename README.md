@@ -142,3 +142,7 @@
 **⚡ Version: v8.1**  
 **📅 Last Updated: 2025-07-28**  
 **🔄 Status: CLI環境アクティブ + GitHub Actions統合稼働中**
+## Video Production v8 - Run #16
+- **Concept**: テスト：静かな森と朝の光
+- **Video URL**: local://projects/video-production-v8-16/final/final_video.mp4
+- **Date**: 2025-07-31
