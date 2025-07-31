@@ -778,7 +778,8 @@ jobs:
   # Phase 7: 動画結合と最終処理
   # ========================================
   finalize-video:
-    needs: [setup-environment, generate-scene-videos, generate-background-music, generate-narration]
+    needs: [setup-environment, generate-scene-videos, generate-background-music]
+    if: always() && needs.generate-scene-videos.result == 'success' && needs.generate-background-music.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       final_video_path: ${{ steps.process.outputs.final_video_path }}
@@ -832,9 +833,14 @@ jobs:
           fi
           
           # 字幕を追加（有効な場合）
-          if [ "${{ github.event.inputs.enable_subtitles }}" == "true" ] && [ -f "${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}/narration.mp3" ]; then
-            echo "📝 Adding subtitles..."
-            # 字幕処理をここに追加（簡略化のため省略）
+          if [ "${{ github.event.inputs.enable_subtitles }}" == "true" ]; then
+            # ナレーションファイルの存在確認
+            if [ -d "${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}" ] && [ -f "${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}/narration.mp3" ]; then
+              echo "📝 Adding subtitles..."
+              # 字幕処理をここに追加（簡略化のため省略）
+            else
+              echo "⚠️ Subtitles enabled but no narration found, skipping..."
+            fi
           fi
           
           echo "final_video_path=${{ env.PROJECT_DIR }}/final/final_video.mp4" >> $GITHUB_OUTPUT
