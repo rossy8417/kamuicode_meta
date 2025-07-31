@@ -9,15 +9,17 @@
 
 ## 利用可能なミニマルユニット（全53個）
 
-### 🎨 画像生成・処理（5個）
-- t2i-imagen3: Google Imagen3による高品質画像生成
-- image-t2i: 汎用Text-to-Image（複数モデル対応）
-- t2i-sdxl: Stable Diffusion XLによる画像生成
-- i2i-flux-kontext: Flux Kontextによる画像変換
-- image-analysis: 画像内容の分析
+### 🎨 Media Production
 
-### 🏷️ バナーデザイン・実装（1個）
-- banner-text: バナー画像にテキスト追加・デザイン実装
+#### 🖼️ Image Generation (5個)
+- t2i-imagen3: Google Imagen3による高品質画像生成 (minimal-units/media/image/t2i-imagen3.yml)
+- image-t2i: 汎用Text-to-Image（複数モデル対応） (minimal-units/media/image/image-t2i.yml)
+- t2i-sdxl: Stable Diffusion XLによる画像生成 (minimal-units/media/image/t2i-sdxl.yml)
+- i2i-flux-kontext: Flux Kontextによる画像変換 (minimal-units/media/image/i2i-flux-kontext.yml)
+- image-analysis: 画像内容の分析 (minimal-units/media/image/image-analysis.yml)
+
+#### 🏷️ Banner Design (1個)
+- banner-text: バナー画像にテキスト追加・デザイン実装 (minimal-units/media/banner/banner-text.yml)
 
 ### 🎬 動画生成・処理（12個）
 - video-generation: 汎用動画生成（i2v/t2v対応）

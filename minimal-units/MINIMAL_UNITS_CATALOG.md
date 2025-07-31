@@ -6,76 +6,78 @@
 
 ## Categories and Units
 
-### 🎨 Image Generation & Processing
-- **t2i-imagen3**: Google Imagen3による高品質画像生成
-- **image-t2i**: 汎用Text-to-Image（複数モデル対応）
-- **t2i-sdxl**: Stable Diffusion XLによる画像生成
-- **i2i-flux-kontext**: Flux Kontextによる画像変換
-- **image-analysis**: 画像内容の分析
+### 🎨 Media Production
 
-### 🏷️ Banner Design & Implementation
-- **banner-text**: バナー画像にテキスト追加・デザイン実装
+#### 🖼️ Image Generation (5個)
+- **t2i-imagen3**: Google Imagen3による高品質画像生成 (minimal-units/media/image/t2i-imagen3.yml)
+- **image-t2i**: 汎用Text-to-Image（複数モデル対応） (minimal-units/media/image/image-t2i.yml)
+- **t2i-sdxl**: Stable Diffusion XLによる画像生成 (minimal-units/media/image/t2i-sdxl.yml)
+- **i2i-flux-kontext**: Flux Kontextによる画像変換 (minimal-units/media/image/i2i-flux-kontext.yml)
+- **image-analysis**: 画像内容の分析 (minimal-units/media/image/image-analysis.yml)
 
-### 🎬 Video Generation & Processing
-- **video-generation**: 汎用動画生成（i2v/t2v対応）
-- **t2v-veo3**: Google Veo3によるText-to-Video
-- **t2v-wan**: Wan V2によるText-to-Video
-- **i2v-seedance**: SeeDanceによるImage-to-Video
-- **r2v-vidu**: Reference-to-Video生成
-- **v2v-luma-ray2**: Luma Ray2による動画変換
-- **v2v-creatify**: Creatifyによる動画編集
-- **video-concat**: 複数動画の結合
-- **upscale-topaz**: Topazによる動画アップスケール
-- **video-analysis**: 動画内容の分析
-- **video-prompt-opt**: 動画プロンプトの最適化
-- **title-composition**: タイトルフレーム合成
+#### 🎬 Video Generation (7個)
+- **video-generation**: 汎用動画生成（i2v/t2v対応） (minimal-units/media/video/video-generation.yml)
+- **t2v-veo3**: Google Veo3によるText-to-Video (minimal-units/media/video/t2v-veo3.yml)
+- **t2v-wan**: Wan V2によるText-to-Video (minimal-units/media/video/t2v-wan.yml)
+- **i2v-seedance**: SeeDanceによるImage-to-Video (minimal-units/media/video/i2v-seedance.yml)
+- **r2v-vidu**: Reference-to-Video生成 (minimal-units/media/video/r2v-vidu.yml)
+- **video-analysis**: 動画内容の分析 (minimal-units/media/video/video-analysis.yml)
+- **video-prompt-opt**: 動画プロンプトの最適化 (minimal-units/media/video/video-prompt-opt.yml)
 
-### 🎵 Audio Generation & Processing
-- **bgm-generate**: BGM生成（シミュレーション版）
-- **bgm-generate-mcp**: BGM生成（MCP版）
-- **t2s-google**: Google Text-to-Speech
-- **t2s-minimax-turbo**: MiniMax Turbo TTS
-- **t2s-minimax-voice**: MiniMax Voice Design
-- **t2s-openai**: OpenAI Text-to-Speech
-- **audio-elevenlabs**: ElevenLabs音声生成
-- **audio-minimax**: MiniMax音声生成
-- **bgm-overlay**: BGMのオーバーレイ
-- **wav-segmentation**: 音声ファイルの分割
+#### 🎵 Audio Generation (9個)
+- **bgm-generate**: BGM生成（シミュレーション版） (minimal-units/media/audio/bgm-generate.yml)
+- **bgm-generate-mcp**: BGM生成（MCP版） (minimal-units/media/audio/bgm-generate-mcp.yml)
+- **t2s-google**: Google Text-to-Speech (minimal-units/media/audio/t2s-google.yml)
+- **t2s-minimax-turbo**: MiniMax Turbo TTS (minimal-units/media/audio/t2s-minimax-turbo.yml)
+- **t2s-minimax-voice**: MiniMax Voice Design (minimal-units/media/audio/t2s-minimax-voice.yml)
+- **t2s-openai**: OpenAI Text-to-Speech (minimal-units/media/audio/t2s-openai.yml)
+- **audio-elevenlabs**: ElevenLabs音声生成 (minimal-units/media/audio/audio-elevenlabs.yml)
+- **audio-minimax**: MiniMax音声生成 (minimal-units/media/audio/audio-minimax.yml)
+- **wav-segmentation**: 音声ファイルの分割 (minimal-units/media/audio/wav-segmentation.yml)
 
-### 👄 Lipsync & Subtitles
-- **lipsync-pixverse**: Pixverseリップシンク
-- **pixverse-quota-guard**: Pixverseクォータ管理
-- **srt-make**: SRTファイル生成
-- **srt-sync**: SRT同期調整
-- **srt-translate**: SRT翻訳
-- **subtitle-overlay**: 字幕オーバーレイ
+#### 🏷️ Banner Design (1個)
+- **banner-text**: バナー画像にテキスト追加・デザイン実装 (minimal-units/media/banner/banner-text.yml)
 
-### 📋 Planning & Analysis
-- **planning-ccsdk**: Claude Code SDKによる企画
-- **banner-planning**: バナー企画立案
-- **news-planning**: ニュース企画
-- **web-search**: Web検索による情報収集
-- **data-analysis**: データ分析
-- **data-visualization**: データ可視化
+#### 🎭 3D Generation (1個)
+- **i2i3d-hunyuan**: HunyuanによるImage-to-3D (minimal-units/media/3d/i2i3d-hunyuan.yml)
 
-### 📰 Content Creation
-- **blog-generation**: ブログ記事生成
-- **article-generation**: 記事生成
-- **news-summary**: ニュース要約
-- **slide-generation**: プレゼンテーション生成
-- **markdown-summary**: Markdownサマリー生成
+### 📋 Planning & Analysis (6個)
+- **planning-ccsdk**: Claude Code SDKによる企画 (minimal-units/planning/planning-ccsdk.yml)
+- **banner-planning**: バナー企画立案 (minimal-units/planning/banner-planning.yml)
+- **news-planning**: ニュース企画 (minimal-units/planning/news-planning.yml)
+- **web-search**: Web検索による情報収集 (minimal-units/planning/web-search.yml)
+- **data-analysis**: データ分析 (minimal-units/planning/data-analysis.yml)
+- **data-visualization**: データ可視化 (minimal-units/planning/data-visualization.yml)
 
-### 🛠️ Utility & Integration
-- **local-save**: ローカル保存
-- **fal-upload**: FALへのアップロード
-- **git-branch-setup**: Gitブランチセットアップ
-- **git-pr-create**: プルリクエスト作成
-- **cleanup-branch**: ブランチクリーンアップ
-- **pdf-create**: PDF作成
-- **sns-publish**: SNS投稿
+### 📰 Content Creation (5個)
+- **blog-generation**: ブログ記事生成 (minimal-units/content/blog-generation.yml)
+- **article-generation**: 記事生成 (minimal-units/content/article-generation.yml)
+- **news-summary**: ニュース要約 (minimal-units/content/news-summary.yml)
+- **slide-generation**: プレゼンテーション生成 (minimal-units/content/slide-generation.yml)
+- **markdown-summary**: Markdownサマリー生成 (minimal-units/content/markdown-summary.yml)
 
-### 🎭 3D Generation
-- **i2i3d-hunyuan**: HunyuanによるImage-to-3D
+### ⚡ Post-Production (12個)
+- **lipsync-pixverse**: Pixverseリップシンク (minimal-units/postprod/lipsync-pixverse.yml)
+- **pixverse-quota-guard**: Pixverseクォータ管理 (minimal-units/postprod/pixverse-quota-guard.yml)
+- **srt-make**: SRTファイル生成 (minimal-units/postprod/srt-make.yml)
+- **srt-sync**: SRT同期調整 (minimal-units/postprod/srt-sync.yml)
+- **srt-translate**: SRT翻訳 (minimal-units/postprod/srt-translate.yml)
+- **subtitle-overlay**: 字幕オーバーレイ (minimal-units/postprod/subtitle-overlay.yml)
+- **video-concat**: 複数動画の結合 (minimal-units/postprod/video-concat.yml)
+- **title-composition**: タイトルフレーム合成 (minimal-units/postprod/title-composition.yml)
+- **upscale-topaz**: Topazによる動画アップスケール (minimal-units/postprod/upscale-topaz.yml)
+- **v2v-luma-ray2**: Luma Ray2による動画変換 (minimal-units/postprod/v2v-luma-ray2.yml)
+- **v2v-creatify**: Creatifyによる動画編集 (minimal-units/postprod/v2v-creatify.yml)
+- **bgm-overlay**: BGMのオーバーレイ (minimal-units/postprod/bgm-overlay.yml)
+
+### 🛠️ Utility & Integration (7個)
+- **local-save**: ローカル保存 (minimal-units/utility/local-save.yml)
+- **fal-upload**: FALへのアップロード (minimal-units/utility/fal-upload.yml)
+- **git-branch-setup**: Gitブランチセットアップ (minimal-units/git-ops/git-branch-setup.yml)
+- **git-pr-create**: プルリクエスト作成 (minimal-units/external/git-pr-create.yml)
+- **cleanup-branch**: ブランチクリーンアップ (minimal-units/git-ops/cleanup-branch.yml)
+- **pdf-create**: PDF作成 (minimal-units/external/pdf-create.yml)
+- **sns-publish**: SNS投稿 (minimal-units/external/sns-publish.yml)
 
 ## Usage Guidelines
 
