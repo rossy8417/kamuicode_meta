@@ -1,79 +1,156 @@
 name: local-save
-description: ローカルディレクトリへのファイル保存とメタデータ管理
+description: 全アーティファクトの整理された保存とGit管理
 
 on:
   workflow_call:
     inputs:
-      source_path:
-        description: '保存元のファイル/ディレクトリパス'
+      project_concept:
+        description: 'プロジェクトコンセプト（ディレクトリ名に使用）'
         required: true
         type: string
-      target_dir:
-        description: '保存先ディレクトリ（projects/配下）'
-        required: true
-        type: string
-      file_pattern:
-        description: '保存するファイルパターン（*.mp4, *.png等）'
+      artifact_pattern:
+        description: 'ダウンロードするアーティファクトのパターン'
         required: false
         type: string
-        default: '*'
-      create_metadata:
-        description: 'メタデータファイルを作成するか'
+        default: '*-${{ github.run_number }}'
+      dir_prefix:
+        description: 'ディレクトリ名のプレフィックス'
+        required: false
+        type: string
+        default: 'video-v8-run'
+      organize_structure:
+        description: '整理された構造で保存するか'
         required: false
         type: boolean
         default: true
+      workflow_name:
+        description: 'ワークフロー名（メタデータ用）'
+        required: false
+        type: string
+        default: 'workflow'
     outputs:
       saved_path:
-        description: '保存されたファイルのパス'
+        description: '保存されたプロジェクトディレクトリのパス'
         value: ${{ jobs.save.outputs.saved_path }}
-      metadata_path:
-        description: 'メタデータファイルのパス'
-        value: ${{ jobs.save.outputs.metadata_path }}
+      project_dir:
+        description: 'プロジェクトディレクトリ名'
+        value: ${{ jobs.save.outputs.project_dir }}
 
 jobs:
   save:
     runs-on: ubuntu-latest
     outputs:
-      saved_path: ${{ steps.save-files.outputs.saved_path }}
-      metadata_path: ${{ steps.save-files.outputs.metadata_path }}
+      saved_path: ${{ steps.save-all.outputs.saved_path }}
+      project_dir: ${{ steps.save-all.outputs.project_dir }}
     
     steps:
-      - name: Save Files to Local Directory
-        id: save-files
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.artifact_pattern }}
+          path: temp-all-artifacts/
+          
+      - name: Save All Outputs to Projects
+        id: save-all
         run: |
-          echo "📁 Saving files to local directory..."
+          echo "💾 Saving all outputs to projects directory..."
           
-          # ターゲットディレクトリの作成
-          TARGET_DIR="projects/${{ inputs.target_dir }}"
-          mkdir -p "$TARGET_DIR"
+          # プロジェクト名の生成（特殊文字を処理）
+          PROJECT_NAME=$(echo "${{ inputs.project_concept }}" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | cut -c1-50)
+          PROJECT_DIR="${{ inputs.dir_prefix }}-${{ github.run_number }}-${PROJECT_NAME}"
           
-          # ファイルのコピー
-          if [ -d "${{ inputs.source_path }}" ]; then
-            # ディレクトリの場合
-            cp -r "${{ inputs.source_path }}"/${{ inputs.file_pattern }} "$TARGET_DIR/" 2>/dev/null || true
-            SAVED_PATH="$TARGET_DIR"
+          # メインディレクトリ作成
+          mkdir -p "projects/$PROJECT_DIR"
+          
+          if [ "${{ inputs.organize_structure }}" == "true" ]; then
+            echo "📂 Organizing artifacts with structured layout..."
+            
+            # 最終成果物
+            if [ -d "temp-all-artifacts/final-video-package-${{ github.run_number }}" ]; then
+              cp -r "temp-all-artifacts/final-video-package-${{ github.run_number }}"/* "projects/$PROJECT_DIR/"
+            fi
+            
+            # 企画ドキュメント
+            if [ -d "temp-all-artifacts/planning-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/planning"
+              cp -r "temp-all-artifacts/planning-${{ github.run_number }}"/* "projects/$PROJECT_DIR/planning/"
+            fi
+            
+            # 生成画像（シーンごと）
+            for scene in intro main outro; do
+              if [ -d "temp-all-artifacts/images-${scene}-${{ github.run_number }}" ]; then
+                mkdir -p "projects/$PROJECT_DIR/images/${scene}"
+                cp -r "temp-all-artifacts/images-${scene}-${{ github.run_number }}"/* "projects/$PROJECT_DIR/images/${scene}/"
+              fi
+            done
+            
+            # 生成動画（シーンごと）
+            for scene in intro main outro; do
+              if [ -d "temp-all-artifacts/videos-${scene}-${{ github.run_number }}" ]; then
+                mkdir -p "projects/$PROJECT_DIR/videos/${scene}"
+                cp -r "temp-all-artifacts/videos-${scene}-${{ github.run_number }}"/* "projects/$PROJECT_DIR/videos/${scene}/"
+              fi
+            done
+            
+            # BGM
+            if [ -d "temp-all-artifacts/bgm-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/audio/bgm"
+              cp -r "temp-all-artifacts/bgm-${{ github.run_number }}"/* "projects/$PROJECT_DIR/audio/bgm/"
+            fi
+            
+            # ナレーション
+            if [ -d "temp-all-artifacts/narration-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/audio/narration"
+              cp -r "temp-all-artifacts/narration-${{ github.run_number }}"/* "projects/$PROJECT_DIR/audio/narration/"
+            fi
+            
+            # 環境情報
+            if [ -d "temp-all-artifacts/environment-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/metadata"
+              cp -r "temp-all-artifacts/environment-${{ github.run_number }}"/* "projects/$PROJECT_DIR/metadata/"
+            fi
           else
-            # 単一ファイルの場合
-            cp "${{ inputs.source_path }}" "$TARGET_DIR/"
-            SAVED_PATH="$TARGET_DIR/$(basename "${{ inputs.source_path }}")"
+            # フラットな構造で保存
+            echo "📂 Saving artifacts with flat structure..."
+            cp -r temp-all-artifacts/* "projects/$PROJECT_DIR/"
           fi
           
-          # メタデータの作成
-          if [ "${{ inputs.create_metadata }}" == "true" ]; then
-            METADATA_FILE="$TARGET_DIR/save-metadata.json"
-            cat > "$METADATA_FILE" << EOF
+          # ワークフローメタデータ作成
+          cat > "projects/$PROJECT_DIR/workflow-info.json" << EOF
           {
-            "saved_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "source_path": "${{ inputs.source_path }}",
-            "target_dir": "$TARGET_DIR",
-            "file_pattern": "${{ inputs.file_pattern }}",
-            "workflow_run_id": "${{ github.run_id }}",
-            "workflow_run_number": "${{ github.run_number }}",
-            "files": $(ls -1 "$TARGET_DIR" | grep -v metadata | jq -R . | jq -s .)
+            "workflow": "${{ inputs.workflow_name }}",
+            "run_number": ${{ github.run_number }},
+            "run_id": "${{ github.run_id }}",
+            "concept": "${{ inputs.project_concept }}",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "github_actor": "${{ github.actor }}",
+            "github_ref": "${{ github.ref }}",
+            "organized": ${{ inputs.organize_structure }},
+            "structure": {
+              "planning": "企画ドキュメント",
+              "images": "生成画像（intro/main/outro）",
+              "videos": "生成動画（intro/main/outro）", 
+              "audio": {
+                "bgm": "背景音楽",
+                "narration": "ナレーション音声"
+              },
+              "metadata": "環境情報・実行ログ"
+            }
           }
           EOF
-            echo "metadata_path=$METADATA_FILE" >> $GITHUB_OUTPUT
-          fi
           
-          echo "saved_path=$SAVED_PATH" >> $GITHUB_OUTPUT
-          echo "✅ Files saved to: $TARGET_DIR"
+          echo "saved_path=projects/$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Saved to: projects/$PROJECT_DIR"
+          
+          # ディレクトリ構造を表示
+          echo "📁 Project structure:"
+          tree "projects/$PROJECT_DIR/" -L 3 2>/dev/null || find "projects/$PROJECT_DIR/" -type d | sort
+          
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf temp-all-artifacts/

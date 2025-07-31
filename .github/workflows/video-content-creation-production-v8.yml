@@ -974,26 +974,73 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Download Final Package
+      - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: final-video-package-${{ github.run_number }}
-          path: temp-final/
+          pattern: "*-${{ github.run_number }}"
+          path: temp-all-artifacts/
           
       - name: Save to Projects Directory
         id: save-final
         run: |
-          echo "💾 Saving final outputs to projects directory..."
+          echo "💾 Saving all outputs to projects directory..."
           
           # プロジェクト名の生成（スペースと特殊文字を処理）
           PROJECT_NAME=$(echo "${{ github.event.inputs.video_concept }}" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | cut -c1-50)
           PROJECT_DIR="video-v8-run-${{ github.run_number }}-${PROJECT_NAME}"
           
-          # ディレクトリ作成と保存
+          # メインディレクトリ作成
           mkdir -p "projects/$PROJECT_DIR"
-          cp -r temp-final/* "projects/$PROJECT_DIR/"
           
-          # 追加のメタデータ作成
+          # 各アーティファクトを整理して保存
+          echo "📂 Organizing artifacts..."
+          
+          # 最終成果物
+          if [ -d "temp-all-artifacts/final-video-package-${{ github.run_number }}" ]; then
+            cp -r "temp-all-artifacts/final-video-package-${{ github.run_number }}"/* "projects/$PROJECT_DIR/"
+          fi
+          
+          # 企画ドキュメント
+          if [ -d "temp-all-artifacts/planning-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/planning"
+            cp -r "temp-all-artifacts/planning-${{ github.run_number }}"/* "projects/$PROJECT_DIR/planning/"
+          fi
+          
+          # 生成画像（シーンごと）
+          for scene in intro main outro; do
+            if [ -d "temp-all-artifacts/images-${scene}-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/images/${scene}"
+              cp -r "temp-all-artifacts/images-${scene}-${{ github.run_number }}"/* "projects/$PROJECT_DIR/images/${scene}/"
+            fi
+          done
+          
+          # 生成動画（シーンごと）
+          for scene in intro main outro; do
+            if [ -d "temp-all-artifacts/videos-${scene}-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/videos/${scene}"
+              cp -r "temp-all-artifacts/videos-${scene}-${{ github.run_number }}"/* "projects/$PROJECT_DIR/videos/${scene}/"
+            fi
+          done
+          
+          # BGM
+          if [ -d "temp-all-artifacts/bgm-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/audio/bgm"
+            cp -r "temp-all-artifacts/bgm-${{ github.run_number }}"/* "projects/$PROJECT_DIR/audio/bgm/"
+          fi
+          
+          # ナレーション
+          if [ -d "temp-all-artifacts/narration-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/audio/narration"
+            cp -r "temp-all-artifacts/narration-${{ github.run_number }}"/* "projects/$PROJECT_DIR/audio/narration/"
+          fi
+          
+          # 環境情報
+          if [ -d "temp-all-artifacts/environment-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/metadata"
+            cp -r "temp-all-artifacts/environment-${{ github.run_number }}"/* "projects/$PROJECT_DIR/metadata/"
+          fi
+          
+          # ワークフローメタデータ作成
           cat > "projects/$PROJECT_DIR/workflow-info.json" << EOF
           {
             "workflow": "video-content-creation-production-v8",
@@ -1002,16 +1049,26 @@ jobs:
             "concept": "${{ github.event.inputs.video_concept }}",
             "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "github_actor": "${{ github.actor }}",
-            "github_ref": "${{ github.ref }}"
+            "github_ref": "${{ github.ref }}",
+            "structure": {
+              "planning": "企画ドキュメント",
+              "images": "生成画像（intro/main/outro）",
+              "videos": "生成動画（intro/main/outro）",
+              "audio": {
+                "bgm": "背景音楽",
+                "narration": "ナレーション音声"
+              },
+              "metadata": "環境情報・実行ログ"
+            }
           }
           EOF
           
           echo "saved_path=projects/$PROJECT_DIR" >> $GITHUB_OUTPUT
           echo "✅ Saved to: projects/$PROJECT_DIR"
           
-          # ファイルリストを表示
-          echo "📁 Saved files:"
-          ls -la "projects/$PROJECT_DIR/"
+          # ディレクトリ構造を表示
+          echo "📁 Project structure:"
+          tree "projects/$PROJECT_DIR/" 2>/dev/null || find "projects/$PROJECT_DIR/" -type d | sort
 
   # ========================================
   # Phase 9: プルリクエスト作成
