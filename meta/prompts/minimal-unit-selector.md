@@ -1,25 +1,23 @@
 # Minimal Unit Selector Prompt
 
-ユーザーの要求とタスク分解結果に基づいて、55個の利用可能なミニマルユニットから適切なものを選択してください。
+ユーザーの要求とタスク分解結果に基づいて、53個の利用可能なミニマルユニットから適切なものを選択してください。
 
 ## 入力情報
 - ユーザー要求: {{USER_REQUEST}}
 - 分解されたタスク: {{DECOMPOSED_TASKS}}
 - ワークフロータイプ: {{WORKFLOW_TYPE}}
 
-## 利用可能なミニマルユニット（全55個）
+## 利用可能なミニマルユニット（全53個）
 
-### 🎨 画像生成・処理（8個）
+### 🎨 画像生成・処理（6個）
 - t2i-imagen3: Google Imagen3による高品質画像生成
 - image-t2i: 汎用Text-to-Image（複数モデル対応）
 - t2i-sdxl: Stable Diffusion XLによる画像生成
 - i2i-flux-kontext: Flux Kontextによる画像変換
 - image-analysis: 画像内容の分析
 - banner-text: バナー画像にテキスト追加
-- banner-planning: バナー企画立案
-- title-composition: タイトル画像合成
 
-### 🎬 動画生成・処理（13個）
+### 🎬 動画生成・処理（12個）
 - video-generation: 汎用動画生成（i2v/t2v対応）
 - t2v-veo3: Google Veo3によるText-to-Video
 - t2v-wan: Wan V2によるText-to-Video
@@ -31,8 +29,7 @@
 - upscale-topaz: Topazによる動画アップスケール
 - video-analysis: 動画内容の分析
 - video-prompt-opt: 動画プロンプトの最適化
-- lipsync-pixverse: Pixverseリップシンク
-- pixverse-quota-guard: Pixverseクォータ管理
+- title-composition: タイトルフレーム合成
 
 ### 🎵 音声・音楽（10個）
 - bgm-generate: BGM生成（シミュレーション版）
@@ -46,14 +43,15 @@
 - bgm-overlay: BGMのオーバーレイ
 - wav-segmentation: 音声ファイルの分割
 
-### 👄 字幕・同期（5個）
+### 👄 字幕・リップシンク（6個）
 - srt-make: SRTファイル生成
 - srt-sync: SRT同期調整
 - srt-translate: SRT翻訳
 - subtitle-overlay: 字幕オーバーレイ
-- lipsync-pixverse: (動画処理でカウント済み)
+- lipsync-pixverse: Pixverseリップシンク
+- pixverse-quota-guard: Pixverseクォータ管理
 
-### 📋 企画・分析（9個）
+### 📋 企画・分析（6個）
 - planning-ccsdk: Claude Code SDKによる企画立案
 - web-search: Web検索による情報収集
 - article-generation: 記事生成
@@ -62,14 +60,14 @@
 - data-visualization: データ可視化
 - news-planning: ニュース企画
 - news-summary: ニュース要約
-- slide-generation: プレゼンテーション生成
 
-### 📰 コンテンツ作成（3個）
+### 📰 コンテンツ作成（4個）
 - blog-generation: ブログ記事生成
-- (news系は企画・分析でカウント済み)
-- (banner-planningは画像でカウント済み)
+- banner-planning: バナー企画立案
+- slide-generation: プレゼンテーション生成
+- article-generation: 記事生成
 
-### 🛠️ ユーティリティ・統合（7個）
+### 🛠️ ユーティリティ・統合（8個）
 - local-save: ローカル保存
 - fal-upload: FALへのアップロード
 - git-branch-setup: Gitブランチセットアップ
@@ -99,7 +97,7 @@
 - **依存関係を考慮**: 前段の出力を必要とするユニットは適切に配置
 
 ### 3. ユニット選択の網羅性
-- 55個のユニットから幅広く選択
+- 53個のユニットから幅広く選択
 - 同じユニットを異なる目的で複数回使用可能
 - カテゴリをまたいだ統合的な選択
 

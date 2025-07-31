@@ -2,6 +2,8 @@
 
 ミニマルユニットの包括的なカタログです。メタワークフローシステムはこのカタログを参照して、動的にワークフローを構築します。
 
+**総ユニット数: 53個**
+
 ## Categories and Units
 
 ### 🎨 Image Generation & Processing
@@ -24,6 +26,7 @@
 - **upscale-topaz**: Topazによる動画アップスケール
 - **video-analysis**: 動画内容の分析
 - **video-prompt-opt**: 動画プロンプトの最適化
+- **title-composition**: タイトルフレーム合成
 
 ### 🎵 Audio Generation & Processing
 - **bgm-generate**: BGM生成（シミュレーション版）
