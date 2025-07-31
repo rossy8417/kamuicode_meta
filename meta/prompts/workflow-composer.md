@@ -1,6 +1,6 @@
-# Human-like Workflow Composer Prompt
+# Workflow Composer Prompt
 
-選択されたミニマルユニットを組み合わせて、人間が作成したような自然で詳細なGitHub Actionsワークフローを構成してください。
+選択されたミニマルユニットを組み合わせて、完全に実行可能なGitHub Actionsワークフローを構成してください。
 
 ## 入力情報
 - 選択されたユニット: {{SELECTED_UNITS}}
@@ -10,8 +10,70 @@
 
 ## ワークフロー構成原則
 
-### 1. タスク依存関係と実行順序の厳密な管理
-人間の思考プロセスに基づいた正確なタスク順序：
+### 1. 基本配置パターンの実装
+ワークフロー構成の基本パターンを適切に組み合わせ：
+
+#### 直列パターン（Sequential）
+```yaml
+task-a:
+  runs-on: ubuntu-latest
+  
+task-b:
+  needs: [task-a]
+  runs-on: ubuntu-latest
+  
+task-c:
+  needs: [task-b]
+  runs-on: ubuntu-latest
+```
+
+#### 並列パターン（Parallel）
+```yaml
+parallel-task-1:
+  runs-on: ubuntu-latest
+  
+parallel-task-2:
+  runs-on: ubuntu-latest
+  
+parallel-task-3:
+  runs-on: ubuntu-latest
+  
+merge-results:
+  needs: [parallel-task-1, parallel-task-2, parallel-task-3]
+  runs-on: ubuntu-latest
+```
+
+#### 条件分岐パターン（Conditional）
+```yaml
+check-condition:
+  runs-on: ubuntu-latest
+  outputs:
+    branch: ${{ steps.check.outputs.branch }}
+    
+path-a:
+  needs: [check-condition]
+  if: needs.check-condition.outputs.branch == 'a'
+  runs-on: ubuntu-latest
+  
+path-b:
+  needs: [check-condition]
+  if: needs.check-condition.outputs.branch == 'b'
+  runs-on: ubuntu-latest
+```
+
+#### ループパターン（Matrix）
+```yaml
+process-items:
+  strategy:
+    matrix:
+      item: ${{ fromJSON(needs.prepare.outputs.items) }}
+  runs-on: ubuntu-latest
+  steps:
+    - name: Process ${{ matrix.item }}
+      run: echo "Processing ${{ matrix.item }}"
+```
+
+### 2. タスク依存関係と実行順序の管理
 
 #### 依存関係の原則
 - **前提条件の明確化**: 各タスクの前提となる条件を明示
@@ -20,267 +82,162 @@
 - **クリティカルパスの識別**: 全体の完了時間を左右する重要な経路
 
 ```yaml
-name: "Human-like Workflow - {{WORKFLOW_TYPE}}"
+name: "Dynamic Workflow - {{WORKFLOW_TYPE}}"
 run-name: "🚀 {{WORKFLOW_DESCRIPTION}} | ${{ github.actor }} | #${{ github.run_number }}"
 
 on:
   workflow_dispatch:
     inputs:
-      # Phase 1: 準備・計画
-      planning_detail:
-        description: '計画の詳細度'
+      mode:
+        description: '実行モード'
         type: choice
-        options: ['quick', 'standard', 'thorough']
+        options: ['standard', 'fast', 'quality']
         default: 'standard'
       
-      # Phase 2: 実行設定
-      quality_mode:
-        description: '品質優先度'
-        type: choice
-        options: ['speed-first', 'balanced', 'quality-first']
-        default: 'balanced'
-      
-      # Phase 3: 並列処理
       parallel_scale:
         description: '並列実行規模'
         type: choice
-        options: ['conservative-3way', 'moderate-4way', 'aggressive-5way']
-        default: 'moderate-4way'
+        options: ['3-way', '4-way', '5-way']
+        default: '3-way'
 
 jobs:
-  # === Phase 1: 準備・調査フェーズ（3項並列） ===
-  setup-environment:
-    name: "🔧 環境セットアップ"
+  # === Phase 1: 準備・初期化 ===
+  setup:
     runs-on: ubuntu-latest
     outputs:
-      setup_complete: ${{ steps.verify.outputs.ready }}
+      config: ${{ steps.prepare.outputs.config }}
     steps:
-      - name: "環境準備"
-        run: echo "Setting up environment..."
+      - name: Prepare Environment
+        id: prepare
+        run: |
+          # 環境準備処理
+          echo "config={...}" >> $GITHUB_OUTPUT
 
-  research-references:
-    name: "🔍 参考情報リサーチ"
+  # === Phase 2: データ収集（並列実行可能） ===
+  collect-data-1:
     runs-on: ubuntu-latest
-    outputs:
-      references: ${{ steps.collect.outputs.refs }}
-    steps:
-      - name: "情報収集"
-        run: echo "Researching references..."
-
-  analyze-requirements:
-    name: "📊 要件分析"
+    needs: [setup]
+    # ミニマルユニット統合
+    
+  collect-data-2:
     runs-on: ubuntu-latest
-    outputs:
-      analysis: ${{ steps.analyze.outputs.result }}
-    steps:
-      - name: "詳細分析"
-        run: echo "Analyzing requirements..."
-
-  # === Phase 2: メイン処理フェーズ（4-5項並列） ===
-  generate-variation-1:
-    name: "🎨 バリエーション1生成"
-    needs: [setup-environment, research-references, analyze-requirements]
+    needs: [setup]
+    # ミニマルユニット統合
+    
+  # === Phase 3: 処理実行（依存関係あり） ===
+  process:
     runs-on: ubuntu-latest
-    # ... ミニマルユニット統合
-
-  # === Phase 3: 品質確認フェーズ ===
-  quality-check:
-    name: "✅ 品質チェック"
-    needs: [all-generation-jobs]
-    runs-on: ubuntu-latest
-    # ... 品質検証処理
-
-  # === Phase 4: 最終調整フェーズ ===
-  final-polish:
-    name: "✨ 最終仕上げ"
-    needs: [quality-check]
-    runs-on: ubuntu-latest
-    # ... 最終調整処理
+    needs: [collect-data-1, collect-data-2]
+    # ミニマルユニット統合
 ```
 
-### 2. タスク依存関係の正確な実装
+### 3. ミニマルユニット統合方法
 
-#### 依存関係の明示的な定義
+#### 参照方式（reusable workflow）
 ```yaml
-# 正確な依存関係チェーン
-prepare-assets:
-  name: "Prepare Assets"
-  runs-on: ubuntu-latest
-  outputs:
-    assets_ready: ${{ steps.prepare.outputs.ready }}
-
-analyze-requirements:
-  name: "Analyze Requirements"  
-  needs: [prepare-assets]  # 前タスクの完了が必須
-  runs-on: ubuntu-latest
-
-generate-content:
-  name: "Generate Content"
-  needs: [analyze-requirements]  # 分析完了後に実行
-  runs-on: ubuntu-latest
-```
-
-#### ミニマルユニット統合の仕様準拠
-```yaml
-# GitHub Actions仕様に準拠した統合
-integration-job:
-  uses: ./.github/workflows/minimal-units/image/t2i-imagen3.yml
+unit-job:
+  uses: ./.github/workflows/minimal-units/category/unit-name.yml
   with:
-    prompt: ${{ needs.prepare.outputs.prompt }}
-    settings: ${{ needs.analyze.outputs.config }}
+    input1: ${{ inputs.value }}
+    input2: ${{ needs.previous-job.outputs.value }}
   secrets: inherit
 ```
 
-#### 詳細なステップ説明
+#### カスタムノードの作成（既存ユニットで対応できない場合）
 ```yaml
-research-visual-style:
-  name: "🔍 ビジュアルスタイルのリサーチ"
+custom-processing:
+  runs-on: ubuntu-latest
+  needs: [prerequisite-jobs]
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Custom Processing
+      run: |
+        # 既存ユニットにない処理を実装
+        # 必要に応じて新しいミニマルユニットとして切り出し可能
+```
+
+### 4. 拡張性の確保
+
+#### 動的なユニット選択
+```yaml
+dynamic-units:
+  strategy:
+    matrix:
+      unit: ${{ fromJSON(needs.analyze.outputs.required_units) }}
+  uses: ./.github/workflows/minimal-units/${{ matrix.unit.category }}/${{ matrix.unit.name }}.yml
+  with:
+    config: ${{ matrix.unit.config }}
+```
+
+#### フォールバック処理
+```yaml
+main-process:
+  runs-on: ubuntu-latest
+  continue-on-error: true
+  # メイン処理
+  
+fallback-process:
+  needs: [main-process]
+  if: needs.main-process.outcome == 'failure'
+  runs-on: ubuntu-latest
+  # 代替処理
+```
+
+### 5. kamuicode-workflowパターンの活用
+
+オーケストレーターパターンを参考にしつつ、以下の点で拡張：
+
+```yaml
+# セットアップフェーズ（オーケストレーターパターン参考）
+setup-branch:
+  uses: ./.github/workflows/module-setup-branch.yml
+  with:
+    concept: ${{ inputs.concept }}
+    
+# カスタム処理の追加（拡張部分）
+custom-analysis:
+  needs: [setup-branch]
   runs-on: ubuntu-latest
   steps:
-    - name: "参考画像の収集"
-      run: echo "Collecting reference images..."
-    
-    - name: "スタイル分析"
-      run: echo "Analyzing visual styles..."
-    
-    - name: "ムードボード作成"
-      run: echo "Creating mood board..."
+    - name: Custom Analysis Logic
+      run: |
+        # kamuicode-workflowにない独自の分析処理
 ```
 
-### 3. タスク実行順序とタイミングの最適化
+### 6. エラーハンドリングとリトライ
 
-#### 依存関係に基づく実行順序
 ```yaml
-# Phase 1: データ収集（並列可能）
-collect-user-data:
-  runs-on: ubuntu-latest
-  
-collect-reference-data:
-  runs-on: ubuntu-latest
-  
-# Phase 2: 分析（Phase 1完了後）
-analyze-all-data:
-  needs: [collect-user-data, collect-reference-data]
-  runs-on: ubuntu-latest
-  
-# Phase 3: 生成準備（分析結果に依存）
-prepare-generation-config:
-  needs: [analyze-all-data]
-  runs-on: ubuntu-latest
-  
-# Phase 4: 並列生成（設定完了後）
-generate-variant-1:
-  needs: [prepare-generation-config]
-  runs-on: ubuntu-latest
-  
-generate-variant-2:
-  needs: [prepare-generation-config]
-  runs-on: ubuntu-latest
-```
-
-#### 並列処理の実装（依存関係を考慮）
-
-##### 3項並列（独立タスクのみ）
-```yaml
-# 相互依存のない調査タスクを同時実行
-parallel-research:
-  strategy:
-    matrix:
-      include:
-        - task: web-search
-          query: "latest trends"
-        - task: image-analysis  
-          source: "reference_images"
-        - task: market-research
-          scope: "target_audience"
-```
-
-##### 4項並列（同一前提条件のタスク）
-```yaml
-# 同じ設定データを使う生成タスクを並列化
-generate-variations:
-  needs: [prepare-generation-config]
-  strategy:
-    matrix:
-      variant: [style-a, style-b, style-c, style-d]
-```
-
-##### 条件付き並列（動的な並列数）
-```yaml
-# 分析結果に基づいて並列数を調整
-dynamic-generation:
-  needs: [analyze-all-data]
-  strategy:
-    matrix:
-      task: ${{ fromJSON(needs.analyze-all-data.outputs.parallel_tasks) }}
-```
-
-### 4. 人間的な進捗表示
-```yaml
-steps:
-  - name: "📊 進捗: 25% - 初期化完了"
-    run: echo "::notice title=Progress::Phase 1 of 4 completed"
-  
-  - name: "📊 進捗: 50% - 生成処理中"
-    run: echo "::notice title=Progress::Phase 2 of 4 in progress"
-  
-  - name: "📊 進捗: 75% - 品質確認中"
-    run: echo "::notice title=Progress::Phase 3 of 4 running"
-  
-  - name: "📊 進捗: 100% - 完了"
-    run: echo "::notice title=Progress::All phases completed!"
-```
-
-### 5. エラーハンドリングと再試行
-```yaml
-generate-with-retry:
-  name: "🔄 生成処理（再試行付き）"
+process-with-retry:
   runs-on: ubuntu-latest
   steps:
-    - name: "初回試行"
-      id: first_attempt
+    - name: First Attempt
+      id: attempt1
       continue-on-error: true
       run: |
-        # 生成処理
+        # 処理実行
         
-    - name: "再試行（必要時）"
-      if: steps.first_attempt.outcome == 'failure'
+    - name: Retry if Failed
+      if: steps.attempt1.outcome == 'failure'
       run: |
-        echo "::warning::初回失敗、設定を調整して再試行..."
-        # 調整した設定で再試行
-```
-
-### 6. 最終成果物の整理
-```yaml
-organize-deliverables:
-  name: "📦 成果物の整理"
-  needs: [all-processing-jobs]
-  runs-on: ubuntu-latest
-  steps:
-    - name: "ファイル整理"
-      run: |
-        mkdir -p final/images final/videos final/documents
-        
-    - name: "メタデータ生成"
-      run: |
-        echo "Generating metadata..."
-        
-    - name: "最終レポート作成"
-      run: |
-        echo "Creating final report..."
+        # 設定を調整して再試行
 ```
 
 ## 出力要件
-1. 人間が理解しやすい構造とコメント
-2. 詳細な進捗表示とログ
-3. 適切なエラーメッセージ
-4. 並列処理の最適な実装
-5. 成果物の整理された出力
+
+1. **GitHub Actions仕様準拠**: 正確なYAML構文とActions仕様への準拠
+2. **依存関係の正確性**: すべての依存関係が正しく定義
+3. **データフローの完全性**: 出力と入力が適切に接続
+4. **拡張可能な構造**: 新しい要求に対応できる柔軟な設計
+5. **エラー処理**: 適切なエラーハンドリングとフォールバック
 
 ## 品質チェック項目
-- [ ] 人間的な命名規則の使用
-- [ ] 自然なフェーズ分割
-- [ ] 適切な並列処理（3-5項）
-- [ ] 詳細な進捗表示
-- [ ] 包括的なエラーハンドリング
-- [ ] 成果物の整理
+
+- [ ] YAML構文の妥当性
+- [ ] GitHub Actions仕様への準拠
+- [ ] ミニマルユニットの正しい統合
+- [ ] 依存関係の整合性
+- [ ] 基本パターンの適切な使用
+- [ ] 拡張ポイントの確保
+- [ ] エラーハンドリングの実装

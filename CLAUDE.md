@@ -61,6 +61,9 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
 3. **Parallel Where Possible**: Only independent tasks run in parallel
 4. **Human-like Sequencing**: Tasks ordered as a human would naturally approach them
 5. **GitHub Actions Compliance**: Strict adherence to YAML syntax and Actions specifications
+6. **Basic Pattern Support**: Direct support for serial, parallel, conditional, and loop patterns
+7. **Extensibility**: New units and custom nodes can be created when existing units don't meet requirements
+8. **Not Over-dependent on Orchestrator**: Balance between using reference patterns and custom implementations
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 
@@ -384,23 +387,24 @@ Each workflow must include:
 - **Validation criteria and error handling**
 - **Duration estimates (5-60 minutes total)**
 
-#### Simplified 3-Stage Deployment Implementation
+#### Dynamic Workflow Generation Implementation
 The main workflow now uses:
-1. **Template Selection** → Select best template from `meta/examples/` based on workflow type
-2. **Workflow Generation** → Generate workflow based on selected template
-3. **Validation** → YAML syntax, GitHub Actions structure, MCP references check (75+ score required)
-4. **Direct Deployment** → `.github/workflows/generated/` (simple structure)
-5. **Metadata & Logs Storage** → `projects/current-session/metadata/` + `projects/current-session/logs/` (permanently stored)
+1. **Task Decomposition** → Ultra-detailed task breakdown using Claude Code SDK
+2. **Unit Selection** → Select from 55 minimal units based on task requirements
+3. **Dependency Analysis** → Determine execution order and parallel opportunities
+4. **Workflow Composition** → Generate workflow following kamuicode-workflow patterns
+5. **Validation** → YAML syntax, GitHub Actions structure, dependency verification
+6. **Safe Deployment** → `.github/workflows/generated/` with .disabled extension
 
 ### Development Best Practices
 
 #### When Adding New Workflows
-1. **Use existing templates** as base structure
-2. **Follow ultra-detailed task breakdown pattern**
-3. **Include proper MCP service integration**
-4. **Add file path reference patterns**
-5. **Update `meta/examples/README.md`** with Mermaid diagram
-6. **Test deployment through simplified staging system**
+1. **Reference kamuicode-workflow patterns** for orchestrator structure
+2. **Follow ultra-detailed task breakdown** with dependency management
+3. **Select appropriate minimal units** from 55 available units
+4. **Ensure proper task sequencing** based on data flow
+5. **Implement optimal parallelization** (3-5 way parallel)
+6. **Test deployment through staged system**
 
 #### When Modifying Main Workflow
 - **Maintain simplified staged deployment system**

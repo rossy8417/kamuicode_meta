@@ -11,12 +11,17 @@
 ### **ミニマルユニットベース・動的メタワークフローシステム**
 - **Claude Code SDK中心**: ユーザー要求を分析し、タスクを動的に分解
 - **ミニマルユニット構築**: `minimal-units/`の再利用可能な部品を組み合わせてワークフロー構築
-- **動的配置**: 並列処理、条件分岐、ループ処理を自動判断して配置
-- **拡張可能**: 必要に応じて新しいミニマルユニットやノードを作成
+- **基本配置パターン**: 直列・並列・条件分岐・ループ処理の基本パターンを実装
+- **参考パターン活用**: kamuicode-workflowのオーケストレーターを参考にしつつ独自拡張
+- **動的配置**: 並列処理、条件分岐、ループ処理を要求に応じて自動判断
+- **拡張可能**: 新しいユニットやカスタムノードを必要に応じて作成・統合
+- **タスク依存関係管理**: データフローと前提条件に基づく厳密な実行順序
+- **最適並列処理**: 3-5項並列を依存関係を考慮して自動配置
 - **品質検証**: YAML構文、GitHub Actions構造、MCP参照、依存関係チェック
 
 ### **核心コンポーネント**
-- **`minimal-units/`**: 再利用可能なワークフロー部品（画像、動画、音声、企画等）
+- **`minimal-units/`**: 55個の再利用可能なワークフロー部品（画像、動画、音声、企画等）
+- **`kamuicode-workflow/`**: 参考となるオーケストレーター・モジュールパターン
 - **`.github/workflows/meta-workflow-executor-v9.yml`**: Claude Code SDKベースの動的メタワークフロー
 - **`.github/workflows/auto-fix-deployment.yml`**: 自動デプロイ・エラー回復システム
 - **`.github/workflows/continuous-system-monitor.yml`**: システム健全性監視
@@ -49,9 +54,12 @@
 │       ├── minimal-unit-selector.md           # ユニット選択プロンプト
 │       ├── workflow-composer.md               # ワークフロー構成プロンプト
 │       ├── stepback-question-generator.md
-│       └── stepback-answer-analyzer.md
+│       ├── stepback-answer-analyzer.md
 │       ├── stepback-to-tasks.md
 │       └── task-prompt-template.md
+│
+├── 🔧 kamuicode-workflow/  # 参考パターン（subtree）
+│   └── module-workflow/    # オーケストレーター・モジュール例
 │
 ├── 🏗️ generated/        # 自動化出力（GitHub Actions）
 │   ├── metadata/        # 分析結果（永続保存）
@@ -126,9 +134,9 @@
 
 ## 📊 システム状況
 
-- **アーキテクチャ**: v8.1（重要システム修復プロトコル搭載）
-- **テンプレート**: 15個（video, 3D, audio, image, blog, data analysis等）
-- **成功率**: 12/12ジョブ 100%成功（過去実績）
+- **アーキテクチャ**: v9.0（ミニマルユニットベース動的生成）
+- **ミニマルユニット**: 55個（画像8、動画13、音声10、企画9、他）
+- **参考パターン**: kamuicode-workflowオーケストレーター
 - **CLI環境**: アクティブ（2025-07-28 17:22）
 
 ## 🔗 重要リンク
@@ -141,9 +149,9 @@
 ---
 
 **🤖 Kamui Rossy Meta Workflow Generator System**  
-**⚡ Version: v8.1**  
-**📅 Last Updated: 2025-07-28**  
-**🔄 Status: CLI環境アクティブ + GitHub Actions統合稼働中**
+**⚡ Version: v9.0**  
+**📅 Last Updated: 2025-07-31**  
+**🔄 Status: ミニマルユニットベース動的生成 + kamuicode-workflowパターン採用**
 ## Video Production v8 - Run #16
 - **Concept**: テスト：静かな森と朝の光
 - **Video URL**: local://projects/video-production-v8-16/final/final_video.mp4
