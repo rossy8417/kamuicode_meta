@@ -962,7 +962,7 @@ jobs:
           retention-days: 90
 
   # ========================================
-  # Phase 8: ローカル保存とアーカイブ
+  # Phase 8: プロジェクトディレクトリへの保存
   # ========================================
   save-to-projects:
     needs: [finalize-video]
@@ -970,7 +970,6 @@ jobs:
     if: success()
     outputs:
       saved_path: ${{ steps.save-final.outputs.saved_path }}
-      archive_path: ${{ steps.archive.outputs.archive_path }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -1010,27 +1009,9 @@ jobs:
           echo "saved_path=projects/$PROJECT_DIR" >> $GITHUB_OUTPUT
           echo "✅ Saved to: projects/$PROJECT_DIR"
           
-      - name: Create Archive
-        id: archive
-        run: |
-          echo "📦 Creating project archive..."
-          
-          ARCHIVE_DIR="projects/archives"
-          mkdir -p "$ARCHIVE_DIR"
-          
-          # アーカイブ作成
-          ARCHIVE_NAME="video-v8-run-${{ github.run_number }}_$(date +%Y%m%d_%H%M%S)"
-          tar czf "$ARCHIVE_DIR/${ARCHIVE_NAME}.tar.gz" -C projects/ "$(basename "${{ steps.save-final.outputs.saved_path }}")"
-          
-          echo "archive_path=$ARCHIVE_DIR/${ARCHIVE_NAME}.tar.gz" >> $GITHUB_OUTPUT
-          echo "✅ Archive created: $ARCHIVE_DIR/${ARCHIVE_NAME}.tar.gz"
-          
-      - name: Upload Archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: project-archive-${{ github.run_number }}
-          path: projects/archives/
-          retention-days: 90
+          # ファイルリストを表示
+          echo "📁 Saved files:"
+          ls -la "projects/$PROJECT_DIR/"
 
   # ========================================
   # Phase 9: プルリクエスト作成
