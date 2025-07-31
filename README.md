@@ -146,3 +146,8 @@
 - **Concept**: テスト：静かな森と朝の光
 - **Video URL**: local://projects/video-production-v8-16/final/final_video.mp4
 - **Date**: 2025-07-31
+
+## Video Production v8 - Run #23
+- **Concept**: AI-powered future city showcase
+- **Saved to**: projects/video-v8-run-23-AI-powered-future-city-showcase
+- **Date**: 2025-07-31
