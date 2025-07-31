@@ -598,31 +598,47 @@ jobs:
             -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__t2s-minimax-turbo__t2s_minimax_turbo_tts,mcp__t2s-google__t2s_google,Bash,Write" \
-            --permission-mode "acceptEdits"
+            --permission-mode "acceptEdits" || true
           
           # 結果確認とフォールバック
           if [ -f "${{ env.PROJECT_DIR }}/audio/narration.mp3" ]; then
-            # 音声の長さを取得
-            DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ env.PROJECT_DIR }}/audio/narration.mp3" | cut -d. -f1)
+            # ファイルサイズを確認
+            FILE_SIZE=$(stat -c%s "${{ env.PROJECT_DIR }}/audio/narration.mp3" 2>/dev/null || echo "0")
+            
+            if [ "$FILE_SIZE" -gt 1000 ]; then
+              # 有効なMP3ファイルの場合のみffprobeを実行
+              DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ env.PROJECT_DIR }}/audio/narration.mp3" 2>/dev/null | cut -d. -f1)
+              if [ -z "$DURATION" ]; then
+                DURATION=${{ github.event.inputs.video_length }}
+              fi
+            else
+              # プレースホルダーファイルの場合
+              DURATION=${{ github.event.inputs.video_length }}
+            fi
             
             if [ -f "${{ env.PROJECT_DIR }}/audio/narration-url.txt" ]; then
-              AUDIO_URL=$(cat "${{ env.PROJECT_DIR }}/audio/narration-url.txt")
+              AUDIO_URL=$(cat "${{ env.PROJECT_DIR }}/audio/narration-url.txt" | head -1)
             else
               AUDIO_URL="local://narration.mp3"
             fi
           else
-            echo "⚠️ Using placeholder narration..."
+            echo "⚠️ Creating placeholder narration file..."
             # プレースホルダー作成
-            touch "${{ env.PROJECT_DIR }}/audio/narration.mp3"
+            mkdir -p "${{ env.PROJECT_DIR }}/audio"
+            # 無音のMP3ファイルを生成
+            ffmpeg -f lavfi -i anullsrc=duration=${{ github.event.inputs.video_length }}:sample_rate=44100 \
+              -codec:a mp3 -b:a 128k \
+              "${{ env.PROJECT_DIR }}/audio/narration.mp3" -y
             DURATION=${{ github.event.inputs.video_length }}
             AUDIO_URL="placeholder"
           fi
           
+          # デバッグ情報（エラー回避のため簡潔に）
+          echo "📊 Narration: path=${{ env.PROJECT_DIR }}/audio/narration.mp3, duration=$DURATION"
+          
           echo "audio_path=${{ env.PROJECT_DIR }}/audio/narration.mp3" >> $GITHUB_OUTPUT
           echo "audio_url=$AUDIO_URL" >> $GITHUB_OUTPUT
           echo "duration=${DURATION:-30}" >> $GITHUB_OUTPUT
-          
-          echo "✅ Narration generation completed"
           
       - name: Upload Narration Results
         uses: actions/upload-artifact@v4
