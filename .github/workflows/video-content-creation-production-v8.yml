@@ -962,10 +962,81 @@ jobs:
           retention-days: 90
 
   # ========================================
-  # Phase 8: プルリクエスト作成
+  # Phase 8: ローカル保存とアーカイブ
+  # ========================================
+  save-to-projects:
+    needs: [finalize-video]
+    runs-on: ubuntu-latest
+    if: success()
+    outputs:
+      saved_path: ${{ steps.save-final.outputs.saved_path }}
+      archive_path: ${{ steps.archive.outputs.archive_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Final Package
+        uses: actions/download-artifact@v4
+        with:
+          name: final-video-package-${{ github.run_number }}
+          path: temp-final/
+          
+      - name: Save to Projects Directory
+        id: save-final
+        run: |
+          echo "💾 Saving final outputs to projects directory..."
+          
+          # プロジェクト名の生成（スペースと特殊文字を処理）
+          PROJECT_NAME=$(echo "${{ github.event.inputs.video_concept }}" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | cut -c1-50)
+          PROJECT_DIR="video-v8-run-${{ github.run_number }}-${PROJECT_NAME}"
+          
+          # ディレクトリ作成と保存
+          mkdir -p "projects/$PROJECT_DIR"
+          cp -r temp-final/* "projects/$PROJECT_DIR/"
+          
+          # 追加のメタデータ作成
+          cat > "projects/$PROJECT_DIR/workflow-info.json" << EOF
+          {
+            "workflow": "video-content-creation-production-v8",
+            "run_number": ${{ github.run_number }},
+            "run_id": "${{ github.run_id }}",
+            "concept": "${{ github.event.inputs.video_concept }}",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "github_actor": "${{ github.actor }}",
+            "github_ref": "${{ github.ref }}"
+          }
+          EOF
+          
+          echo "saved_path=projects/$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Saved to: projects/$PROJECT_DIR"
+          
+      - name: Create Archive
+        id: archive
+        run: |
+          echo "📦 Creating project archive..."
+          
+          ARCHIVE_DIR="projects/archives"
+          mkdir -p "$ARCHIVE_DIR"
+          
+          # アーカイブ作成
+          ARCHIVE_NAME="video-v8-run-${{ github.run_number }}_$(date +%Y%m%d_%H%M%S)"
+          tar czf "$ARCHIVE_DIR/${ARCHIVE_NAME}.tar.gz" -C projects/ "$(basename "${{ steps.save-final.outputs.saved_path }}")"
+          
+          echo "archive_path=$ARCHIVE_DIR/${ARCHIVE_NAME}.tar.gz" >> $GITHUB_OUTPUT
+          echo "✅ Archive created: $ARCHIVE_DIR/${ARCHIVE_NAME}.tar.gz"
+          
+      - name: Upload Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-archive-${{ github.run_number }}
+          path: projects/archives/
+          retention-days: 90
+
+  # ========================================
+  # Phase 9: プルリクエスト作成
   # ========================================
   create-pull-request:
-    needs: [finalize-video]
+    needs: [finalize-video, save-to-projects]
     runs-on: ubuntu-latest
     if: success()
     steps:

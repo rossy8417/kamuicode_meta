@@ -1,0 +1,93 @@
+name: project-archive
+description: プロジェクト全体のアーカイブ作成と整理
+
+on:
+  workflow_call:
+    inputs:
+      project_dir:
+        description: 'プロジェクトディレクトリパス'
+        required: true
+        type: string
+      archive_name:
+        description: 'アーカイブ名（拡張子なし）'
+        required: true
+        type: string
+      include_logs:
+        description: 'ログファイルを含めるか'
+        required: false
+        type: boolean
+        default: false
+      cleanup_source:
+        description: 'アーカイブ後に元ファイルを削除するか'
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      archive_path:
+        description: '作成されたアーカイブのパス'
+        value: ${{ jobs.archive.outputs.archive_path }}
+      archive_size:
+        description: 'アーカイブのサイズ'
+        value: ${{ jobs.archive.outputs.archive_size }}
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    outputs:
+      archive_path: ${{ steps.create-archive.outputs.archive_path }}
+      archive_size: ${{ steps.create-archive.outputs.archive_size }}
+    
+    steps:
+      - name: Create Project Archive
+        id: create-archive
+        run: |
+          echo "🗜️ Creating project archive..."
+          
+          # アーカイブディレクトリの作成
+          ARCHIVE_DIR="projects/archives"
+          mkdir -p "$ARCHIVE_DIR"
+          
+          # タイムスタンプ付きアーカイブ名
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          ARCHIVE_NAME="${{ inputs.archive_name }}_${TIMESTAMP}"
+          ARCHIVE_PATH="$ARCHIVE_DIR/${ARCHIVE_NAME}.tar.gz"
+          
+          # 除外パターンの設定
+          EXCLUDE_OPTS=""
+          if [ "${{ inputs.include_logs }}" != "true" ]; then
+            EXCLUDE_OPTS="--exclude='*.log' --exclude='logs/'"
+          fi
+          
+          # アーカイブの作成
+          tar czf "$ARCHIVE_PATH" \
+            $EXCLUDE_OPTS \
+            --exclude='*.tmp' \
+            --exclude='.git' \
+            -C "$(dirname "${{ inputs.project_dir }}")" \
+            "$(basename "${{ inputs.project_dir }}")"
+          
+          # アーカイブサイズの取得
+          ARCHIVE_SIZE=$(ls -lh "$ARCHIVE_PATH" | awk '{print $5}')
+          
+          # メタデータファイルの作成
+          cat > "$ARCHIVE_DIR/${ARCHIVE_NAME}_info.json" << EOF
+          {
+            "archive_name": "${ARCHIVE_NAME}.tar.gz",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "source_dir": "${{ inputs.project_dir }}",
+            "archive_size": "$ARCHIVE_SIZE",
+            "include_logs": ${{ inputs.include_logs }},
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_number": "${{ github.run_number }}"
+          }
+          EOF
+          
+          # クリーンアップ（指定された場合）
+          if [ "${{ inputs.cleanup_source }}" == "true" ]; then
+            echo "🧹 Cleaning up source files..."
+            rm -rf "${{ inputs.project_dir }}"
+          fi
+          
+          echo "archive_path=$ARCHIVE_PATH" >> $GITHUB_OUTPUT
+          echo "archive_size=$ARCHIVE_SIZE" >> $GITHUB_OUTPUT
+          echo "✅ Archive created: $ARCHIVE_PATH ($ARCHIVE_SIZE)"

@@ -1,0 +1,79 @@
+name: local-save
+description: ローカルディレクトリへのファイル保存とメタデータ管理
+
+on:
+  workflow_call:
+    inputs:
+      source_path:
+        description: '保存元のファイル/ディレクトリパス'
+        required: true
+        type: string
+      target_dir:
+        description: '保存先ディレクトリ（projects/配下）'
+        required: true
+        type: string
+      file_pattern:
+        description: '保存するファイルパターン（*.mp4, *.png等）'
+        required: false
+        type: string
+        default: '*'
+      create_metadata:
+        description: 'メタデータファイルを作成するか'
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      saved_path:
+        description: '保存されたファイルのパス'
+        value: ${{ jobs.save.outputs.saved_path }}
+      metadata_path:
+        description: 'メタデータファイルのパス'
+        value: ${{ jobs.save.outputs.metadata_path }}
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    outputs:
+      saved_path: ${{ steps.save-files.outputs.saved_path }}
+      metadata_path: ${{ steps.save-files.outputs.metadata_path }}
+    
+    steps:
+      - name: Save Files to Local Directory
+        id: save-files
+        run: |
+          echo "📁 Saving files to local directory..."
+          
+          # ターゲットディレクトリの作成
+          TARGET_DIR="projects/${{ inputs.target_dir }}"
+          mkdir -p "$TARGET_DIR"
+          
+          # ファイルのコピー
+          if [ -d "${{ inputs.source_path }}" ]; then
+            # ディレクトリの場合
+            cp -r "${{ inputs.source_path }}"/${{ inputs.file_pattern }} "$TARGET_DIR/" 2>/dev/null || true
+            SAVED_PATH="$TARGET_DIR"
+          else
+            # 単一ファイルの場合
+            cp "${{ inputs.source_path }}" "$TARGET_DIR/"
+            SAVED_PATH="$TARGET_DIR/$(basename "${{ inputs.source_path }}")"
+          fi
+          
+          # メタデータの作成
+          if [ "${{ inputs.create_metadata }}" == "true" ]; then
+            METADATA_FILE="$TARGET_DIR/save-metadata.json"
+            cat > "$METADATA_FILE" << EOF
+          {
+            "saved_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "source_path": "${{ inputs.source_path }}",
+            "target_dir": "$TARGET_DIR",
+            "file_pattern": "${{ inputs.file_pattern }}",
+            "workflow_run_id": "${{ github.run_id }}",
+            "workflow_run_number": "${{ github.run_number }}",
+            "files": $(ls -1 "$TARGET_DIR" | grep -v metadata | jq -R . | jq -s .)
+          }
+          EOF
+            echo "metadata_path=$METADATA_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "saved_path=$SAVED_PATH" >> $GITHUB_OUTPUT
+          echo "✅ Files saved to: $TARGET_DIR"
