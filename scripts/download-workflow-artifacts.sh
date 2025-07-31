@@ -123,7 +123,28 @@ if [ -d "bgm-${RUN_NUMBER}" ]; then
 fi
 
 if [ -d "narration-${RUN_NUMBER}" ]; then
-    mv "narration-${RUN_NUMBER}"/* audio/narration/ 2>/dev/null || true
+    # 深い階層にある実際のナレーションファイルを探して移動
+    if find "narration-${RUN_NUMBER}" -name "narration.mp3" -type f | head -1 | grep -q .; then
+        ACTUAL_NARRATION=$(find "narration-${RUN_NUMBER}" -name "narration.mp3" -type f | head -1)
+        ACTUAL_NARRATION_SIZE=$(stat -c%s "$ACTUAL_NARRATION" 2>/dev/null || echo "0")
+        
+        # 442KB前後のファイル（実際の音声）を優先
+        if [ "$ACTUAL_NARRATION_SIZE" -gt 400000 ] && [ "$ACTUAL_NARRATION_SIZE" -lt 500000 ]; then
+            cp "$ACTUAL_NARRATION" audio/narration/narration.mp3
+            echo "✅ 実際のナレーション音声ファイルを移動: $ACTUAL_NARRATION_SIZE bytes"
+        else
+            # サイズが異なる場合は最初に見つかったファイルを使用
+            cp "$ACTUAL_NARRATION" audio/narration/narration.mp3
+            echo "⚠️ ナレーションファイルを移動（サイズ確認必要）: $ACTUAL_NARRATION_SIZE bytes"
+        fi
+        
+        # 関連する URL と duration ファイルも探して移動
+        find "narration-${RUN_NUMBER}" -name "narration-url.txt" -type f -exec cp {} audio/narration/ \; 2>/dev/null || true
+        find "narration-${RUN_NUMBER}" -name "narration-duration.txt" -type f -exec cp {} audio/narration/ \; 2>/dev/null || true
+    else
+        # 従来の移動方法
+        mv "narration-${RUN_NUMBER}"/* audio/narration/ 2>/dev/null || true
+    fi
 fi
 
 if [ -d "planning-${RUN_NUMBER}" ]; then
