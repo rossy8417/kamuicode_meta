@@ -25,8 +25,8 @@ on:
         description: '計画書のパス'
         value: ${{ jobs.planning.outputs.video_plan_path }}
     secrets:
-      anthropic_api_key:
-        description: 'Anthropic API Key'
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
         required: true
 
 jobs:
@@ -43,7 +43,9 @@ jobs:
           node-version: '20'
       
       - name: Install Claude Code SDK
-        run: npm install @anthropic-ai/claude-code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
       
       - name: Create output directory
         run: mkdir -p ${{ inputs.output_dir }}
@@ -51,7 +53,9 @@ jobs:
       - name: Execute Planning Agent
         id: execute
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           # プロンプトの構築
           PROMPT="あなたは動画制作の専門プランナーです。ユーザーの指示から${{ inputs.total_videos }}つの動画を生成するための詳細な計画を立ててください。
@@ -75,10 +79,9 @@ jobs:
           
           # Claude Code CLIの実行
           npx @anthropic-ai/claude-code \
+            -p "$PROMPT" \
             --allowedTools "Read,Write,Edit" \
-            --max-turns 25 \
-            --permission-mode "acceptEdits" \
-            -p "$PROMPT"
+            --permission-mode "acceptEdits"
           
           # 出力の確認
           if [ -f "${{ inputs.output_dir }}/video-plan.md" ]; then

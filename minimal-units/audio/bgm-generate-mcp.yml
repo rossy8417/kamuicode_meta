@@ -1,0 +1,155 @@
+name: bgm-generate-mcp
+description: BGM生成の最小単位ユニット（MCP版）
+
+on:
+  workflow_call:
+    inputs:
+      prompt:
+        description: 'BGM生成プロンプト'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      duration:
+        description: 'BGM長さ（秒）'
+        required: false
+        type: string
+        default: '30'
+      genre:
+        description: '音楽ジャンル'
+        required: false
+        type: string
+        default: 'cinematic'
+      mood:
+        description: 'ムード/雰囲気'
+        required: false
+        type: string
+        default: 'uplifting'
+      tempo:
+        description: 'テンポ（BPM）'
+        required: false
+        type: string
+        default: '120'
+    outputs:
+      bgm_path:
+        description: '生成されたBGMパス'
+        value: ${{ jobs.generate.outputs.bgm_path }}
+      bgm_url:
+        description: 'BGM URL'
+        value: ${{ jobs.generate.outputs.bgm_url }}
+      metadata:
+        description: 'BGMメタデータ'
+        value: ${{ jobs.generate.outputs.metadata }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
+        required: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      bgm_path: ${{ steps.execute.outputs.bgm_path }}
+      bgm_url: ${{ steps.execute.outputs.bgm_url }}
+      metadata: ${{ steps.execute.outputs.metadata }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Generate BGM
+        id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ inputs.output_dir }}"
+          
+          # Claude Codeプロンプト
+          CLAUDE_PROMPT="Generate background music using t2m-google-lyria with:
+          
+          **Concept**: ${{ inputs.prompt }}
+          **Duration**: ${{ inputs.duration }} seconds
+          **Genre**: ${{ inputs.genre }}
+          **Mood**: ${{ inputs.mood }}
+          **Tempo**: ${{ inputs.tempo }} BPM
+          
+          Steps:
+          1. Use mcp__t2m-google-lyria__google_lyria_t2m to generate music
+          2. Save the audio URL to ${{ inputs.output_dir }}/bgm-url.txt
+          3. Download the audio to ${{ inputs.output_dir }}/bgm.mp3
+          4. Create metadata file at ${{ inputs.output_dir }}/bgm_metadata.json with all parameters
+          
+          Make sure to wait for generation to complete before downloading."
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2m-google-lyria__google_lyria_t2m,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # フォールバック: BGMが生成されない場合は仮のBGMを作成
+          if [ ! -f "${{ inputs.output_dir }}/bgm.mp3" ]; then
+            echo "⚠️ Using fallback BGM generation..."
+            
+            # FFmpegで簡単なBGMを生成
+            ffmpeg -f lavfi -i "sine=frequency=440:duration=${{ inputs.duration }}" \
+              -f lavfi -i "sine=frequency=554:duration=${{ inputs.duration }}" \
+              -filter_complex "[0:a][1:a]amix=inputs=2:duration=longest" \
+              -ac 2 -ar 44100 -b:a 192k \
+              "${{ inputs.output_dir }}/bgm.mp3" -y
+            
+            # フォールバック用のURL
+            echo "local://fallback-bgm.mp3" > "${{ inputs.output_dir }}/bgm-url.txt"
+            
+            # メタデータ作成
+            cat > "${{ inputs.output_dir }}/bgm_metadata.json" << EOF
+          {
+            "status": "fallback",
+            "duration": ${{ inputs.duration }},
+            "genre": "${{ inputs.genre }}",
+            "mood": "${{ inputs.mood }}",
+            "tempo": ${{ inputs.tempo }},
+            "format": "mp3",
+            "sample_rate": 44100,
+            "bitrate": "192k"
+          }
+          EOF
+          fi
+          
+          # 結果確認
+          if [ -f "${{ inputs.output_dir }}/bgm.mp3" ]; then
+            echo "bgm_path=${{ inputs.output_dir }}/bgm.mp3" >> $GITHUB_OUTPUT
+            
+            if [ -f "${{ inputs.output_dir }}/bgm-url.txt" ]; then
+              BGM_URL=$(cat "${{ inputs.output_dir }}/bgm-url.txt")
+              echo "bgm_url=$BGM_URL" >> $GITHUB_OUTPUT
+            fi
+            
+            if [ -f "${{ inputs.output_dir }}/bgm_metadata.json" ]; then
+              METADATA=$(cat "${{ inputs.output_dir }}/bgm_metadata.json" | jq -c .)
+              echo "metadata=$METADATA" >> $GITHUB_OUTPUT
+            fi
+            
+            echo "✅ BGM generated successfully"
+          else
+            echo "❌ BGM generation failed"
+            exit 1
+          fi

@@ -34,8 +34,8 @@ on:
         description: 'ローカル保存された動画パス'
         value: ${{ jobs.generate.outputs.video_path }}
     secrets:
-      anthropic_api_key:
-        description: 'Anthropic API Key'
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
         required: true
 
 jobs:
@@ -52,12 +52,16 @@ jobs:
           node-version: '20'
       
       - name: Install Claude Code SDK
-        run: npm install @anthropic-ai/claude-code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
       
       - name: Generate Video
         id: execute
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           # ディレクトリ作成
           mkdir -p "${{ inputs.output_dir }}"
@@ -120,11 +124,10 @@ jobs:
           
           # Claude Code実行
           npx @anthropic-ai/claude-code \
-            --mcp-config=".claude/mcp-kamuicode.json" \
+            -p "$PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$PROMPT"
+            --permission-mode "acceptEdits"
           
           # 結果確認
           if [ -f "${{ inputs.output_dir }}/video-url.txt" ] && [ -f "${{ inputs.output_dir }}/video.mp4" ]; then
