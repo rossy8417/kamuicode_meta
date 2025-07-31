@@ -20,6 +20,12 @@ This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Cod
 2. **Shared**: `.claude/mcp-kamuicode.json` (coordinate updates)
 3. **GitHub Actions**: `generated/`, `.github/workflows/`
 
+### ⚠️ Known Issue: Settings Overwrite
+Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
+```bash
+./scripts/restore-claude-permissions.sh
+```
+
 ### MCP Output Directory Rules
 - **CLI Sessions**: Use `./cli_generated/media/[images|videos|audio|3d]/`
 - **GitHub Actions**: Use `./generated/media/[type]/` or `./projects/project-name/`
