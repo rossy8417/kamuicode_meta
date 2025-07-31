@@ -969,7 +969,8 @@ jobs:
     runs-on: ubuntu-latest
     if: success()
     outputs:
-      saved_path: ${{ steps.save-final.outputs.saved_path }}
+      saved_path: ${{ steps.save-all.outputs.saved_path }}
+      project_dir: ${{ steps.save-all.outputs.project_dir }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -980,20 +981,19 @@ jobs:
           pattern: "*-${{ github.run_number }}"
           path: temp-all-artifacts/
           
-      - name: Save to Projects Directory
-        id: save-final
+      - name: Save All Outputs to Projects
+        id: save-all
         run: |
           echo "💾 Saving all outputs to projects directory..."
           
-          # プロジェクト名の生成（スペースと特殊文字を処理）
+          # プロジェクト名の生成（特殊文字を処理）
           PROJECT_NAME=$(echo "${{ github.event.inputs.video_concept }}" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | cut -c1-50)
           PROJECT_DIR="video-v8-run-${{ github.run_number }}-${PROJECT_NAME}"
           
           # メインディレクトリ作成
           mkdir -p "projects/$PROJECT_DIR"
           
-          # 各アーティファクトを整理して保存
-          echo "📂 Organizing artifacts..."
+          echo "📂 Organizing artifacts with structured layout..."
           
           # 最終成果物
           if [ -d "temp-all-artifacts/final-video-package-${{ github.run_number }}" ]; then
