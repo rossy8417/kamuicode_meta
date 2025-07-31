@@ -17,6 +17,11 @@ on:
         required: false
         type: string
         default: 't2i-fal-imagen4-ultra'
+      quality_setting:
+        description: '画質設定 (ultra, high, standard)'
+        required: false
+        type: string
+        default: 'high'
       aspect_ratio:
         description: 'アスペクト比'
         required: false
@@ -71,32 +76,57 @@ jobs:
           # ディレクトリ作成
           mkdir -p "${{ inputs.output_dir }}"
           
-          # モデル固有のツール名を設定
-          case "${{ inputs.model }}" in
-            "t2i-google-imagen3")
-              SUBMIT_TOOL="mcp__t2i-google-imagen3__imagen_t2i"
-              STATUS_TOOL=""
-              RESULT_TOOL=""
-              ;;
-            "t2i-fal-imagen4-ultra")
-              SUBMIT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit"
-              STATUS_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status"
-              RESULT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result"
-              ;;
-            "t2i-fal-imagen4-fast")
-              SUBMIT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_submit"
-              STATUS_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_status"
-              RESULT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_result"
-              ;;
-            "t2i-fal-flux-schnell")
-              SUBMIT_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_submit"
-              STATUS_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_status"
-              RESULT_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_result"
-              ;;
-          esac
+          # 画質設定に基づくモデル選択ロジック（v8ワークフローから）
+          if [ "${{ inputs.model }}" == "auto" ] || [ "${{ inputs.model }}" == "" ]; then
+            case "${{ inputs.quality_setting }}" in
+              ultra)
+                MODEL="t2i-google-imagen3"
+                SUBMIT_TOOL="mcp__t2i-google-imagen3__imagen_t2i"
+                STATUS_TOOL=""
+                RESULT_TOOL=""
+                ;;
+              high)
+                MODEL="t2i-fal-imagen4-ultra"
+                SUBMIT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit"
+                STATUS_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status"
+                RESULT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result"
+                ;;
+              standard)
+                MODEL="t2i-fal-imagen4-fast"
+                SUBMIT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_submit"
+                STATUS_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_status"
+                RESULT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_result"
+                ;;
+            esac
+          else
+            # 明示的なモデル指定
+            MODEL="${{ inputs.model }}"
+            case "$MODEL" in
+              "t2i-google-imagen3")
+                SUBMIT_TOOL="mcp__t2i-google-imagen3__imagen_t2i"
+                STATUS_TOOL=""
+                RESULT_TOOL=""
+                ;;
+              "t2i-fal-imagen4-ultra")
+                SUBMIT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit"
+                STATUS_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status"
+                RESULT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result"
+                ;;
+              "t2i-fal-imagen4-fast")
+                SUBMIT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_submit"
+                STATUS_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_status"
+                RESULT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_result"
+                ;;
+              "t2i-fal-flux-schnell")
+                SUBMIT_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_submit"
+                STATUS_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_status"
+                RESULT_TOOL="mcp__t2i-fal-flux-schnell__flux_schnell_result"
+                ;;
+            esac
+          fi
           
           # プロンプト構築
-          PROMPT="Generate an image using ${{ inputs.model }} with the following prompt:
+          PROMPT="Generate an image using $MODEL with the following prompt:
           
           **Prompt**: ${{ inputs.prompt }}
           **Aspect Ratio**: ${{ inputs.aspect_ratio }}

@@ -1,0 +1,188 @@
+name: video-production-workflow
+description: 動画コンテンツ制作の包括的ワークフロー（v8成功パターン）
+
+on:
+  workflow_call:
+    inputs:
+      video_concept:
+        description: '動画コンセプト・テーマ'
+        required: true
+        type: string
+      target_audience:
+        description: 'ターゲット視聴者'
+        required: false
+        type: string
+        default: 'general'
+      video_length:
+        description: '動画尺 (秒)'
+        required: false
+        type: string
+        default: '60'
+      video_style:
+        description: '動画スタイル'
+        required: false
+        type: string
+        default: 'cinematic'
+      quality_setting:
+        description: '画質設定 (ultra, high, standard)'
+        required: false
+        type: string
+        default: 'high'
+      enable_narration:
+        description: 'ナレーション有効化'
+        required: false
+        type: string
+        default: 'true'
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+    outputs:
+      final_video_path:
+        description: '最終動画ファイルパス'
+        value: ${{ jobs.finalize.outputs.final_video_path }}
+      final_video_url:
+        description: '最終動画URL'
+        value: ${{ jobs.finalize.outputs.final_video_url }}
+      summary_path:
+        description: 'サマリーレポートパス'
+        value: ${{ jobs.finalize.outputs.summary_path }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
+        required: true
+
+jobs:
+  # Phase 1: 企画・計画
+  planning:
+    uses: ./minimal-units/planning/planning-ccsdk.yml
+    with:
+      task_description: |
+        動画制作の詳細な計画を立てる：
+        - コンセプト: ${{ inputs.video_concept }}
+        - スタイル: ${{ inputs.video_style }}
+        - 長さ: ${{ inputs.video_length }}秒
+        - 3シーン構成（intro, main, outro）
+        - 各シーン用の画像プロンプト作成
+        - ナレーションスクリプト作成
+        - BGMコンセプト定義
+      output_dir: ${{ inputs.output_dir }}/concept
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Phase 2: 画像生成（並列実行）
+  generate-intro-image:
+    needs: planning
+    uses: ./minimal-units/media/image/image-t2i.yml
+    with:
+      prompt: "${{ inputs.video_style }} style opening scene for ${{ inputs.video_concept }}, professional quality, cinematic"
+      quality_setting: ${{ inputs.quality_setting }}
+      aspect_ratio: "16:9"
+      output_dir: ${{ inputs.output_dir }}/images/intro
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  generate-main-image:
+    needs: planning
+    uses: ./minimal-units/media/image/image-t2i.yml
+    with:
+      prompt: "${{ inputs.video_style }} style main content for ${{ inputs.video_concept }}, detailed, high quality"
+      quality_setting: ${{ inputs.quality_setting }}
+      aspect_ratio: "16:9"
+      output_dir: ${{ inputs.output_dir }}/images/main
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  generate-outro-image:
+    needs: planning
+    uses: ./minimal-units/media/image/image-t2i.yml
+    with:
+      prompt: "${{ inputs.video_style }} style closing scene for ${{ inputs.video_concept }}, memorable ending"
+      quality_setting: ${{ inputs.quality_setting }}
+      aspect_ratio: "16:9"
+      output_dir: ${{ inputs.output_dir }}/images/outro
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Phase 3: BGM生成
+  generate-bgm:
+    needs: planning
+    uses: ./minimal-units/media/audio/bgm-generate-mcp.yml
+    with:
+      concept: "${{ inputs.video_style }} style background music for ${{ inputs.video_concept }}"
+      duration: ${{ inputs.video_length }}
+      style: ${{ inputs.video_style }}
+      output_dir: ${{ inputs.output_dir }}/audio
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Phase 4: ナレーション生成（条件付き）
+  generate-narration:
+    needs: planning
+    if: inputs.enable_narration == 'true'
+    uses: ./minimal-units/media/audio/t2s-minimax-turbo-mcp.yml
+    with:
+      text: "動画コンセプト「${{ inputs.video_concept }}」についての説明です。"
+      voice_id: "Wise_Woman"
+      language: "Japanese"
+      output_dir: ${{ inputs.output_dir }}/audio
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Phase 5: 動画生成（並列実行）
+  generate-intro-video:
+    needs: generate-intro-image
+    uses: ./minimal-units/media/video/video-generation.yml
+    with:
+      prompt: "Smooth camera zoom in, establishing shot, ${{ inputs.video_style }} style opening"
+      image_url: ${{ needs.generate-intro-image.outputs.image_url }}
+      quality_setting: ${{ inputs.quality_setting }}
+      duration: "5"
+      output_dir: ${{ inputs.output_dir }}/videos/intro
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  generate-main-video:
+    needs: generate-main-image
+    uses: ./minimal-units/media/video/video-generation.yml
+    with:
+      prompt: "Dynamic camera movement showcasing the main subject, ${{ inputs.video_style }} style"
+      image_url: ${{ needs.generate-main-image.outputs.image_url }}
+      quality_setting: ${{ inputs.quality_setting }}
+      duration: "${{ inputs.video_length - 10 }}"
+      output_dir: ${{ inputs.output_dir }}/videos/main
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  generate-outro-video:
+    needs: generate-outro-image
+    uses: ./minimal-units/media/video/video-generation.yml
+    with:
+      prompt: "Elegant closing shot with gentle fade out, ${{ inputs.video_style }} style ending"
+      image_url: ${{ needs.generate-outro-image.outputs.image_url }}
+      quality_setting: ${{ inputs.quality_setting }}
+      duration: "5"
+      output_dir: ${{ inputs.output_dir }}/videos/outro
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Phase 6: 最終統合
+  finalize:
+    needs: [generate-intro-video, generate-main-video, generate-outro-video, generate-bgm, generate-narration]
+    if: |
+      always() && 
+      needs.generate-intro-video.result == 'success' && 
+      needs.generate-main-video.result == 'success' && 
+      needs.generate-outro-video.result == 'success' && 
+      needs.generate-bgm.result == 'success' &&
+      (needs.generate-narration.result == 'success' || needs.generate-narration.result == 'skipped')
+    uses: ./minimal-units/postprod/video-concat.yml
+    with:
+      video_list: "${{ needs.generate-intro-video.outputs.video_path }},${{ needs.generate-main-video.outputs.video_path }},${{ needs.generate-outro-video.outputs.video_path }}"
+      audio_path: ${{ needs.generate-bgm.outputs.bgm_path }}
+      narration_path: ${{ needs.generate-narration.outputs.audio_path }}
+      output_dir: ${{ inputs.output_dir }}/final
+    outputs:
+      final_video_path: ${{ steps.concat.outputs.video_path }}
+      final_video_url: "local://${{ steps.concat.outputs.video_path }}"
+      summary_path: ${{ inputs.output_dir }}/final/summary.md

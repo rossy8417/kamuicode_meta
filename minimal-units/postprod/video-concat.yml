@@ -16,6 +16,10 @@ on:
         description: 'BGM音声ファイルパス（オプション）'
         required: false
         type: string
+      narration_path:
+        description: 'ナレーション音声ファイルパス（オプション）'
+        required: false
+        type: string
       transition:
         description: 'トランジション効果'
         required: false
@@ -68,14 +72,50 @@ jobs:
               -y "${{ inputs.output_dir }}/concat_temp.mp4"
           fi
           
-          # BGMを追加（オプション）
+          # 音声トラック処理（v8ワークフローから）
+          HAS_BGM=false
+          HAS_NARRATION=false
+          
           if [ -n "${{ inputs.audio_path }}" ] && [ -f "${{ inputs.audio_path }}" ]; then
+            HAS_BGM=true
+          fi
+          
+          if [ -n "${{ inputs.narration_path }}" ] && [ -f "${{ inputs.narration_path }}" ]; then
+            # ナレーションファイルの有効性をチェック
+            FILE_TYPE=$(file -b "${{ inputs.narration_path }}" | cut -d' ' -f1)
+            FILE_SIZE=$(stat -c%s "${{ inputs.narration_path }}" 2>/dev/null || echo "0")
+            if [[ "$FILE_TYPE" == "Audio" ]] || [[ "$FILE_TYPE" == "ISO" ]] || [[ "$FILE_TYPE" == "MPEG" ]] || [ "$FILE_SIZE" -gt 1000 ]; then
+              HAS_NARRATION=true
+            fi
+          fi
+          
+          # 音声組み合わせロジック
+          if [ "$HAS_BGM" = true ] && [ "$HAS_NARRATION" = true ]; then
+            echo "🎵 Adding both BGM and narration..."
             ffmpeg -i "${{ inputs.output_dir }}/concat_temp.mp4" \
               -i "${{ inputs.audio_path }}" \
-              -filter_complex "[1:a]volume=0.3[bg];[0:a][bg]amix=inputs=2:duration=shortest" \
+              -i "${{ inputs.narration_path }}" \
+              -filter_complex "[1:a]volume=0.3[bgm];[2:a]volume=1.0[narration];[bgm][narration]amix=inputs=2:duration=longest[audio]" \
+              -map 0:v -map "[audio]" \
+              -c:v copy -c:a aac -b:a 192k \
+              -y "${{ inputs.output_dir }}/final_video.mp4"
+          elif [ "$HAS_BGM" = true ]; then
+            echo "🎵 Adding BGM only..."
+            ffmpeg -i "${{ inputs.output_dir }}/concat_temp.mp4" \
+              -i "${{ inputs.audio_path }}" \
+              -filter_complex "[1:a]volume=0.3[bgm]" \
+              -map 0:v -map "[bgm]" \
+              -c:v copy -c:a aac -b:a 192k \
+              -y "${{ inputs.output_dir }}/final_video.mp4"
+          elif [ "$HAS_NARRATION" = true ]; then
+            echo "🎤 Adding narration only..."
+            ffmpeg -i "${{ inputs.output_dir }}/concat_temp.mp4" \
+              -i "${{ inputs.narration_path }}" \
+              -map 0:v -map 1:a \
               -c:v copy -c:a aac -b:a 192k \
               -y "${{ inputs.output_dir }}/final_video.mp4"
           else
+            echo "⚠️ No audio tracks to add"
             mv "${{ inputs.output_dir }}/concat_temp.mp4" "${{ inputs.output_dir }}/final_video.mp4"
           fi
           

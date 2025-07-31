@@ -2,7 +2,7 @@
 
 ミニマルユニットの包括的なカタログです。メタワークフローシステムはこのカタログを参照して、動的にワークフローを構築します。
 
-**総ユニット数: 54個**
+**総ユニット数: 55個**
 
 ## Categories and Units
 
@@ -10,13 +10,13 @@
 
 #### 🖼️ Image Generation (5個)
 - **t2i-imagen3**: Google Imagen3による高品質画像生成 (minimal-units/media/image/t2i-imagen3.yml)
-- **image-t2i**: 汎用Text-to-Image（複数モデル対応） (minimal-units/media/image/image-t2i.yml)
+- **image-t2i**: ✅ 汎用Text-to-Image（画質設定対応・v8更新済み） (minimal-units/media/image/image-t2i.yml)
 - **t2i-sdxl**: Stable Diffusion XLによる画像生成 (minimal-units/media/image/t2i-sdxl.yml)
 - **i2i-flux-kontext**: Flux Kontextによる画像変換 (minimal-units/media/image/i2i-flux-kontext.yml)
 - **image-analysis**: 画像内容の分析 (minimal-units/media/image/image-analysis.yml)
 
 #### 🎬 Video Generation (7個)
-- **video-generation**: 汎用動画生成（i2v/t2v対応） (minimal-units/media/video/video-generation.yml)
+- **video-generation**: ✅ 汎用動画生成（画質設定対応・v8更新済み） (minimal-units/media/video/video-generation.yml)
 - **t2v-veo3**: Google Veo3によるText-to-Video (minimal-units/media/video/t2v-veo3.yml)
 - **t2v-wan**: Wan V2によるText-to-Video (minimal-units/media/video/t2v-wan.yml)
 - **i2v-seedance**: SeeDanceによるImage-to-Video (minimal-units/media/video/i2v-seedance.yml)
@@ -64,7 +64,7 @@
 - **srt-sync**: SRT同期調整 (minimal-units/postprod/srt-sync.yml)
 - **srt-translate**: SRT翻訳 (minimal-units/postprod/srt-translate.yml)
 - **subtitle-overlay**: 字幕オーバーレイ (minimal-units/postprod/subtitle-overlay.yml)
-- **video-concat**: 複数動画の結合 (minimal-units/postprod/video-concat.yml)
+- **video-concat**: ✅ 複数動画の結合（ナレーション対応・v8更新済み） (minimal-units/postprod/video-concat.yml)
 - **title-composition**: タイトルフレーム合成 (minimal-units/postprod/title-composition.yml)
 - **upscale-topaz**: Topazによる動画アップスケール (minimal-units/postprod/upscale-topaz.yml)
 - **v2v-luma-ray2**: Luma Ray2による動画変換 (minimal-units/postprod/v2v-luma-ray2.yml)
@@ -79,6 +79,9 @@
 - **cleanup-branch**: ブランチクリーンアップ (minimal-units/git-ops/cleanup-branch.yml)
 - **pdf-create**: PDF作成 (minimal-units/external/pdf-create.yml)
 - **sns-publish**: SNS投稿 (minimal-units/external/sns-publish.yml)
+
+### 🎬 Workflow Compositions (1個)
+- **video-production-workflow**: ✅ 動画制作統合ワークフロー（v8成功パターン） (minimal-units/workflows/video-production-workflow.yml)
 
 ## Usage Guidelines
 
