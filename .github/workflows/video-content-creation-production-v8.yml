@@ -183,11 +183,9 @@ jobs:
           
           # Claude Code CLIの実行
           npx @anthropic-ai/claude-code \
-            --prompt "$PROMPT" \
-            --allowed-tools "Read,Write,Edit" \
-            --max-turns 25 \
-            --permission-mode "acceptEdits" \
-            --output-dir "${{ env.PROJECT_DIR }}/logs"
+            -p "$PROMPT" \
+            --allowedTools "Read,Write,Edit" \
+            --permission-mode "acceptEdits"
           
           # 出力の確認
           if [ -f "${{ env.PROJECT_DIR }}/concept/video-plan.md" ]; then
@@ -332,12 +330,10 @@ jobs:
           
           # Claude Code実行
           npx @anthropic-ai/claude-code \
-            --prompt "$CLAUDE_PROMPT" \
+            -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowed-tools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
-            --max-turns 30 \
-            --permission-mode "acceptEdits" \
-            --output-dir "${{ env.PROJECT_DIR }}/logs"
+            --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
+            --permission-mode "acceptEdits"
           
           # 結果確認
           if [ -f "${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image-url.txt" ]; then
@@ -474,10 +470,8 @@ jobs:
           npx @anthropic-ai/claude-code \
             --prompt "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowed-tools "mcp__t2m-google-lyria__google_lyria_t2m,Bash,Write" \
-            --max-turns 25 \
-            --permission-mode "acceptEdits" \
-            --output-dir "${{ env.PROJECT_DIR }}/logs"
+            --allowedTools "mcp__t2m-google-lyria__google_lyria_t2m,Bash,Write" \
+            --permission-mode "acceptEdits"
           
           # フォールバック: BGMが生成されない場合は仮のBGMを作成
           if [ ! -f "${{ env.PROJECT_DIR }}/audio/bgm.mp3" ]; then
@@ -602,10 +596,8 @@ jobs:
           npx @anthropic-ai/claude-code \
             --prompt "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowed-tools "mcp__t2s-minimax-turbo__t2s_minimax_turbo_tts,mcp__t2s-google__t2s_google,Bash,Write" \
-            --max-turns 25 \
-            --permission-mode "acceptEdits" \
-            --output-dir "${{ env.PROJECT_DIR }}/logs"
+            --allowedTools "mcp__t2s-minimax-turbo__t2s_minimax_turbo_tts,mcp__t2s-google__t2s_google,Bash,Write" \
+            --permission-mode "acceptEdits"
           
           # 結果確認とフォールバック
           if [ -f "${{ env.PROJECT_DIR }}/audio/narration.mp3" ]; then
@@ -746,10 +738,8 @@ jobs:
           npx @anthropic-ai/claude-code \
             --prompt "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowed-tools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            --output-dir "${{ env.PROJECT_DIR }}/logs"
+            --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
+            --permission-mode "acceptEdits"
           
           # 結果確認
           if [ -f "${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}/video-url.txt" ]; then
