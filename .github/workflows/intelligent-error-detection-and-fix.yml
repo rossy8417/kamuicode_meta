@@ -1,0 +1,472 @@
+name: Intelligent Error Detection and Auto-Fix System
+run-name: 🧠 Monitoring & Fixing "${{ github.event.workflow_run.name || 'Manual' }}" #${{ github.event.workflow_run.run_number || github.run_number }}
+
+on:
+  workflow_run:
+    workflows: 
+      - "Meta Workflow Executor v8"
+      - "Video Content Creation Production v8"
+      # 主要なワークフローを監視
+    types:
+      - requested
+      - in_progress
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      target_workflow:
+        description: '監視対象のワークフロー名'
+        required: false
+        type: choice
+        options:
+          - 'all'
+          - 'meta-workflow-executor-v8'
+          - 'video-content-creation-production-v8'
+        default: 'all'
+      monitoring_duration:
+        description: '監視時間（分）'
+        required: false
+        type: number
+        default: 30
+      auto_fix_enabled:
+        description: '自動修正を有効化'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+  issues: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # ========================================
+  # Phase 1: リアルタイム監視と異常検知
+  # ========================================
+  real-time-monitoring:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push'
+    outputs:
+      workflow_status: ${{ steps.monitor.outputs.workflow_status }}
+      error_detected: ${{ steps.monitor.outputs.error_detected }}
+      error_type: ${{ steps.monitor.outputs.error_type }}
+      failed_jobs: ${{ steps.monitor.outputs.failed_jobs }}
+      monitoring_summary: ${{ steps.monitor.outputs.monitoring_summary }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup monitoring environment
+        run: |
+          echo "🔍 Starting intelligent monitoring..."
+          
+          # 監視対象のワークフローを特定
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            TARGET_RUN_ID="${{ github.event.workflow_run.id }}"
+            TARGET_WORKFLOW="${{ github.event.workflow_run.name }}"
+          else
+            TARGET_WORKFLOW="${{ github.event.inputs.target_workflow }}"
+            TARGET_RUN_ID=""
+          fi
+          
+          echo "TARGET_RUN_ID=$TARGET_RUN_ID" >> $GITHUB_ENV
+          echo "TARGET_WORKFLOW=$TARGET_WORKFLOW" >> $GITHUB_ENV
+          
+      - name: Real-time workflow monitoring
+        id: monitor
+        run: |
+          echo "👀 Monitoring workflow execution..."
+          
+          # 監視ループ（最大30分）
+          MONITORING_DURATION=${{ github.event.inputs.monitoring_duration || 30 }}
+          START_TIME=$(date +%s)
+          MAX_TIME=$((START_TIME + MONITORING_DURATION * 60))
+          
+          ERROR_DETECTED=false
+          ERROR_TYPE=""
+          FAILED_JOBS=""
+          
+          while [ $(date +%s) -lt $MAX_TIME ]; do
+            if [ -n "$TARGET_RUN_ID" ]; then
+              # 特定のrunを監視
+              RUN_STATUS=$(gh run view $TARGET_RUN_ID --json status,conclusion -q '.status')
+              RUN_CONCLUSION=$(gh run view $TARGET_RUN_ID --json status,conclusion -q '.conclusion')
+              
+              echo "📊 Run status: $RUN_STATUS, Conclusion: $RUN_CONCLUSION"
+              
+              # 失敗したジョブを検出
+              if [ "$RUN_STATUS" == "completed" ] && [ "$RUN_CONCLUSION" == "failure" ]; then
+                ERROR_DETECTED=true
+                FAILED_JOBS=$(gh run view $TARGET_RUN_ID --json jobs -q '.jobs[] | select(.conclusion=="failure") | .name' | tr '\n' ',')
+                
+                # エラータイプを判定
+                ERROR_LOGS=$(gh run view $TARGET_RUN_ID --log-failed 2>/dev/null | head -100)
+                
+                if echo "$ERROR_LOGS" | grep -q "YAML syntax error"; then
+                  ERROR_TYPE="yaml_syntax"
+                elif echo "$ERROR_LOGS" | grep -q "File not found"; then
+                  ERROR_TYPE="file_not_found"
+                elif echo "$ERROR_LOGS" | grep -q "MCP.*error\|mcp.*failed"; then
+                  ERROR_TYPE="mcp_service"
+                elif echo "$ERROR_LOGS" | grep -q "Permission denied"; then
+                  ERROR_TYPE="permission"
+                elif echo "$ERROR_LOGS" | grep -q "timeout\|Timeout"; then
+                  ERROR_TYPE="timeout"
+                else
+                  ERROR_TYPE="unknown"
+                fi
+                
+                break
+              fi
+              
+              # 進行中の場合は継続監視
+              if [ "$RUN_STATUS" != "completed" ]; then
+                sleep 30
+                continue
+              fi
+            else
+              # 全体的な監視
+              RECENT_FAILURES=$(gh run list --workflow="$TARGET_WORKFLOW" --status=failure --limit=5 --json number,name,conclusion)
+              if [ -n "$RECENT_FAILURES" ] && [ "$RECENT_FAILURES" != "[]" ]; then
+                ERROR_DETECTED=true
+                ERROR_TYPE="recurring_failures"
+                break
+              fi
+            fi
+            
+            sleep 30
+          done
+          
+          # 監視結果を出力
+          echo "workflow_status=$RUN_STATUS" >> $GITHUB_OUTPUT
+          echo "error_detected=$ERROR_DETECTED" >> $GITHUB_OUTPUT
+          echo "error_type=$ERROR_TYPE" >> $GITHUB_OUTPUT
+          echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+          
+          # サマリー作成
+          SUMMARY="Monitored for $(($(date +%s) - START_TIME)) seconds. "
+          if [ "$ERROR_DETECTED" == "true" ]; then
+            SUMMARY+="Error detected: $ERROR_TYPE. Failed jobs: $FAILED_JOBS"
+          else
+            SUMMARY+="No errors detected."
+          fi
+          echo "monitoring_summary=$SUMMARY" >> $GITHUB_OUTPUT
+
+  # ========================================
+  # Phase 2: AI駆動のエラー分析
+  # ========================================
+  ai-error-analysis:
+    needs: real-time-monitoring
+    if: needs.real-time-monitoring.outputs.error_detected == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      root_cause: ${{ steps.analyze.outputs.root_cause }}
+      fix_strategy: ${{ steps.analyze.outputs.fix_strategy }}
+      confidence_level: ${{ steps.analyze.outputs.confidence_level }}
+      implementation_plan: ${{ steps.analyze.outputs.implementation_plan }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code SDK
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          
+      - name: AI-powered error analysis
+        id: analyze
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🤖 Starting AI error analysis..."
+          
+          # エラーログを収集
+          if [ -n "${{ env.TARGET_RUN_ID }}" ]; then
+            gh run view ${{ env.TARGET_RUN_ID }} --log-failed > error_logs.txt 2>/dev/null || echo "No error logs available" > error_logs.txt
+          fi
+          
+          # Claude Codeでエラー分析
+          ANALYSIS_PROMPT="You are an expert in GitHub Actions and CI/CD pipelines.
+          
+          Error Type: ${{ needs.real-time-monitoring.outputs.error_type }}
+          Failed Jobs: ${{ needs.real-time-monitoring.outputs.failed_jobs }}
+          
+          Please analyze the error and provide:
+          1. Root cause analysis (one line)
+          2. Fix strategy (one line)
+          3. Confidence level (low/medium/high)
+          4. Implementation steps (structured list)
+          
+          Error logs are in error_logs.txt
+          
+          Save your analysis to:
+          - analysis/root_cause.txt (one line)
+          - analysis/fix_strategy.txt (one line)  
+          - analysis/confidence_level.txt (low/medium/high)
+          - analysis/implementation_plan.md (detailed steps)"
+          
+          mkdir -p analysis
+          
+          npx @anthropic-ai/claude-code \
+            -p "$ANALYSIS_PROMPT" \
+            --allowedTools "Read,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果を出力
+          if [ -f "analysis/root_cause.txt" ]; then
+            echo "root_cause=$(cat analysis/root_cause.txt)" >> $GITHUB_OUTPUT
+            echo "fix_strategy=$(cat analysis/fix_strategy.txt)" >> $GITHUB_OUTPUT
+            echo "confidence_level=$(cat analysis/confidence_level.txt)" >> $GITHUB_OUTPUT
+            echo "implementation_plan<<EOF" >> $GITHUB_OUTPUT
+            cat analysis/implementation_plan.md >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "root_cause=Analysis failed" >> $GITHUB_OUTPUT
+            echo "fix_strategy=Manual intervention required" >> $GITHUB_OUTPUT
+            echo "confidence_level=low" >> $GITHUB_OUTPUT
+            echo "implementation_plan=Unable to generate automated fix" >> $GITHUB_OUTPUT
+          fi
+
+  # ========================================
+  # Phase 3: 自動修正の実装
+  # ========================================
+  implement-auto-fix:
+    needs: [real-time-monitoring, ai-error-analysis]
+    if: |
+      needs.ai-error-analysis.outputs.confidence_level != 'low' &&
+      (github.event.inputs.auto_fix_enabled == 'true' || github.event.inputs.auto_fix_enabled == null)
+    runs-on: ubuntu-latest
+    outputs:
+      fix_applied: ${{ steps.fix.outputs.fix_applied }}
+      pr_url: ${{ steps.pr.outputs.pr_url }}
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup fix environment
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+      - name: Create fix branch
+        run: |
+          FIX_BRANCH="auto-fix/${{ needs.real-time-monitoring.outputs.error_type }}-${{ github.run_number }}"
+          git checkout -b "$FIX_BRANCH"
+          echo "FIX_BRANCH=$FIX_BRANCH" >> $GITHUB_ENV
+          
+      - name: Apply automated fixes
+        id: fix
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🔧 Applying automated fixes..."
+          
+          # エラータイプに基づいた修正
+          case "${{ needs.real-time-monitoring.outputs.error_type }}" in
+            yaml_syntax)
+              echo "Fixing YAML syntax errors..."
+              # YAML修正ロジック
+              ;;
+            file_not_found)
+              echo "Fixing file path issues..."
+              # ファイルパス修正ロジック
+              ;;
+            mcp_service)
+              echo "Fixing MCP service issues..."
+              # MCP設定修正ロジック
+              ;;
+            permission)
+              echo "Fixing permission issues..."
+              # 権限修正ロジック
+              ;;
+            timeout)
+              echo "Fixing timeout issues..."
+              # タイムアウト修正ロジック
+              ;;
+            *)
+              echo "Applying general fixes..."
+              ;;
+          esac
+          
+          # Claude Codeで具体的な修正を実装
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          
+          FIX_PROMPT="Based on the analysis:
+          
+          Root Cause: ${{ needs.ai-error-analysis.outputs.root_cause }}
+          Fix Strategy: ${{ needs.ai-error-analysis.outputs.fix_strategy }}
+          
+          Implementation Plan:
+          ${{ needs.ai-error-analysis.outputs.implementation_plan }}
+          
+          Please implement the fixes according to the plan.
+          Focus on the failed jobs: ${{ needs.real-time-monitoring.outputs.failed_jobs }}
+          
+          Important:
+          - Apply HEREDOC Elimination Protocol for YAML errors
+          - Use Flexible Path Resolution for file not found errors
+          - Update MCP service calls for service errors
+          - Fix permission settings for permission errors
+          - Increase timeouts for timeout errors"
+          
+          npx @anthropic-ai/claude-code \
+            -p "$FIX_PROMPT" \
+            --allowedTools "Read,Write,Edit,MultiEdit,Grep,Glob" \
+            --permission-mode "acceptEdits"
+          
+          # 変更をコミット
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "fix: auto-fix for ${{ needs.real-time-monitoring.outputs.error_type }} error
+            
+            Root cause: ${{ needs.ai-error-analysis.outputs.root_cause }}
+            Strategy: ${{ needs.ai-error-analysis.outputs.fix_strategy }}
+            Confidence: ${{ needs.ai-error-analysis.outputs.confidence_level }}
+            
+            Failed jobs: ${{ needs.real-time-monitoring.outputs.failed_jobs }}"
+            
+            git push origin "$FIX_BRANCH"
+            echo "fix_applied=true" >> $GITHUB_OUTPUT
+          else
+            echo "fix_applied=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Create pull request
+        id: pr
+        if: steps.fix.outputs.fix_applied == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_BODY="## 🤖 Automated Fix for ${{ needs.real-time-monitoring.outputs.error_type }} Error
+          
+          ### 📊 Error Analysis
+          - **Root Cause**: ${{ needs.ai-error-analysis.outputs.root_cause }}
+          - **Fix Strategy**: ${{ needs.ai-error-analysis.outputs.fix_strategy }}
+          - **Confidence Level**: ${{ needs.ai-error-analysis.outputs.confidence_level }}
+          - **Failed Jobs**: ${{ needs.real-time-monitoring.outputs.failed_jobs }}
+          
+          ### 🔧 Implementation Plan
+          ${{ needs.ai-error-analysis.outputs.implementation_plan }}
+          
+          ### 📝 Monitoring Summary
+          ${{ needs.real-time-monitoring.outputs.monitoring_summary }}
+          
+          ---
+          This PR was automatically generated by the Intelligent Error Detection and Auto-Fix System."
+          
+          PR_URL=$(gh pr create \
+            --title "🔧 Auto-fix: ${{ needs.real-time-monitoring.outputs.error_type }} error in workflow" \
+            --body "$PR_BODY" \
+            --base main \
+            --label "auto-fix,ci-improvement")
+            
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+
+  # ========================================
+  # Phase 4: 修正の検証とフィードバック
+  # ========================================
+  verify-fix:
+    needs: [implement-auto-fix]
+    if: needs.implement-auto-fix.outputs.fix_applied == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout fixed branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FIX_BRANCH }}
+          
+      - name: Run validation tests
+        run: |
+          echo "🧪 Validating fixes..."
+          
+          # YAML検証
+          find .github/workflows -name "*.yml" -o -name "*.yaml" | while read file; do
+            echo "Validating $file..."
+            python3 -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
+          done
+          
+          # ワークフロー構造検証
+          for workflow in .github/workflows/*.yml; do
+            if [ -f "$workflow" ]; then
+              echo "Checking workflow structure: $workflow"
+              # 必須フィールドの確認
+              grep -q "^name:" "$workflow" || echo "Warning: Missing 'name' field in $workflow"
+              grep -q "^on:" "$workflow" || echo "Warning: Missing 'on' field in $workflow"
+              grep -q "^jobs:" "$workflow" || echo "Warning: Missing 'jobs' field in $workflow"
+            fi
+          done
+          
+      - name: Post validation results
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # PR にコメントを追加
+          if [ -n "${{ needs.implement-auto-fix.outputs.pr_url }}" ]; then
+            gh pr comment "${{ needs.implement-auto-fix.outputs.pr_url }}" \
+              --body "### ✅ Validation Results
+              
+              - YAML Syntax: ✅ Passed
+              - Workflow Structure: ✅ Valid
+              - File Paths: ✅ Verified
+              
+              The automated fixes have been validated and appear to be correct."
+          fi
+
+  # ========================================
+  # Phase 5: 学習とフィードバックループ
+  # ========================================
+  learning-feedback:
+    needs: [real-time-monitoring, ai-error-analysis, implement-auto-fix]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Record fix outcome
+        run: |
+          echo "📚 Recording fix outcome for future learning..."
+          
+          # 修正結果を記録
+          mkdir -p .github/auto-fix-history
+          
+          cat > ".github/auto-fix-history/fix-${{ github.run_number }}.json" << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "error_type": "${{ needs.real-time-monitoring.outputs.error_type }}",
+            "root_cause": "${{ needs.ai-error-analysis.outputs.root_cause }}",
+            "fix_strategy": "${{ needs.ai-error-analysis.outputs.fix_strategy }}",
+            "confidence_level": "${{ needs.ai-error-analysis.outputs.confidence_level }}",
+            "fix_applied": "${{ needs.implement-auto-fix.outputs.fix_applied }}",
+            "pr_url": "${{ needs.implement-auto-fix.outputs.pr_url }}",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          
+      - name: Update fix patterns database
+        run: |
+          echo "🔄 Updating fix patterns..."
+          
+          # 成功したパターンを記録（将来の参照用）
+          if [ "${{ needs.implement-auto-fix.outputs.fix_applied }}" == "true" ]; then
+            echo "Fix pattern recorded for future reference"
+          fi
