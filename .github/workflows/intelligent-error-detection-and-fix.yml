@@ -86,6 +86,8 @@ jobs:
           
       - name: Real-time workflow monitoring
         id: monitor
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "👀 Monitoring workflow execution..."
           
@@ -227,6 +229,7 @@ jobs:
         id: analyze
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "🤖 Starting AI error analysis..."
           
@@ -309,6 +312,7 @@ jobs:
         id: fix
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "🔧 Applying automated fixes..."
           
@@ -485,6 +489,8 @@ jobs:
         
       - name: Wait for PR merge
         id: wait
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "⏳ Waiting for fix to be merged..."
           
@@ -514,6 +520,8 @@ jobs:
           
       - name: Restart failed workflow
         id: restart
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "🔄 Restarting workflow after fix..."
           
