@@ -142,3 +142,7 @@
 **⚡ Version: v8.1**  
 **📅 Last Updated: 2025-07-28**  
 **🔄 Status: CLI環境アクティブ + GitHub Actions統合稼働中**
+## Video Production v8 - Run #15
+- **Concept**: テスト：美しい夕焼けと海岸線
+- **Video URL**: local://projects/video-production-v8-15/final/final_video.mp4
+- **Date**: 2025-07-31
