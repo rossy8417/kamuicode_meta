@@ -12,7 +12,9 @@
 - **t2i-sdxl**: Stable Diffusion XLによる画像生成
 - **i2i-flux-kontext**: Flux Kontextによる画像変換
 - **image-analysis**: 画像内容の分析
-- **banner-text**: バナー画像にテキスト追加
+
+### 🏷️ Banner Design & Implementation
+- **banner-text**: バナー画像にテキスト追加・デザイン実装
 
 ### 🎬 Video Generation & Processing
 - **video-generation**: 汎用動画生成（i2v/t2v対応）
@@ -50,18 +52,18 @@
 
 ### 📋 Planning & Analysis
 - **planning-ccsdk**: Claude Code SDKによる企画
+- **banner-planning**: バナー企画立案
+- **news-planning**: ニュース企画
 - **web-search**: Web検索による情報収集
-- **article-generation**: 記事生成
-- **markdown-summary**: Markdownサマリー生成
 - **data-analysis**: データ分析
 - **data-visualization**: データ可視化
 
 ### 📰 Content Creation
 - **blog-generation**: ブログ記事生成
-- **news-planning**: ニュース企画
+- **article-generation**: 記事生成
 - **news-summary**: ニュース要約
 - **slide-generation**: プレゼンテーション生成
-- **banner-planning**: バナー企画
+- **markdown-summary**: Markdownサマリー生成
 
 ### 🛠️ Utility & Integration
 - **local-save**: ローカル保存
