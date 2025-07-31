@@ -795,8 +795,12 @@ jobs:
   # Phase 7: 動画結合と最終処理
   # ========================================
   finalize-video:
-    needs: [setup-environment, generate-scene-videos, generate-background-music]
-    if: always() && needs.generate-scene-videos.result == 'success' && needs.generate-background-music.result == 'success'
+    needs: [setup-environment, generate-scene-videos, generate-background-music, generate-narration]
+    if: |
+      always() && 
+      needs.generate-scene-videos.result == 'success' && 
+      needs.generate-background-music.result == 'success' &&
+      (needs.generate-narration.result == 'success' || needs.generate-narration.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       final_video_path: ${{ steps.process.outputs.final_video_path }}
@@ -843,25 +847,42 @@ jobs:
           ffmpeg -f concat -safe 0 -i "${{ env.PROJECT_DIR }}/final/videos.txt" \
             -c copy "${{ env.PROJECT_DIR }}/final/combined.mp4"
           
-          # BGMを追加
-          if [ -f "$BGM_PATH" ]; then
+          # ナレーションパスを設定
+          NARRATION_PATH="${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}/narration.mp3"
+          
+          # 音声トラックの組み合わせを決定
+          if [ -f "$BGM_PATH" ] && [ -f "$NARRATION_PATH" ]; then
+            echo "🎵 Adding both BGM and narration..."
+            # BGMとナレーションの両方を追加
+            ffmpeg -i "${{ env.PROJECT_DIR }}/final/combined.mp4" -i "$BGM_PATH" -i "$NARRATION_PATH" \
+              -filter_complex "[1:a]volume=0.3[bgm];[2:a]volume=1.0[narration];[bgm][narration]amix=inputs=2:duration=longest[audio]" \
+              -map 0:v -map "[audio]" \
+              -c:v copy -c:a aac -b:a 192k \
+              "${{ env.PROJECT_DIR }}/final/final_video.mp4"
+          elif [ -f "$BGM_PATH" ]; then
+            echo "🎵 Adding BGM only..."
+            # BGMのみ追加
             ffmpeg -i "${{ env.PROJECT_DIR }}/final/combined.mp4" -i "$BGM_PATH" \
-              -filter_complex "[1:a]volume=0.3[bgm];[0:a][bgm]amix=inputs=2:duration=first" \
+              -filter_complex "[1:a]volume=0.3[bgm]" \
+              -map 0:v -map "[bgm]" \
+              -c:v copy -c:a aac -b:a 192k \
+              "${{ env.PROJECT_DIR }}/final/final_video.mp4"
+          elif [ -f "$NARRATION_PATH" ]; then
+            echo "🎤 Adding narration only..."
+            # ナレーションのみ追加
+            ffmpeg -i "${{ env.PROJECT_DIR }}/final/combined.mp4" -i "$NARRATION_PATH" \
+              -map 0:v -map 1:a \
               -c:v copy -c:a aac -b:a 192k \
               "${{ env.PROJECT_DIR }}/final/final_video.mp4"
           else
+            echo "⚠️ No audio tracks to add"
             cp "${{ env.PROJECT_DIR }}/final/combined.mp4" "${{ env.PROJECT_DIR }}/final/final_video.mp4"
           fi
           
           # 字幕を追加（有効な場合）
-          if [ "${{ github.event.inputs.enable_subtitles }}" == "true" ]; then
-            # ナレーションファイルの存在確認
-            if [ -d "${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}" ] && [ -f "${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}/narration.mp3" ]; then
-              echo "📝 Adding subtitles..."
-              # 字幕処理をここに追加（簡略化のため省略）
-            else
-              echo "⚠️ Subtitles enabled but no narration found, skipping..."
-            fi
+          if [ "${{ github.event.inputs.enable_subtitles }}" == "true" ] && [ -f "$NARRATION_PATH" ]; then
+            echo "📝 Adding subtitles overlay..."
+            # TODO: 字幕処理の実装（SRT生成とオーバーレイ）
           fi
           
           echo "final_video_path=${{ env.PROJECT_DIR }}/final/final_video.mp4" >> $GITHUB_OUTPUT
