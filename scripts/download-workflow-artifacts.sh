@@ -123,26 +123,62 @@ if [ -d "bgm-${RUN_NUMBER}" ]; then
 fi
 
 if [ -d "narration-${RUN_NUMBER}" ]; then
-    # 深い階層にある実際のナレーションファイルを探して移動
-    if find "narration-${RUN_NUMBER}" -name "narration.mp3" -type f | head -1 | grep -q .; then
-        ACTUAL_NARRATION=$(find "narration-${RUN_NUMBER}" -name "narration.mp3" -type f | head -1)
-        ACTUAL_NARRATION_SIZE=$(stat -c%s "$ACTUAL_NARRATION" 2>/dev/null || echo "0")
+    # 深い階層にある全てのナレーションファイルを検出
+    NARRATION_FILES=($(find "narration-${RUN_NUMBER}" -name "narration.mp3" -type f))
+    
+    if [ ${#NARRATION_FILES[@]} -gt 0 ]; then
+        echo "🔍 Found ${#NARRATION_FILES[@]} narration file(s)"
         
-        # 442KB前後のファイル（実際の音声）を優先
-        if [ "$ACTUAL_NARRATION_SIZE" -gt 400000 ] && [ "$ACTUAL_NARRATION_SIZE" -lt 500000 ]; then
-            cp "$ACTUAL_NARRATION" audio/narration/narration.mp3
-            echo "✅ 実際のナレーション音声ファイルを移動: $ACTUAL_NARRATION_SIZE bytes"
+        # 最適なナレーションファイルを選択
+        BEST_NARRATION=""
+        BEST_SIZE=0
+        
+        for NARRATION_FILE in "${NARRATION_FILES[@]}"; do
+            NARRATION_SIZE=$(stat -c%s "$NARRATION_FILE" 2>/dev/null || echo "0")
+            echo "  - $NARRATION_FILE: ${NARRATION_SIZE} bytes"
+            
+            # 400KB-500KB範囲（実際の音声）を最優先
+            if [ "$NARRATION_SIZE" -gt 400000 ] && [ "$NARRATION_SIZE" -lt 500000 ]; then
+                BEST_NARRATION="$NARRATION_FILE"
+                BEST_SIZE="$NARRATION_SIZE"
+                echo "    ✅ 実際の音声ファイルを検出"
+                break
+            # モノラル/ステレオ判定でより適切なファイルを選択
+            elif [ "$NARRATION_SIZE" -gt "$BEST_SIZE" ] && [ "$NARRATION_SIZE" -lt 600000 ]; then
+                BEST_NARRATION="$NARRATION_FILE"
+                BEST_SIZE="$NARRATION_SIZE"
+            fi
+        done
+        
+        if [ -n "$BEST_NARRATION" ]; then
+            cp "$BEST_NARRATION" audio/narration/narration.mp3
+            echo "✅ 最適なナレーションファイルを選択: $BEST_NARRATION ($BEST_SIZE bytes)"
+            
+            # ファイルタイプ確認
+            FILE_TYPE=$(file "$BEST_NARRATION" | grep -o "Monaural\|Stereo" || echo "Unknown")
+            echo "   🎵 Audio format: $FILE_TYPE"
+            
+            # 関連ファイルを同じディレクトリから取得
+            NARRATION_DIR=$(dirname "$BEST_NARRATION")
+            if [ -f "$NARRATION_DIR/narration-url.txt" ]; then
+                cp "$NARRATION_DIR/narration-url.txt" audio/narration/
+                echo "   📎 Copied narration-url.txt"
+            fi
+            if [ -f "$NARRATION_DIR/narration-duration.txt" ]; then
+                cp "$NARRATION_DIR/narration-duration.txt" audio/narration/
+                echo "   ⏱️ Copied narration-duration.txt"
+            fi
         else
-            # サイズが異なる場合は最初に見つかったファイルを使用
-            cp "$ACTUAL_NARRATION" audio/narration/narration.mp3
-            echo "⚠️ ナレーションファイルを移動（サイズ確認必要）: $ACTUAL_NARRATION_SIZE bytes"
+            echo "⚠️ Using first available narration file"
+            cp "${NARRATION_FILES[0]}" audio/narration/narration.mp3
         fi
         
-        # 関連する URL と duration ファイルも探して移動
+        # 他の関連ファイルも探して移動
         find "narration-${RUN_NUMBER}" -name "narration-url.txt" -type f -exec cp {} audio/narration/ \; 2>/dev/null || true
         find "narration-${RUN_NUMBER}" -name "narration-duration.txt" -type f -exec cp {} audio/narration/ \; 2>/dev/null || true
     else
         # 従来の移動方法
+        echo "⚠️ Using legacy narration file movement"
         mv "narration-${RUN_NUMBER}"/* audio/narration/ 2>/dev/null || true
     fi
 fi

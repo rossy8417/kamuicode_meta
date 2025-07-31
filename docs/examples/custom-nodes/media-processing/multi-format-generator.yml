@@ -1,0 +1,227 @@
+name: "Multi-Format Generator Custom Node"
+description: "同一コンテンツを複数フォーマット（画像、動画、音声）で同時生成するカスタムノード例"
+
+# このファイルは実装例です。実際の使用時は適切なワークフローに統合してください。
+
+jobs:
+  multi-format-generator:
+    runs-on: ubuntu-latest
+    needs: [content-planning]  # 前提: コンテンツ企画が完了
+    outputs:
+      image_paths: ${{ steps.collect-outputs.outputs.images }}
+      video_paths: ${{ steps.collect-outputs.outputs.videos }}
+      audio_paths: ${{ steps.collect-outputs.outputs.audios }}
+      summary: ${{ steps.collect-outputs.outputs.summary }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Environment
+        run: |
+          mkdir -p projects/current-session/multi-format/
+          mkdir -p projects/current-session/multi-format/{images,videos,audios}
+          echo "CONTENT_CONCEPT=${{ needs.content-planning.outputs.concept }}" >> $GITHUB_ENV
+          echo "PROJECT_DIR=projects/current-session/multi-format" >> $GITHUB_ENV
+        
+      # 並列生成フェーズ: 3つのフォーマットを同時生成
+      - name: Generate Images (Format 1)
+        id: image-gen
+        run: |
+          # 複数の画像生成サービスを使用
+          echo "🎨 Generating images for concept: $CONTENT_CONCEPT"
+          
+          # MCP サービス呼び出し（例: t2i-google-imagen3）
+          # 実際の実装では適切なMCPコールに置き換え
+          cat > "$PROJECT_DIR/image_request.json" << EOF
+          {
+            "prompt": "$CONTENT_CONCEPT with professional quality, 4K resolution",
+            "style": "photorealistic",
+            "aspect_ratio": "16:9"
+          }
+          EOF
+          
+          # シミュレーション出力（実際はMCPサービスからの結果）
+          echo "image_url=https://example.com/generated_image.jpg" >> $GITHUB_OUTPUT
+          echo "✅ Image generation completed"
+          
+      - name: Generate Videos (Format 2)
+        id: video-gen
+        run: |
+          echo "🎬 Generating videos for concept: $CONTENT_CONCEPT"
+          
+          # 動画生成設定
+          cat > "$PROJECT_DIR/video_request.json" << EOF
+          {
+            "type": "text-to-video",
+            "prompt": "$CONTENT_CONCEPT with cinematic quality, 30 seconds",
+            "resolution": "1920x1080",
+            "fps": 30
+          }
+          EOF
+          
+          # 複数の動画生成サービスでバリエーション作成
+          # 実際の実装では t2v-veo3, t2v-wan などのMCPサービス使用
+          echo "video_url=https://example.com/generated_video.mp4" >> $GITHUB_OUTPUT
+          echo "✅ Video generation completed"
+          
+      - name: Generate Audio (Format 3)
+        id: audio-gen
+        run: |
+          echo "🎵 Generating audio for concept: $CONTENT_CONCEPT"
+          
+          # 音声生成設定
+          cat > "$PROJECT_DIR/audio_request.json" << EOF
+          {
+            "type": "text-to-music",
+            "prompt": "Background music for $CONTENT_CONCEPT, cinematic and professional",
+            "duration": 30,
+            "genre": "cinematic"
+          }
+          EOF
+          
+          # BGM生成とナレーション生成の組み合わせ
+          echo "audio_url=https://example.com/generated_audio.mp3" >> $GITHUB_OUTPUT
+          echo "✅ Audio generation completed"
+          
+      # 品質チェックフェーズ
+      - name: Quality Assessment
+        run: |
+          echo "🔍 Quality assessment for generated content"
+          
+          # 各フォーマットの品質チェック
+          QUALITY_SCORE=0
+          
+          # 画像品質チェック（実際はimage-analysisユニット使用）
+          if [ "${{ steps.image-gen.outputs.image_url }}" != "" ]; then
+            echo "✅ Image quality: PASS"
+            QUALITY_SCORE=$((QUALITY_SCORE + 33))
+          fi
+          
+          # 動画品質チェック（実際はvideo-analysisユニット使用）
+          if [ "${{ steps.video-gen.outputs.video_url }}" != "" ]; then
+            echo "✅ Video quality: PASS"
+            QUALITY_SCORE=$((QUALITY_SCORE + 33))
+          fi
+          
+          # 音声品質チェック
+          if [ "${{ steps.audio-gen.outputs.audio_url }}" != "" ]; then
+            echo "✅ Audio quality: PASS"
+            QUALITY_SCORE=$((QUALITY_SCORE + 34))
+          fi
+          
+          echo "Overall quality score: $QUALITY_SCORE/100"
+          echo "QUALITY_SCORE=$QUALITY_SCORE" >> $GITHUB_ENV
+          
+      # 最適化フェーズ（品質が低い場合）
+      - name: Content Optimization
+        if: env.QUALITY_SCORE < 80
+        run: |
+          echo "🔧 Content optimization required (Score: $QUALITY_SCORE)"
+          
+          # 品質改善処理
+          if [ "$QUALITY_SCORE" -lt 80 ]; then
+            echo "Applying quality enhancement filters..."
+            # 実際の実装では upscale-topaz などの品質向上ユニット使用
+          fi
+          
+      # 統合処理フェーズ
+      - name: Format Integration
+        run: |
+          echo "🔗 Integrating multiple formats"
+          
+          # フォーマット間の整合性チェック
+          # 色調、テーマ、時間軸の統一性確保
+          
+          # メタデータ生成
+          cat > "$PROJECT_DIR/integration_metadata.json" << EOF
+          {
+            "concept": "$CONTENT_CONCEPT",
+            "formats_generated": ["image", "video", "audio"],
+            "quality_score": $QUALITY_SCORE,
+            "integration_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "cross_format_consistency": true
+          }
+          EOF
+          
+      # 出力収集フェーズ
+      - name: Collect Outputs
+        id: collect-outputs
+        run: |
+          # すべての生成結果を収集
+          IMAGES='["${{ steps.image-gen.outputs.image_url }}"]'
+          VIDEOS='["${{ steps.video-gen.outputs.video_url }}"]'
+          AUDIOS='["${{ steps.audio-gen.outputs.audio_url }}"]'
+          
+          echo "images=$IMAGES" >> $GITHUB_OUTPUT
+          echo "videos=$VIDEOS" >> $GITHUB_OUTPUT
+          echo "audios=$AUDIOS" >> $GITHUB_OUTPUT
+          echo "summary=Multi-format content generated successfully with quality score $QUALITY_SCORE" >> $GITHUB_OUTPUT
+          
+          # 最終メタデータ保存
+          cat > "$PROJECT_DIR/final_output.json" << EOF
+          {
+            "multi_format_generation": {
+              "images": $IMAGES,
+              "videos": $VIDEOS,
+              "audios": $AUDIOS,
+              "quality_metrics": {
+                "overall_score": $QUALITY_SCORE,
+                "consistency_check": "passed"
+              }
+            }
+          }
+          EOF
+          
+          echo "✅ Multi-format generation completed"
+          
+      # エラーハンドリング
+      - name: Error Recovery
+        if: failure()
+        run: |
+          echo "❌ Multi-format generation failed"
+          
+          # 部分的な成果物の保存
+          PARTIAL_RESULTS=""
+          
+          if [ "${{ steps.image-gen.outputs.image_url }}" != "" ]; then
+            PARTIAL_RESULTS="$PARTIAL_RESULTS images:success"
+          fi
+          
+          if [ "${{ steps.video-gen.outputs.video_url }}" != "" ]; then
+            PARTIAL_RESULTS="$PARTIAL_RESULTS videos:success"
+          fi
+          
+          if [ "${{ steps.audio-gen.outputs.audio_url }}" != "" ]; then
+            PARTIAL_RESULTS="$PARTIAL_RESULTS audios:success"
+          fi
+          
+          echo "Partial results: $PARTIAL_RESULTS"
+          
+          # エラーレポート生成
+          cat > "$PROJECT_DIR/error_report.json" << EOF
+          {
+            "error_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "partial_results": "$PARTIAL_RESULTS",
+            "recovery_suggestions": [
+              "Check MCP service availability",
+              "Verify content concept clarity",
+              "Review resource limitations"
+            ]
+          }
+          EOF
+
+# 使用例:
+# このカスタムノードを既存ワークフローに統合する場合:
+#
+# jobs:
+#   content-planning:
+#     uses: ./.github/workflows/minimal-units/planning/planning-ccsdk.yml
+#     
+#   multi-format-content:
+#     uses: ./docs/examples/custom-nodes/media-processing/multi-format-generator.yml
+#     needs: [content-planning]
+#     
+#   post-processing:
+#     needs: [multi-format-content]
+#     # 後続処理...

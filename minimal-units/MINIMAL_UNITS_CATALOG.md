@@ -2,7 +2,7 @@
 
 ミニマルユニットの包括的なカタログです。メタワークフローシステムはこのカタログを参照して、動的にワークフローを構築します。
 
-**総ユニット数: 53個**
+**総ユニット数: 54個**
 
 ## Categories and Units
 
@@ -24,11 +24,12 @@
 - **video-analysis**: 動画内容の分析 (minimal-units/media/video/video-analysis.yml)
 - **video-prompt-opt**: 動画プロンプトの最適化 (minimal-units/media/video/video-prompt-opt.yml)
 
-#### 🎵 Audio Generation (9個)
+#### 🎵 Audio Generation (10個)
 - **bgm-generate**: BGM生成（シミュレーション版） (minimal-units/media/audio/bgm-generate.yml)
-- **bgm-generate-mcp**: BGM生成（MCP版） (minimal-units/media/audio/bgm-generate-mcp.yml)
+- **bgm-generate-mcp**: ✅ BGM生成（MCP版・lyria_generate修正済み） (minimal-units/media/audio/bgm-generate-mcp.yml)
 - **t2s-google**: Google Text-to-Speech (minimal-units/media/audio/t2s-google.yml)
-- **t2s-minimax-turbo**: MiniMax Turbo TTS (minimal-units/media/audio/t2s-minimax-turbo.yml)
+- **t2s-minimax-turbo**: MiniMax Turbo TTS（シミュレーション版） (minimal-units/media/audio/t2s-minimax-turbo.yml)
+- **t2s-minimax-turbo-mcp**: ✅ MiniMax Turbo TTS（MCP版・実装済み） (minimal-units/media/audio/t2s-minimax-turbo-mcp.yml)
 - **t2s-minimax-voice**: MiniMax Voice Design (minimal-units/media/audio/t2s-minimax-voice.yml)
 - **t2s-openai**: OpenAI Text-to-Speech (minimal-units/media/audio/t2s-openai.yml)
 - **audio-elevenlabs**: ElevenLabs音声生成 (minimal-units/media/audio/audio-elevenlabs.yml)

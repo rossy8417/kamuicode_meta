@@ -2,7 +2,23 @@
 
 Meta Workflow Executor v8.1 で使用されるプロンプトファイルの管理ディレクトリです。
 
-## 📁 アクティブなプロンプト
+## 📁 ディレクトリ構造
+
+```
+meta/prompts/
+├── README.md                    # このファイル
+├── active/                      # アクティブなプロンプト（v8.1で使用中）
+│   ├── stepback-question-generator.md
+│   ├── stepback-answer-summarizer.md
+│   └── stepback-to-tasks.md
+├── templates/                   # テンプレートファイル
+│   └── task-prompt-template.md
+└── deprecated/                  # 非アクティブなプロンプト
+    ├── minimal-unit-selector.md
+    └── workflow-composer.md
+```
+
+## 📁 アクティブなプロンプト（active/）
 
 ### **stepback-question-generator.md**
 - **用途**: ユーザーのワークフロー要求を分析し、詳細化のための質問を動的生成
@@ -22,21 +38,26 @@ Meta Workflow Executor v8.1 で使用されるプロンプトファイルの管�
 - **出力先**: `generated/metadata/task-decomposition/task-plan.json`
 - **実装状況**: ✅ v8.1で追加（動的タスク分解対応）
 
-## 📂 テンプレート
+## 📂 テンプレート（templates/）
 
-### **templates/task-prompt-template.md**
+### **task-prompt-template.md**
 - **用途**: 個別タスク実行用のプロンプトテンプレート
 - **変数**: `{{task_name}}`, `{{task_description}}` など
 - **実装状況**: 🔄 将来の機能拡張用
 
-## 🗂️ 非アクティブなプロンプト
+## 🗂️ 非アクティブなプロンプト（deprecated/）
 
-### **deprecated/** ディレクトリ
 v8.1アーキテクチャで使用されなくなったプロンプトファイルが保管されています：
-- `task-decomposition.md` - 複雑なタスク分解（フォールバックJSONで代替）
-- `workflow-generation.md` - ワークフロー生成（echo-based直接生成で代替）
-- `script-generation.md` - JavaScript実行エンジン（GitHub Actions直接実行で代替）
-- `documentation-generation.md` - 自動ドキュメント生成（手動作成で代替）
+
+### **minimal-unit-selector.md**
+- **旧用途**: 53個のミニマルユニットから適切なものを選択
+- **廃止理由**: v8.1でのテンプレート選択方式への移行
+- **移行日**: 2025-07-31
+
+### **workflow-composer.md**  
+- **旧用途**: 選択されたミニマルユニットを組み合わせてワークフロー構成
+- **廃止理由**: echo-based直接生成方式への移行
+- **移行日**: 2025-07-31
 
 ## 🔄 Meta Workflow v8.1 での使用フロー
 
