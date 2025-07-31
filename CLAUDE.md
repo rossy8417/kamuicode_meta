@@ -2,6 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 📚 Documentation Reference Guide
+
+**🎯 Context-based references - Only access needed docs for your specific task**
+
+### For workflow generation & dependencies
+→ **`UNIFIED_DEPENDENCY_GUIDE.md`** (AI-optimized, single source)
+
+### For minimal unit selection & catalog
+→ **`minimal-units/MINIMAL_UNITS_CATALOG.md`** (53 units, full paths)
+
+### For technical implementation details
+→ **`minimal-units/UNIT_INTERFACE_SPEC.md`** (YAML interface specs)
+
+### For prompt creation & meta-workflow design
+→ **`meta/prompts/`** directory specific prompt files
+
+### For system overview & architecture
+→ **`README.md`** (system overview)
+
+**⚠️ Important**: Other docs (docs/, kamuicode-workflow/) are detailed technical references. Not needed for regular tasks.
+
 ## Project Status
 
 This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Code GitHub Actions integration. The system uses **template-based generation** with **staged deployment system** to generate high-quality, executable GitHub Actions workflows efficiently.

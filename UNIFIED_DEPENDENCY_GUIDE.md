@@ -1,14 +1,14 @@
-# 統合依存関係ガイド - AI生成システム向け
+# Unified Dependency Guide - For AI Generation Systems
 
-このドキュメントは、メタワークフローシステムで使用するすべてのコンポーネント（ミニマルユニット、モジュール、オーケストレーター）の依存関係を統合的に説明します。
+This document provides comprehensive dependency relationships for all components (minimal units, modules, orchestrators) used in the meta-workflow system.
 
-## 📋 目次
+## 📋 Table of Contents
 
-1. [システム階層構造](#システム階層構造)
-2. [依存関係マトリックス](#依存関係マトリックス)
-3. [実行順序ルール](#実行順序ルール)
-4. [典型的なフローパターン](#典型的なフローパターン)
-5. [AI生成システム用クイックリファレンス](#ai生成システム用クイックリファレンス)
+1. [System Hierarchy](#system-hierarchy)
+2. [Dependency Matrix](#dependency-matrix)
+3. [Execution Order Rules](#execution-order-rules)
+4. [Typical Flow Patterns](#typical-flow-patterns)
+5. [AI System Quick Reference](#ai-system-quick-reference)
 
 ## システム階層構造
 
