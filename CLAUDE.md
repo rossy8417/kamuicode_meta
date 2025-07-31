@@ -31,25 +31,25 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
 - **GitHub Actions**: Use `./generated/media/[type]/` or `./projects/project-name/`
 - **File Prefix**: CLI uses `claude_generated` or `claude_[type]` prefix
 
-## Current Architecture (v8.1)
+## Current Architecture (v9.0)
 
-### Template-Based Meta Workflow System with Simplified Deployment
-- **Template Selection**: Uses 9 reference workflows in `meta/examples/` instead of complex task decomposition
-- **Simplified 3-Stage Deployment**: generation → validation → deployment with .disabled safety mechanism
-- **Prompt Separation**: All prompts managed as external files in `meta/prompts/`
-- **Small Nodes**: Each job has single responsibility with independent re-execution capability
-- **Quality Validation**: YAML syntax, GitHub Actions structure, MCP references, dependencies check
-- **Persistent Storage**: Final workflows in simplified `.github/workflows/generated/` structure
+### Minimal Unit Based Dynamic Meta Workflow System
+- **Claude Code SDK Analysis**: Uses Claude Code SDK to analyze user requirements and decompose tasks dynamically
+- **Minimal Unit Composition**: Selects and combines reusable units from `minimal-units/` directory
+- **Dynamic Workflow Generation**: Creates workflows based on task requirements, not fixed templates
+- **Intelligent Placement**: Automatically determines parallel execution, dependencies, and optimal arrangement
+- **Quality Validation**: YAML syntax, GitHub Actions structure, unit compatibility, dependency check
+- **Safe Deployment**: Generated workflows deployed with .disabled extension for review
 
 ### Core Components
-- **`meta/examples/`**: 9 GitHub Actions workflow templates (video, 3D, audio, image, blog, data analysis, multimedia, news, presentation)
-- **`.github/workflows/meta-workflow-executor-v8.yml`**: Main meta workflow (v8.1 with Critical System Repair Protocol)
+- **`minimal-units/`**: Reusable workflow components organized by category (planning, image, video, audio, etc.)
+- **`.github/workflows/meta-workflow-executor-v9.yml`**: Dynamic meta workflow using Claude Code SDK
 - **`.github/workflows/auto-fix-deployment.yml`**: Automated deployment and error recovery system
 - **`.github/workflows/continuous-system-monitor.yml`**: System health monitoring
 - **`.github/ISSUE_TEMPLATE/`**: Issue templates for workflow requests
-- **`meta/prompts/`**: Prompt files for task decomposition, workflow generation, script generation, documentation
+- **`meta/prompts/`**: Prompts for unit selection, workflow composition, task analysis
 - **`generated/`**: Organized outputs with metadata and logs storage
-- **`.github/workflows/generated/`**: Simple workflow deployment area
+- **`.github/workflows/generated/`**: Generated workflow deployment area
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 

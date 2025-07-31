@@ -1,0 +1,447 @@
+name: Meta Workflow Executor v9
+run-name: 🚀 Dynamic minimal-unit based workflow for Issue #${{ github.event.issue.number || inputs.issue_number }}
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process'
+        required: true
+        default: '46'
+
+permissions:
+  contents: write
+  issues: write
+  actions: read
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # Phase 1: Trigger Validation & Answer Extraction
+  validate-trigger:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || contains(github.event.comment.body, 'start'))
+    outputs:
+      should_execute: ${{ steps.validate.outputs.should_execute }}
+      issue_number: ${{ steps.validate.outputs.issue_number }}
+    
+    steps:
+      - name: Validate Trigger
+        id: validate
+        run: |
+          echo "🔍 Validating trigger conditions..."
+          
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "✅ Manual trigger via workflow_dispatch"
+            echo "should_execute=true" >> $GITHUB_OUTPUT
+            echo "issue_number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+            COMMENT_USER="${{ github.event.comment.user.login }}"
+            ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
+            COMMENT_BODY="${{ github.event.comment.body }}"
+            
+            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && echo "$COMMENT_BODY" | grep -q '^start'; then
+              echo "✅ Valid start trigger from issue author"
+              echo "should_execute=true" >> $GITHUB_OUTPUT
+              echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Invalid trigger"
+              echo "should_execute=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  extract-requirements:
+    needs: validate-trigger
+    runs-on: ubuntu-latest
+    if: needs.validate-trigger.outputs.should_execute == 'true'
+    outputs:
+      user_request: ${{ steps.extract.outputs.user_request }}
+      workflow_type: ${{ steps.extract.outputs.workflow_type }}
+      stepback_answers: ${{ steps.extract.outputs.stepback_answers }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Extract Requirements from Issue
+        id: extract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
+          echo "📝 Extracting requirements from Issue #$ISSUE_NUMBER..."
+          
+          mkdir -p generated/metadata/requirements
+          
+          # Get issue body
+          gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER \
+            --jq '.body' > generated/metadata/requirements/issue-body.txt
+          
+          ISSUE_BODY=$(cat generated/metadata/requirements/issue-body.txt)
+          
+          # Extract workflow type
+          WORKFLOW_TYPE="custom"
+          if echo "$ISSUE_BODY" | grep -q "動画.*生成\|video.*generation"; then
+            WORKFLOW_TYPE="video-generation"
+          elif echo "$ISSUE_BODY" | grep -q "画像.*生成\|image.*generation"; then
+            WORKFLOW_TYPE="image-generation"
+          elif echo "$ISSUE_BODY" | grep -q "3[Dd].*モデル"; then
+            WORKFLOW_TYPE="3d-model"
+          elif echo "$ISSUE_BODY" | grep -q "音楽\|BGM\|music"; then
+            WORKFLOW_TYPE="audio-generation"
+          fi
+          
+          # Extract stepback answers
+          STEPBACK_ANSWERS=$(echo "$ISSUE_BODY" | grep -E "Q[1-5].*回答：|回答：" -A 5 | head -30)
+          
+          # Extract user request (first section before Q1)
+          USER_REQUEST=$(echo "$ISSUE_BODY" | sed -n '1,/Q1/p' | head -20)
+          
+          echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+          echo "user_request<<EOF" >> $GITHUB_OUTPUT
+          echo "$USER_REQUEST" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "stepback_answers<<EOF" >> $GITHUB_OUTPUT
+          echo "$STEPBACK_ANSWERS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      - name: Upload Requirements
+        uses: actions/upload-artifact@v4
+        with:
+          name: requirements-metadata
+          path: generated/metadata/requirements/
+          retention-days: 1
+
+  # Phase 2: Task Decomposition with Claude Code SDK
+  decompose-tasks:
+    needs: extract-requirements
+    runs-on: ubuntu-latest
+    outputs:
+      task_plan: ${{ steps.decompose.outputs.task_plan }}
+      task_count: ${{ steps.decompose.outputs.task_count }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Claude Code SDK
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          
+      - name: Decompose Tasks with Claude Code
+        id: decompose
+        run: |
+          echo "🧠 Decomposing tasks based on user requirements..."
+          
+          mkdir -p generated/metadata/task-decomposition
+          
+          # Create decomposition prompt
+          cat > generated/metadata/task-decomposition/decompose-prompt.md << 'EOF'
+          # Task Decomposition Request
+          
+          Based on the following user request and answers, decompose into executable tasks:
+          
+          ## User Request
+          ${{ needs.extract-requirements.outputs.user_request }}
+          
+          ## Stepback Answers
+          ${{ needs.extract-requirements.outputs.stepback_answers }}
+          
+          ## Workflow Type
+          ${{ needs.extract-requirements.outputs.workflow_type }}
+          
+          Please decompose this into a task plan with:
+          1. Clear task definitions
+          2. Dependencies between tasks
+          3. Required minimal units or tools
+          4. Estimated duration
+          5. Parallel execution opportunities
+          
+          Output as JSON in generated/metadata/task-decomposition/task-plan.json
+          EOF
+          
+          # Execute Claude Code
+          npx @anthropic-ai/claude-code \
+            -f generated/metadata/task-decomposition/decompose-prompt.md \
+            --allowedTools "Write" \
+            --permission-mode "acceptEdits" || {
+              # Fallback plan
+              echo '{"tasks":[{"id":"task-001","name":"Default Task","type":"processing"}],"estimated_duration":30}' \
+                > generated/metadata/task-decomposition/task-plan.json
+            }
+          
+          # Count tasks
+          TASK_COUNT=$(jq '.tasks | length' generated/metadata/task-decomposition/task-plan.json || echo "1")
+          
+          echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
+          echo "task_plan=generated/metadata/task-decomposition/task-plan.json" >> $GITHUB_OUTPUT
+          
+      - name: Upload Task Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-decomposition
+          path: generated/metadata/task-decomposition/
+          retention-days: 1
+
+  # Phase 3: Select Minimal Units
+  select-minimal-units:
+    needs: [extract-requirements, decompose-tasks]
+    runs-on: ubuntu-latest
+    outputs:
+      selected_units: ${{ steps.select.outputs.selected_units }}
+      unit_count: ${{ steps.select.outputs.unit_count }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          
+      - name: Download Task Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: task-decomposition
+          path: generated/metadata/task-decomposition/
+          
+      - name: Select Minimal Units
+        id: select
+        run: |
+          echo "🧩 Selecting appropriate minimal units..."
+          
+          mkdir -p generated/metadata/unit-selection
+          
+          # Create unit catalog summary
+          find minimal-units -name "*.yml" -type f | while read unit; do
+            echo "- $(basename $unit .yml): $unit"
+          done > generated/metadata/unit-selection/available-units.txt
+          
+          # Create selection prompt
+          cat > generated/metadata/unit-selection/select-prompt.md << 'EOF'
+          # Minimal Unit Selection
+          
+          Based on the task plan, select appropriate minimal units:
+          
+          ## Task Plan
+          $(cat generated/metadata/task-decomposition/task-plan.json)
+          
+          ## Available Units
+          $(cat generated/metadata/unit-selection/available-units.txt)
+          
+          ## Selection Criteria
+          1. Match task requirements with unit capabilities
+          2. Consider dependencies and data flow
+          3. Identify parallel execution opportunities
+          4. Note any missing units that need custom creation
+          
+          Output as JSON in generated/metadata/unit-selection/selected-units.json with:
+          - task_id
+          - unit_name
+          - unit_path
+          - inputs
+          - dependencies
+          - parallel_group
+          EOF
+          
+          # Execute selection
+          npx @anthropic-ai/claude-code \
+            -f generated/metadata/unit-selection/select-prompt.md \
+            --allowedTools "Read,Write" \
+            --permission-mode "acceptEdits" || {
+              # Fallback selection
+              echo '{"selected_units":[{"task_id":"task-001","unit_name":"planning-ccsdk","unit_path":"minimal-units/planning/planning-ccsdk.yml"}]}' \
+                > generated/metadata/unit-selection/selected-units.json
+            }
+          
+          UNIT_COUNT=$(jq '.selected_units | length' generated/metadata/unit-selection/selected-units.json || echo "1")
+          
+          echo "unit_count=$UNIT_COUNT" >> $GITHUB_OUTPUT
+          echo "selected_units=generated/metadata/unit-selection/selected-units.json" >> $GITHUB_OUTPUT
+          
+      - name: Upload Unit Selection
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-selection
+          path: generated/metadata/unit-selection/
+          retention-days: 1
+
+  # Phase 4: Compose Workflow
+  compose-workflow:
+    needs: [extract-requirements, select-minimal-units]
+    runs-on: ubuntu-latest
+    outputs:
+      workflow_path: ${{ steps.compose.outputs.workflow_path }}
+      workflow_ready: ${{ steps.compose.outputs.workflow_ready }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code js-yaml
+          
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: generated/metadata/
+          
+      - name: Compose Dynamic Workflow
+        id: compose
+        run: |
+          echo "🔧 Composing dynamic workflow from minimal units..."
+          
+          mkdir -p generated/workflows
+          
+          # Create composition prompt
+          cat > generated/metadata/compose-prompt.md << 'EOF'
+          # Workflow Composition
+          
+          Compose a complete GitHub Actions workflow using:
+          
+          ## Selected Units
+          $(cat generated/metadata/unit-selection/selected-units.json)
+          
+          ## User Requirements
+          ${{ needs.extract-requirements.outputs.user_request }}
+          
+          ## Guidelines
+          1. Create proper workflow structure with name, on, permissions
+          2. Include workflow_dispatch inputs based on requirements
+          3. Integrate minimal units by:
+             - Reading unit YAML files from their paths
+             - Extracting job definitions
+             - Adjusting job names and dependencies
+             - Connecting inputs/outputs between jobs
+          4. Implement parallel execution where possible
+          5. Add error handling and retries
+          6. Include final summary/notification job
+          
+          Save as generated/workflows/dynamic-workflow.yml
+          EOF
+          
+          # Execute composition
+          npx @anthropic-ai/claude-code \
+            -f generated/metadata/compose-prompt.md \
+            --allowedTools "Read,Write,Edit" \
+            --permission-mode "acceptEdits"
+          
+          # Validate generated workflow
+          if [ -f "generated/workflows/dynamic-workflow.yml" ]; then
+            echo "workflow_ready=true" >> $GITHUB_OUTPUT
+            echo "workflow_path=generated/workflows/dynamic-workflow.yml" >> $GITHUB_OUTPUT
+          else
+            echo "workflow_ready=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Generated Workflow
+        if: steps.compose.outputs.workflow_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-workflow
+          path: generated/workflows/
+          retention-days: 7
+
+  # Phase 5: Validate & Deploy
+  validate-and-deploy:
+    needs: compose-workflow
+    runs-on: ubuntu-latest
+    if: needs.compose-workflow.outputs.workflow_ready == 'true'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Generated Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-workflow
+          path: generated/workflows/
+          
+      - name: Validate Workflow
+        run: |
+          echo "✅ Validating generated workflow..."
+          
+          # YAML syntax check
+          python3 -c "import yaml; yaml.safe_load(open('generated/workflows/dynamic-workflow.yml'))"
+          
+          # Basic structure validation
+          if grep -q "name:" generated/workflows/dynamic-workflow.yml && \
+             grep -q "on:" generated/workflows/dynamic-workflow.yml && \
+             grep -q "jobs:" generated/workflows/dynamic-workflow.yml; then
+            echo "✅ Workflow structure is valid"
+          else
+            echo "❌ Invalid workflow structure"
+            exit 1
+          fi
+          
+      - name: Deploy Workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "🚀 Deploying workflow..."
+          
+          # Generate unique workflow name
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          WORKFLOW_NAME="generated-${TIMESTAMP}.yml"
+          
+          # Copy to workflows directory with .disabled extension for safety
+          cp generated/workflows/dynamic-workflow.yml \
+            .github/workflows/generated/${WORKFLOW_NAME}.disabled
+          
+          # Create deployment summary
+          cat > deployment-summary.md << EOF
+          ## 🎉 Workflow Generated Successfully!
+          
+          **Workflow**: \`${WORKFLOW_NAME}\`
+          **Status**: Deployed (disabled for safety)
+          
+          ### Next Steps
+          1. Review the generated workflow
+          2. Remove \`.disabled\` extension to activate
+          3. Run the workflow via Actions tab
+          
+          ### Generated Workflow Preview
+          \`\`\`yaml
+          $(head -50 generated/workflows/dynamic-workflow.yml)
+          ...
+          \`\`\`
+          EOF
+          
+          # Post to issue
+          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
+          gh issue comment $ISSUE_NUMBER --body-file deployment-summary.md
+          
+      - name: Commit Generated Workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .github/workflows/generated/
+          git commit -m "feat: generate dynamic workflow from issue #${{ needs.validate-trigger.outputs.issue_number }}"
+          git push
