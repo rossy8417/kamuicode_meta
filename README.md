@@ -151,3 +151,8 @@
 - **Concept**: AI-powered future city showcase
 - **Saved to**: projects/video-v8-run-23-AI-powered-future-city-showcase
 - **Date**: 2025-07-31
+
+## Video Production v8 - Run #25
+- **Concept**: テクノロジーの未来を紹介する動画
+- **Saved to**: projects/video-v8-run-25--
+- **Date**: 2025-07-31
