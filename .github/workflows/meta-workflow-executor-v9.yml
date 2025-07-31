@@ -242,7 +242,7 @@ jobs:
             -p "$DECOMPOSE_PROMPT" \
             --allowedTools "Write,Read" \
             --permission-mode "acceptEdits" \
-            --max-tokens 8000 || {
+            --max-turns 30 || {
               # Enhanced fallback plan
               echo '{
                 "tasks":[
@@ -482,7 +482,7 @@ jobs:
             -p "$SELECT_PROMPT" \
             --allowedTools "Read,Write" \
             --permission-mode "acceptEdits" \
-            --max-tokens 8000 || {
+            --max-turns 30 || {
               # Enhanced fallback with multiple units
               echo '{
                 "selected_units":[
@@ -679,7 +679,7 @@ jobs:
             -p "$COMPOSE_PROMPT" \
             --allowedTools "Read,Write,Edit" \
             --permission-mode "acceptEdits" \
-            --max-tokens 12000 || {
+            --max-turns 40 || {
               # Create fallback workflow
               echo "⚠️ Creating fallback workflow..."
               cat > generated/workflows/original-workflow.yml << 'FALLBACK'
@@ -834,7 +834,7 @@ jobs:
             -p "$ORCHESTRATOR_PROMPT" \
             --allowedTools "Read,Write,Edit" \
             --permission-mode "acceptEdits" \
-            --max-tokens 12000 || {
+            --max-turns 40 || {
               # Create fallback workflow
               echo "⚠️ Creating fallback orchestrator workflow..."
               cat > generated/workflows/orchestrator-workflow.yml << 'FALLBACK'
@@ -975,7 +975,7 @@ jobs:
             -p "$MERGE_PROMPT" \
             --allowedTools "Read,Write" \
             --permission-mode "acceptEdits" \
-            --max-tokens 12000 || {
+            --max-turns 40 || {
               # Fallback: use original if available, otherwise orchestrator
               if [ -f "generated/workflows/original/original-workflow.yml" ]; then
                 cp generated/workflows/original/original-workflow.yml \
