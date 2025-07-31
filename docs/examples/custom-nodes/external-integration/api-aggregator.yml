@@ -1,0 +1,354 @@
+name: "API Aggregator Custom Node"
+description: "複数の外部APIから情報を収集・統合するカスタムノード例"
+
+# このファイルは実装例です。複数のデータソースから情報を収集し、統合処理する場合に使用
+
+jobs:
+  api-aggregator:
+    runs-on: ubuntu-latest
+    needs: [requirements-analysis]  # 前提: 要求分析完了
+    outputs:
+      aggregated_data: ${{ steps.merge-data.outputs.result }}
+      data_sources: ${{ steps.merge-data.outputs.sources }}
+      quality_score: ${{ steps.quality-check.outputs.score }}
+      
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Environment
+        run: |
+          mkdir -p projects/current-session/api-aggregation/
+          mkdir -p projects/current-session/api-aggregation/{raw-data,processed-data}
+          echo "AGGREGATION_DIR=projects/current-session/api-aggregation" >> $GITHUB_ENV
+          echo "QUERY_TOPIC=${{ needs.requirements-analysis.outputs.topic || 'AI technology trends' }}" >> $GITHUB_ENV
+          
+      # 並列データ収集フェーズ: 複数APIから同時取得
+      - name: Fetch News Data
+        id: news-api
+        run: |
+          echo "📰 Fetching news data for: $QUERY_TOPIC"
+          
+          # ニュースAPI呼び出し（例: NewsAPI, Google News等）
+          # 実際の実装では適切なAPI キーとエンドポイントを使用
+          
+          API_RESPONSE=$(cat << 'EOF'
+          {
+            "status": "success",
+            "source": "news-api",
+            "articles": [
+              {
+                "title": "Latest AI Breakthrough in Content Generation",
+                "summary": "New developments in AI-powered content creation tools",
+                "url": "https://example.com/news1",
+                "published_at": "2025-07-31T09:00:00Z",
+                "relevance_score": 0.92
+              },
+              {
+                "title": "Industry Adoption of AI Workflows",
+                "summary": "Companies integrating AI into their production pipelines",
+                "url": "https://example.com/news2", 
+                "published_at": "2025-07-31T08:30:00Z",
+                "relevance_score": 0.88
+              }
+            ]
+          }
+          EOF
+          )
+          
+          echo "$API_RESPONSE" > "$AGGREGATION_DIR/raw-data/news_data.json"
+          echo "news_count=$(echo "$API_RESPONSE" | jq '.articles | length')" >> $GITHUB_OUTPUT
+          echo "✅ News data fetched: $(echo "$API_RESPONSE" | jq '.articles | length') articles"
+          
+      - name: Fetch Social Media Data
+        id: social-api
+        run: |
+          echo "🐦 Fetching social media data for: $QUERY_TOPIC"
+          
+          # ソーシャルメディアAPI呼び出し（例: Twitter API, Reddit API等）
+          SOCIAL_RESPONSE=$(cat << 'EOF'
+          {
+            "status": "success",
+            "source": "social-media",
+            "posts": [
+              {
+                "platform": "twitter",
+                "content": "Excited about the new AI content generation capabilities!",
+                "engagement": {"likes": 245, "retweets": 67, "replies": 23},
+                "posted_at": "2025-07-31T10:15:00Z",
+                "sentiment": "positive"
+              },
+              {
+                "platform": "reddit",
+                "content": "Discussion on AI workflow automation benefits",
+                "engagement": {"upvotes": 156, "comments": 42},
+                "posted_at": "2025-07-31T09:45:00Z",
+                "sentiment": "neutral"
+              }
+            ]
+          }
+          EOF
+          )
+          
+          echo "$SOCIAL_RESPONSE" > "$AGGREGATION_DIR/raw-data/social_data.json"
+          echo "social_count=$(echo "$SOCIAL_RESPONSE" | jq '.posts | length')" >> $GITHUB_OUTPUT
+          echo "✅ Social data fetched: $(echo "$SOCIAL_RESPONSE" | jq '.posts | length') posts"
+          
+      - name: Fetch Market Data
+        id: market-api
+        run: |
+          echo "📈 Fetching market/research data for: $QUERY_TOPIC"
+          
+          # 市場調査・研究データAPI呼び出し
+          MARKET_RESPONSE=$(cat << 'EOF'
+          {
+            "status": "success",
+            "source": "market-research",
+            "reports": [
+              {
+                "title": "AI Content Generation Market Analysis 2025",
+                "key_findings": [
+                  "Market growing 35% YoY",
+                  "Enterprise adoption accelerating",
+                  "Quality improvements driving usage"
+                ],
+                "data_points": {
+                  "market_size": "$2.1B",
+                  "growth_rate": "35%",
+                  "adoption_rate": "67%"
+                },
+                "source_credibility": 0.94
+              }
+            ]
+          }
+          EOF
+          )
+          
+          echo "$MARKET_RESPONSE" > "$AGGREGATION_DIR/raw-data/market_data.json"
+          echo "market_count=$(echo "$MARKET_RESPONSE" | jq '.reports | length')" >> $GITHUB_OUTPUT
+          echo "✅ Market data fetched: $(echo "$MARKET_RESPONSE" | jq '.reports | length') reports"
+          
+      - name: Fetch Technical Data
+        id: tech-api
+        run: |
+          echo "🔧 Fetching technical documentation for: $QUERY_TOPIC"
+          
+          # 技術文書・APIドキュメント収集
+          TECH_RESPONSE=$(cat << 'EOF'
+          {
+            "status": "success",
+            "source": "technical-docs",
+            "documents": [
+              {
+                "type": "api_documentation",
+                "title": "Latest AI Service APIs",
+                "capabilities": [
+                  "Text-to-image generation",
+                  "Video synthesis",
+                  "Audio creation"
+                ],
+                "technical_specs": {
+                  "response_time": "< 10s",
+                  "quality_metrics": "4K+ resolution",
+                  "supported_formats": ["jpg", "mp4", "wav"]
+                }
+              }
+            ]
+          }
+          EOF
+          )
+          
+          echo "$TECH_RESPONSE" > "$AGGREGATION_DIR/raw-data/tech_data.json"
+          echo "tech_count=$(echo "$TECH_RESPONSE" | jq '.documents | length')" >> $GITHUB_OUTPUT
+          echo "✅ Technical data fetched: $(echo "$TECH_RESPONSE" | jq '.documents | length') documents"
+          
+      # データ品質チェック
+      - name: Quality Assessment
+        id: quality-check
+        run: |
+          echo "🔍 Assessing data quality from all sources"
+          
+          TOTAL_ITEMS=0
+          QUALITY_SCORE=0
+          
+          # 各データソースの品質評価
+          NEWS_COUNT=${{ steps.news-api.outputs.news_count }}
+          SOCIAL_COUNT=${{ steps.social-api.outputs.social_count }}
+          MARKET_COUNT=${{ steps.market-api.outputs.market_count }}
+          TECH_COUNT=${{ steps.tech-api.outputs.tech_count }}
+          
+          TOTAL_ITEMS=$((NEWS_COUNT + SOCIAL_COUNT + MARKET_COUNT + TECH_COUNT))
+          
+          # 品質スコア算出（簡単な例）
+          if [ $NEWS_COUNT -gt 0 ]; then QUALITY_SCORE=$((QUALITY_SCORE + 25)); fi
+          if [ $SOCIAL_COUNT -gt 0 ]; then QUALITY_SCORE=$((QUALITY_SCORE + 20)); fi
+          if [ $MARKET_COUNT -gt 0 ]; then QUALITY_SCORE=$((QUALITY_SCORE + 30)); fi
+          if [ $TECH_COUNT -gt 0 ]; then QUALITY_SCORE=$((QUALITY_SCORE + 25)); fi
+          
+          echo "score=$QUALITY_SCORE" >> $GITHUB_OUTPUT
+          echo "total_items=$TOTAL_ITEMS" >> $GITHUB_OUTPUT
+          
+          # 品質レポート生成
+          cat > "$AGGREGATION_DIR/quality_report.json" << EOF
+          {
+            "quality_assessment": {
+              "overall_score": $QUALITY_SCORE,
+              "total_items": $TOTAL_ITEMS,
+              "source_coverage": {
+                "news": $NEWS_COUNT,
+                "social": $SOCIAL_COUNT,
+                "market": $MARKET_COUNT,
+                "technical": $TECH_COUNT
+              },
+              "completeness": "$(echo "scale=1; $QUALITY_SCORE" | bc -l)%"
+            }
+          }
+          EOF
+          
+          echo "✅ Quality assessment completed: $QUALITY_SCORE/100"
+          
+      # データ統合・正規化
+      - name: Merge and Normalize Data
+        id: merge-data
+        run: |
+          echo "🔄 Merging and normalizing data from all sources"
+          
+          # 統合データ構造の作成
+          cat > "$AGGREGATION_DIR/processed-data/aggregated_result.json" << EOF
+          {
+            "aggregation_metadata": {
+              "topic": "$QUERY_TOPIC",
+              "sources_used": ["news-api", "social-media", "market-research", "technical-docs"],
+              "total_items": ${{ steps.quality-check.outputs.total_items }},
+              "quality_score": ${{ steps.quality-check.outputs.score }},
+              "aggregated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            },
+            "news_insights": {
+              "trending_topics": ["AI content generation", "workflow automation"],
+              "sentiment_overview": "positive",
+              "key_developments": [
+                "New AI breakthrough in content generation",
+                "Industry adoption accelerating"
+              ]
+            },
+            "social_sentiment": {
+              "overall_sentiment": "positive",
+              "engagement_metrics": {
+                "high_engagement_posts": 2,
+                "average_sentiment_score": 0.72
+              }
+            },
+            "market_intelligence": {
+              "market_size": "$2.1B",
+              "growth_rate": "35%",
+              "adoption_trends": ["Enterprise adoption", "Quality improvements"]
+            },
+            "technical_capabilities": {
+              "available_services": ["text-to-image", "video-synthesis", "audio-creation"],
+              "performance_metrics": {
+                "response_time": "< 10s",
+                "quality": "4K+ resolution"
+              }
+            }
+          }
+          EOF
+          
+          # 統合結果の出力準備
+          RESULT_PATH="$AGGREGATION_DIR/processed-data/aggregated_result.json"
+          SOURCES_LIST='["news-api", "social-media", "market-research", "technical-docs"]'
+          
+          echo "result=$RESULT_PATH" >> $GITHUB_OUTPUT
+          echo "sources=$SOURCES_LIST" >> $GITHUB_OUTPUT
+          
+          echo "✅ Data aggregation completed"
+          
+      # インサイト生成
+      - name: Generate Insights
+        run: |
+          echo "💡 Generating insights from aggregated data"
+          
+          # クロスソース分析によるインサイト生成
+          cat > "$AGGREGATION_DIR/processed-data/insights.json" << EOF
+          {
+            "key_insights": [
+              {
+                "insight": "Strong positive market sentiment aligns with technical capability improvements",
+                "confidence": 0.87,
+                "supporting_sources": ["social-media", "market-research", "technical-docs"]
+              },
+              {
+                "insight": "Enterprise adoption driving market growth in AI content generation",
+                "confidence": 0.92,
+                "supporting_sources": ["news-api", "market-research"]
+              }
+            ],
+            "recommendations": [
+              "Focus on enterprise-grade features",
+              "Emphasize quality and performance metrics",
+              "Leverage positive social sentiment for marketing"
+            ],
+            "data_gaps": [
+              "Competitive landscape analysis needed",
+              "Customer satisfaction metrics missing"
+            ]
+          }
+          EOF
+          
+          echo "✅ Insights generation completed"
+          
+      # エラーハンドリング
+      - name: Handle API Failures
+        if: failure()
+        run: |
+          echo "❌ API aggregation encountered errors"
+          
+          # 部分的なデータでも有用な情報を提供
+          AVAILABLE_SOURCES=""
+          
+          if [ -f "$AGGREGATION_DIR/raw-data/news_data.json" ]; then
+            AVAILABLE_SOURCES="$AVAILABLE_SOURCES news"
+          fi
+          
+          if [ -f "$AGGREGATION_DIR/raw-data/social_data.json" ]; then
+            AVAILABLE_SOURCES="$AVAILABLE_SOURCES social"
+          fi
+          
+          if [ -f "$AGGREGATION_DIR/raw-data/market_data.json" ]; then
+            AVAILABLE_SOURCES="$AVAILABLE_SOURCES market"
+          fi
+          
+          if [ -f "$AGGREGATION_DIR/raw-data/tech_data.json" ]; then
+            AVAILABLE_SOURCES="$AVAILABLE_SOURCES technical"
+          fi
+          
+          # 部分的結果の保存
+          cat > "$AGGREGATION_DIR/partial_result.json" << EOF
+          {
+            "status": "partial_success",
+            "available_sources": "$AVAILABLE_SOURCES",
+            "error_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "recovery_suggestions": [
+              "Check API rate limits",
+              "Verify authentication credentials",
+              "Review network connectivity",
+              "Consider fallback data sources"
+            ]
+          }
+          EOF
+          
+          echo "Partial data available from: $AVAILABLE_SOURCES"
+
+# 使用例:
+# 市場調査、競合分析、トレンド分析などで複数データソースが必要な場合
+#
+# jobs:
+#   analyze-requirements:
+#     # 分析要求の整理
+#     
+#   collect-market-data:
+#     uses: ./docs/examples/custom-nodes/external-integration/api-aggregator.yml
+#     needs: [analyze-requirements]
+#     
+#   generate-report:
+#     needs: [collect-market-data]
+#     # 最終レポート生成

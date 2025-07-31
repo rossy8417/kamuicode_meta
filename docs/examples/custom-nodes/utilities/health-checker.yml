@@ -1,0 +1,369 @@
+name: "Health Checker Custom Node"
+description: "システム・サービスのヘルスチェックと監視を行うカスタムノード例"
+
+# このファイルは実装例です。ワークフロー実行前後でシステム状態を確認する場合に使用
+
+jobs:
+  health-checker:
+    runs-on: ubuntu-latest
+    outputs:
+      system_status: ${{ steps.overall-status.outputs.status }}
+      health_score: ${{ steps.overall-status.outputs.score }}
+      service_availability: ${{ steps.overall-status.outputs.services }}
+      recommendations: ${{ steps.overall-status.outputs.recommendations }}
+      
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Health Check Environment
+        run: |
+          mkdir -p projects/current-session/health-monitoring/
+          mkdir -p projects/current-session/health-monitoring/{logs,reports}
+          echo "HEALTH_DIR=projects/current-session/health-monitoring" >> $GITHUB_ENV
+          echo "CHECK_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+          
+      # システムリソースチェック
+      - name: Check System Resources
+        id: system-check
+        run: |
+          echo "🖥️ Checking system resources"
+          
+          # CPU使用率チェック
+          CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | sed "s/.*, *\([0-9.]*\)%* id.*/\1/" | awk '{print 100 - $1}')
+          
+          # メモリ使用率チェック
+          MEMORY_INFO=$(free -m | awk 'NR==2{printf "%.1f", $3*100/$2}')
+          
+          # ディスク使用率チェック
+          DISK_USAGE=$(df -h | awk '$NF=="/"{printf "%s", $5}' | sed 's/%//')
+          
+          echo "CPU Usage: ${CPU_USAGE}%"
+          echo "Memory Usage: ${MEMORY_INFO}%"
+          echo "Disk Usage: ${DISK_USAGE}%"
+          
+          # リソース状態評価
+          RESOURCE_SCORE=100
+          if (( $(echo "$CPU_USAGE > 80" | bc -l) )); then
+            RESOURCE_SCORE=$((RESOURCE_SCORE - 30))
+            echo "⚠️ High CPU usage detected"
+          fi
+          
+          if (( $(echo "$MEMORY_INFO > 85" | bc -l) )); then
+            RESOURCE_SCORE=$((RESOURCE_SCORE - 25))
+            echo "⚠️ High memory usage detected"
+          fi
+          
+          if [ "$DISK_USAGE" -gt 90 ]; then
+            RESOURCE_SCORE=$((RESOURCE_SCORE - 25))
+            echo "⚠️ High disk usage detected"
+          fi
+          
+          # 結果保存
+          cat > "$HEALTH_DIR/logs/system_resources.json" << EOF
+          {
+            "timestamp": "$CHECK_TIMESTAMP",
+            "cpu_usage": $CPU_USAGE,
+            "memory_usage": $MEMORY_INFO,
+            "disk_usage": $DISK_USAGE,
+            "resource_score": $RESOURCE_SCORE
+          }
+          EOF
+          
+          echo "system_score=$RESOURCE_SCORE" >> $GITHUB_OUTPUT
+          echo "✅ System resource check completed (Score: $RESOURCE_SCORE/100)"
+          
+      # MCPサービス可用性チェック
+      - name: Check MCP Services
+        id: mcp-check
+        run: |
+          echo "🔌 Checking MCP service availability"
+          
+          # 主要MCPサービスの疑似チェック
+          # 実際の実装では各MCPサービスへの軽量なpingやstatusチェックを実行
+          
+          declare -A services=(
+            ["t2i-google-imagen3"]="available"
+            ["t2v-fal-veo3-fast"]="available"
+            ["t2s-fal-minimax-speech-02-turbo"]="available"
+            ["t2m-google-lyria"]="limited"  # シミュレーション: 制限あり
+            ["i2v-fal-hailuo-02-pro"]="unavailable"  # シミュレーション: 利用不可
+          )
+          
+          AVAILABLE_COUNT=0
+          LIMITED_COUNT=0
+          UNAVAILABLE_COUNT=0
+          SERVICE_SCORE=0
+          
+          for service in "${!services[@]}"; do
+            status=${services[$service]}
+            echo "Checking $service: $status"
+            
+            case $status in
+              "available")
+                AVAILABLE_COUNT=$((AVAILABLE_COUNT + 1))
+                SERVICE_SCORE=$((SERVICE_SCORE + 20))
+                ;;
+              "limited")
+                LIMITED_COUNT=$((LIMITED_COUNT + 1))
+                SERVICE_SCORE=$((SERVICE_SCORE + 10))
+                ;;
+              "unavailable")
+                UNAVAILABLE_COUNT=$((UNAVAILABLE_COUNT + 1))
+                ;;
+            esac
+          done
+          
+          # サービス状態レポート
+          cat > "$HEALTH_DIR/logs/mcp_services.json" << EOF
+          {
+            "timestamp": "$CHECK_TIMESTAMP",
+            "service_status": {
+              "available": $AVAILABLE_COUNT,
+              "limited": $LIMITED_COUNT,
+              "unavailable": $UNAVAILABLE_COUNT
+            },
+            "detailed_status": {
+              "t2i-google-imagen3": "available",
+              "t2v-fal-veo3-fast": "available", 
+              "t2s-fal-minimax-speech-02-turbo": "available",
+              "t2m-google-lyria": "limited",
+              "i2v-fal-hailuo-02-pro": "unavailable"
+            },
+            "service_score": $SERVICE_SCORE
+          }
+          EOF
+          
+          echo "mcp_score=$SERVICE_SCORE" >> $GITHUB_OUTPUT
+          echo "available_services=$AVAILABLE_COUNT" >> $GITHUB_OUTPUT
+          echo "✅ MCP service check completed (Score: $SERVICE_SCORE/100)"
+          
+      # ネットワーク接続チェック
+      - name: Check Network Connectivity
+        id: network-check
+        run: |
+          echo "🌐 Checking network connectivity"
+          
+          NETWORK_SCORE=100
+          
+          # 主要サービスへの接続テスト
+          endpoints=(
+            "google.com"
+            "github.com"
+            "api.openai.com"
+          )
+          
+          FAILED_CONNECTIONS=0
+          
+          for endpoint in "${endpoints[@]}"; do
+            if ping -c 3 "$endpoint" > /dev/null 2>&1; then
+              echo "✅ $endpoint: Connected"
+            else
+              echo "❌ $endpoint: Connection failed"
+              FAILED_CONNECTIONS=$((FAILED_CONNECTIONS + 1))
+              NETWORK_SCORE=$((NETWORK_SCORE - 20))
+            fi
+          done
+          
+          # DNS解決テスト
+          if nslookup google.com > /dev/null 2>&1; then
+            echo "✅ DNS resolution: Working"
+          else
+            echo "❌ DNS resolution: Failed"
+            NETWORK_SCORE=$((NETWORK_SCORE - 30))
+          fi
+          
+          # ネットワーク状態レポート
+          cat > "$HEALTH_DIR/logs/network_status.json" << EOF
+          {
+            "timestamp": "$CHECK_TIMESTAMP",
+            "connectivity_tests": {
+              "total_endpoints": ${#endpoints[@]},
+              "failed_connections": $FAILED_CONNECTIONS,
+              "success_rate": $(echo "scale=1; (${#endpoints[@]} - $FAILED_CONNECTIONS) * 100 / ${#endpoints[@]}" | bc -l)
+            },
+            "network_score": $NETWORK_SCORE
+          }
+          EOF
+          
+          echo "network_score=$NETWORK_SCORE" >> $GITHUB_OUTPUT
+          echo "✅ Network connectivity check completed (Score: $NETWORK_SCORE/100)"
+          
+      # 依存関係チェック
+      - name: Check Dependencies
+        id: dependency-check
+        run: |
+          echo "📦 Checking system dependencies"
+          
+          DEPENDENCY_SCORE=100
+          MISSING_DEPS=0
+          
+          # 必要なツールの存在確認
+          dependencies=(
+            "curl"
+            "jq"
+            "bc"
+            "git"
+            "python3"
+          )
+          
+          for dep in "${dependencies[@]}"; do
+            if command -v "$dep" > /dev/null 2>&1; then
+              echo "✅ $dep: Available"
+            else
+              echo "❌ $dep: Missing"
+              MISSING_DEPS=$((MISSING_DEPS + 1))
+              DEPENDENCY_SCORE=$((DEPENDENCY_SCORE - 20))
+            fi
+          done
+          
+          # Python パッケージチェック（例）
+          python_packages=("requests" "json")
+          for package in "${python_packages[@]}"; do
+            if python3 -c "import $package" 2>/dev/null; then
+              echo "✅ Python $package: Available"
+            else
+              echo "⚠️ Python $package: Not available (optional)"
+              DEPENDENCY_SCORE=$((DEPENDENCY_SCORE - 5))
+            fi
+          done
+          
+          # 依存関係レポート
+          cat > "$HEALTH_DIR/logs/dependencies.json" << EOF
+          {
+            "timestamp": "$CHECK_TIMESTAMP",
+            "system_dependencies": {
+              "total_checked": ${#dependencies[@]},
+              "missing_critical": $MISSING_DEPS,
+              "dependency_score": $DEPENDENCY_SCORE
+            },
+            "missing_dependencies": []
+          }
+          EOF
+          
+          echo "dependency_score=$DEPENDENCY_SCORE" >> $GITHUB_OUTPUT
+          echo "✅ Dependency check completed (Score: $DEPENDENCY_SCORE/100)"
+          
+      # 全体的なヘルス評価
+      - name: Overall Health Assessment
+        id: overall-status
+        run: |
+          echo "📊 Calculating overall health status"
+          
+          SYSTEM_SCORE=${{ steps.system-check.outputs.system_score }}
+          MCP_SCORE=${{ steps.mcp-check.outputs.mcp_score }}
+          NETWORK_SCORE=${{ steps.network-check.outputs.network_score }}
+          DEPENDENCY_SCORE=${{ steps.dependency-check.outputs.dependency_score }}
+          
+          # 重み付き平均でヘルススコア算出
+          OVERALL_SCORE=$(echo "scale=1; ($SYSTEM_SCORE * 0.3 + $MCP_SCORE * 0.4 + $NETWORK_SCORE * 0.2 + $DEPENDENCY_SCORE * 0.1)" | bc -l)
+          
+          # ステータス判定
+          if (( $(echo "$OVERALL_SCORE >= 90" | bc -l) )); then
+            STATUS="healthy"
+            STATUS_EMOJI="🟢"
+          elif (( $(echo "$OVERALL_SCORE >= 70" | bc -l) )); then
+            STATUS="warning"
+            STATUS_EMOJI="🟡"
+          else
+            STATUS="critical"
+            STATUS_EMOJI="🔴"
+          fi
+          
+          # 推奨事項生成
+          RECOMMENDATIONS='[]'
+          if [ "$SYSTEM_SCORE" -lt 80 ]; then
+            RECOMMENDATIONS=$(echo "$RECOMMENDATIONS" | jq '. + ["Consider reducing system load"]')
+          fi
+          if [ "$MCP_SCORE" -lt 60 ]; then
+            RECOMMENDATIONS=$(echo "$RECOMMENDATIONS" | jq '. + ["Check MCP service configurations"]')
+          fi
+          if [ "$NETWORK_SCORE" -lt 80 ]; then
+            RECOMMENDATIONS=$(echo "$RECOMMENDATIONS" | jq '. + ["Verify network connectivity"]')
+          fi
+          
+          # 最終ヘルスレポート
+          cat > "$HEALTH_DIR/reports/health_report.json" << EOF
+          {
+            "health_check_summary": {
+              "timestamp": "$CHECK_TIMESTAMP",
+              "overall_status": "$STATUS",
+              "overall_score": $OVERALL_SCORE,
+              "component_scores": {
+                "system_resources": $SYSTEM_SCORE,
+                "mcp_services": $MCP_SCORE,
+                "network_connectivity": $NETWORK_SCORE,
+                "dependencies": $DEPENDENCY_SCORE
+              }
+            },
+            "service_availability": {
+              "available_mcp_services": ${{ steps.mcp-check.outputs.available_services }},
+              "total_mcp_services": 5
+            },
+            "recommendations": $RECOMMENDATIONS,
+            "next_check_suggested": "$(date -u -d '+1 hour' +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          
+          # 出力設定
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "score=$OVERALL_SCORE" >> $GITHUB_OUTPUT
+          echo "services=${{ steps.mcp-check.outputs.available_services }}" >> $GITHUB_OUTPUT
+          echo "recommendations=$RECOMMENDATIONS" >> $GITHUB_OUTPUT
+          
+          echo "$STATUS_EMOJI System Health Status: $STATUS (Score: $OVERALL_SCORE/100)"
+          
+      # アラート生成（必要に応じて）
+      - name: Generate Alerts
+        if: steps.overall-status.outputs.score < 70
+        run: |
+          echo "🚨 Health check detected issues - generating alerts"
+          
+          OVERALL_SCORE=${{ steps.overall-status.outputs.score }}
+          
+          # 重要なアラート生成
+          cat > "$HEALTH_DIR/reports/alert.json" << EOF
+          {
+            "alert": {
+              "severity": "$(if (( $(echo "$OVERALL_SCORE < 50" | bc -l) )); then echo "critical"; else echo "warning"; fi)",
+              "message": "System health score below threshold: $OVERALL_SCORE/100",
+              "timestamp": "$CHECK_TIMESTAMP",
+              "affected_components": [
+                $(if [ "${{ steps.system-check.outputs.system_score }}" -lt 80 ]; then echo '"system_resources"'; fi),
+                $(if [ "${{ steps.mcp-check.outputs.mcp_score }}" -lt 60 ]; then echo '"mcp_services"'; fi),
+                $(if [ "${{ steps.network-check.outputs.network_score }}" -lt 80 ]; then echo '"network"'; fi)
+              ],
+              "immediate_actions_required": true
+            }
+          }
+          EOF
+          
+          echo "🚨 Alert generated for health score: $OVERALL_SCORE"
+          
+      # クリーンアップ（オプション）
+      - name: Cleanup Old Health Logs
+        run: |
+          echo "🧹 Cleaning up old health check logs"
+          
+          # 7日以上古いログファイルを削除
+          find "$HEALTH_DIR/logs" -name "*.json" -mtime +7 -delete || true
+          find "$HEALTH_DIR/reports" -name "*.json" -mtime +7 -delete || true
+          
+          echo "✅ Health check completed and cleanup performed"
+
+# 使用例:
+# ワークフロー実行前の事前チェック、定期監視、障害検知などで使用
+#
+# jobs:
+#   pre-execution-check:
+#     uses: ./docs/examples/custom-nodes/utilities/health-checker.yml
+#     
+#   main-workflow:
+#     needs: [pre-execution-check]
+#     if: needs.pre-execution-check.outputs.system_status == 'healthy'
+#     # メインワークフロー処理
+#     
+#   post-execution-check:
+#     needs: [main-workflow]
+#     if: always()
+#     uses: ./docs/examples/custom-nodes/utilities/health-checker.yml

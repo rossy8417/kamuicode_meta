@@ -466,10 +466,38 @@ The main workflow now uses:
 - **Safe Deployment**: Use .disabled extension for staging safety
 - **Manual Activation**: Ensure human oversight for workflow activation
 
+## Custom Node Examples
+
+When existing minimal units cannot handle specific requirements, use **Custom Node Examples**:
+
+**📂 Available Categories** (`docs/examples/custom-nodes/`):
+- **media-processing/**: Multi-format generation, quality optimization
+- **data-processing/**: Batch processing, large dataset handling  
+- **external-integration/**: API aggregation, external service integration
+- **utilities/**: Health checking, system monitoring
+
+**🎯 Key Examples**:
+- `multi-format-generator.yml`: Generate image+video+audio simultaneously
+- `batch-processor.yml`: Process 25+ items with 5-way parallel execution
+- `api-aggregator.yml`: Collect data from news/social/market/technical APIs
+- `health-checker.yml`: System resource + MCP service availability check
+
+**📋 Usage Pattern**:
+```yaml
+custom-processing:
+  uses: ./docs/examples/custom-nodes/category/example.yml
+  needs: [prerequisite-jobs]
+  with:
+    custom_param: ${{ inputs.value }}
+```
+
+**🔄 Evolution Path**: Successful custom nodes should be converted to minimal units when they prove universally useful.
+
 ## Notes for Claude Code Sessions
 
 - **This system is actively developed using Claude Code** - maintain development continuity
 - **All examples in `meta/examples/` represent production-ready templates**
+- **Custom node examples in `docs/examples/custom-nodes/` provide extension patterns**
 - **The main workflow uses template selection instead of complex task decomposition**
 - **Simplified staged deployment prevents broken workflows from reaching production**
 - **File path reference patterns are critical for workflow continuity**
