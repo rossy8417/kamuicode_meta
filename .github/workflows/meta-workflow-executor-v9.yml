@@ -118,13 +118,14 @@ jobs:
           path: generated/metadata/requirements/
           retention-days: 1
 
-  # Phase 2: Task Decomposition with Claude Code SDK
+  # Phase 2: Ultra-Detailed Task Decomposition with Claude Code SDK
   decompose-tasks:
     needs: extract-requirements
     runs-on: ubuntu-latest
     outputs:
       task_plan: ${{ steps.decompose.outputs.task_plan }}
       task_count: ${{ steps.decompose.outputs.task_count }}
+      parallel_groups: ${{ steps.decompose.outputs.parallel_groups }}
     
     steps:
       - name: Checkout Repository
@@ -140,18 +141,18 @@ jobs:
           npm init -y
           npm install @anthropic-ai/claude-code
           
-      - name: Decompose Tasks with Claude Code
+      - name: Ultra-Detailed Task Decomposition
         id: decompose
         run: |
-          echo "🧠 Decomposing tasks based on user requirements..."
+          echo "🧠 Performing ultra-detailed task decomposition..."
           
           mkdir -p generated/metadata/task-decomposition
           
-          # Create decomposition prompt
+          # Create ultra-detailed decomposition prompt
           cat > generated/metadata/task-decomposition/decompose-prompt.md << 'EOF'
-          # Task Decomposition Request
+          # Ultra-Detailed Task Decomposition Request
           
-          Based on the following user request and answers, decompose into executable tasks:
+          Based on the following user request, perform an ULTRA-DETAILED task decomposition that mimics human unconscious thought processes:
           
           ## User Request
           ${{ needs.extract-requirements.outputs.user_request }}
@@ -162,31 +163,118 @@ jobs:
           ## Workflow Type
           ${{ needs.extract-requirements.outputs.workflow_type }}
           
-          Please decompose this into a task plan with:
-          1. Clear task definitions
-          2. Dependencies between tasks
-          3. Required minimal units or tools
-          4. Estimated duration
-          5. Parallel execution opportunities
+          ## Decomposition Requirements
           
-          Output as JSON in generated/metadata/task-decomposition/task-plan.json
+          ### 1. Think Like a Human
+          Decompose tasks as a human would naturally think about them, including:
+          - Preparation tasks (checking requirements, setting up environment)
+          - Research tasks (looking for references, examples)
+          - Planning tasks (organizing approach, creating outlines)
+          - Main execution tasks
+          - Quality check tasks
+          - Refinement tasks
+          - Documentation tasks
+          
+          ### 2. Ultra-Fine Granularity
+          Break down each major task into 3-7 subtasks. For example:
+          - "Generate image" should become:
+            - "Research visual style references"
+            - "Draft initial prompt"
+            - "Optimize prompt for model"
+            - "Generate test image"
+            - "Evaluate quality"
+            - "Refine and regenerate"
+            - "Select best version"
+          
+          ### 3. Parallel Processing Optimization
+          Identify opportunities for:
+          - 3-way parallel (common for independent generation tasks)
+          - 4-way parallel (for multiple variations)
+          - 5-way parallel (for comprehensive coverage)
+          - Sequential dependencies where necessary
+          
+          ### 4. Human-like Workflow Patterns
+          Include natural human behaviors:
+          - Iterative refinement cycles
+          - Quality checks after each major step
+          - Alternative approaches for fallback
+          - Documentation and note-taking
+          - Progress tracking
+          
+          ### 5. Comprehensive Coverage
+          Ensure the decomposition covers:
+          - Pre-processing (20-30% of tasks)
+          - Main processing (40-50% of tasks)
+          - Post-processing (20-30% of tasks)
+          - Quality assurance (10% of tasks)
+          
+          Output as JSON in generated/metadata/task-decomposition/task-plan.json with structure:
+          ```json
+          {
+            "tasks": [
+              {
+                "id": "task-001",
+                "name": "Research Visual References",
+                "type": "research",
+                "description": "Search for visual style references and examples",
+                "subtasks": ["web search", "style analysis", "reference collection"],
+                "dependencies": [],
+                "parallel_group": 1,
+                "estimated_duration": "3-5 minutes",
+                "required_units": ["web-search", "image-analysis"],
+                "human_behavior": "natural exploration phase"
+              }
+            ],
+            "parallel_groups": {
+              "1": ["task-001", "task-002", "task-003"],
+              "2": ["task-004", "task-005"],
+              "3": ["task-006", "task-007", "task-008", "task-009"]
+            },
+            "total_estimated_duration": "45-60 minutes",
+            "optimization_notes": "3-way parallel for research, 4-way for generation"
+          }
+          ```
           EOF
           
-          # Execute Claude Code
+          # Execute Claude Code with extended context
           npx @anthropic-ai/claude-code \
             -f generated/metadata/task-decomposition/decompose-prompt.md \
-            --allowedTools "Write" \
-            --permission-mode "acceptEdits" || {
-              # Fallback plan
-              echo '{"tasks":[{"id":"task-001","name":"Default Task","type":"processing"}],"estimated_duration":30}' \
-                > generated/metadata/task-decomposition/task-plan.json
+            --allowedTools "Write,Read" \
+            --permission-mode "acceptEdits" \
+            --max-tokens 8000 || {
+              # Enhanced fallback plan
+              echo '{
+                "tasks":[
+                  {"id":"task-001","name":"Initial Planning","type":"planning","parallel_group":1},
+                  {"id":"task-002","name":"Resource Gathering","type":"research","parallel_group":1},
+                  {"id":"task-003","name":"Style Analysis","type":"analysis","parallel_group":1},
+                  {"id":"task-004","name":"Main Generation","type":"generation","parallel_group":2,"dependencies":["task-001","task-002","task-003"]},
+                  {"id":"task-005","name":"Quality Check","type":"validation","parallel_group":3,"dependencies":["task-004"]},
+                  {"id":"task-006","name":"Refinement","type":"processing","parallel_group":4,"dependencies":["task-005"]}
+                ],
+                "parallel_groups":{
+                  "1":["task-001","task-002","task-003"],
+                  "2":["task-004"],
+                  "3":["task-005"],
+                  "4":["task-006"]
+                },
+                "total_estimated_duration":"30-45 minutes"
+              }' > generated/metadata/task-decomposition/task-plan.json
             }
           
-          # Count tasks
-          TASK_COUNT=$(jq '.tasks | length' generated/metadata/task-decomposition/task-plan.json || echo "1")
+          # Extract metrics
+          TASK_COUNT=$(jq '.tasks | length' generated/metadata/task-decomposition/task-plan.json || echo "6")
+          PARALLEL_GROUPS=$(jq -c '.parallel_groups' generated/metadata/task-decomposition/task-plan.json || echo '{}')
           
           echo "task_count=$TASK_COUNT" >> $GITHUB_OUTPUT
           echo "task_plan=generated/metadata/task-decomposition/task-plan.json" >> $GITHUB_OUTPUT
+          echo "parallel_groups=$PARALLEL_GROUPS" >> $GITHUB_OUTPUT
+          
+          # Display decomposition summary
+          echo "📊 Task Decomposition Summary:"
+          echo "- Total tasks: $TASK_COUNT"
+          echo "- Parallel groups: $(echo $PARALLEL_GROUPS | jq 'keys | length')"
+          echo "- Estimated duration: $(jq -r '.total_estimated_duration' generated/metadata/task-decomposition/task-plan.json)"
           
       - name: Upload Task Plan
         uses: actions/upload-artifact@v4

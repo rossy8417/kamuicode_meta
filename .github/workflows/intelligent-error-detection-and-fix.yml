@@ -62,6 +62,7 @@ jobs:
       error_type: ${{ steps.monitor.outputs.error_type }}
       failed_jobs: ${{ steps.monitor.outputs.failed_jobs }}
       monitoring_summary: ${{ steps.monitor.outputs.monitoring_summary }}
+      workflow_completed: ${{ steps.monitor.outputs.workflow_completed }}
     
     steps:
       - name: Checkout repository
@@ -97,6 +98,8 @@ jobs:
           ERROR_TYPE=""
           FAILED_JOBS=""
           
+          WORKFLOW_COMPLETED=false
+          
           while [ $(date +%s) -lt $MAX_TIME ]; do
             if [ -n "$TARGET_RUN_ID" ]; then
               # 特定のrunを監視
@@ -105,29 +108,43 @@ jobs:
               
               echo "📊 Run status: $RUN_STATUS, Conclusion: $RUN_CONCLUSION"
               
-              # 失敗したジョブを検出
-              if [ "$RUN_STATUS" == "completed" ] && [ "$RUN_CONCLUSION" == "failure" ]; then
-                ERROR_DETECTED=true
-                FAILED_JOBS=$(gh run view $TARGET_RUN_ID --json jobs -q '.jobs[] | select(.conclusion=="failure") | .name' | tr '\n' ',')
+              # ワークフローが完了した場合
+              if [ "$RUN_STATUS" == "completed" ]; then
+                WORKFLOW_COMPLETED=true
                 
-                # エラータイプを判定
-                ERROR_LOGS=$(gh run view $TARGET_RUN_ID --log-failed 2>/dev/null | head -100)
-                
-                if echo "$ERROR_LOGS" | grep -q "YAML syntax error"; then
-                  ERROR_TYPE="yaml_syntax"
-                elif echo "$ERROR_LOGS" | grep -q "File not found"; then
-                  ERROR_TYPE="file_not_found"
-                elif echo "$ERROR_LOGS" | grep -q "MCP.*error\|mcp.*failed"; then
-                  ERROR_TYPE="mcp_service"
-                elif echo "$ERROR_LOGS" | grep -q "Permission denied"; then
-                  ERROR_TYPE="permission"
-                elif echo "$ERROR_LOGS" | grep -q "timeout\|Timeout"; then
-                  ERROR_TYPE="timeout"
-                else
-                  ERROR_TYPE="unknown"
+                # 成功した場合は監視終了
+                if [ "$RUN_CONCLUSION" == "success" ]; then
+                  echo "✅ Workflow completed successfully. Ending monitoring."
+                  break
                 fi
                 
-                break
+                # 失敗した場合はエラー処理
+                if [ "$RUN_CONCLUSION" == "failure" ] || [ "$RUN_CONCLUSION" == "cancelled" ]; then
+                  ERROR_DETECTED=true
+                  FAILED_JOBS=$(gh run view $TARGET_RUN_ID --json jobs -q '.jobs[] | select(.conclusion=="failure" or .conclusion=="cancelled" or .conclusion=="skipped") | .name' | tr '\n' ',')
+                  
+                  # エラータイプを判定
+                  ERROR_LOGS=$(gh run view $TARGET_RUN_ID --log-failed 2>/dev/null | head -100)
+                  
+                  if echo "$ERROR_LOGS" | grep -q "YAML syntax error"; then
+                    ERROR_TYPE="yaml_syntax"
+                  elif echo "$ERROR_LOGS" | grep -q "File not found"; then
+                    ERROR_TYPE="file_not_found"
+                  elif echo "$ERROR_LOGS" | grep -q "MCP.*error\|mcp.*failed"; then
+                    ERROR_TYPE="mcp_service"
+                  elif echo "$ERROR_LOGS" | grep -q "Permission denied"; then
+                    ERROR_TYPE="permission"
+                  elif echo "$ERROR_LOGS" | grep -q "timeout\|Timeout"; then
+                    ERROR_TYPE="timeout"
+                  elif [ "$RUN_CONCLUSION" == "cancelled" ]; then
+                    ERROR_TYPE="cancelled"
+                  else
+                    ERROR_TYPE="unknown"
+                  fi
+                  
+                  echo "❌ Workflow failed. Starting error analysis and fix process."
+                  break
+                fi
               fi
               
               # 進行中の場合は継続監視
@@ -143,6 +160,19 @@ jobs:
                 ERROR_TYPE="recurring_failures"
                 break
               fi
+              
+              # 最新の実行状態を確認
+              LATEST_RUN=$(gh run list --workflow="$TARGET_WORKFLOW" --limit=1 --json status,conclusion)
+              if [ -n "$LATEST_RUN" ]; then
+                LATEST_STATUS=$(echo "$LATEST_RUN" | jq -r '.[0].status')
+                LATEST_CONCLUSION=$(echo "$LATEST_RUN" | jq -r '.[0].conclusion')
+                
+                if [ "$LATEST_STATUS" == "completed" ] && [ "$LATEST_CONCLUSION" == "success" ]; then
+                  WORKFLOW_COMPLETED=true
+                  echo "✅ Latest workflow run completed successfully."
+                  break
+                fi
+              fi
             fi
             
             sleep 30
@@ -153,13 +183,16 @@ jobs:
           echo "error_detected=$ERROR_DETECTED" >> $GITHUB_OUTPUT
           echo "error_type=$ERROR_TYPE" >> $GITHUB_OUTPUT
           echo "failed_jobs=$FAILED_JOBS" >> $GITHUB_OUTPUT
+          echo "workflow_completed=$WORKFLOW_COMPLETED" >> $GITHUB_OUTPUT
           
           # サマリー作成
           SUMMARY="Monitored for $(($(date +%s) - START_TIME)) seconds. "
           if [ "$ERROR_DETECTED" == "true" ]; then
             SUMMARY+="Error detected: $ERROR_TYPE. Failed jobs: $FAILED_JOBS"
+          elif [ "$WORKFLOW_COMPLETED" == "true" ]; then
+            SUMMARY+="Workflow completed successfully. No errors detected."
           else
-            SUMMARY+="No errors detected."
+            SUMMARY+="Monitoring ended. No errors detected."
           fi
           echo "monitoring_summary=$SUMMARY" >> $GITHUB_OUTPUT
 
@@ -434,10 +467,94 @@ jobs:
           fi
 
   # ========================================
-  # Phase 5: 学習とフィードバックループ
+  # Phase 5: 自動再起動（修正後）
+  # ========================================
+  auto-restart-workflow:
+    needs: [real-time-monitoring, ai-error-analysis, implement-auto-fix]
+    if: |
+      needs.implement-auto-fix.outputs.fix_applied == 'true' &&
+      (github.event.inputs.auto_restart_enabled == 'true' || github.event.inputs.auto_restart_enabled == null)
+    runs-on: ubuntu-latest
+    outputs:
+      restarted: ${{ steps.restart.outputs.restarted }}
+      new_run_id: ${{ steps.restart.outputs.new_run_id }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Wait for PR merge
+        id: wait
+        run: |
+          echo "⏳ Waiting for fix to be merged..."
+          
+          # PRがマージされるまで最大10分待機
+          PR_URL="${{ needs.implement-auto-fix.outputs.pr_url }}"
+          if [ -n "$PR_URL" ]; then
+            MAX_WAIT=600  # 10分
+            WAIT_TIME=0
+            
+            while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+              PR_STATE=$(gh pr view "$PR_URL" --json state -q '.state')
+              PR_MERGED=$(gh pr view "$PR_URL" --json merged -q '.merged')
+              
+              if [ "$PR_MERGED" == "true" ]; then
+                echo "✅ PR has been merged"
+                break
+              elif [ "$PR_STATE" == "CLOSED" ]; then
+                echo "❌ PR was closed without merging"
+                exit 0
+              fi
+              
+              echo "Waiting for PR merge... ($WAIT_TIME/$MAX_WAIT seconds)"
+              sleep 30
+              WAIT_TIME=$((WAIT_TIME + 30))
+            done
+          fi
+          
+      - name: Restart failed workflow
+        id: restart
+        run: |
+          echo "🔄 Restarting workflow after fix..."
+          
+          # 元のワークフローを特定
+          if [ -n "${{ env.TARGET_RUN_ID }}" ]; then
+            # 元のワークフローの情報を取得
+            ORIGINAL_WORKFLOW=$(gh run view ${{ env.TARGET_RUN_ID }} --json workflowName -q '.workflowName')
+            ORIGINAL_INPUTS=$(gh run view ${{ env.TARGET_RUN_ID }} --json event -q '.event.inputs')
+            
+            # ワークフローを再実行
+            case "$ORIGINAL_WORKFLOW" in
+              "Video Content Creation Production v8")
+                NEW_RUN_ID=$(gh workflow run video-content-creation-production-v8.yml \
+                  --ref main \
+                  --json | jq -r '.id')
+                ;;
+              "Meta Workflow Executor v8")
+                NEW_RUN_ID=$(gh workflow run meta-workflow-executor-v8.yml \
+                  --ref main \
+                  --json | jq -r '.id')
+                ;;
+              *)
+                echo "Unknown workflow type: $ORIGINAL_WORKFLOW"
+                exit 0
+                ;;
+            esac
+            
+            if [ -n "$NEW_RUN_ID" ]; then
+              echo "restarted=true" >> $GITHUB_OUTPUT
+              echo "new_run_id=$NEW_RUN_ID" >> $GITHUB_OUTPUT
+              echo "✅ Workflow restarted with run ID: $NEW_RUN_ID"
+            else
+              echo "restarted=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  # ========================================
+  # Phase 6: 学習とフィードバックループ
   # ========================================
   learning-feedback:
-    needs: [real-time-monitoring, ai-error-analysis, implement-auto-fix]
+    needs: [real-time-monitoring, ai-error-analysis, implement-auto-fix, auto-restart-workflow]
     if: always()
     runs-on: ubuntu-latest
     
@@ -461,6 +578,8 @@ jobs:
             "confidence_level": "${{ needs.ai-error-analysis.outputs.confidence_level }}",
             "fix_applied": "${{ needs.implement-auto-fix.outputs.fix_applied }}",
             "pr_url": "${{ needs.implement-auto-fix.outputs.pr_url }}",
+            "workflow_restarted": "${{ needs.auto-restart-workflow.outputs.restarted }}",
+            "new_run_id": "${{ needs.auto-restart-workflow.outputs.new_run_id }}",
             "workflow_run_id": "${{ github.run_id }}"
           }
           EOF
@@ -472,4 +591,15 @@ jobs:
           # 成功したパターンを記録（将来の参照用）
           if [ "${{ needs.implement-auto-fix.outputs.fix_applied }}" == "true" ]; then
             echo "Fix pattern recorded for future reference"
+          fi
+          
+      - name: Final summary
+        run: |
+          echo "📊 Final Summary:"
+          echo "- Monitoring completed: ${{ needs.real-time-monitoring.outputs.workflow_completed }}"
+          echo "- Error detected: ${{ needs.real-time-monitoring.outputs.error_detected }}"
+          if [ "${{ needs.real-time-monitoring.outputs.error_detected }}" == "true" ]; then
+            echo "- Error type: ${{ needs.real-time-monitoring.outputs.error_type }}"
+            echo "- Fix applied: ${{ needs.implement-auto-fix.outputs.fix_applied }}"
+            echo "- Workflow restarted: ${{ needs.auto-restart-workflow.outputs.restarted }}"
           fi
