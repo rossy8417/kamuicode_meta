@@ -59,10 +59,18 @@ on:
         options:
         - 'true'
         - 'false'
+      enable_narration:
+        description: 'ナレーション有効化'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
       enable_subtitles:
         description: '字幕有効化'
         required: true
-        default: 'true'
+        default: 'false'
         type: choice
         options:
         - 'true'
@@ -530,7 +538,7 @@ jobs:
   # ========================================
   generate-narration:
     needs: [setup-environment, concept-planning]
-    if: github.event.inputs.enable_subtitles == 'true'
+    if: github.event.inputs.enable_narration == 'true'
     runs-on: ubuntu-latest
     outputs:
       audio_path: ${{ steps.generate.outputs.audio_path }}
@@ -848,7 +856,7 @@ jobs:
             -c copy "${{ env.PROJECT_DIR }}/final/combined.mp4"
           
           # ナレーションパスを設定
-          NARRATION_PATH="${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}/audio/narration.mp3"
+          NARRATION_PATH="${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}/narration.mp3"
           
           # 音声トラックの組み合わせを決定
           if [ -f "$BGM_PATH" ] && [ -f "$NARRATION_PATH" ]; then
