@@ -1036,11 +1036,22 @@ jobs:
           echo "" >> README.md
           echo "## Video Production v8 - Run #${{ github.run_number }}" >> README.md
           echo "- **Concept**: ${{ github.event.inputs.video_concept }}" >> README.md
-          echo "- **Video URL**: ${{ needs.finalize-video.outputs.final_video_url }}" >> README.md
+          echo "- **Saved to**: ${{ needs.save-to-projects.outputs.saved_path }}" >> README.md
           echo "- **Date**: $(date -u +%Y-%m-%d)" >> README.md
           
+          # projectsディレクトリの内容を追加（動画ファイルは除外）
           git add README.md
-          git commit -m "docs: add video production v8 run #${{ github.run_number }} results"
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/summary.md" || true
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/workflow-info.json" || true
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/video-url.txt" || true
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/videos.txt" || true
+          
+          git commit -m "feat: add video production v8 run #${{ github.run_number }} results
+
+- Add project files to ${{ needs.save-to-projects.outputs.saved_path }}
+- Video concept: ${{ github.event.inputs.video_concept }}
+- Video files available as artifacts (not committed due to size)"
+          
           git push origin "$BRANCH_NAME"
           
       - name: Create Pull Request
