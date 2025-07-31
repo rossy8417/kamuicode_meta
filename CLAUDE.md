@@ -34,22 +34,33 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
 ## Current Architecture (v9.0)
 
 ### Minimal Unit Based Dynamic Meta Workflow System
-- **Claude Code SDK Analysis**: Uses Claude Code SDK to analyze user requirements and decompose tasks dynamically
-- **Minimal Unit Composition**: Selects and combines reusable units from `minimal-units/` directory
-- **Dynamic Workflow Generation**: Creates workflows based on task requirements, not fixed templates
-- **Intelligent Placement**: Automatically determines parallel execution, dependencies, and optimal arrangement
-- **Quality Validation**: YAML syntax, GitHub Actions structure, unit compatibility, dependency check
+- **Claude Code SDK Integration**: Dynamic task decomposition using Claude Code SDK
+- **55 Minimal Units**: Complete catalog of reusable workflow components
+- **Ultra-Detailed Task Decomposition**: Human-like task breakdown with proper dependencies
+- **Task Dependency Management**: Strict execution order based on data flow and prerequisites
+- **Optimal Parallel Processing**: 3-way, 4-way, or 5-way parallel execution where dependencies allow
+- **Human Thought Process Simulation**: Natural workflow patterns following human logic
+- **Quality Validation**: YAML syntax, GitHub Actions structure, dependency verification
 - **Safe Deployment**: Generated workflows deployed with .disabled extension for review
 
 ### Core Components
-- **`minimal-units/`**: Reusable workflow components organized by category (planning, image, video, audio, etc.)
-- **`.github/workflows/meta-workflow-executor-v9.yml`**: Dynamic meta workflow using Claude Code SDK
-- **`.github/workflows/auto-fix-deployment.yml`**: Automated deployment and error recovery system
-- **`.github/workflows/continuous-system-monitor.yml`**: System health monitoring
-- **`.github/ISSUE_TEMPLATE/`**: Issue templates for workflow requests
-- **`meta/prompts/`**: Prompts for unit selection, workflow composition, task analysis
-- **`generated/`**: Organized outputs with metadata and logs storage
+- **`minimal-units/`**: 55 reusable workflow units organized by category
+  - 8 Image units (t2i-imagen3, image-analysis, banner-text, etc.)
+  - 13 Video units (t2v-veo3, i2v-seedance, video-concat, etc.)
+  - 10 Audio units (bgm-generate-mcp, t2s-google, bgm-overlay, etc.)
+  - 9 Planning units (planning-ccsdk, web-search, data-analysis, etc.)
+  - 7 Utility units (local-save, git-pr-create, sns-publish, etc.)
+  - And more...
+- **`.github/workflows/meta-workflow-executor-v9.yml`**: Dynamic meta workflow with enhanced features
+- **`meta/prompts/`**: Enhanced prompts for human-like task decomposition and dependency analysis
 - **`.github/workflows/generated/`**: Generated workflow deployment area
+
+### Key Principles (v9.0)
+1. **Task Dependencies First**: Every task must declare its prerequisites
+2. **Data Flow Tracking**: Outputs from one task become inputs for dependent tasks
+3. **Parallel Where Possible**: Only independent tasks run in parallel
+4. **Human-like Sequencing**: Tasks ordered as a human would naturally approach them
+5. **GitHub Actions Compliance**: Strict adherence to YAML syntax and Actions specifications
 
 ## Critical System Repair & Improvement Protocol (v8.1)
 
