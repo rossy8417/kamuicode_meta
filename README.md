@@ -168,3 +168,8 @@
 - **Concept**: テクノロジーの未来を紹介する動画
 - **Saved to**: projects/video-v8-run-25--
 - **Date**: 2025-07-31
+
+## Video Production v8 - Run #29
+- **Concept**: テスト動画：美しい夕焼けの風景
+- **Saved to**: projects/video-v8-run-29--
+- **Date**: 2025-07-31
