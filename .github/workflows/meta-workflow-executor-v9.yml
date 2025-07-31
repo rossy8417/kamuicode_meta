@@ -237,8 +237,9 @@ jobs:
           EOF
           
           # Execute Claude Code with extended context
+          DECOMPOSE_PROMPT=$(cat generated/metadata/task-decomposition/decompose-prompt.md)
           npx @anthropic-ai/claude-code \
-            -f generated/metadata/task-decomposition/decompose-prompt.md \
+            -p "$DECOMPOSE_PROMPT" \
             --allowedTools "Write,Read" \
             --permission-mode "acceptEdits" \
             --max-tokens 8000 || {
@@ -476,8 +477,9 @@ jobs:
           EOF
           
           # Execute comprehensive selection
+          SELECT_PROMPT=$(cat generated/metadata/unit-selection/select-prompt.md)
           npx @anthropic-ai/claude-code \
-            -f generated/metadata/unit-selection/select-prompt.md \
+            -p "$SELECT_PROMPT" \
             --allowedTools "Read,Write" \
             --permission-mode "acceptEdits" \
             --max-tokens 8000 || {
@@ -672,8 +674,9 @@ jobs:
           EOF
           
           # Execute original approach composition
+          COMPOSE_PROMPT=$(cat generated/metadata/compose-original-prompt.md)
           npx @anthropic-ai/claude-code \
-            -f generated/metadata/compose-original-prompt.md \
+            -p "$COMPOSE_PROMPT" \
             --allowedTools "Read,Write,Edit" \
             --permission-mode "acceptEdits" \
             --max-tokens 12000 || {
@@ -826,8 +829,9 @@ jobs:
           EOF
           
           # Execute orchestrator approach composition
+          ORCHESTRATOR_PROMPT=$(cat generated/metadata/compose-orchestrator-prompt.md)
           npx @anthropic-ai/claude-code \
-            -f generated/metadata/compose-orchestrator-prompt.md \
+            -p "$ORCHESTRATOR_PROMPT" \
             --allowedTools "Read,Write,Edit" \
             --permission-mode "acceptEdits" \
             --max-tokens 12000 || {
@@ -966,8 +970,9 @@ jobs:
           EOF
           
           # Execute comparison and merge
+          MERGE_PROMPT=$(cat generated/metadata/compare-merge-prompt.md)
           npx @anthropic-ai/claude-code \
-            -f generated/metadata/compare-merge-prompt.md \
+            -p "$MERGE_PROMPT" \
             --allowedTools "Read,Write" \
             --permission-mode "acceptEdits" \
             --max-tokens 12000 || {
