@@ -1,0 +1,363 @@
+{
+  "workflow_name": "earthquake-news-video-generation",
+  "workflow_type": "video-generation",
+  "description": "Automated generation of 1-minute Japanese earthquake news video with subtitles",
+  "target_outputs": [
+    "1分程度の地震ニュース動画（MP4、1920x1080、日本語字幕付き）",
+    "日本語ナレーション音声ファイル",
+    "字幕ファイル（SRT）",
+    "ニュース原稿テキスト"
+  ],
+  "tasks": [
+    {
+      "id": "task-001",
+      "name": "地震情報Web検索準備",
+      "type": "preparation",
+      "description": "最新地震情報の検索戦略を策定し、検索キーワードを準備",
+      "subtasks": [
+        "検索キーワードリスト作成（地震、震度、震源地、被害状況）",
+        "信頼できる情報源リスト準備（気象庁、NHK、報道機関）",
+        "検索範囲設定（過去24時間以内）",
+        "情報収集フォーマット準備"
+      ],
+      "dependencies": [],
+      "parallel_group": 1,
+      "estimated_duration": "3-5 minutes",
+      "required_units": ["web-search", "planning-ccsdk"],
+      "human_behavior": "情報収集前の準備段階 - 人間が自然に行う事前計画",
+      "implementation": "external_api"
+    },
+    {
+      "id": "task-002",
+      "name": "地震関連画像コンセプト検討",
+      "type": "planning",
+      "description": "ニュース動画に使用する地震関連画像のビジュアルコンセプトを検討",
+      "subtasks": [
+        "地震のビジュアル表現方法研究",
+        "震源地マップのビジュアルスタイル検討",
+        "被害状況表現の適切性検討",
+        "ニュース番組風の画像スタイル定義"
+      ],
+      "dependencies": [],
+      "parallel_group": 1,
+      "estimated_duration": "4-6 minutes",
+      "required_units": ["image-analysis", "planning-ccsdk"],
+      "human_behavior": "視覚的表現の事前検討 - クリエイティブな準備思考",
+      "implementation": "script"
+    },
+    {
+      "id": "task-003",
+      "name": "ニュース原稿構成計画",
+      "type": "planning",
+      "description": "1分動画に適した日本語ニュース原稿の構成を計画",
+      "subtasks": [
+        "ニュース原稿の標準構成研究（導入-本文-まとめ）",
+        "1分間に適した文字数計算（約300文字）",
+        "重要情報の優先順位設定",
+        "読みやすい文章構造の定義"
+      ],
+      "dependencies": [],
+      "parallel_group": 1,
+      "estimated_duration": "3-4 minutes",
+      "required_units": ["planning-ccsdk", "data-analysis"],
+      "human_behavior": "文章構成の事前設計 - 論理的思考プロセス",
+      "implementation": "script"
+    },
+    {
+      "id": "task-004",
+      "name": "最新地震情報の包括的収集",
+      "type": "research",
+      "description": "複数の信頼できる情報源から最新の地震情報を収集",
+      "subtasks": [
+        "気象庁公式情報の取得",
+        "報道機関の速報情報収集",
+        "震度・震源地・時刻の正確性確認",
+        "被害状況・影響範囲の調査",
+        "収集情報の信頼性評価"
+      ],
+      "dependencies": ["task-001"],
+      "parallel_group": 2,
+      "estimated_duration": "5-7 minutes",
+      "required_units": ["web-search", "data-analysis"],
+      "human_behavior": "情報収集時の多角的調査 - 確認・照合行動",
+      "implementation": "external_api"
+    },
+    {
+      "id": "task-005",
+      "name": "収集情報の分析・整理",
+      "type": "analysis",
+      "description": "収集した地震情報を分析し、ニュース用に整理",
+      "subtasks": [
+        "重要度による情報の優先順位付け",
+        "時系列による情報整理",
+        "地理的情報の整理（震源地、影響地域）",
+        "数値データの整理（震度、マグニチュード）",
+        "ニュース原稿用データ構造化"
+      ],
+      "dependencies": ["task-004"],
+      "parallel_group": 3,
+      "estimated_duration": "4-6 minutes",
+      "required_units": ["data-analysis", "planning-ccsdk"],
+      "human_behavior": "情報整理時の論理的分類 - 構造化思考",
+      "implementation": "script"
+    },
+    {
+      "id": "task-006",
+      "name": "日本語ニュース原稿作成",
+      "type": "content_generation",
+      "description": "分析した情報を基に、1分動画用の日本語ニュース原稿を作成",
+      "subtasks": [
+        "導入部作成（地震発生の基本情報）",
+        "本文作成（詳細情報・影響範囲）",
+        "まとめ部作成（注意喚起・今後の情報）",
+        "読み上げ時間の調整（約60秒）",
+        "自然な日本語表現への調整"
+      ],
+      "dependencies": ["task-005", "task-003"],
+      "parallel_group": 4,
+      "estimated_duration": "6-8 minutes",
+      "required_units": ["planning-ccsdk"],
+      "human_behavior": "文章作成時の推敲プロセス - 繰り返し改善",
+      "implementation": "mcp"
+    },
+    {
+      "id": "task-007",
+      "name": "震源地マップ画像生成",
+      "type": "image_generation",
+      "description": "地震の震源地と影響範囲を示すマップ画像を生成",
+      "subtasks": [
+        "震源地位置の正確な特定",
+        "影響範囲の視覚化計画",
+        "ニュース番組風マップスタイルのプロンプト作成",
+        "複数バリエーションの生成",
+        "最適な画像の選定"
+      ],
+      "dependencies": ["task-005", "task-002"],
+      "parallel_group": 4,
+      "estimated_duration": "5-7 minutes",
+      "required_units": ["t2i-imagen3", "image-analysis"],
+      "human_behavior": "視覚化時の試行錯誤 - 複数案検討",
+      "implementation": "mcp"
+    },
+    {
+      "id": "task-008",
+      "name": "地震関連イメージ画像生成",
+      "type": "image_generation",
+      "description": "地震の概念や被害状況を表現するイメージ画像を生成",
+      "subtasks": [
+        "地震波のビジュアル表現検討",
+        "建物・インフラへの影響表現",
+        "ニュース番組風の画像スタイル適用",
+        "複数の視点からの画像生成",
+        "品質評価と最終選定"
+      ],
+      "dependencies": ["task-002"],
+      "parallel_group": 4,
+      "estimated_duration": "5-7 minutes",
+      "required_units": ["t2i-imagen3", "image-analysis"],
+      "human_behavior": "イメージ具現化の創造プロセス - 視覚的思考",
+      "implementation": "mcp"
+    },
+    {
+      "id": "task-009",
+      "name": "画像シーケンス構成計画",
+      "type": "planning",
+      "description": "生成した画像を効果的に組み合わせる動画構成を計画",
+      "subtasks": [
+        "画像の論理的順序決定",
+        "各画像の表示時間設計",
+        "画像間のトランジション計画",
+        "ナレーションとの同期計画",
+        "視覚的インパクトの最適化"
+      ],
+      "dependencies": ["task-007", "task-008"],
+      "parallel_group": 5,
+      "estimated_duration": "3-5 minutes",
+      "required_units": ["planning-ccsdk"],
+      "human_behavior": "編集前の構成検討 - ストーリーテリング思考",
+      "implementation": "script"
+    },
+    {
+      "id": "task-010",
+      "name": "動画シーケンス生成",
+      "type": "video_generation",
+      "description": "構成計画に基づいて画像から1分動画を生成",
+      "subtasks": [
+        "画像シーケンスの時間軸配置",
+        "画像間トランジション効果適用",
+        "1920x1080解像度での出力設定",
+        "フレームレート最適化",
+        "初期動画品質確認"
+      ],
+      "dependencies": ["task-009"],
+      "parallel_group": 6,
+      "estimated_duration": "6-8 minutes",
+      "required_units": ["i2v-seedance", "video-concat"],
+      "human_behavior": "制作時の技術的調整 - 品質へのこだわり",
+      "implementation": "mcp"
+    },
+    {
+      "id": "task-011",
+      "name": "日本語ナレーション音声生成",
+      "type": "audio_generation",
+      "description": "作成したニュース原稿から日本語ナレーション音声を生成",
+      "subtasks": [
+        "ニュースアナウンサー風の音声スタイル設定",
+        "読み上げ速度の調整",
+        "感情表現の適切な調整",
+        "音声品質の確認",
+        "動画尺に合わせた調整"
+      ],
+      "dependencies": ["task-006"],
+      "parallel_group": 6,
+      "estimated_duration": "4-6 minutes",
+      "required_units": ["t2s-google"],
+      "human_behavior": "音声調整時の細部へのこだわり - 聴覚的完成度追求",
+      "implementation": "mcp"
+    },
+    {
+      "id": "task-012",
+      "name": "日本語字幕ファイル作成",
+      "type": "subtitle_generation",
+      "description": "ナレーション原稿から適切なタイミングの字幕ファイルを作成",
+      "subtasks": [
+        "原稿の字幕セグメント分割",
+        "表示タイミングの計算",
+        "SRTフォーマットでの出力",
+        "字幕長さの読みやすさ確認",
+        "動画尺との同期確認"
+      ],
+      "dependencies": ["task-006", "task-011"],
+      "parallel_group": 7,
+      "estimated_duration": "3-5 minutes",
+      "required_units": ["planning-ccsdk"],
+      "human_behavior": "字幕作成時の視聴者視点 - 理解しやすさ重視",
+      "implementation": "script"
+    },
+    {
+      "id": "task-013",
+      "name": "ニュース番組風BGM選択・調整",
+      "type": "audio_processing",
+      "description": "地震ニュースに適したBGMを生成・調整",
+      "subtasks": [
+        "ニュース番組風BGMスタイル研究",
+        "地震ニュースに適した雰囲気設定",
+        "BGM音量レベルの調整",
+        "ナレーションとの音響バランス確認",
+        "1分尺に合わせた長さ調整"
+      ],
+      "dependencies": ["task-011"],
+      "parallel_group": 7,
+      "estimated_duration": "4-6 minutes",
+      "required_units": ["bgm-generate-mcp", "bgm-overlay"],
+      "human_behavior": "音響演出の感覚的調整 - 雰囲気作りへの配慮",
+      "implementation": "mcp"
+    },
+    {
+      "id": "task-014",
+      "name": "動画・音声合成",
+      "type": "video_composition",
+      "description": "動画、ナレーション、BGMを合成して基本版を作成",
+      "subtasks": [
+        "動画とナレーション音声の同期",
+        "BGM音量の最終調整",
+        "音声レベルのバランス調整",
+        "合成品質の確認",
+        "音響的な仕上がり評価"
+      ],
+      "dependencies": ["task-010", "task-011", "task-013"],
+      "parallel_group": 8,
+      "estimated_duration": "5-7 minutes",
+      "required_units": ["video-concat", "bgm-overlay"],
+      "human_behavior": "編集時の総合的品質確認 - 全体バランス調整",
+      "implementation": "mcp"
+    },
+    {
+      "id": "task-015",
+      "name": "字幕オーバーレイ適用",
+      "type": "video_composition",
+      "description": "作成した字幕を動画にオーバーレイして最終版を作成",
+      "subtasks": [
+        "字幕表示位置の最適化",
+        "字幕フォント・サイズの調整",
+        "字幕背景・縁取りの設定",
+        "字幕表示タイミングの微調整",
+        "視認性の最終確認"
+      ],
+      "dependencies": ["task-014", "task-012"],
+      "parallel_group": 9,
+      "estimated_duration": "4-6 minutes",
+      "required_units": ["video-concat"],
+      "human_behavior": "字幕調整時の視聴者体験重視 - 見やすさへの執着",
+      "implementation": "script"
+    },
+    {
+      "id": "task-016",
+      "name": "最終品質確認・調整",
+      "type": "quality_assurance",
+      "description": "完成した動画の品質を総合的に確認し、必要に応じて調整",
+      "subtasks": [
+        "動画全体の流れ確認",
+        "音声品質・バランス確認",
+        "字幕の読みやすさ確認",
+        "情報の正確性最終チェック",
+        "尺（約1分）の確認",
+        "出力品質（1920x1080）の確認"
+      ],
+      "dependencies": ["task-015"],
+      "parallel_group": 10,
+      "estimated_duration": "5-8 minutes",
+      "required_units": ["video-analysis"],
+      "human_behavior": "完成品の完璧主義的確認 - プロ意識の発揮",
+      "implementation": "script"
+    },
+    {
+      "id": "task-017",
+      "name": "成果物整理・出力",
+      "type": "finalization",
+      "description": "全ての成果物を整理し、指定形式で出力",
+      "subtasks": [
+        "最終MP4動画ファイルの保存",
+        "ナレーション音声ファイルの保存",
+        "SRT字幕ファイルの保存",
+        "ニュース原稿テキストの保存",
+        "制作メタデータの記録",
+        "成果物の品質情報まとめ"
+      ],
+      "dependencies": ["task-016"],
+      "parallel_group": 11,
+      "estimated_duration": "3-5 minutes",
+      "required_units": ["local-save"],
+      "human_behavior": "完成後の整理整頓 - 成果の体系的保存",
+      "implementation": "script"
+    }
+  ],
+  "parallel_groups": {
+    "1": ["task-001", "task-002", "task-003"],
+    "2": ["task-004"],
+    "3": ["task-005"],
+    "4": ["task-006", "task-007", "task-008"],
+    "5": ["task-009"],
+    "6": ["task-010", "task-011"],
+    "7": ["task-012", "task-013"],
+    "8": ["task-014"],
+    "9": ["task-015"],
+    "10": ["task-016"],
+    "11": ["task-017"]
+  },
+  "total_estimated_duration": "75-105 minutes",
+  "optimization_notes": "3-way parallel for initial planning, 3-way parallel for content generation, 2-way parallel for audio processing, sequential for final composition",
+  "human_behavior_patterns": {
+    "preparation_phase": "Tasks 1-3: Natural human tendency to plan and prepare before execution",
+    "information_gathering": "Tasks 4-5: Systematic research and analysis approach",
+    "parallel_creation": "Tasks 6-8: Human ability to work on multiple creative tasks simultaneously",
+    "composition_phase": "Tasks 9-15: Sequential building and refinement process",
+    "quality_assurance": "Tasks 16-17: Final review and organization habits"
+  },
+  "workflow_complexity": "high",
+  "technical_requirements": {
+    "mcp_services": ["t2i-imagen3", "i2v-seedance", "t2s-google", "bgm-generate-mcp"],
+    "external_apis": ["web-search", "earthquake-data-apis"],
+    "processing_tools": ["video-concat", "bgm-overlay", "subtitle-overlay"]
+  }
+}

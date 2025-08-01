@@ -30,9 +30,10 @@ When "**バルス**" is mentioned in a Claude Code session, the following comple
 - `generated/task-plans/` - Task plan data
 - **Preserved:** `generated/workflows/validated/validation-*.log`
 
-### 3. GitHub Actions History Deletion
+### 3. GitHub Actions Complete Reset
 - Complete deletion of past workflow runs
-- Includes failed runs
+- Complete deletion of GitHub Actions cache entries
+- Includes failed runs and cached state data
 
 ### 4. GitHub Issues Deletion
 - Delete Issues created by meta-workflow generation
@@ -64,6 +65,7 @@ When "**バルス**" is mentioned in a Claude Code session, the following comple
 
 ## 🚀 Usage
 
+### Automatic Execution (Claude Code session)
 In Claude Code session:
 
 ```
@@ -71,6 +73,18 @@ In Claude Code session:
 ```
 
 Simply say this word and complete cleanup will be executed automatically.
+
+### Manual Execution (Script)
+Direct script execution:
+
+```bash
+./scripts/balus-complete.sh
+```
+
+The script performs:
+- GitHub Actions run history deletion
+- GitHub Actions cache deletion  
+- Verification and cleanup confirmation
 
 ## 📚 Reference
 

@@ -1,0 +1,468 @@
+{
+  "selected_units": [
+    {
+      "task_id": "task-001",
+      "unit_name": "web-search",
+      "unit_path": "minimal-units/planning/web-search.yml",
+      "purpose": "Search for latest earthquake information and prepare search strategy",
+      "inputs": {
+        "search_keywords": "地震 震度 震源地 被害状況 気象庁 NHK",
+        "time_range": "past 24 hours",
+        "sources": "official government, news agencies"
+      },
+      "dependencies": [],
+      "parallel_group": 1,
+      "execution_order": 1
+    },
+    {
+      "task_id": "task-001",
+      "unit_name": "planning-ccsdk",
+      "unit_path": "minimal-units/planning/planning-ccsdk.yml",
+      "purpose": "Develop comprehensive earthquake information search strategy",
+      "inputs": {
+        "planning_type": "information_search_strategy",
+        "target": "earthquake news video creation"
+      },
+      "dependencies": [],
+      "parallel_group": 1,
+      "execution_order": 1
+    },
+    {
+      "task_id": "task-002",
+      "unit_name": "image-analysis",
+      "unit_path": "minimal-units/media/image/image-analysis.yml",
+      "purpose": "Research visual representation methods for earthquake imagery",
+      "inputs": {
+        "analysis_type": "visual_concept_research",
+        "target": "earthquake visualization concepts"
+      },
+      "dependencies": [],
+      "parallel_group": 1,
+      "execution_order": 2
+    },
+    {
+      "task_id": "task-002",
+      "unit_name": "planning-ccsdk",
+      "unit_path": "minimal-units/planning/planning-ccsdk.yml",
+      "purpose": "Plan visual concepts for earthquake-related imagery",
+      "inputs": {
+        "planning_type": "visual_concept_planning",
+        "target": "earthquake news imagery style"
+      },
+      "dependencies": [],
+      "parallel_group": 1,
+      "execution_order": 2
+    },
+    {
+      "task_id": "task-003",
+      "unit_name": "planning-ccsdk",
+      "unit_path": "minimal-units/planning/planning-ccsdk.yml",
+      "purpose": "Plan 1-minute Japanese news script structure",
+      "inputs": {
+        "planning_type": "news_script_structure",
+        "duration": "60 seconds",
+        "language": "Japanese"
+      },
+      "dependencies": [],
+      "parallel_group": 1,
+      "execution_order": 3
+    },
+    {
+      "task_id": "task-003",
+      "unit_name": "data-analysis",
+      "unit_path": "minimal-units/planning/data-analysis.yml",
+      "purpose": "Calculate optimal text length and pacing for 1-minute video",
+      "inputs": {
+        "analysis_type": "text_timing_calculation",
+        "target_duration": "60 seconds"
+      },
+      "dependencies": [],
+      "parallel_group": 1,
+      "execution_order": 3
+    },
+    {
+      "task_id": "task-004",
+      "unit_name": "web-search",
+      "unit_path": "minimal-units/planning/web-search.yml",
+      "purpose": "Comprehensive collection of latest earthquake information",
+      "inputs": {
+        "search_strategy": "multi_source_comprehensive",
+        "sources": "JMA, NHK, news agencies"
+      },
+      "dependencies": ["task-001"],
+      "parallel_group": 2,
+      "execution_order": 4
+    },
+    {
+      "task_id": "task-004",
+      "unit_name": "data-analysis",
+      "unit_path": "minimal-units/planning/data-analysis.yml",
+      "purpose": "Analyze and verify collected earthquake information reliability",
+      "inputs": {
+        "analysis_type": "information_reliability_check",
+        "data_sources": "multiple earthquake sources"
+      },
+      "dependencies": ["task-001"],
+      "parallel_group": 2,
+      "execution_order": 4
+    },
+    {
+      "task_id": "task-005",
+      "unit_name": "data-analysis",
+      "unit_path": "minimal-units/planning/data-analysis.yml",
+      "purpose": "Prioritize and structure collected earthquake information",
+      "inputs": {
+        "analysis_type": "information_prioritization",
+        "structure_type": "news_format"
+      },
+      "dependencies": ["task-004"],
+      "parallel_group": 3,
+      "execution_order": 5
+    },
+    {
+      "task_id": "task-005",
+      "unit_name": "planning-ccsdk",
+      "unit_path": "minimal-units/planning/planning-ccsdk.yml",
+      "purpose": "Structure analyzed information for news script creation",
+      "inputs": {
+        "planning_type": "information_structuring",
+        "output_format": "news_script_data"
+      },
+      "dependencies": ["task-004"],
+      "parallel_group": 3,
+      "execution_order": 5
+    },
+    {
+      "task_id": "task-006",
+      "unit_name": "article-generation",
+      "unit_path": "minimal-units/content/article-generation.yml",
+      "purpose": "Generate Japanese earthquake news script",
+      "inputs": {
+        "content_type": "news_script",
+        "language": "Japanese",
+        "duration": "60 seconds",
+        "style": "news_broadcaster"
+      },
+      "dependencies": ["task-005", "task-003"],
+      "parallel_group": 4,
+      "execution_order": 6
+    },
+    {
+      "task_id": "task-007",
+      "unit_name": "t2i-imagen3",
+      "unit_path": "minimal-units/media/image/t2i-imagen3.yml",
+      "purpose": "Generate earthquake epicenter and impact map image",
+      "inputs": {
+        "prompt": "Professional news-style earthquake epicenter map with impact zones, Japanese geography",
+        "style": "news broadcast graphic",
+        "quality": "high"
+      },
+      "dependencies": ["task-005", "task-002"],
+      "parallel_group": 4,
+      "execution_order": 7
+    },
+    {
+      "task_id": "task-007",
+      "unit_name": "image-analysis",
+      "unit_path": "minimal-units/media/image/image-analysis.yml",
+      "purpose": "Evaluate generated earthquake map images for quality",
+      "inputs": {
+        "analysis_type": "image_quality_evaluation",
+        "criteria": "news_broadcast_suitability"
+      },
+      "dependencies": ["task-005", "task-002"],
+      "parallel_group": 4,
+      "execution_order": 7
+    },
+    {
+      "task_id": "task-008",
+      "unit_name": "t2i-imagen3",
+      "unit_path": "minimal-units/media/image/t2i-imagen3.yml",
+      "purpose": "Generate earthquake impact and damage visualization images",
+      "inputs": {
+        "prompt": "Earthquake impact visualization, seismic waves, building safety, news broadcast style",
+        "style": "professional news graphics",
+        "quality": "high"
+      },
+      "dependencies": ["task-002"],
+      "parallel_group": 4,
+      "execution_order": 8
+    },
+    {
+      "task_id": "task-008",
+      "unit_name": "image-analysis",
+      "unit_path": "minimal-units/media/image/image-analysis.yml",
+      "purpose": "Evaluate earthquake impact images for appropriateness",
+      "inputs": {
+        "analysis_type": "content_appropriateness_check",
+        "criteria": "news_broadcast_standards"
+      },
+      "dependencies": ["task-002"],
+      "parallel_group": 4,
+      "execution_order": 8
+    },
+    {
+      "task_id": "task-009",
+      "unit_name": "planning-ccsdk",
+      "unit_path": "minimal-units/planning/planning-ccsdk.yml",
+      "purpose": "Plan optimal sequence and timing for image presentation",
+      "inputs": {
+        "planning_type": "video_composition_planning",
+        "elements": "generated_images",
+        "sync_target": "narration_script"
+      },
+      "dependencies": ["task-007", "task-008"],
+      "parallel_group": 5,
+      "execution_order": 9
+    },
+    {
+      "task_id": "task-010",
+      "unit_name": "i2v-seedance",
+      "unit_path": "minimal-units/media/video/i2v-seedance.yml",
+      "purpose": "Generate video sequence from planned image composition",
+      "inputs": {
+        "images": "earthquake_map_and_impact_images",
+        "duration": "60 seconds",
+        "resolution": "1920x1080",
+        "transition_style": "news_broadcast"
+      },
+      "dependencies": ["task-009"],
+      "parallel_group": 6,
+      "execution_order": 10
+    },
+    {
+      "task_id": "task-010",
+      "unit_name": "video-concat",
+      "unit_path": "minimal-units/postprod/video-concat.yml",
+      "purpose": "Concatenate and optimize video sequence with transitions",
+      "inputs": {
+        "video_segments": "generated_image_sequences",
+        "transition_effects": "professional_news_style",
+        "output_resolution": "1920x1080"
+      },
+      "dependencies": ["task-009"],
+      "parallel_group": 6,
+      "execution_order": 10
+    },
+    {
+      "task_id": "task-011",
+      "unit_name": "t2s-google",
+      "unit_path": "minimal-units/media/audio/t2s-google.yml",
+      "purpose": "Generate Japanese narration audio from news script",
+      "inputs": {
+        "text": "japanese_news_script",
+        "voice_style": "news_announcer",
+        "language": "ja-JP",
+        "speed": "normal"
+      },
+      "dependencies": ["task-006"],
+      "parallel_group": 6,
+      "execution_order": 11
+    },
+    {
+      "task_id": "task-012",
+      "unit_name": "srt-make",
+      "unit_path": "minimal-units/postprod/srt-make.yml",
+      "purpose": "Create Japanese subtitle file with proper timing",
+      "inputs": {
+        "script_text": "japanese_news_script",
+        "audio_duration": "60 seconds",
+        "language": "Japanese"
+      },
+      "dependencies": ["task-006", "task-011"],
+      "parallel_group": 7,
+      "execution_order": 12
+    },
+    {
+      "task_id": "task-012",
+      "unit_name": "srt-sync",
+      "unit_path": "minimal-units/postprod/srt-sync.yml",
+      "purpose": "Synchronize subtitle timing with narration audio",
+      "inputs": {
+        "subtitle_file": "generated_srt",
+        "audio_file": "narration_audio",
+        "sync_method": "audio_alignment"
+      },
+      "dependencies": ["task-006", "task-011"],
+      "parallel_group": 7,
+      "execution_order": 12
+    },
+    {
+      "task_id": "task-013",
+      "unit_name": "bgm-generate-mcp",
+      "unit_path": "minimal-units/media/audio/bgm-generate-mcp.yml",
+      "purpose": "Generate appropriate BGM for earthquake news",
+      "inputs": {
+        "style": "news_broadcast_background",
+        "mood": "serious_informative",
+        "duration": "60 seconds",
+        "instrument": "subtle_orchestral"
+      },
+      "dependencies": ["task-011"],
+      "parallel_group": 7,
+      "execution_order": 13
+    },
+    {
+      "task_id": "task-013",
+      "unit_name": "bgm-overlay",
+      "unit_path": "minimal-units/postprod/bgm-overlay.yml",
+      "purpose": "Balance BGM volume with narration",
+      "inputs": {
+        "narration_audio": "japanese_narration",
+        "bgm_audio": "generated_news_bgm",
+        "mixing_style": "news_broadcast"
+      },
+      "dependencies": ["task-011"],
+      "parallel_group": 7,
+      "execution_order": 13
+    },
+    {
+      "task_id": "task-014",
+      "unit_name": "video-concat",
+      "unit_path": "minimal-units/postprod/video-concat.yml",
+      "purpose": "Combine video with narration and BGM audio",
+      "inputs": {
+        "video_file": "earthquake_video_sequence",
+        "audio_files": ["narration_with_bgm"],
+        "sync_method": "precise_alignment"
+      },
+      "dependencies": ["task-010", "task-011", "task-013"],
+      "parallel_group": 8,
+      "execution_order": 14
+    },
+    {
+      "task_id": "task-014",
+      "unit_name": "bgm-overlay",
+      "unit_path": "minimal-units/postprod/bgm-overlay.yml",
+      "purpose": "Final audio level balancing and mixing",
+      "inputs": {
+        "primary_audio": "narration",
+        "background_audio": "bgm",
+        "balance_type": "professional_news_mix"
+      },
+      "dependencies": ["task-010", "task-011", "task-013"],
+      "parallel_group": 8,
+      "execution_order": 14
+    },
+    {
+      "task_id": "task-015",
+      "unit_name": "subtitle-overlay",
+      "unit_path": "minimal-units/postprod/subtitle-overlay.yml",
+      "purpose": "Apply Japanese subtitles to the video",
+      "inputs": {
+        "video_file": "composed_video_with_audio",
+        "subtitle_file": "synchronized_srt",
+        "font_style": "news_broadcast_japanese",
+        "position": "bottom_center"
+      },
+      "dependencies": ["task-014", "task-012"],
+      "parallel_group": 9,
+      "execution_order": 15
+    },
+    {
+      "task_id": "task-016",
+      "unit_name": "video-analysis",
+      "unit_path": "minimal-units/media/video/video-analysis.yml",
+      "purpose": "Comprehensive quality check of final video",
+      "inputs": {
+        "video_file": "final_earthquake_news_video",
+        "check_criteria": ["duration", "resolution", "audio_quality", "subtitle_readability", "content_accuracy"]
+      },
+      "dependencies": ["task-015"],
+      "parallel_group": 10,
+      "execution_order": 16
+    },
+    {
+      "task_id": "task-017",
+      "unit_name": "local-save",
+      "unit_path": "minimal-units/utility/local-save.yml",
+      "purpose": "Save all final deliverables in organized structure",
+      "inputs": {
+        "files": [
+          "final_earthquake_news_video.mp4",
+          "japanese_narration_audio.wav",
+          "japanese_subtitles.srt",
+          "news_script.txt"
+        ],
+        "destination": "projects/earthquake-news-video/final/",
+        "metadata": "production_details"
+      },
+      "dependencies": ["task-016"],
+      "parallel_group": 11,
+      "execution_order": 17
+    }
+  ],
+  "parallel_optimization": {
+    "strategy": "3-way parallel for initial planning, 3-way parallel for content generation, 2-way parallel for audio processing, sequential for final composition",
+    "groups": {
+      "1": {"units": 6, "type": "research_and_planning", "description": "Parallel preparation of search strategy, visual concepts, and script structure"},
+      "2": {"units": 2, "type": "information_gathering", "description": "Comprehensive earthquake data collection and verification"},
+      "3": {"units": 2, "type": "analysis", "description": "Information prioritization and structuring"},
+      "4": {"units": 5, "type": "content_generation", "description": "3-way parallel: script creation, map image generation, impact image generation"},
+      "5": {"units": 1, "type": "composition_planning", "description": "Sequential video composition planning"},
+      "6": {"units": 3, "type": "media_generation", "description": "2-way parallel: video sequence and narration audio generation"},
+      "7": {"units": 4, "type": "audio_processing", "description": "2-way parallel: subtitle creation and BGM generation/mixing"},
+      "8": {"units": 2, "type": "composition", "description": "Video and audio composition with final mixing"},
+      "9": {"units": 1, "type": "subtitle_overlay", "description": "Sequential subtitle application"},
+      "10": {"units": 1, "type": "quality_assurance", "description": "Comprehensive quality validation"},
+      "11": {"units": 1, "type": "finalization", "description": "Final deliverable organization and saving"}
+    }
+  },
+  "unit_statistics": {
+    "total_selected": 28,
+    "by_category": {
+      "planning": 7,
+      "image": 4,
+      "video": 3,
+      "audio": 4,
+      "content": 1,
+      "postproduction": 7,
+      "utility": 1,
+      "analysis": 1
+    },
+    "implementation_distribution": {
+      "mcp": 12,
+      "script": 8,
+      "external_api": 8
+    }
+  },
+  "quality_optimization": {
+    "validation_layers": [
+      "Image quality evaluation for news broadcast standards",
+      "Audio level balancing for professional news mix",
+      "Subtitle synchronization and readability",
+      "Final video comprehensive quality check",
+      "Content accuracy verification"
+    ],
+    "fallback_strategies": [
+      "Alternative image generation if initial results don't meet standards",
+      "Audio re-generation with different voice settings if needed",
+      "Subtitle timing adjustment for better readability",
+      "BGM volume adjustment for optimal narration clarity"
+    ]
+  },
+  "human_behavior_simulation": {
+    "preparation_mindset": "Units selected to simulate natural human preparation behavior - researching visual concepts while planning script structure",
+    "parallel_creativity": "Multiple content generation units running simultaneously, mimicking human creative process",
+    "iterative_refinement": "Quality check and analysis units positioned for continuous improvement",
+    "professional_standards": "News broadcast quality validation integrated throughout workflow"
+  },
+  "technical_requirements": {
+    "required_mcp_services": [
+      "t2i-google-imagen3",
+      "i2v-fal-bytedance-seedance-v1-lite", 
+      "t2s-google",
+      "t2m-google-lyria"
+    ],
+    "external_apis": [
+      "earthquake-data-jma",
+      "news-search-apis"
+    ],
+    "processing_capabilities": [
+      "1920x1080 video processing",
+      "Japanese text-to-speech",
+      "SRT subtitle generation",
+      "Multi-track audio mixing"
+    ]
+  }
+}

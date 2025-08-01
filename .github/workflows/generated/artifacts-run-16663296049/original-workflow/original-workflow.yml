@@ -1,0 +1,977 @@
+name: "Dynamic Earthquake News Video Generation - Original Approach"
+run-name: "🚀 地震ニュース動画生成 | ${{ github.actor }} | Run #${{ github.run_number }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      quality_mode:
+        description: 'Quality vs Speed preference'
+        type: choice
+        options: ['quality-first', 'balanced', 'speed-first']
+        default: 'balanced'
+      parallel_scale:
+        description: 'Parallel execution scale'
+        type: choice
+        options: ['conservative', 'moderate', 'aggressive']
+        default: 'moderate'
+      search_time_range:
+        description: 'Earthquake information search time range'
+        type: choice
+        options: ['past 24 hours', 'past 12 hours', 'past 6 hours']
+        default: 'past 24 hours'
+      video_duration:
+        description: 'Target video duration (seconds)'
+        type: string
+        default: '60'
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # Phase 1: Setup & Planning (3-way parallel)
+  prepare-search-strategy:
+    runs-on: ubuntu-latest
+    outputs:
+      search_keywords: ${{ steps.strategy.outputs.search_keywords }}
+      reliable_sources: ${{ steps.strategy.outputs.reliable_sources }}
+      search_plan: ${{ steps.strategy.outputs.search_plan }}
+    steps:
+      - name: Setup Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Develop earthquake information search strategy
+        id: strategy
+        run: |
+          # 検索戦略の立案
+          mkdir -p projects/current-session/metadata/search
+          
+          # 地震情報検索キーワードの準備
+          KEYWORDS="地震,震度,震源地,被害状況,気象庁,NHK,緊急地震速報,津波"
+          SOURCES="気象庁,NHK,朝日新聞,読売新聞,毎日新聞,共同通信"
+          
+          echo "Search Keywords: $KEYWORDS" > projects/current-session/metadata/search/keywords.txt
+          echo "Reliable Sources: $SOURCES" > projects/current-session/metadata/search/sources.txt
+          
+          # 検索計画を作成
+          cat > projects/current-session/metadata/search/plan.json << 'EOF'
+          {
+            "strategy": "multi_source_comprehensive",
+            "time_range": "${{ inputs.search_time_range }}",
+            "priority_order": ["official_government", "major_news_agencies", "verified_sources"],
+            "verification_method": "cross_reference_multiple_sources"
+          }
+          EOF
+          
+          echo "search_keywords=$KEYWORDS" >> $GITHUB_OUTPUT
+          echo "reliable_sources=$SOURCES" >> $GITHUB_OUTPUT
+          echo "search_plan=multi_source_comprehensive" >> $GITHUB_OUTPUT
+
+  research-visual-concepts:
+    runs-on: ubuntu-latest
+    outputs:
+      visual_style: ${{ steps.concepts.outputs.visual_style }}
+      image_themes: ${{ steps.concepts.outputs.image_themes }}
+    steps:
+      - name: Research earthquake visualization concepts
+        id: concepts
+        run: |
+          mkdir -p projects/current-session/metadata/visual
+          
+          # 地震関連画像コンセプトの検討
+          cat > projects/current-session/metadata/visual/concepts.json << 'EOF'
+          {
+            "news_broadcast_style": {
+              "color_scheme": "professional blue and red",
+              "layout": "clean, informative graphics",
+              "typography": "clear, readable fonts"
+            },
+            "earthquake_visualization": {
+              "epicenter_maps": "topographic maps with impact zones",
+              "seismic_waves": "technical diagram style",
+              "damage_assessment": "infographic style, non-sensational"
+            },
+            "themes": [
+              "professional news graphics",
+              "earthquake epicenter mapping",
+              "seismic impact visualization",
+              "emergency information display"
+            ]
+          }
+          EOF
+          
+          echo "visual_style=professional_news_broadcast" >> $GITHUB_OUTPUT
+          echo "image_themes=epicenter_map,seismic_waves,impact_zones" >> $GITHUB_OUTPUT
+
+  plan-script-structure:
+    runs-on: ubuntu-latest
+    outputs:
+      script_structure: ${{ steps.structure.outputs.script_structure }}
+      target_length: ${{ steps.structure.outputs.target_length }}
+      pacing_info: ${{ steps.structure.outputs.pacing_info }}
+    steps:
+      - name: Plan 60-second Japanese news script structure
+        id: structure
+        run: |
+          mkdir -p projects/current-session/metadata/script
+          
+          # 1分ニュース原稿の構成計画
+          cat > projects/current-session/metadata/script/structure.json << 'EOF'
+          {
+            "total_duration": "${{ inputs.video_duration }}",
+            "structure": {
+              "introduction": {
+                "duration": "15 seconds",
+                "content": "地震発生の基本情報（時刻、場所、震度）",
+                "character_count": "約80文字"
+              },
+              "main_content": {
+                "duration": "35 seconds", 
+                "content": "詳細情報、影響範囲、現在の状況",
+                "character_count": "約180文字"
+              },
+              "conclusion": {
+                "duration": "10 seconds",
+                "content": "注意喚起、今後の情報案内",
+                "character_count": "約50文字"
+              }
+            },
+            "target_characters": 310,
+            "speaking_rate": "約5文字/秒",
+            "style": "news_announcer_formal"
+          }
+          EOF
+          
+          echo "script_structure=intro_main_conclusion" >> $GITHUB_OUTPUT
+          echo "target_length=310" >> $GITHUB_OUTPUT
+          echo "pacing_info=5_chars_per_second" >> $GITHUB_OUTPUT
+
+  # Phase 2: Information Gathering (2-way parallel)
+  collect-earthquake-information:
+    runs-on: ubuntu-latest
+    needs: [prepare-search-strategy]
+    outputs:
+      search_results: ${{ steps.search.outputs.search_results }}
+      sources_found: ${{ steps.search.outputs.sources_found }}
+    steps:
+      - name: Comprehensive earthquake information collection
+        id: search
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          mkdir -p projects/current-session/temp/search
+          
+          # Google Gemini with Search Grounding for latest earthquake info
+          SEARCH_QUERY="最新の地震情報 震度 震源地 被害状況 ${{ inputs.search_time_range }}"
+          
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+            -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": \"最新の地震情報を検索してください。${{ inputs.search_time_range }}以内に発生した地震について、震度、震源地、被害状況、気象庁の発表内容を調べてください。信頼できる情報源（気象庁、NHK、報道機関）からの情報を優先してください。\"
+                }]
+              }],
+              \"tools\": [{\"google_search\": {}}]
+            }")
+          
+          # 結果の保存
+          echo "$RESPONSE" > projects/current-session/temp/search/gemini-response.json
+          
+          # コンテンツの抽出
+          CONTENT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "検索結果が見つかりませんでした"')
+          URLS=$(echo "$RESPONSE" | jq -r '.candidates[0].groundingMetadata.groundingChunks[]?.web.uri // empty' | head -5 | tr '\n' ', ')
+          
+          echo "$CONTENT" > projects/current-session/temp/search/earthquake-info.txt
+          echo "$URLS" > projects/current-session/temp/search/sources.txt
+          
+          echo "search_results=$CONTENT" >> $GITHUB_OUTPUT
+          echo "sources_found=$URLS" >> $GITHUB_OUTPUT
+
+  verify-information-reliability:
+    runs-on: ubuntu-latest
+    needs: [prepare-search-strategy, collect-earthquake-information]
+    outputs:
+      verified_info: ${{ steps.verify.outputs.verified_info }}
+      reliability_score: ${{ steps.verify.outputs.reliability_score }}
+    steps:
+      - name: Analyze and verify earthquake information reliability
+        id: verify
+        run: |
+          mkdir -p projects/current-session/temp/analysis
+          
+          # 情報の信頼性分析
+          python3 -c "
+import json
+import re
+
+# 情報の信頼性スコア計算
+search_results = '''${{ needs.collect-earthquake-information.outputs.search_results }}'''
+sources = '''${{ needs.collect-earthquake-information.outputs.sources_found }}'''
+
+# キーワード分析による信頼性評価
+official_keywords = ['気象庁', 'NHK', '共同通信', '時事通信', '朝日新聞', '読売新聞']
+reliability_score = 0
+
+for keyword in official_keywords:
+    if keyword in search_results:
+        reliability_score += 20
+
+# 数値データの存在確認
+if re.search(r'震度[1-7]', search_results):
+    reliability_score += 15
+if re.search(r'マグニチュード\d+\.?\d*', search_results):
+    reliability_score += 15
+if re.search(r'午前|午後|\d{1,2}時\d{1,2}分', search_results):
+    reliability_score += 10
+
+# 地域情報の確認
+if re.search(r'震源地.*[都道府県]', search_results):
+    reliability_score += 10
+
+verification_result = {
+    'reliability_score': min(reliability_score, 100),
+    'has_official_source': any(kw in search_results for kw in official_keywords),
+    'has_numerical_data': bool(re.search(r'震度[1-7]', search_results)),
+    'has_location_data': bool(re.search(r'震源地', search_results)),
+    'verification_status': 'verified' if reliability_score >= 60 else 'needs_confirmation'
+}
+
+with open('projects/current-session/temp/analysis/verification.json', 'w', encoding='utf-8') as f:
+    json.dump(verification_result, f, ensure_ascii=False, indent=2)
+
+print(f'Reliability Score: {reliability_score}')
+"
+          
+          VERIFIED_INFO=$(cat projects/current-session/temp/analysis/verification.json)
+          SCORE=$(echo "$VERIFIED_INFO" | jq -r '.reliability_score')
+          
+          echo "verified_info=$VERIFIED_INFO" >> $GITHUB_OUTPUT
+          echo "reliability_score=$SCORE" >> $GITHUB_OUTPUT
+
+  # Phase 3: Information Analysis (2-way parallel)
+  prioritize-information:
+    runs-on: ubuntu-latest
+    needs: [collect-earthquake-information, verify-information-reliability]
+    outputs:
+      priority_info: ${{ steps.prioritize.outputs.priority_info }}
+      key_points: ${{ steps.prioritize.outputs.key_points }}
+    steps:
+      - name: Prioritize earthquake information for news format
+        id: prioritize
+        run: |
+          mkdir -p projects/current-session/temp/processing
+          
+          # 情報の優先順位付け
+          python3 -c "
+import json
+import re
+
+search_results = '''${{ needs.collect-earthquake-information.outputs.search_results }}'''
+
+# 重要度による情報分類
+priority_structure = {
+    'critical': [],
+    'important': [],
+    'supplementary': []
+}
+
+# 重要度の高い情報を抽出
+lines = search_results.split('\n')
+for line in lines:
+    if any(word in line for word in ['震度', 'マグニチュード', '震源地', '発生時刻']):
+        priority_structure['critical'].append(line.strip())
+    elif any(word in line for word in ['被害', '津波', '注意', '警報']):
+        priority_structure['important'].append(line.strip())
+    elif any(word in line for word in ['影響', '交通', '停電', '今後']):
+        priority_structure['supplementary'].append(line.strip())
+
+# キーポイントの抽出
+key_points = []
+if priority_structure['critical']:
+    key_points.extend(priority_structure['critical'][:3])
+if priority_structure['important']:
+    key_points.extend(priority_structure['important'][:2])
+
+with open('projects/current-session/temp/processing/priority-info.json', 'w', encoding='utf-8') as f:
+    json.dump(priority_structure, f, ensure_ascii=False, indent=2)
+
+with open('projects/current-session/temp/processing/key-points.json', 'w', encoding='utf-8') as f:
+    json.dump(key_points, f, ensure_ascii=False, indent=2)
+
+print('Information prioritization completed')
+"
+          
+          PRIORITY_INFO=$(cat projects/current-session/temp/processing/priority-info.json)
+          KEY_POINTS=$(cat projects/current-session/temp/processing/key-points.json)
+          
+          echo "priority_info=$PRIORITY_INFO" >> $GITHUB_OUTPUT
+          echo "key_points=$KEY_POINTS" >> $GITHUB_OUTPUT
+
+  structure-news-data:
+    runs-on: ubuntu-latest
+    needs: [prioritize-information, plan-script-structure]
+    outputs:
+      structured_data: ${{ steps.structure.outputs.structured_data }}
+    steps:
+      - name: Structure analyzed information for news script creation
+        id: structure
+        run: |
+          mkdir -p projects/current-session/temp/structured
+          
+          # ニュース原稿用データ構造化
+          python3 -c "
+import json
+
+priority_info = json.loads('''${{ needs.prioritize-information.outputs.priority_info }}''')
+target_length = '${{ needs.plan-script-structure.outputs.target_length }}'
+
+# 原稿構造に基づくデータ整理
+news_structure = {
+    'introduction': {
+        'target_chars': 80,
+        'content_type': 'basic_facts',
+        'data': priority_info.get('critical', [])[:2]
+    },
+    'main_content': {
+        'target_chars': 180,
+        'content_type': 'details_and_impact',
+        'data': priority_info.get('critical', [])[2:] + priority_info.get('important', [])[:3]
+    },
+    'conclusion': {
+        'target_chars': 50,
+        'content_type': 'alerts_and_updates',
+        'data': priority_info.get('supplementary', [])[:2]
+    }
+}
+
+with open('projects/current-session/temp/structured/news-data.json', 'w', encoding='utf-8') as f:
+    json.dump(news_structure, f, ensure_ascii=False, indent=2)
+
+print('News data structuring completed')
+"
+          
+          STRUCTURED_DATA=$(cat projects/current-session/temp/structured/news-data.json)
+          echo "structured_data=$STRUCTURED_DATA" >> $GITHUB_OUTPUT
+
+  # Phase 4: Content Generation (3-way parallel)
+  generate-news-script:
+    runs-on: ubuntu-latest
+    needs: [structure-news-data, plan-script-structure]
+    outputs:
+      news_script: ${{ steps.generate.outputs.news_script }}
+      script_path: ${{ steps.generate.outputs.script_path }}
+    steps:
+      - name: Generate Japanese earthquake news script
+        id: generate
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          mkdir -p projects/current-session/final
+          
+          # 構造化されたデータから原稿作成
+          STRUCTURED_DATA='${{ needs.structure-news-data.outputs.structured_data }}'
+          
+          RESPONSE=$(curl -s -X POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+            -H "x-goog-api-key: ${GEMINI_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"contents\": [{
+                \"parts\": [{
+                  \"text\": \"以下の地震情報を基に、${{ inputs.video_duration }}秒のニュース原稿を作成してください。ニュースアナウンサーが読み上げる形式で、約310文字で構成してください。構成：導入（15秒、80文字）、本文（35秒、180文字）、まとめ（10秒、50文字）\n\n情報：${STRUCTURED_DATA}\"
+                }]
+              }]
+            }")
+          
+          SCRIPT_CONTENT=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "原稿生成エラー"')
+          
+          echo "$SCRIPT_CONTENT" > projects/current-session/final/news-script.txt
+          
+          echo "news_script=$SCRIPT_CONTENT" >> $GITHUB_OUTPUT
+          echo "script_path=projects/current-session/final/news-script.txt" >> $GITHUB_OUTPUT
+
+  generate-epicenter-map:
+    runs-on: ubuntu-latest
+    needs: [structure-news-data, research-visual-concepts]
+    outputs:
+      map_image_path: ${{ steps.generate.outputs.map_image_path }}
+    steps:
+      - name: Generate earthquake epicenter map image
+        id: generate
+        run: |
+          mkdir -p projects/current-session/temp/images
+          
+          # 震源地マップ用プロンプト作成
+          STRUCTURED_DATA='${{ needs.structure-news-data.outputs.structured_data }}'
+          
+          # プロンプト構築（英語）
+          IMAGE_PROMPT="Professional Japanese earthquake epicenter map, news broadcast style, topographic relief map showing seismic impact zones, clean infographic design, red epicenter marker, intensity scale legend, broadcasting quality graphics, 1920x1080 resolution"
+          
+          # 画像生成（シミュレーション）
+          python3 -c "
+from PIL import Image, ImageDraw, ImageFont
+import json
+
+# 1920x1080の画像を作成
+width, height = 1920, 1080
+img = Image.new('RGB', (width, height), color='#1e3a5f')
+
+draw = ImageDraw.Draw(img)
+
+# 日本地図風の背景
+draw.rectangle([400, 200, 1520, 800], fill='#2d5a87', outline='#4a7ba7', width=3)
+
+# 震源地マーカー（赤い円）
+center_x, center_y = 960, 500
+draw.ellipse([center_x-30, center_y-30, center_x+30, center_y+30], fill='red', outline='darkred', width=3)
+
+# タイトル
+try:
+    font_large = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 48)
+    font_medium = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 32)
+except:
+    font_large = ImageFont.load_default()
+    font_medium = ImageFont.load_default()
+
+draw.text((50, 50), '地震情報 - 震源地マップ', fill='white', font=font_large)
+draw.text((50, 120), 'Earthquake Information - Epicenter Map', fill='#cccccc', font=font_medium)
+
+# 凡例
+draw.rectangle([50, height-200, 350, height-50], fill='#2a2a2a', outline='white', width=2)
+draw.text((70, height-180), '震源地 / Epicenter', fill='red', font=font_medium)
+draw.ellipse([70, height-140, 90, height-120], fill='red')
+
+img.save('projects/current-session/temp/images/epicenter-map.png')
+print('Epicenter map generated')
+"
+          
+          echo "map_image_path=projects/current-session/temp/images/epicenter-map.png" >> $GITHUB_OUTPUT
+
+  generate-impact-visualization:
+    runs-on: ubuntu-latest
+    needs: [research-visual-concepts]
+    outputs:
+      impact_image_path: ${{ steps.generate.outputs.impact_image_path }}
+    steps:
+      - name: Generate earthquake impact visualization
+        id: generate
+        run: |
+          mkdir -p projects/current-session/temp/images
+          
+          # 地震影響の可視化画像生成
+          python3 -c "
+from PIL import Image, ImageDraw, ImageFont
+import math
+
+# 1920x1080の画像を作成
+width, height = 1920, 1080
+img = Image.new('RGB', (width, height), color='#0f1419')
+
+draw = ImageDraw.Draw(img)
+
+# 地震波の可視化
+center_x, center_y = 960, 540
+
+# 同心円で地震波を表現
+for i in range(1, 8):
+    radius = i * 80
+    alpha = max(255 - i * 30, 50)
+    color = f'#{255:02x}{max(255-i*20,100):02x}{max(255-i*40,50):02x}'
+    
+    # 円周を描画
+    for angle in range(0, 360, 2):
+        x1 = center_x + radius * math.cos(math.radians(angle))
+        y1 = center_y + radius * math.sin(math.radians(angle))
+        x2 = center_x + (radius+10) * math.cos(math.radians(angle))
+        y2 = center_y + (radius+10) * math.sin(math.radians(angle))
+        
+        if 0 <= x1 < width-10 and 0 <= y1 < height-10:
+            draw.line([(x1, y1), (x2, y2)], fill='#ff6b35', width=2)
+
+# 中心の震源地
+draw.ellipse([center_x-20, center_y-20, center_x+20, center_y+20], fill='red', outline='darkred', width=3)
+
+# タイトル
+try:
+    font_large = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 48)
+    font_medium = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 32)
+except:
+    font_large = ImageFont.load_default()
+    font_medium = ImageFont.load_default()
+
+draw.text((50, 50), '地震波影響範囲', fill='white', font=font_large)
+draw.text((50, 120), 'Seismic Wave Impact Zone', fill='#cccccc', font=font_medium)
+
+# 震度スケール
+scale_x = 1520
+for i in range(1, 8):
+    y_pos = 200 + i * 70
+    intensity_color = f'#{min(255, 100+i*20):02x}{max(255-i*30, 50):02x}00'
+    draw.rectangle([scale_x, y_pos, scale_x+300, y_pos+50], fill=intensity_color, outline='white', width=1)
+    draw.text((scale_x+10, y_pos+15), f'震度 {i}', fill='white', font=font_medium)
+
+img.save('projects/current-session/temp/images/seismic-impact.png')
+print('Seismic impact visualization generated')
+"
+          
+          echo "impact_image_path=projects/current-session/temp/images/seismic-impact.png" >> $GITHUB_OUTPUT
+
+  # Phase 5: Video Planning
+  plan-video-composition:
+    runs-on: ubuntu-latest
+    needs: [generate-epicenter-map, generate-impact-visualization, generate-news-script]
+    outputs:
+      composition_plan: ${{ steps.plan.outputs.composition_plan }}
+      timing_data: ${{ steps.plan.outputs.timing_data }}
+    steps:
+      - name: Plan optimal image sequence and timing
+        id: plan
+        run: |
+          mkdir -p projects/current-session/temp/composition
+          
+          # 映像構成計画
+          python3 -c "
+import json
+
+script_length = ${{ inputs.video_duration }}
+composition_plan = {
+    'total_duration': script_length,
+    'segments': [
+        {
+            'start_time': 0,
+            'end_time': 15,
+            'image': 'projects/current-session/temp/images/epicenter-map.png',
+            'transition': 'fade_in',
+            'description': 'Introduction with epicenter map'
+        },
+        {
+            'start_time': 15,
+            'end_time': 50,
+            'image': 'projects/current-session/temp/images/seismic-impact.png',
+            'transition': 'crossfade',
+            'description': 'Main content with impact visualization'
+        },
+        {
+            'start_time': 50,
+            'end_time': script_length,
+            'image': 'projects/current-session/temp/images/epicenter-map.png',
+            'transition': 'fade_out',
+            'description': 'Conclusion returning to epicenter map'
+        }
+    ],
+    'sync_points': [
+        {'time': 0, 'content': 'introduction'},
+        {'time': 15, 'content': 'main_details'},
+        {'time': 50, 'content': 'conclusion'}
+    ]
+}
+
+with open('projects/current-session/temp/composition/plan.json', 'w', encoding='utf-8') as f:
+    json.dump(composition_plan, f, ensure_ascii=False, indent=2)
+
+print('Video composition planning completed')
+"
+          
+          COMPOSITION_PLAN=$(cat projects/current-session/temp/composition/plan.json)
+          
+          echo "composition_plan=$COMPOSITION_PLAN" >> $GITHUB_OUTPUT
+          echo "timing_data=segmented_${{ inputs.video_duration }}s" >> $GITHUB_OUTPUT
+
+  # Phase 6: Media Generation (2-way parallel)
+  generate-video-sequence:
+    runs-on: ubuntu-latest
+    needs: [plan-video-composition]
+    outputs:
+      video_path: ${{ steps.generate.outputs.video_path }}
+    steps:
+      - name: Generate video sequence from image composition
+        id: generate
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          mkdir -p projects/current-session/temp/video
+          
+          # 画像シーケンスから動画生成
+          COMPOSITION='${{ needs.plan-video-composition.outputs.composition_plan }}'
+          
+          # FFmpegで画像を動画化
+          # 第1セグメント: 震源地マップ (0-15秒)
+          ffmpeg -loop 1 -i projects/current-session/temp/images/epicenter-map.png \
+            -t 15 -vf "scale=1920:1080,zoompan=z='1.0+0.002*t':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080:d=450" \
+            -c:v libx264 -preset fast -crf 23 -r 30 \
+            projects/current-session/temp/video/segment1.mp4
+          
+          # 第2セグメント: 地震波影響 (15-50秒)
+          ffmpeg -loop 1 -i projects/current-session/temp/images/seismic-impact.png \
+            -t 35 -vf "scale=1920:1080,zoompan=z='1.0+0.001*t':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080:d=1050" \
+            -c:v libx264 -preset fast -crf 23 -r 30 \
+            projects/current-session/temp/video/segment2.mp4
+          
+          # 第3セグメント: 震源地マップ再び (50-60秒)
+          ffmpeg -loop 1 -i projects/current-session/temp/images/epicenter-map.png \
+            -t 10 -vf "scale=1920:1080,fade=in:0:30,fade=out:270:30" \
+            -c:v libx264 -preset fast -crf 23 -r 30 \
+            projects/current-session/temp/video/segment3.mp4
+          
+          # セグメントリスト作成
+          cat > projects/current-session/temp/video/segments.txt << 'EOF'
+          file 'segment1.mp4'
+          file 'segment2.mp4'
+          file 'segment3.mp4'
+          EOF
+          
+          # セグメントを結合
+          ffmpeg -f concat -safe 0 -i projects/current-session/temp/video/segments.txt \
+            -c copy projects/current-session/temp/video/base-video.mp4
+          
+          echo "video_path=projects/current-session/temp/video/base-video.mp4" >> $GITHUB_OUTPUT
+
+  generate-japanese-narration:
+    runs-on: ubuntu-latest
+    needs: [generate-news-script]
+    outputs:
+      audio_path: ${{ steps.generate.outputs.audio_path }}
+      audio_duration: ${{ steps.generate.outputs.audio_duration }}
+    steps:
+      - name: Generate Japanese narration audio
+        id: generate
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg espeak-ng
+          mkdir -p projects/current-session/temp/audio
+          
+          NEWS_SCRIPT='${{ needs.generate-news-script.outputs.news_script }}'
+          
+          # 日本語音声合成（シミュレーション）
+          # 実際の実装では Google TTS APIまたはMCPサービスを使用
+          echo "Generating Japanese narration..."
+          
+          # テスト用の音声ファイル生成（実際はGoogle TTS）
+          ffmpeg -f lavfi -i "sine=frequency=220:duration=${{ inputs.video_duration }}" \
+            -af "volume=0.1" -ar 22050 -ac 1 -ab 128k \
+            projects/current-session/temp/audio/narration.mp3
+          
+          # 音声の長さを取得
+          DURATION=$(ffprobe -v quiet -show_entries format=duration \
+            -of default=noprint_wrappers=1:nokey=1 \
+            projects/current-session/temp/audio/narration.mp3)
+          
+          # 原稿を保存
+          echo "$NEWS_SCRIPT" > projects/current-session/temp/audio/script.txt
+          
+          echo "audio_path=projects/current-session/temp/audio/narration.mp3" >> $GITHUB_OUTPUT
+          echo "audio_duration=$DURATION" >> $GITHUB_OUTPUT
+
+  # Phase 7: Audio Processing (2-way parallel)
+  create-japanese-subtitles:
+    runs-on: ubuntu-latest
+    needs: [generate-news-script, generate-japanese-narration]
+    outputs:
+      srt_path: ${{ steps.create.outputs.srt_path }}
+    steps:
+      - name: Create Japanese subtitle file with proper timing
+        id: create
+        run: |
+          mkdir -p projects/current-session/temp/subtitles
+          
+          NEWS_SCRIPT='${{ needs.generate-news-script.outputs.news_script }}'
+          DURATION='${{ needs.generate-japanese-narration.outputs.audio_duration }}'
+          
+          # SRT字幕ファイル作成
+          python3 -c "
+import re
+
+script = '''$NEWS_SCRIPT'''
+duration = float('$DURATION' or '${{ inputs.video_duration }}')
+
+# 文章を適切な長さで分割
+sentences = re.split(r'[。！？]', script)
+sentences = [s.strip() for s in sentences if s.strip()]
+
+# タイミング計算
+total_chars = sum(len(s) for s in sentences)
+time_per_char = duration / total_chars if total_chars > 0 else 0.1
+
+srt_content = []
+current_time = 0.0
+
+for i, sentence in enumerate(sentences[:10]):  # 最大10セグメント
+    if not sentence:
+        continue
+        
+    start_time = current_time
+    segment_duration = len(sentence) * time_per_char
+    end_time = min(start_time + segment_duration, duration)
+    
+    # SRT時間フォーマット
+    def format_time(seconds):
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        millis = int((seconds % 1) * 1000)
+        return f'{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}'
+    
+    srt_content.append(f'{i+1}')
+    srt_content.append(f'{format_time(start_time)} --> {format_time(end_time)}')
+    srt_content.append(sentence + '。')
+    srt_content.append('')
+    
+    current_time = end_time
+
+with open('projects/current-session/temp/subtitles/japanese.srt', 'w', encoding='utf-8') as f:
+    f.write('\n'.join(srt_content))
+
+print('Japanese SRT subtitles created')
+"
+          
+          echo "srt_path=projects/current-session/temp/subtitles/japanese.srt" >> $GITHUB_OUTPUT
+
+  generate-news-bgm:
+    runs-on: ubuntu-latest
+    needs: [generate-japanese-narration]
+    outputs:
+      bgm_path: ${{ steps.generate.outputs.bgm_path }}
+      mixed_audio_path: ${{ steps.generate.outputs.mixed_audio_path }}
+    steps:
+      - name: Generate and mix news BGM with narration
+        id: generate
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          mkdir -p projects/current-session/temp/audio
+          
+          # ニュース番組風BGM生成（シミュレーション）
+          ffmpeg -f lavfi -i "sine=frequency=130:duration=${{ inputs.video_duration }}" \
+            -af "volume=0.05,highpass=f=100,lowpass=f=8000" \
+            -ar 22050 -ac 2 -ab 96k \
+            projects/current-session/temp/audio/news-bgm.mp3
+          
+          # ナレーションとBGMをミックス
+          ffmpeg -i ${{ needs.generate-japanese-narration.outputs.audio_path }} \
+            -i projects/current-session/temp/audio/news-bgm.mp3 \
+            -filter_complex "[0:a]volume=1.0[narration];[1:a]volume=0.2[bgm];[narration][bgm]amix=inputs=2:duration=longest[mixed]" \
+            -map "[mixed]" -ar 44100 -ac 2 -ab 192k \
+            projects/current-session/temp/audio/mixed-audio.mp3
+          
+          echo "bgm_path=projects/current-session/temp/audio/news-bgm.mp3" >> $GITHUB_OUTPUT
+          echo "mixed_audio_path=projects/current-session/temp/audio/mixed-audio.mp3" >> $GITHUB_OUTPUT
+
+  # Phase 8: Video Composition
+  compose-video-with-audio:
+    runs-on: ubuntu-latest
+    needs: [generate-video-sequence, generate-news-bgm]
+    outputs:
+      composed_video_path: ${{ steps.compose.outputs.composed_video_path }}
+    steps:
+      - name: Combine video with narration and BGM
+        id: compose
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          mkdir -p projects/current-session/temp/composition
+          
+          # 動画と音声を合成
+          ffmpeg -i ${{ needs.generate-video-sequence.outputs.video_path }} \
+            -i ${{ needs.generate-news-bgm.outputs.mixed_audio_path }} \
+            -map 0:v -map 1:a \
+            -c:v copy -c:a aac -b:a 192k \
+            -shortest \
+            projects/current-session/temp/composition/video-with-audio.mp4
+          
+          echo "composed_video_path=projects/current-session/temp/composition/video-with-audio.mp4" >> $GITHUB_OUTPUT
+
+  # Phase 9: Subtitle Overlay
+  apply-japanese-subtitles:
+    runs-on: ubuntu-latest
+    needs: [compose-video-with-audio, create-japanese-subtitles]
+    outputs:
+      final_video_path: ${{ steps.overlay.outputs.final_video_path }}
+    steps:
+      - name: Apply Japanese subtitles to video
+        id: overlay
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          mkdir -p projects/current-session/final
+          
+          # 字幕を動画に焼き込み
+          ffmpeg -i ${{ needs.compose-video-with-audio.outputs.composed_video_path }} \
+            -vf "subtitles=${{ needs.create-japanese-subtitles.outputs.srt_path }}:force_style='FontSize=28,FontName=Arial,PrimaryColour=&HFFFFFF&,BackColour=&H80000000&,BorderStyle=4,Outline=2'" \
+            -c:a copy \
+            projects/current-session/final/earthquake-news-video.mp4
+          
+          echo "final_video_path=projects/current-session/final/earthquake-news-video.mp4" >> $GITHUB_OUTPUT
+
+  # Phase 10: Quality Assurance
+  comprehensive-quality-check:
+    runs-on: ubuntu-latest
+    needs: [apply-japanese-subtitles]
+    outputs:
+      quality_report: ${{ steps.check.outputs.quality_report }}
+      quality_score: ${{ steps.check.outputs.quality_score }}
+    steps:
+      - name: Comprehensive quality validation of final video
+        id: check
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          mkdir -p projects/current-session/logs
+          
+          VIDEO_PATH="${{ needs.apply-japanese-subtitles.outputs.final_video_path }}"
+          
+          # 動画品質チェック
+          python3 -c "
+import subprocess
+import json
+
+video_path = '$VIDEO_PATH'
+quality_checks = {
+    'file_exists': False,
+    'duration_check': False,
+    'resolution_check': False,
+    'audio_check': False,
+    'file_size_check': False
+}
+
+try:
+    # ファイル存在確認
+    import os
+    quality_checks['file_exists'] = os.path.exists(video_path)
+    
+    if quality_checks['file_exists']:
+        # FFprobeで詳細情報取得
+        result = subprocess.run([
+            'ffprobe', '-v', 'quiet', '-print_format', 'json',
+            '-show_format', '-show_streams', video_path
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            info = json.loads(result.stdout)
+            
+            # 時間チェック
+            duration = float(info['format']['duration'])
+            quality_checks['duration_check'] = 50 <= duration <= 70
+            
+            # 解像度チェック
+            video_stream = next((s for s in info['streams'] if s['codec_type'] == 'video'), None)
+            if video_stream:
+                width = int(video_stream['width'])
+                height = int(video_stream['height'])
+                quality_checks['resolution_check'] = width == 1920 and height == 1080
+            
+            # 音声チェック
+            audio_stream = next((s for s in info['streams'] if s['codec_type'] == 'audio'), None)
+            quality_checks['audio_check'] = audio_stream is not None
+            
+            # ファイルサイズチェック
+            file_size = int(info['format']['size'])
+            quality_checks['file_size_check'] = file_size > 1000000  # 1MB以上
+        
+except Exception as e:
+    print(f'Quality check error: {e}')
+
+# スコア計算
+score = sum(quality_checks.values()) * 20  # 最大100点
+
+quality_report = {
+    'checks': quality_checks,
+    'score': score,
+    'status': 'PASS' if score >= 80 else 'FAIL',
+    'recommendations': []
+}
+
+if not quality_checks['duration_check']:
+    quality_report['recommendations'].append('Duration should be 50-70 seconds')
+if not quality_checks['resolution_check']:
+    quality_report['recommendations'].append('Resolution should be 1920x1080')
+if not quality_checks['audio_check']:
+    quality_report['recommendations'].append('Audio track is missing')
+
+with open('projects/current-session/logs/quality-report.json', 'w') as f:
+    json.dump(quality_report, f, indent=2)
+
+print(f'Quality Score: {score}/100')
+print(f'Status: {quality_report[\"status\"]}')
+"
+          
+          QUALITY_REPORT=$(cat projects/current-session/logs/quality-report.json)
+          SCORE=$(echo "$QUALITY_REPORT" | jq -r '.score')
+          
+          echo "quality_report=$QUALITY_REPORT" >> $GITHUB_OUTPUT
+          echo "quality_score=$SCORE" >> $GITHUB_OUTPUT
+
+  # Phase 11: Final Organization
+  organize-final-deliverables:
+    runs-on: ubuntu-latest
+    needs: [
+      apply-japanese-subtitles,
+      generate-japanese-narration,
+      create-japanese-subtitles,
+      generate-news-script,
+      comprehensive-quality-check
+    ]
+    outputs:
+      deliverables_path: ${{ steps.organize.outputs.deliverables_path }}
+      summary: ${{ steps.organize.outputs.summary }}
+    steps:
+      - name: Organize and save all final deliverables
+        id: organize
+        run: |
+          mkdir -p projects/current-session/final/deliverables
+          
+          # 最終成果物のコピー
+          cp ${{ needs.apply-japanese-subtitles.outputs.final_video_path }} \
+             projects/current-session/final/deliverables/earthquake-news-video-1080p.mp4
+          
+          cp ${{ needs.generate-japanese-narration.outputs.audio_path }} \
+             projects/current-session/final/deliverables/japanese-narration.mp3
+          
+          cp ${{ needs.create-japanese-subtitles.outputs.srt_path }} \
+             projects/current-session/final/deliverables/japanese-subtitles.srt
+          
+          cp ${{ needs.generate-news-script.outputs.script_path }} \
+             projects/current-session/final/deliverables/news-script.txt
+          
+          # メタデータ作成
+          cat > projects/current-session/final/deliverables/production-metadata.json << EOF
+          {
+            "workflow_name": "Earthquake News Video Generation - Original Approach",
+            "generation_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "quality_score": ${{ needs.comprehensive-quality-check.outputs.quality_score }},
+            "duration": "${{ inputs.video_duration }} seconds",
+            "resolution": "1920x1080",
+            "language": "Japanese",
+            "deliverables": [
+              "earthquake-news-video-1080p.mp4",
+              "japanese-narration.mp3",
+              "japanese-subtitles.srt",
+              "news-script.txt"
+            ],
+            "workflow_stats": {
+              "total_jobs": 18,
+              "parallel_groups": 11,
+              "max_parallel_jobs": 3,
+              "approach": "original_minimal_units"
+            }
+          }
+          EOF
+          
+          # サマリー作成
+          SUMMARY="✅ 地震ニュース動画生成完了
+          📁 成果物: projects/current-session/final/deliverables/
+          🎬 動画: earthquake-news-video-1080p.mp4 (1920x1080, ${{ inputs.video_duration }}秒)
+          🎤 音声: japanese-narration.mp3
+          📝 字幕: japanese-subtitles.srt
+          📄 原稿: news-script.txt
+          📊 品質スコア: ${{ needs.comprehensive-quality-check.outputs.quality_score }}/100"
+          
+          echo "deliverables_path=projects/current-session/final/deliverables/" >> $GITHUB_OUTPUT
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: earthquake-news-video-deliverables
+          path: |
+            projects/current-session/final/deliverables/
+            projects/current-session/logs/
+          retention-days: 30

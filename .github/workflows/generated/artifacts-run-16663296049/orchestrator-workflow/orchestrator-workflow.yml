@@ -1,0 +1,415 @@
+name: orchestrator-earthquake-news-video-generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      concept:
+        description: '地震ニュース動画のコンセプト'
+        required: true
+        type: string
+        default: '最新地震情報の日本語ニュース動画（1分、字幕付き）'
+      earthquake_region:
+        description: '地震発生地域（検索対象地域）'
+        required: false
+        type: string
+        default: '日本全国'
+      search_timeframe:
+        description: '情報収集期間'
+        required: false
+        type: choice
+        options:
+          - 'past 24 hours'
+          - 'past 12 hours'
+          - 'past 6 hours'
+          - 'past 3 hours'
+        default: 'past 24 hours'
+      video_duration:
+        description: '動画時間（秒）'
+        required: false
+        type: string
+        default: '60'
+      image_model:
+        description: '画像生成モデル'
+        required: true
+        type: choice
+        options:
+          - t2i-google-imagen3
+          - t2i-fal-imagen4-ultra
+          - t2i-fal-imagen4-fast
+          - t2i-fal-flux-schnell
+        default: t2i-google-imagen3
+      video_model:
+        description: '動画生成モデル'
+        required: true
+        type: choice
+        options:
+          - i2v-fal-bytedance-seedance-v1-lite
+          - i2v-fal-hailuo-02-pro
+          - t2v-fal-veo3-fast
+        default: i2v-fal-bytedance-seedance-v1-lite
+      audio_model:
+        description: '音声生成モデル'
+        required: true
+        type: choice
+        options:
+          - t2s-fal-minimax-speech-02-turbo
+          - t2s-google
+        default: t2s-fal-minimax-speech-02-turbo
+      bgm_model:
+        description: 'BGM生成モデル'
+        required: true
+        type: choice
+        options:
+          - t2m-google-lyria
+        default: t2m-google-lyria
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  # ステップ1: セットアップ
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup placeholder
+        run: echo "Setup completed for earthquake news video generation"
+
+  # ステップ2: ブランチ作成
+  create-branch:
+    needs: setup
+    uses: ./.github/workflows/module-setup-branch.yml
+    with:
+      concept: ${{ inputs.concept }}
+      project_prefix: "earthquake-news"
+
+  # ステップ3: 地震情報検索戦略企画
+  search-planning:
+    needs: [create-branch]
+    uses: ./.github/workflows/module-planning-ccsdk.yml
+    with:
+      concept: "地震情報検索戦略とキーワード設定"
+      planning_type: "information_search_strategy"
+      target_region: ${{ inputs.earthquake_region }}
+      timeframe: ${{ inputs.search_timeframe }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ4: 地震関連ビジュアル企画（並行）
+  visual-planning:
+    needs: [create-branch]
+    uses: ./.github/workflows/module-planning-ccsdk.yml
+    with:
+      concept: "地震ニュース画像のビジュアルコンセプト企画"
+      planning_type: "visual_concept_planning"
+      target_style: "news_broadcast_graphics"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ5: ニュース原稿構成企画（並行）
+  script-planning:
+    needs: [create-branch]
+    uses: ./.github/workflows/module-planning-ccsdk.yml
+    with:
+      concept: "1分日本語ニュース原稿構成計画"
+      planning_type: "news_script_structure"
+      target_duration: ${{ inputs.video_duration }}
+      language: "Japanese"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ6: 地震情報Web検索実行
+  earthquake-info-search:
+    needs: [create-branch, search-planning]
+    uses: ./.github/workflows/module-web-search-earthquake-info.yml
+    with:
+      concept: ${{ inputs.concept }}
+      search_keywords: ${{ needs.search-planning.outputs.search_keywords }}
+      target_region: ${{ inputs.earthquake_region }}
+      timeframe: ${{ inputs.search_timeframe }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ7: 地震情報分析・構造化
+  earthquake-info-analysis:
+    needs: [create-branch, earthquake-info-search]
+    uses: ./.github/workflows/module-data-analysis-earthquake.yml
+    with:
+      concept: ${{ inputs.concept }}
+      earthquake_data: ${{ needs.earthquake-info-search.outputs.earthquake_data }}
+      analysis_type: "information_prioritization"
+      structure_type: "news_format"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ8: 日本語ニュース原稿生成
+  news-script-generation:
+    needs: [create-branch, earthquake-info-analysis, script-planning]
+    uses: ./.github/workflows/module-news-script-generation-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      earthquake_info: ${{ needs.earthquake-info-analysis.outputs.structured_info }}
+      script_structure: ${{ needs.script-planning.outputs.script_structure }}
+      target_duration: ${{ inputs.video_duration }}
+      language: "Japanese"
+      style: "news_broadcaster"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ9: 震源地マップ画像生成（並行）
+  epicenter-map-generation:
+    needs: [create-branch, earthquake-info-analysis, visual-planning]
+    uses: ./.github/workflows/module-image-generation-kc-multi-model-ccsdk.yml
+    with:
+      concept: "地震震源地マップ"
+      model-type: ${{ inputs.image_model }}
+      image-prompt: "Professional news-style earthquake epicenter map showing ${{ needs.earthquake-info-analysis.outputs.epicenter_location }} with impact zones, Japanese geography, seismic intensity visualization, news broadcast graphic style"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      video_index: "epicenter"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ10: 地震インパクト画像生成（並行）
+  earthquake-impact-generation:
+    needs: [create-branch, visual-planning]
+    uses: ./.github/workflows/module-image-generation-kc-multi-model-ccsdk.yml
+    with:
+      concept: "地震インパクトビジュアル"
+      model-type: ${{ inputs.image_model }}
+      image-prompt: "Earthquake impact visualization showing seismic waves, building safety concepts, infrastructure resilience, professional news graphics style, informative and serious tone"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      video_index: "impact"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ11: 動画シーケンス構成計画
+  video-sequence-planning:
+    needs: [create-branch, epicenter-map-generation, earthquake-impact-generation, news-script-generation]
+    uses: ./.github/workflows/module-video-composition-planning-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      image_urls: |
+        epicenter: ${{ needs.epicenter-map-generation.outputs.image-url }}
+        impact: ${{ needs.earthquake-impact-generation.outputs.image-url }}
+      script_content: ${{ needs.news-script-generation.outputs.news_script }}
+      target_duration: ${{ inputs.video_duration }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ12: 動画生成
+  video-generation:
+    needs: [create-branch, video-sequence-planning]
+    uses: ./.github/workflows/module-video-generation-kc-multi-model-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      model-type: ${{ inputs.video_model }}
+      video-prompt: ${{ needs.video-sequence-planning.outputs.video_composition_plan }}
+      image-url: ${{ needs.epicenter-map-generation.outputs.image-url }}
+      duration: ${{ inputs.video_duration }}
+      resolution: "1920x1080"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      video_index: "main"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ13: 日本語ナレーション音声生成（並行）
+  narration-audio-generation:
+    needs: [create-branch, news-script-generation]
+    uses: ./.github/workflows/module-audio-generation-kc-multi-model-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      model-type: ${{ inputs.audio_model }}
+      text-prompt: ${{ needs.news-script-generation.outputs.news_script }}
+      voice-settings: '{"voice_style": "news_announcer", "language": "ja-JP", "speed": "normal", "emotion": "professional"}'
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      audio_index: "narration"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ14: BGM生成（並行）
+  bgm-generation:
+    needs: [create-branch, narration-audio-generation]
+    uses: ./.github/workflows/module-bgm-generation-kc-multi-model-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      model-type: ${{ inputs.bgm_model }}
+      bgm-prompt: "Professional news broadcast background music, serious and informative tone suitable for earthquake news, subtle orchestral elements, 60 seconds duration"
+      duration: ${{ inputs.video_duration }}
+      style: "news_broadcast_background"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      bgm_index: "news"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ15: 字幕生成・同期
+  subtitle-generation:
+    needs: [create-branch, news-script-generation, narration-audio-generation]
+    uses: ./.github/workflows/module-subtitle-generation-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      script_text: ${{ needs.news-script-generation.outputs.news_script }}
+      audio_url: ${{ needs.narration-audio-generation.outputs.audio-url }}
+      language: "Japanese"
+      subtitle_style: "news_broadcast"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      subtitle_index: "main"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ16: 音声ミキシング
+  audio-mixing:
+    needs: [create-branch, narration-audio-generation, bgm-generation]
+    uses: ./.github/workflows/module-audio-mixing-ffmpeg-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      narration_audio: ${{ needs.narration-audio-generation.outputs.audio-url }}
+      bgm_audio: ${{ needs.bgm-generation.outputs.audio-url }}
+      mixing_style: "news_broadcast"
+      output_duration: ${{ inputs.video_duration }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      audio_index: "mixed"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ17: 動画・音声合成
+  video-audio-composition:
+    needs: [create-branch, video-generation, audio-mixing]
+    uses: ./.github/workflows/module-video-audio-composition-ffmpeg-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      video_url: ${{ needs.video-generation.outputs.video-url }}
+      audio_url: ${{ needs.audio-mixing.outputs.audio-url }}
+      sync_method: "precise_alignment"
+      output_resolution: "1920x1080"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      video_index: "composed"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ18: 字幕オーバーレイ
+  subtitle-overlay:
+    needs: [create-branch, video-audio-composition, subtitle-generation]
+    uses: ./.github/workflows/module-subtitle-overlay-ffmpeg-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      video-url: ${{ needs.video-audio-composition.outputs.video-url }}
+      subtitle-srt-content: ${{ needs.subtitle-generation.outputs.subtitle-srt-content }}
+      target-language: "japanese"
+      font_style: "news_broadcast_japanese"
+      position: "bottom_center"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      video_index: "final"
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ19: 最終品質チェック
+  quality-verification:
+    needs: [create-branch, subtitle-overlay]
+    uses: ./.github/workflows/module-video-quality-analysis-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      video_url: ${{ needs.subtitle-overlay.outputs.video-url }}
+      check_criteria: "duration,resolution,audio_quality,subtitle_readability,content_accuracy"
+      target_duration: ${{ inputs.video_duration }}
+      target_resolution: "1920x1080"
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ20: 成果物保存・整理
+  deliverables-organization:
+    needs: [create-branch, subtitle-overlay, quality-verification, news-script-generation, narration-audio-generation, subtitle-generation]
+    if: always() && needs.quality-verification.result == 'success'
+    uses: ./.github/workflows/module-deliverables-save-ccsdk.yml
+    with:
+      concept: ${{ inputs.concept }}
+      final_video_url: ${{ needs.subtitle-overlay.outputs.video-url }}
+      narration_audio_url: ${{ needs.narration-audio-generation.outputs.audio-url }}
+      subtitle_srt_content: ${{ needs.subtitle-generation.outputs.subtitle-srt-content }}
+      news_script: ${{ needs.news-script-generation.outputs.news_script }}
+      quality_report: ${{ needs.quality-verification.outputs.quality_report }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+      github_pat: ${{ secrets.PAT_TOKEN }}
+
+  # ステップ21: プルリクエスト作成
+  create-pr:
+    needs: [create-branch, deliverables-organization]
+    if: always() && needs.deliverables-organization.result == 'success'
+    uses: ./.github/workflows/module-create-pr.yml
+    with:
+      concept: ${{ inputs.concept }}
+      branch-name: ${{ needs.create-branch.outputs.branch-name }}
+      folder-name: ${{ needs.create-branch.outputs.folder-name }}
+      pr_title: "🚨 地震ニュース動画: ${{ inputs.concept }}"
+      pr_description: |
+        ## 地震ニュース動画生成完了
+
+        ### 📺 生成内容
+        - **動画時間**: ${{ inputs.video_duration }}秒
+        - **解像度**: 1920x1080
+        - **言語**: 日本語（字幕付き）
+        - **対象地域**: ${{ inputs.earthquake_region }}
+        - **情報収集期間**: ${{ inputs.search_timeframe }}
+
+        ### 🎥 生成されたファイル
+        - 最終動画ファイル (MP4)
+        - 日本語ナレーション音声 (WAV)
+        - 日本語字幕ファイル (SRT)
+        - ニュース原稿テキスト (TXT)
+        - 品質レポート (JSON)
+
+        ### 🔧 使用モデル
+        - **画像生成**: ${{ inputs.image_model }}
+        - **動画生成**: ${{ inputs.video_model }}
+        - **音声生成**: ${{ inputs.audio_model }}
+        - **BGM生成**: ${{ inputs.bgm_model }}
+
+        ### ✅ 品質確認済み
+        品質チェックを通過した、放送品質の地震ニュース動画です。
+    secrets:
+      github_pat: ${{ secrets.PAT_TOKEN }}
