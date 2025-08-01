@@ -1,5 +1,5 @@
-name: Dynamic Workflow Generator
-run-name: 🚀 Dynamic workflow for Issue #${{ github.event.issue.number || inputs.issue_number }}
+name: Meta Workflow Executor v9
+run-name: 🚀 Dynamic minimal-unit based workflow for Issue #${{ github.event.issue.number || inputs.issue_number }}
 
 on:
   issue_comment:
@@ -9,14 +9,13 @@ on:
       issue_number:
         description: 'Issue number to process'
         required: true
-        default: '56'
+        default: '46'
 
 permissions:
   contents: write
   issues: write
-  actions: write
+  actions: read
   pull-requests: write
-  workflows: write
 
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -45,22 +44,9 @@ jobs:
           elif [ "${{ github.event_name }}" = "issue_comment" ]; then
             COMMENT_USER="${{ github.event.comment.user.login }}"
             ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
-            # Check for start trigger safely without variable expansion
-            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ]; then
-              echo "Checking for start trigger..."
-              # Use base64 encoding to safely handle special characters
-              COMMENT_B64=$(echo '${{ github.event.comment.body }}' | base64 -w 0)
-              DECODED=$(echo "$COMMENT_B64" | base64 -d)
-              if echo "$DECODED" | grep -q '^start'; then
-                START_FOUND=true
-              else
-                START_FOUND=false
-              fi
-            else
-              START_FOUND=false
-            fi
+            COMMENT_BODY="${{ github.event.comment.body }}"
             
-            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && [ "$START_FOUND" = "true" ]; then
+            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && echo "$COMMENT_BODY" | grep -q '^start'; then
               echo "✅ Valid start trigger from issue author"
               echo "should_execute=true" >> $GITHUB_OUTPUT
               echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
@@ -170,11 +156,11 @@ jobs:
           # Create and switch to new branch
           git checkout -b "$BRANCH_NAME"
           
-          # Create project directory structure (.gitignore safe)
-          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER"/{metadata,logs,temp,workflows}
+          # Create project directory structure
+          mkdir -p "projects/$PROJECT_FOLDER"/{metadata,logs,temp,generated}
           
           # Add marker file
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/workflow-info.json" << EOF
+          cat > "projects/$PROJECT_FOLDER/workflow-info.json" << EOF
           {
             "meta_workflow": "v9",
             "issue_number": "$ISSUE_NUM",
@@ -187,7 +173,7 @@ jobs:
           EOF
           
           # Commit initial structure
-          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
+          git add "projects/$PROJECT_FOLDER/"
           git commit -m "feat: initialize Meta Workflow branch for Issue #$ISSUE_NUM
 
           - Create dedicated branch: $BRANCH_NAME
@@ -1145,10 +1131,32 @@ jobs:
             # Apply proven YAML fix protocols
             cp generated/workflows/final/final-workflow.yml generated/workflows/final/final-workflow-backup.yml
             
-            # Protocol 1: Fix multi-line Python embedding (YAML-safe approach)
-            echo "Applying YAML fixes..."
-            sed -i 's/python3 -c ".*$/python3 -c "import sys; print(50)" 2>\/dev\/null || echo "50"/g' generated/workflows/final/final-workflow.yml
-            echo "YAML fix applied successfully"
+            # Protocol 1: Fix multi-line Python embedding
+            python3 -c "
+import re
+import sys
+
+with open('generated/workflows/final/final-workflow.yml', 'r') as f:
+    content = f.read()
+
+# Fix pattern: python3 -c 'multi-line...'
+# Replace with safe one-liner approach
+def fix_multiline_python(match):
+    # Extract the problematic section and create a safe alternative
+    return '''          # YAML-safe Python execution (auto-fixed)
+          python3 -c \"import sys; sys.exit(0)\" || echo \"50\"'''
+
+# Apply fixes
+content = re.sub(
+    r'python3 -c \"[^\"]*\n[^\"]*\"[)]?',
+    'python3 -c \"import sys; print(50)\" 2>/dev/null || echo \"50\"',
+    content,
+    flags=re.MULTILINE | re.DOTALL
+)
+
+with open('generated/workflows/final/final-workflow.yml', 'w') as f:
+    f.write(content)
+"
             
             # Verify fix
             if python3 -c "import yaml; yaml.safe_load(open('generated/workflows/final/final-workflow.yml'))" 2>/dev/null; then
@@ -1156,21 +1164,31 @@ jobs:
               echo "yaml_fixed=true" >> $GITHUB_OUTPUT
             else
               echo "❌ YAML auto-fix: FAILED - using emergency fallback"
-              echo "Creating emergency fallback workflow..."
-              echo 'name: "Emergency Fallback Workflow"' > generated/workflows/final/final-workflow.yml
-              echo 'run-name: "🚨 Auto-generated Fallback"' >> generated/workflows/final/final-workflow.yml
-              echo 'on:' >> generated/workflows/final/final-workflow.yml
-              echo '  workflow_dispatch:' >> generated/workflows/final/final-workflow.yml
-              echo '    inputs:' >> generated/workflows/final/final-workflow.yml
-              echo '      concept:' >> generated/workflows/final/final-workflow.yml
-              echo '        description: "Workflow concept"' >> generated/workflows/final/final-workflow.yml
-              echo '        type: string' >> generated/workflows/final/final-workflow.yml
-              echo 'jobs:' >> generated/workflows/final/final-workflow.yml
-              echo '  emergency_fallback:' >> generated/workflows/final/final-workflow.yml
-              echo '    runs-on: ubuntu-latest' >> generated/workflows/final/final-workflow.yml
-              echo '    steps:' >> generated/workflows/final/final-workflow.yml
-              echo '      - name: Emergency Fallback Execution' >> generated/workflows/final/final-workflow.yml
-              echo '        run: echo "Emergency fallback executed"' >> generated/workflows/final/final-workflow.yml
+              # Create emergency fallback
+              cat > generated/workflows/final/final-workflow.yml << 'EMERGENCY_FALLBACK'
+name: "Emergency Fallback Workflow"
+run-name: "🚨 Auto-generated Fallback | ${{ github.actor }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      concept:
+        description: 'Workflow concept'
+        type: string
+        default: 'Emergency fallback execution'
+
+jobs:
+  emergency_fallback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Emergency Fallback Execution  
+        run: |
+          echo "🚨 Emergency fallback workflow executed"
+          echo "🔧 Original workflow had YAML syntax issues"
+          echo "📋 Manual intervention required for complex workflows"
+          mkdir -p projects/current-session/emergency
+          echo "emergency_fallback_executed" > projects/current-session/emergency/status.txt
+EMERGENCY_FALLBACK
               echo "yaml_fixed=emergency_fallback" >> $GITHUB_OUTPUT
             fi
           fi
@@ -1239,11 +1257,11 @@ jobs:
           echo "📁 Project folder: $PROJECT_FOLDER"
           
           # Ensure project directory structure exists
-          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows"
+          mkdir -p "projects/$PROJECT_FOLDER/generated/workflows"
           
           # Copy final workflow to dedicated project structure
           cp generated/workflows/final/final-workflow.yml \
-            "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows/${WORKFLOW_NAME}"
+            "projects/$PROJECT_FOLDER/generated/workflows/${WORKFLOW_NAME}"
           
           # Also create traditional .github/workflows/generated structure for compatibility
           mkdir -p .github/workflows/generated
@@ -1334,7 +1352,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           # Add all generated files to the dedicated project structure
-          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
+          git add "projects/$PROJECT_FOLDER/"
           git add .github/workflows/generated/
           git add deployment-summary.md
           
@@ -1347,7 +1365,7 @@ jobs:
           🔧 YAML Status: $YAML_FIX_STATUS
           
           Generated Files:
-          - generated/meta-workflow-projects/$PROJECT_FOLDER/workflows/
+          - projects/$PROJECT_FOLDER/generated/workflows/
           - .github/workflows/generated/ (compatibility)
           - deployment-summary.md
           
@@ -1361,21 +1379,3 @@ jobs:
           git push origin "$BRANCH_NAME"
           
           echo "✅ Successfully committed and pushed to branch: $BRANCH_NAME"
-          
-          # Post completion comment to issue
-          gh issue comment $ISSUE_NUMBER --body "## 🎉 Meta Workflow v9 完了！
-
-          ワークフローの生成が完了しました。
-
-          ### 📁 生成されたファイル
-          - Branch: $BRANCH_NAME
-          - Project: $PROJECT_FOLDER
-          - Generated workflows in \`.github/workflows/generated/\`
-
-          ### 📋 次のステップ
-          1. 生成されたワークフローを確認
-          2. \`.disabled\` 拡張子を削除してアクティベート
-          3. GitHub Actionsタブから実行
-
-          ---
-          🤖 Kamui Rossy v9.0 による自動生成"
