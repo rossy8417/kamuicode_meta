@@ -1,0 +1,206 @@
+name: workflow-execution-logger
+description: ワークフロー実行ログ収集の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      project_folder:
+        description: 'プロジェクトフォルダ名'
+        required: true
+        type: string
+      workflow_name:
+        description: 'ワークフロー名'
+        required: true
+        type: string
+      issue_number:
+        description: 'Issue番号（オプション）'
+        required: false
+        type: string
+        default: 'N/A'
+      additional_info:
+        description: '追加情報（JSON形式）'
+        required: false
+        type: string
+        default: '{}'
+
+jobs:
+  collect-execution-logs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Collect Comprehensive Execution Logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "📋 Collecting execution logs for ${{ inputs.workflow_name }}..."
+          
+          PROJECT_FOLDER="${{ inputs.project_folder }}"
+          RUN_ID="${{ github.run_id }}"
+          WORKFLOW_NAME="${{ inputs.workflow_name }}"
+          ISSUE_NUMBER="${{ inputs.issue_number }}"
+          
+          # Create log directory
+          mkdir -p "$PROJECT_FOLDER/execution-logs"
+          
+          EXECUTION_LOG="$PROJECT_FOLDER/execution-logs/workflow-execution-log.txt"
+          
+          # Generate comprehensive execution log
+          cat > "$EXECUTION_LOG" << EOF
+          ═══════════════════════════════════════════════════════════════
+                         WORKFLOW EXECUTION LOG
+          ═══════════════════════════════════════════════════════════════
+          
+          📅 EXECUTION TIMESTAMP: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          🔗 GITHUB RUN: https://github.com/${{ github.repository }}/actions/runs/$RUN_ID
+          
+          🚀 EXECUTION DETAILS
+          ═══════════════════════════════════════════════════════════════
+          • Workflow Name: $WORKFLOW_NAME
+          • GitHub Run ID: $RUN_ID
+          • Issue Number: #$ISSUE_NUMBER
+          • Execution Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          • Trigger Type: ${{ github.event_name }}
+          • Repository: ${{ github.repository }}
+          • Branch: ${{ github.ref_name }}
+          • Actor: ${{ github.actor }}
+          • Project Folder: $PROJECT_FOLDER
+          
+          🎯 WORKFLOW CONFIGURATION
+          ═══════════════════════════════════════════════════════════════
+          • Environment Variables: $(env | grep -E '^(CLAUDE|OPENAI|GITHUB)' | wc -l) configuration vars
+          • Runner OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)
+          • Runner Architecture: $(uname -m)
+          • Available Cores: $(nproc)
+          • Memory: $(free -h | grep Mem | awk '{print $2}')
+          
+          🔧 INSTALLED TOOLS
+          ═══════════════════════════════════════════════════════════════
+          • GitHub CLI: $(gh --version | head -1)
+          • Python: $(python3 --version)
+          • Node.js: $(node --version 2>/dev/null || echo 'Not Available')
+          • Git: $(git --version)
+          • jq: $(jq --version)
+          
+          🌐 NETWORK & API STATUS
+          ═══════════════════════════════════════════════════════════════
+          • GitHub API: $(curl -s -I https://api.github.com | head -1)
+          • Internet Connectivity: $(ping -c 1 8.8.8.8 >/dev/null && echo 'Active' || echo 'Limited')
+          
+          📊 WORKFLOW RUN INFORMATION
+          ═══════════════════════════════════════════════════════════════
+          EOF
+          
+          # Get detailed run information from GitHub API
+          gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '
+          "• Run ID: " + (.id | tostring) + "\n" +
+          "• Run Number: " + (.run_number | tostring) + "\n" +
+          "• Status: " + .status + "\n" +
+          "• Conclusion: " + (.conclusion // "in_progress") + "\n" +
+          "• Created: " + .created_at + "\n" +
+          "• Updated: " + .updated_at + "\n" +
+          "• Started: " + (.run_started_at // "N/A") + "\n" +
+          "• HTML URL: " + .html_url + "\n" +
+          "• Head Branch: " + .head_branch + "\n" +
+          "• Head SHA: " + .head_sha + "\n" +
+          "• Actor: " + .actor.login + "\n" +
+          "• Event: " + .event + "\n" +
+          "• Workflow ID: " + (.workflow_id | tostring)
+          ' >> "$EXECUTION_LOG" 2>/dev/null || echo "• API情報の取得に失敗" >> "$EXECUTION_LOG"
+          
+          # Get job execution details
+          echo "" >> "$EXECUTION_LOG"
+          echo "📋 JOB EXECUTION DETAILS" >> "$EXECUTION_LOG"
+          echo "═══════════════════════════════════════════════════════════════" >> "$EXECUTION_LOG"
+          
+          gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | 
+          "Job: " + .name + "\n" +
+          "  • Status: " + .status + "\n" +  
+          "  • Conclusion: " + (.conclusion // "in_progress") + "\n" +
+          "  • Started: " + (.started_at // "not_started") + "\n" +
+          "  • Completed: " + (.completed_at // "in_progress") + "\n" +
+          "  • Duration: " + (if .started_at and .completed_at then 
+              (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) | tostring) + " seconds"
+          else "in_progress" end) + "\n" +
+          "  • Runner: " + (.runner_name // "pending") + "\n" +
+          "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+          ' >> "$EXECUTION_LOG" 2>/dev/null || echo "• ジョブ情報の取得に失敗" >> "$EXECUTION_LOG"
+          
+          # Get artifacts information
+          echo "" >> "$EXECUTION_LOG"
+          echo "📦 ARTIFACTS INFORMATION" >> "$EXECUTION_LOG"
+          echo "═══════════════════════════════════════════════════════════════" >> "$EXECUTION_LOG"
+          
+          ARTIFACTS_INFO=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" 2>/dev/null) || echo ""
+          
+          if [ -n "$ARTIFACTS_INFO" ]; then
+              ARTIFACT_COUNT=$(echo "$ARTIFACTS_INFO" | jq '.total_count // 0')
+              echo "• Total Artifacts: $ARTIFACT_COUNT" >> "$EXECUTION_LOG"
+              
+              if [ "$ARTIFACT_COUNT" -gt 0 ]; then
+                  echo "" >> "$EXECUTION_LOG"
+                  echo "$ARTIFACTS_INFO" | jq -r '.artifacts[] | 
+                  "Artifact: " + .name + "\n" +
+                  "  • Size: " + (.size_in_bytes | tostring) + " bytes\n" +
+                  "  • Created: " + .created_at + "\n" +
+                  "  • Expired: " + (.expired | tostring) + "\n" +
+                  "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                  ' >> "$EXECUTION_LOG"
+              fi
+          else
+              echo "• アーティファクト情報の取得に失敗" >> "$EXECUTION_LOG"
+          fi
+          
+          # Generated files information
+          echo "" >> "$EXECUTION_LOG"
+          echo "📁 GENERATED FILES" >> "$EXECUTION_LOG"
+          echo "═══════════════════════════════════════════════════════════════" >> "$EXECUTION_LOG"
+          
+          if [ -d "$PROJECT_FOLDER" ]; then
+              TOTAL_FILES=$(find "$PROJECT_FOLDER" -type f | wc -l)
+              TOTAL_SIZE=$(du -sh "$PROJECT_FOLDER" 2>/dev/null | cut -f1 || echo "Unknown")
+              
+              echo "• Total Files: $TOTAL_FILES" >> "$EXECUTION_LOG"
+              echo "• Total Size: $TOTAL_SIZE" >> "$EXECUTION_LOG"
+              echo "" >> "$EXECUTION_LOG"
+              echo "File Structure:" >> "$EXECUTION_LOG"
+              find "$PROJECT_FOLDER" -type f -exec ls -la {} \; 2>/dev/null | head -30 | while read -r line; do
+                  echo "  $line" >> "$EXECUTION_LOG"
+              done
+          fi
+          
+          # Additional information from input
+          ADDITIONAL_INFO='${{ inputs.additional_info }}'
+          if [ "$ADDITIONAL_INFO" != '{}' ]; then
+              echo "" >> "$EXECUTION_LOG"  
+              echo "🔧 WORKFLOW SPECIFIC INFORMATION" >> "$EXECUTION_LOG"
+              echo "═══════════════════════════════════════════════════════════════" >> "$EXECUTION_LOG"
+              echo "$ADDITIONAL_INFO" | jq -r 'to_entries[] | "• " + .key + ": " + (.value | tostring)' >> "$EXECUTION_LOG" 2>/dev/null || echo "• 追加情報: $ADDITIONAL_INFO" >> "$EXECUTION_LOG"
+          fi
+          
+          # Footer
+          echo "" >> "$EXECUTION_LOG"
+          echo "✨ LOG GENERATED BY" >> "$EXECUTION_LOG"
+          echo "═══════════════════════════════════════════════════════════════" >> "$EXECUTION_LOG"
+          echo "Workflow Execution Logger v1.0" >> "$EXECUTION_LOG"
+          echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$EXECUTION_LOG"
+          echo "Repository: ${{ github.repository }}" >> "$EXECUTION_LOG"
+          echo "" >> "$EXECUTION_LOG"
+          
+          echo "✅ Execution log generated: $EXECUTION_LOG"
+          
+          # Create summary file for easy download detection
+          cat > "$PROJECT_FOLDER/execution-logs/log-summary.json" << EOF
+          {
+            "workflow_name": "$WORKFLOW_NAME",
+            "run_id": "$RUN_ID",
+            "issue_number": "$ISSUE_NUMBER",
+            "log_generated_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+            "log_file": "workflow-execution-log.txt",
+            "project_folder": "$PROJECT_FOLDER"
+          }
+          EOF
+          
+          echo "📋 Log collection completed successfully"

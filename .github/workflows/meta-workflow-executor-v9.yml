@@ -1348,7 +1348,7 @@ jobs:
           
           echo "✅ Successfully committed and pushed to branch: $BRANCH_NAME"
 
-  # Phase 8: Detailed Execution Log Collection
+  # Phase 8: Execution Log Collection
   collect-execution-logs:
     runs-on: ubuntu-latest
     needs: [validate-trigger, setup-dedicated-branch, extract-issue-content, stepback-reflection, requirement-analysis, task-decomposition, select-minimal-units, generate-dual-workflows, compare-and-merge, yaml-auto-fix, validate-and-deploy]
@@ -1360,323 +1360,54 @@ jobs:
         with:
           ref: ${{ needs.setup-dedicated-branch.outputs.branch_name }}
           
-      - name: Collect Comprehensive Execution Logs
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Use Workflow Execution Logger
+        uses: ./minimal-units/utility/workflow-execution-logger.yml
+        with:
+          project_folder: generated/meta-workflow-projects/${{ needs.setup-dedicated-branch.outputs.project_folder }}
+          workflow_name: Meta Workflow Executor v9
+          issue_number: ${{ needs.validate-trigger.outputs.issue_number }}
+          additional_info: |
+            {
+              "meta_workflow_version": "v9.0",
+              "minimal_units_selected": "${{ needs.select-minimal-units.outputs.unit_count || 'N/A' }}",
+              "yaml_auto_fix_applied": "${{ needs.yaml-auto-fix.outputs.yaml_fixed || 'N/A' }}",
+              "dual_workflow_generation": "enabled",
+              "branch_strategy": "dedicated_branch",
+              "phase_results": {
+                "validate_trigger": "${{ needs.validate-trigger.result || 'RUNNING' }}",
+                "setup_dedicated_branch": "${{ needs.setup-dedicated-branch.result || 'RUNNING' }}",
+                "extract_issue_content": "${{ needs.extract-issue-content.result || 'RUNNING' }}",
+                "stepback_reflection": "${{ needs.stepback-reflection.result || 'RUNNING' }}",
+                "requirement_analysis": "${{ needs.requirement-analysis.result || 'RUNNING' }}",
+                "task_decomposition": "${{ needs.task-decomposition.result || 'RUNNING' }}",
+                "select_minimal_units": "${{ needs.select-minimal-units.result || 'RUNNING' }}",
+                "generate_dual_workflows": "${{ needs.generate-dual-workflows.result || 'RUNNING' }}",
+                "compare_and_merge": "${{ needs.compare-and-merge.result || 'RUNNING' }}",
+                "yaml_auto_fix": "${{ needs.yaml-auto-fix.result || 'RUNNING' }}",
+                "validate_and_deploy": "${{ needs.validate-and-deploy.result || 'RUNNING' }}"
+              }
+            }
+            
+      - name: Commit Execution Logs to Branch
         run: |
-          echo "📋 Collecting detailed execution logs for Meta Workflow v9..."
+          echo "📋 Committing execution logs to dedicated branch..."
           
           PROJECT_FOLDER="${{ needs.setup-dedicated-branch.outputs.project_folder }}"
-          RUN_ID="${{ github.run_id }}"
-          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
           
-          # Create comprehensive log directory
-          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs"
-          
-          # 1. Workflow Execution Summary
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/01-execution-summary.txt" << EOF
-          ═══════════════════════════════════════════════════════════════
-                        META WORKFLOW v9 EXECUTION LOG
-          ═══════════════════════════════════════════════════════════════
-          
-          🚀 EXECUTION DETAILS
-          ═══════════════════════════════════════════════════════════════
-          • Workflow Name: Meta Workflow Executor v9
-          • GitHub Run ID: $RUN_ID
-          • Issue Number: #$ISSUE_NUMBER
-          • Execution Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          • Trigger Type: ${{ github.event_name }}
-          • Repository: ${{ github.repository }}
-          • Branch: ${{ github.ref_name }}
-          • Actor: ${{ github.actor }}
-          • Project Folder: $PROJECT_FOLDER
-          
-          🎯 WORKFLOW CONFIGURATION
-          ═══════════════════════════════════════════════════════════════
-          • Claude Code CI Mode: ${{ env.CLAUDE_CODE_CI_MODE }}
-          • Auto Approve MCP: ${{ env.CLAUDE_CODE_AUTO_APPROVE_MCP }}
-          • Environment Variables: $(env | grep CLAUDE | wc -l) Claude-related vars
-          
-          📊 JOB STATUS OVERVIEW
-          ═══════════════════════════════════════════════════════════════
-          EOF
-          
-          # 2. Individual Job Status and Details
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/02-job-details.txt" << EOF
-          ═══════════════════════════════════════════════════════════════
-                            DETAILED JOB EXECUTION LOG
-          ═══════════════════════════════════════════════════════════════
-          
-          📋 Phase 1: Trigger Validation & Answer Extraction
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.validate-trigger.result || 'RUNNING' }}
-          • Should Execute: ${{ needs.validate-trigger.outputs.should_execute || 'N/A' }}
-          • Issue Number: ${{ needs.validate-trigger.outputs.issue_number || 'N/A' }}
-          • Duration: $([ '${{ needs.validate-trigger.result }}' = 'success' ] && echo 'Completed' || echo 'In Progress/Failed')
-          
-          📋 Phase 2: Setup Dedicated Branch
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.setup-dedicated-branch.result || 'RUNNING' }}
-          • Branch Name: ${{ needs.setup-dedicated-branch.outputs.branch_name || 'N/A' }}
-          • Project Folder: ${{ needs.setup-dedicated-branch.outputs.project_folder || 'N/A' }}
-          • Git Strategy: Dedicated branch for clean development
-          
-          📋 Phase 3: Extract Issue Content
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.extract-issue-content.result || 'RUNNING' }}
-          • Content Length: ${{ needs.extract-issue-content.outputs.content_length || 'N/A' }} characters
-          • Raw Requirements: Extracted from Issue #$ISSUE_NUMBER
-          
-          📋 Phase 4: Stepback Reflection
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.stepback-reflection.result || 'RUNNING' }}
-          • Analysis Completed: Strategic workflow design reflection
-          • Approach: Human-like task breakdown methodology
-          
-          📋 Phase 5: Requirement Analysis
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.requirement-analysis.result || 'RUNNING' }}
-          • Requirements Count: Detailed functional breakdown completed
-          • Technical Specifications: MCP services and external APIs identified
-          
-          📋 Phase 6: Task Decomposition
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.task-decomposition.result || 'RUNNING' }}
-          • Task Count: Ultra-detailed task breakdown with dependencies
-          • Parallel Groups: Optimized for 3-5 way parallel execution
-          
-          📋 Phase 7: Minimal Unit Selection
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.select-minimal-units.result || 'RUNNING' }}
-          • Selected Units: ${{ needs.select-minimal-units.outputs.unit_count || 'N/A' }} units from 53 available
-          • Categories: Image, Video, Audio, Planning, Utility units
-          
-          📋 Phase 8: Dual Workflow Generation
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.generate-dual-workflows.result || 'RUNNING' }}
-          • Original Approach: Minimal unit composition
-          • Orchestrator Approach: kamuicode-workflow patterns
-          • Dual Generation: Best-of-both methodology
-          
-          📋 Phase 9: Compare and Merge
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.compare-and-merge.result || 'RUNNING' }}
-          • Comparison Method: Automated best-element selection
-          • Final Workflow: Hybrid approach combining strengths
-          
-          📋 Phase 10: YAML Auto-Fix
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.yaml-auto-fix.result || 'RUNNING' }}
-          • YAML Validation: Python syntax checker
-          • Auto-Fix Applied: ${{ needs.yaml-auto-fix.outputs.yaml_fixed || 'N/A' }}
-          • Quality Score: Advanced workflow validation
-          
-          📋 Phase 11: Validate and Deploy
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: ${{ needs.validate-and-deploy.result || 'RUNNING' }}
-          • Deployment Target: .github/workflows/generated/
-          • Branch Strategy: Committed to dedicated branch
-          • Validation Score: Comprehensive workflow structure validation
-          
-          📋 Phase 12: Execution Log Collection
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Job Status: RUNNING (Current Phase)
-          • Log Collection: Comprehensive execution history
-          • Archive Creation: Complete project package preparation
-          
-          EOF
-          
-          # 3. Technical Environment Details
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/03-environment-details.txt" << EOF
-          ═══════════════════════════════════════════════════════════════
-                           TECHNICAL ENVIRONMENT LOG
-          ═══════════════════════════════════════════════════════════════
-          
-          🖥️ RUNNER ENVIRONMENT
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Runner OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)
-          • Runner Architecture: $(uname -m)
-          • Available Cores: $(nproc)
-          • Memory: $(free -h | grep Mem | awk '{print $2}')
-          • Disk Space: $(df -h / | tail -1 | awk '{print $4}') available
-          • Python Version: $(python3 --version)
-          • Node Version: $(node --version 2>/dev/null || echo 'Not Available')
-          • Git Version: $(git --version)
-          
-          🔧 INSTALLED TOOLS
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • GitHub CLI: $(gh --version | head -1)
-          • jq: $(jq --version)
-          • curl: $(curl --version | head -1)
-          • ffmpeg: $(ffmpeg -version 2>/dev/null | head -1 || echo 'Not Available')
-          • ImageMagick: $(convert -version 2>/dev/null | head -1 || echo 'Not Available')
-          
-          📦 CLAUDE CODE CONFIGURATION
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • CI Mode: ${{ env.CLAUDE_CODE_CI_MODE }}
-          • Auto Approve MCP: ${{ env.CLAUDE_CODE_AUTO_APPROVE_MCP }}
-          • OAuth Token: $([ -n "${{ env.CLAUDE_CODE_OAUTH_TOKEN }}" ] && echo 'Configured' || echo 'Not Available')
-          
-          🌐 NETWORK & API STATUS
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • GitHub API: $(curl -s -I https://api.github.com | head -1)
-          • OpenAI API: $(curl -s -I https://api.openai.com | head -1 || echo 'Connection test skipped')
-          • Internet Connectivity: $(ping -c 1 8.8.8.8 >/dev/null && echo 'Active' || echo 'Limited')
-          
-          EOF
-          
-          # 4. Detailed File Generation Log
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/04-file-generation-log.txt" << EOF
-          ═══════════════════════════════════════════════════════════════
-                            FILE GENERATION LOG
-          ═══════════════════════════════════════════════════════════════
-          
-          📁 PROJECT STRUCTURE
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          $(find "generated/meta-workflow-projects/$PROJECT_FOLDER" -type f -exec ls -la {} \; 2>/dev/null | head -50)
-          
-          📋 GENERATED WORKFLOWS
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          $(find .github/workflows/generated -name "*.yml" -o -name "*.disabled" 2>/dev/null | head -20)
-          
-          📊 FILE SIZES
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          $(du -sh "generated/meta-workflow-projects/$PROJECT_FOLDER"/* 2>/dev/null | head -10)
-          
-          EOF
-          
-          # 5. GitHub API Execution Details
-          echo "🔍 Collecting GitHub Actions API details..."
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/05-github-api-details.txt" << EOF
-          ═══════════════════════════════════════════════════════════════
-                         GITHUB ACTIONS API DETAILS
-          ═══════════════════════════════════════════════════════════════
-          
-          🚀 WORKFLOW RUN INFORMATION
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          $(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '
-          "• Run ID: " + (.id | tostring) + "\n" +
-          "• Run Number: " + (.run_number | tostring) + "\n" +
-          "• Status: " + .status + "\n" +
-          "• Conclusion: " + (.conclusion // "in_progress") + "\n" +
-          "• Created: " + .created_at + "\n" +
-          "• Updated: " + .updated_at + "\n" +
-          "• HTML URL: " + .html_url + "\n" +
-          "• Head Branch: " + .head_branch + "\n" +
-          "• Head SHA: " + .head_sha + "\n" +
-          "• Actor: " + .actor.login
-          ')
-          
-          📊 JOB EXECUTION DETAILS
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          EOF
-          
-          # Get detailed job information
-          gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | 
-          "Job: " + .name + "\n" +
-          "  • Status: " + .status + "\n" +  
-          "  • Conclusion: " + (.conclusion // "in_progress") + "\n" +
-          "  • Started: " + (.started_at // "not_started") + "\n" +
-          "  • Completed: " + (.completed_at // "in_progress") + "\n" +
-          "  • Duration: " + (if .started_at and .completed_at then 
-            (((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601)) | tostring) + " seconds"
-          else "in_progress" end) + "\n" +
-          "  • Runner: " + (.runner_name // "pending") + "\n" +
-          "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-          ' >> "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/05-github-api-details.txt"
-          
-          # 6. Performance Metrics
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/06-performance-metrics.txt" << EOF
-          ═══════════════════════════════════════════════════════════════
-                           PERFORMANCE METRICS
-          ═══════════════════════════════════════════════════════════════
-          
-          ⏱️ EXECUTION TIMING
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Log Collection Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          • Total Workflow Duration: $(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '
-            if .created_at and .updated_at then
-              (((.updated_at | fromdateiso8601) - (.created_at | fromdateiso8601)) | tostring) + " seconds"
-            else "in_progress" end
-          ')
-          
-          🔧 RESOURCE USAGE
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Current Memory Usage: $(free -h | grep Mem | awk '{print $3 "/" $2}')
-          • Disk Usage in Project: $(du -sh "generated/meta-workflow-projects/$PROJECT_FOLDER" 2>/dev/null | cut -f1)
-          • Files Generated: $(find "generated/meta-workflow-projects/$PROJECT_FOLDER" -type f | wc -l)
-          • Total Log Size: $(du -sh "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs" 2>/dev/null | cut -f1)
-          
-          📈 WORKFLOW STATISTICS
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          • Meta Workflow Version: v9.0
-          • Issue Processing: #$ISSUE_NUMBER
-          • Branch Strategy: Dedicated branch deployment
-          • YAML Auto-Fix: Enabled
-          • Log Collection: Comprehensive (6 detailed files)
-          
-          EOF
-          
-          # 7. Create downloadable archive manifest
-          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/00-download-manifest.txt" << EOF
-          ═══════════════════════════════════════════════════════════════
-                          DOWNLOAD PACKAGE MANIFEST
-          ═══════════════════════════════════════════════════════════════
-          
-          📦 PACKAGE CONTENTS
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          This archive contains the complete execution package for:
-          Meta Workflow Executor v9 | Issue #$ISSUE_NUMBER | Run $RUN_ID
-          
-          📁 DIRECTORY STRUCTURE
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          generated/meta-workflow-projects/$PROJECT_FOLDER/
-          ├── workflows/                    # Generated workflow files
-          ├── metadata/                     # Analysis and requirements data
-          ├── logs/                        # Process execution logs
-          ├── temp/                        # Temporary processing files
-          └── execution-logs/              # Detailed execution history
-              ├── 00-download-manifest.txt      # This file
-              ├── 01-execution-summary.txt      # Workflow execution overview
-              ├── 02-job-details.txt           # Detailed job status and results
-              ├── 03-environment-details.txt   # Technical environment information
-              ├── 04-file-generation-log.txt   # File creation and structure details
-              ├── 05-github-api-details.txt    # GitHub Actions API responses
-              └── 06-performance-metrics.txt   # Performance and timing data
-          
-          🚀 USAGE INSTRUCTIONS
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          1. Review execution-summary.txt for workflow overview
-          2. Check job-details.txt for individual phase results
-          3. Examine generated workflows in workflows/ directory
-          4. Use environment-details.txt for troubleshooting
-          5. Reference github-api-details.txt for exact timing data
-          
-          ✨ GENERATED BY
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          Kamui Rossy v9.0 Meta Workflow System
-          Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          Repository: ${{ github.repository }}
-          Branch: ${{ github.ref_name }}
-          
-          EOF
-          
-          # Commit the logs to the branch
+          # Configure git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # Add and commit logs
           git add "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/"
-          git commit -m "docs: add comprehensive execution logs for Meta Workflow v9
+          git commit -m "docs: add comprehensive execution log for Meta Workflow v9
           
-          Generated detailed execution history for Issue #$ISSUE_NUMBER:
+          Generated detailed execution history for Issue #${{ needs.validate-trigger.outputs.issue_number }}:
+          - Single comprehensive execution log file
           - Complete job execution details and status
           - Technical environment specifications  
-          - File generation logs and structure
           - GitHub Actions API response data
           - Performance metrics and timing
-          - Downloadable package manifest
-          
-          Total: 7 detailed log files for complete traceability
           
           🤖 Generated with [Claude Code](https://claude.ai/code)
           
@@ -1684,7 +1415,6 @@ jobs:
           
           git push origin "${{ needs.setup-dedicated-branch.outputs.branch_name }}"
           
-          echo "📋 ✅ Comprehensive execution logs collected and committed"
+          echo "📋 ✅ Execution logs committed and available for download"
           echo "📁 Log Location: generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/"
-          echo "📊 Total Log Files: 7 detailed execution history files"
           echo "🔗 Branch: ${{ needs.setup-dedicated-branch.outputs.branch_name }}"
