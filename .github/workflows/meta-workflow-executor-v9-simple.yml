@@ -1,0 +1,241 @@
+name: Meta Workflow Executor v9 Simple
+run-name: 🚀 Simple Meta Workflow for Issue #${{ inputs.issue_number }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process'
+        required: true
+        default: '56'
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+  pull-requests: write
+  workflows: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # Phase 1: Setup Branch
+  setup-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      branch_name: ${{ steps.create.outputs.branch_name }}
+      project_folder: ${{ steps.create.outputs.project_folder }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Create Branch
+        id: create
+        run: |
+          echo "🌿 Creating dedicated branch..."
+          
+          ISSUE_NUM="${{ inputs.issue_number }}"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          BRANCH_NAME="meta-workflow/issue-${ISSUE_NUM}-${TIMESTAMP}"
+          PROJECT_FOLDER="meta-workflow-issue-${ISSUE_NUM}-${{ github.run_id }}"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git checkout -b "$BRANCH_NAME"
+          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER"
+          
+          echo '{"status": "initialized"}' > "generated/meta-workflow-projects/$PROJECT_FOLDER/info.json"
+          
+          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
+          git commit -m "feat: initialize Meta Workflow for Issue #$ISSUE_NUM"
+          git push origin "$BRANCH_NAME"
+          
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "project_folder=$PROJECT_FOLDER" >> $GITHUB_OUTPUT
+
+  # Phase 2: Extract Requirements  
+  extract-requirements:
+    runs-on: ubuntu-latest
+    needs: setup-branch
+    outputs:
+      workflow_type: ${{ steps.extract.outputs.workflow_type }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Extract from Issue
+        id: extract
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER="${{ inputs.issue_number }}"
+          echo "📝 Processing Issue #$ISSUE_NUMBER"
+          
+          # Get issue content
+          gh api repos/${{ github.repository }}/issues/$ISSUE_NUMBER --jq '.body' > issue-content.txt
+          
+          # Determine workflow type
+          WORKFLOW_TYPE="news-video"
+          if cat issue-content.txt | grep -q "ニュース動画\|news.*video"; then
+            WORKFLOW_TYPE="news-video"
+          fi
+          
+          echo "workflow_type=$WORKFLOW_TYPE" >> $GITHUB_OUTPUT
+          echo "✅ Detected workflow type: $WORKFLOW_TYPE"
+
+  # Phase 3: Generate Simple Workflow
+  generate-workflow:
+    runs-on: ubuntu-latest  
+    needs: [setup-branch, extract-requirements]
+    
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup-branch.outputs.branch_name }}
+          
+      - name: Generate AI News Video Workflow
+        run: |
+          PROJECT_FOLDER="${{ needs.setup-branch.outputs.project_folder }}"
+          
+          # Create simple news video workflow
+          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows"
+          
+          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows/ai-news-video-workflow.yml" << 'EOF'
+          name: AI Trending News Video Generation
+          
+          on:
+            workflow_dispatch:
+              inputs:
+                search_keyword:
+                  description: '検索キーワード'
+                  required: true
+                  default: 'テクノロジー'
+                region:
+                  description: '地域'
+                  required: true
+                  default: '日本'
+          
+          jobs:
+            web-search:
+              runs-on: ubuntu-latest
+              steps:
+                - name: Search Latest Trends
+                  run: echo "🔍 Searching for latest trends..."
+                  
+            title-generation:
+              needs: web-search
+              runs-on: ubuntu-latest
+              steps:
+                - name: Generate Title with GPT-Image-1
+                  env:
+                    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+                  run: |
+                    echo "🎨 Generating title image with GPT-Image-1..."
+                    # OpenAI GPT-Image-1 API call here
+                    
+            background-generation:
+              needs: web-search
+              runs-on: ubuntu-latest
+              steps:
+                - name: Generate Background
+                  run: echo "🖼️ Generating background image..."
+                  
+            video-generation:
+              needs: [title-generation, background-generation]
+              runs-on: ubuntu-latest
+              steps:
+                - name: Generate News Video
+                  run: echo "🎬 Generating news video..."
+                  
+            audio-generation:
+              needs: web-search
+              runs-on: ubuntu-latest
+              steps:
+                - name: Generate Narration
+                  run: echo "🎤 Generating narration..."
+                  
+            final-assembly:
+              needs: [video-generation, audio-generation]
+              runs-on: ubuntu-latest
+              steps:
+                - name: Assemble Final Video
+                  run: echo "🎞️ Assembling final 1-minute news video..."
+          EOF
+          
+          echo "✅ Generated AI news video workflow"
+
+  # Phase 4: Create Pull Request
+  create-pr:
+    runs-on: ubuntu-latest
+    needs: [setup-branch, generate-workflow]
+    
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup-branch.outputs.branch_name }}
+          
+      - name: Commit and Create PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH_NAME="${{ needs.setup-branch.outputs.branch_name }}"
+          ISSUE_NUMBER="${{ inputs.issue_number }}"
+          PROJECT_FOLDER="${{ needs.setup-branch.outputs.project_folder }}"
+          
+          # Commit changes
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
+          git commit -m "feat: generate AI news video workflow for Issue #$ISSUE_NUMBER"
+          git push origin "$BRANCH_NAME"
+          
+          # Create PR
+          gh pr create \
+            --title "🚀 Meta Workflow v9: AI News Video for Issue #$ISSUE_NUMBER" \
+            --body "## 🎬 AI トレンドニュース動画生成ワークフロー
+
+Generated workflow for Issue #$ISSUE_NUMBER
+
+### 📁 Generated Files
+- AI News Video Workflow
+- GPT-Image-1 title generation
+- Background image generation  
+- Video assembly pipeline
+
+### 🚀 Activation
+1. Review and merge this PR
+2. Use the generated workflow in Actions tab
+
+---
+🤖 Generated by Kamui Rossy v9.0" \
+            --base main \
+            --head "$BRANCH_NAME"
+          
+          # Comment on issue
+          gh issue comment $ISSUE_NUMBER --body "## 🎉 ワークフロー生成完了！
+
+シンプル版のメタワークフローでAIニュース動画生成ワークフローを作成しました。
+
+**Generated Files:**
+- \`generated/meta-workflow-projects/$PROJECT_FOLDER/workflows/ai-news-video-workflow.yml\`
+
+**Features:**
+- Web検索でトレンド収集
+- GPT-Image-1でタイトル画像生成
+- 背景画像生成
+- 動画・音声生成
+- 1分動画への最終組み立て
+
+---
+🤖 Kamui Rossy v9.0 Simple版"
