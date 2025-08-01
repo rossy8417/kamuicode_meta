@@ -156,11 +156,11 @@ jobs:
           # Create and switch to new branch
           git checkout -b "$BRANCH_NAME"
           
-          # Create project directory structure
-          mkdir -p "projects/$PROJECT_FOLDER"/{metadata,logs,temp,generated}
+          # Create project directory structure (.gitignore safe)
+          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER"/{metadata,logs,temp,workflows}
           
           # Add marker file
-          cat > "projects/$PROJECT_FOLDER/workflow-info.json" << EOF
+          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/workflow-info.json" << EOF
           {
             "meta_workflow": "v9",
             "issue_number": "$ISSUE_NUM",
@@ -173,7 +173,7 @@ jobs:
           EOF
           
           # Commit initial structure
-          git add "projects/$PROJECT_FOLDER/"
+          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
           git commit -m "feat: initialize Meta Workflow branch for Issue #$ISSUE_NUM
 
           - Create dedicated branch: $BRANCH_NAME
@@ -1225,11 +1225,11 @@ jobs:
           echo "📁 Project folder: $PROJECT_FOLDER"
           
           # Ensure project directory structure exists
-          mkdir -p "projects/$PROJECT_FOLDER/generated/workflows"
+          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows"
           
           # Copy final workflow to dedicated project structure
           cp generated/workflows/final/final-workflow.yml \
-            "projects/$PROJECT_FOLDER/generated/workflows/${WORKFLOW_NAME}"
+            "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows/${WORKFLOW_NAME}"
           
           # Also create traditional .github/workflows/generated structure for compatibility
           mkdir -p .github/workflows/generated
@@ -1320,7 +1320,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           # Add all generated files to the dedicated project structure
-          git add "projects/$PROJECT_FOLDER/"
+          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
           git add .github/workflows/generated/
           git add deployment-summary.md
           
@@ -1333,7 +1333,7 @@ jobs:
           🔧 YAML Status: $YAML_FIX_STATUS
           
           Generated Files:
-          - projects/$PROJECT_FOLDER/generated/workflows/
+          - generated/meta-workflow-projects/$PROJECT_FOLDER/workflows/
           - .github/workflows/generated/ (compatibility)
           - deployment-summary.md
           
