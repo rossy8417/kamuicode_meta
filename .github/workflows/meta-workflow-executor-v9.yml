@@ -1087,6 +1087,8 @@ jobs:
     needs: [compare-and-merge, select-minimal-units, decompose-tasks, validate-trigger, setup-dedicated-branch]
     runs-on: ubuntu-latest
     if: needs.compare-and-merge.outputs.final_workflow_ready == 'true'
+    outputs:
+      yaml_fixed: ${{ steps.yaml_fix.outputs.yaml_fixed }}
     
     steps:
       - name: Checkout Repository
@@ -1352,7 +1354,7 @@ jobs:
   # Phase 8: Execution Log Collection
   collect-execution-logs:
     runs-on: ubuntu-latest
-    needs: [validate-trigger, setup-dedicated-branch, extract-issue-content, stepback-reflection, requirement-analysis, task-decomposition, select-minimal-units, generate-dual-workflows, compare-and-merge, yaml-auto-fix, validate-and-deploy]
+    needs: [validate-trigger, setup-dedicated-branch, extract-requirements, decompose-tasks, select-minimal-units, compose-original-workflow, compose-orchestrator-workflow, compare-and-merge, validate-and-deploy]
     if: always() # 成功/失敗に関わらずログを収集
     
     steps:
@@ -1371,20 +1373,18 @@ jobs:
             {
               "meta_workflow_version": "v9.0",
               "minimal_units_selected": "${{ needs.select-minimal-units.outputs.unit_count || 'N/A' }}",
-              "yaml_auto_fix_applied": "${{ needs.yaml-auto-fix.outputs.yaml_fixed || 'N/A' }}",
+              "yaml_auto_fix_applied": "${{ needs.validate-and-deploy.outputs.yaml_fixed || 'N/A' }}",
               "dual_workflow_generation": "enabled",
               "branch_strategy": "dedicated_branch",
               "phase_results": {
                 "validate_trigger": "${{ needs.validate-trigger.result || 'RUNNING' }}",
                 "setup_dedicated_branch": "${{ needs.setup-dedicated-branch.result || 'RUNNING' }}",
-                "extract_issue_content": "${{ needs.extract-issue-content.result || 'RUNNING' }}",
-                "stepback_reflection": "${{ needs.stepback-reflection.result || 'RUNNING' }}",
-                "requirement_analysis": "${{ needs.requirement-analysis.result || 'RUNNING' }}",
-                "task_decomposition": "${{ needs.task-decomposition.result || 'RUNNING' }}",
+                "extract_requirements": "${{ needs.extract-requirements.result || 'RUNNING' }}",
+                "decompose_tasks": "${{ needs.decompose-tasks.result || 'RUNNING' }}",
                 "select_minimal_units": "${{ needs.select-minimal-units.result || 'RUNNING' }}",
-                "generate_dual_workflows": "${{ needs.generate-dual-workflows.result || 'RUNNING' }}",
+                "compose_original_workflow": "${{ needs.compose-original-workflow.result || 'RUNNING' }}",
+                "compose_orchestrator_workflow": "${{ needs.compose-orchestrator-workflow.result || 'RUNNING' }}",
                 "compare_and_merge": "${{ needs.compare-and-merge.result || 'RUNNING' }}",
-                "yaml_auto_fix": "${{ needs.yaml-auto-fix.result || 'RUNNING' }}",
                 "validate_and_deploy": "${{ needs.validate-and-deploy.result || 'RUNNING' }}"
               }
             }
