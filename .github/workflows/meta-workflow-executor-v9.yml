@@ -16,7 +16,6 @@ permissions:
   issues: write
   actions: read
   pull-requests: write
-  workflows: write
 
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -1087,8 +1086,6 @@ jobs:
     needs: [compare-and-merge, select-minimal-units, decompose-tasks, validate-trigger, setup-dedicated-branch]
     runs-on: ubuntu-latest
     if: needs.compare-and-merge.outputs.final_workflow_ready == 'true'
-    outputs:
-      yaml_fixed: ${{ steps.yaml_fix.outputs.yaml_fixed }}
     
     steps:
       - name: Checkout Repository
@@ -1350,64 +1347,3 @@ jobs:
           git push origin "$BRANCH_NAME"
           
           echo "✅ Successfully committed and pushed to branch: $BRANCH_NAME"
-
-      - name: Use Workflow Execution Logger
-        if: always()
-        uses: ./minimal-units/utility/workflow-execution-logger.yml
-        with:
-          project_folder: generated/meta-workflow-projects/${{ needs.setup-dedicated-branch.outputs.project_folder }}
-          workflow_name: Meta Workflow Executor v9
-          issue_number: ${{ needs.validate-trigger.outputs.issue_number }}
-          additional_info: |
-            {
-              "meta_workflow_version": "v9.0",
-              "minimal_units_selected": "${{ needs.select-minimal-units.outputs.unit_count || 'N/A' }}",
-              "yaml_auto_fix_applied": "${{ needs.validate-and-deploy.outputs.yaml_fixed || 'N/A' }}",
-              "dual_workflow_generation": "enabled",
-              "branch_strategy": "dedicated_branch",
-              "phase_results": {
-                "validate_trigger": "${{ needs.validate-trigger.result || 'RUNNING' }}",
-                "setup_dedicated_branch": "${{ needs.setup-dedicated-branch.result || 'RUNNING' }}",
-                "extract_requirements": "${{ needs.extract-requirements.result || 'RUNNING' }}",
-                "decompose_tasks": "${{ needs.decompose-tasks.result || 'RUNNING' }}",
-                "select_minimal_units": "${{ needs.select-minimal-units.result || 'RUNNING' }}",
-                "compose_original_workflow": "${{ needs.compose-original-workflow.result || 'RUNNING' }}",
-                "compose_orchestrator_workflow": "${{ needs.compose-orchestrator-workflow.result || 'RUNNING' }}",
-                "compare_and_merge": "${{ needs.compare-and-merge.result || 'RUNNING' }}",
-                "validate_and_deploy": "${{ needs.validate-and-deploy.result || 'RUNNING' }}"
-              }
-            }
-            
-      - name: Commit Execution Logs to Branch
-        if: always()
-        run: |
-          echo "📋 Committing execution logs to dedicated branch..."
-          
-          PROJECT_FOLDER="${{ needs.setup-dedicated-branch.outputs.project_folder }}"
-          
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Add and commit logs
-          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/"
-          git commit -m "docs: add comprehensive execution log for Meta Workflow v9
-
-          Generated detailed execution history for Issue #${{ needs.validate-trigger.outputs.issue_number }}:
-          - Single comprehensive execution log file
-          - Complete job execution details and status
-          - Technical environment specifications  
-          - GitHub Actions API response data
-          - Performance metrics and timing
-          
-          🤖 Generated with [Claude Code](https://claude.ai/code)
-          
-          Co-Authored-By: Claude <noreply@anthropic.com>"
-          
-          git push origin "${{ needs.setup-dedicated-branch.outputs.branch_name }}"
-          
-          echo "📋 ✅ Execution logs committed and available for download"
-          echo "📁 Log Location: generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/"
-          echo "🔗 Branch: ${{ needs.setup-dedicated-branch.outputs.branch_name }}"
-
-  
