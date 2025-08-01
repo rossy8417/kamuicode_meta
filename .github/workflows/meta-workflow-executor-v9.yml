@@ -44,9 +44,12 @@ jobs:
           elif [ "${{ github.event_name }}" = "issue_comment" ]; then
             COMMENT_USER="${{ github.event.comment.user.login }}"
             ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
-            COMMENT_BODY="${{ github.event.comment.body }}"
+            # Save comment body safely to avoid bash interpretation of special characters
+            cat > /tmp/comment_body.txt << 'COMMENT_EOF'
+${{ github.event.comment.body }}
+COMMENT_EOF
             
-            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && echo "$COMMENT_BODY" | grep -q '^start'; then
+            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && grep -q '^start' /tmp/comment_body.txt; then
               echo "✅ Valid start trigger from issue author"
               echo "should_execute=true" >> $GITHUB_OUTPUT
               echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
