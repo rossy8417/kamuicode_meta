@@ -16,6 +16,7 @@ permissions:
   issues: write
   actions: read
   pull-requests: write
+  workflows: write
 
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -157,10 +158,10 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           
           # Create project directory structure (.gitignore safe)
-          mkdir -p "projects/$PROJECT_FOLDER"/{metadata,logs,temp,workflows,media}
+          mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER"/{metadata,logs,temp,workflows}
           
           # Add marker file
-          cat > "projects/$PROJECT_FOLDER/workflow-info.json" << EOF
+          cat > "generated/meta-workflow-projects/$PROJECT_FOLDER/workflow-info.json" << EOF
           {
             "meta_workflow": "v9",
             "issue_number": "$ISSUE_NUM",
@@ -173,7 +174,7 @@ jobs:
           EOF
           
           # Commit initial structure
-          git add "projects/$PROJECT_FOLDER/"
+          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
           git commit -m "feat: initialize Meta Workflow branch for Issue #$ISSUE_NUM
 
           - Create dedicated branch: $BRANCH_NAME
@@ -1228,7 +1229,8 @@ jobs:
           mkdir -p "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows"
           
           # Copy final workflow to dedicated project structure
-          cp generated/workflows/final/final-workflow.yml             "projects/$PROJECT_FOLDER/workflows/${WORKFLOW_NAME}"
+          cp generated/workflows/final/final-workflow.yml \
+            "generated/meta-workflow-projects/$PROJECT_FOLDER/workflows/${WORKFLOW_NAME}"
           
           # Also create traditional .github/workflows/generated structure for compatibility
           mkdir -p .github/workflows/generated
@@ -1319,7 +1321,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
           # Add all generated files to the dedicated project structure
-          git add "projects/$PROJECT_FOLDER/"
+          git add "generated/meta-workflow-projects/$PROJECT_FOLDER/"
           git add .github/workflows/generated/
           git add deployment-summary.md
           
