@@ -723,6 +723,13 @@ jobs:
             echo "workflow_complexity=0" >> $GITHUB_OUTPUT
           fi
           
+      - name: Upload Original Workflow (Internal)
+        if: steps.compose.outputs.workflow_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-workflow
+          path: generated/workflows/
+          retention-days: 1
 
   # Phase 4B: Compose Orchestrator-based Workflow
   compose-orchestrator-workflow:
@@ -870,6 +877,13 @@ jobs:
             echo "workflow_complexity=0" >> $GITHUB_OUTPUT
           fi
           
+      - name: Upload Orchestrator Workflow (Internal)
+        if: steps.compose.outputs.workflow_ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchestrator-workflow
+          path: generated/workflows/
+          retention-days: 1
 
   # Phase 5: Compare and Merge Best Approaches
   compare-and-merge:
