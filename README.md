@@ -173,3 +173,8 @@
 - **Concept**: テスト動画：美しい夕焼けの風景
 - **Saved to**: projects/video-v8-run-29--
 - **Date**: 2025-07-31
+
+## Video Production v8 - Run #30
+- **Concept**: AIトレンドニュース動画テスト
+- **Saved to**: projects/video-v8-run-30-AI-
+- **Date**: 2025-08-01
