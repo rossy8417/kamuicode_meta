@@ -26,7 +26,7 @@ jobs:
   # Phase 1: Trigger Validation & Answer Extraction
   validate-trigger:
     runs-on: ubuntu-latest
-    if: github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || contains(github.event.comment.body, 'start'))
+    if: github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && contains(github.event.comment.body, 'start')))
     outputs:
       should_execute: ${{ steps.validate.outputs.should_execute }}
       issue_number: ${{ steps.validate.outputs.issue_number }}
