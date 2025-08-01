@@ -1351,19 +1351,8 @@ jobs:
           
           echo "✅ Successfully committed and pushed to branch: $BRANCH_NAME"
 
-  # Phase 8: Execution Log Collection
-  collect-execution-logs:
-    runs-on: ubuntu-latest
-    needs: [validate-trigger, extract-requirements, setup-dedicated-branch, decompose-tasks, select-minimal-units, compose-original-workflow, compose-orchestrator-workflow, compare-and-merge, validate-and-deploy]
-    if: always() # 成功/失敗に関わらずログを収集
-    
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.setup-dedicated-branch.outputs.branch_name }}
-          
       - name: Use Workflow Execution Logger
+        if: always()
         uses: ./minimal-units/utility/workflow-execution-logger.yml
         with:
           project_folder: generated/meta-workflow-projects/${{ needs.setup-dedicated-branch.outputs.project_folder }}
@@ -1390,6 +1379,7 @@ jobs:
             }
             
       - name: Commit Execution Logs to Branch
+        if: always()
         run: |
           echo "📋 Committing execution logs to dedicated branch..."
           
@@ -1402,7 +1392,7 @@ jobs:
           # Add and commit logs
           git add "generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/"
           git commit -m "docs: add comprehensive execution log for Meta Workflow v9
-          
+
           Generated detailed execution history for Issue #${{ needs.validate-trigger.outputs.issue_number }}:
           - Single comprehensive execution log file
           - Complete job execution details and status
@@ -1419,3 +1409,5 @@ jobs:
           echo "📋 ✅ Execution logs committed and available for download"
           echo "📁 Log Location: generated/meta-workflow-projects/$PROJECT_FOLDER/execution-logs/"
           echo "🔗 Branch: ${{ needs.setup-dedicated-branch.outputs.branch_name }}"
+
+  
