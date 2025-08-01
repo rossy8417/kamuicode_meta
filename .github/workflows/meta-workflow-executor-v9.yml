@@ -118,9 +118,80 @@ jobs:
           path: generated/metadata/requirements/
           retention-days: 1
 
+  # Phase 1.5: Setup Dedicated Branch for Clean Development
+  setup-dedicated-branch:
+    runs-on: ubuntu-latest
+    needs: validate-trigger
+    if: needs.validate-trigger.outputs.should_execute == 'true'
+    permissions:
+      contents: write
+    outputs:
+      branch_name: ${{ steps.create_branch.outputs.branch_name }}
+      project_folder: ${{ steps.create_branch.outputs.project_folder }}
+      
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Create Dedicated Branch for Meta Workflow
+        id: create_branch
+        run: |
+          echo "🌿 Creating dedicated branch for clean Meta Workflow execution..."
+          
+          # Generate unique branch and folder names
+          ISSUE_NUM="${{ needs.validate-trigger.outputs.issue_number }}"
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          RUN_ID="${{ github.run_id }}"
+          
+          BRANCH_NAME="meta-workflow/issue-${ISSUE_NUM}-${TIMESTAMP}"
+          PROJECT_FOLDER="meta-workflow-issue-${ISSUE_NUM}-${RUN_ID}"
+          
+          echo "📌 Branch: $BRANCH_NAME"
+          echo "📁 Project Folder: $PROJECT_FOLDER"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create and switch to new branch
+          git checkout -b "$BRANCH_NAME"
+          
+          # Create project directory structure
+          mkdir -p "projects/$PROJECT_FOLDER"/{metadata,logs,temp,generated}
+          
+          # Add marker file
+          cat > "projects/$PROJECT_FOLDER/workflow-info.json" << EOF
+          {
+            "meta_workflow": "v9",
+            "issue_number": "$ISSUE_NUM",
+            "branch_name": "$BRANCH_NAME",
+            "project_folder": "$PROJECT_FOLDER",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "github_run_id": "$RUN_ID",
+            "status": "initialized"
+          }
+          EOF
+          
+          # Commit initial structure
+          git add "projects/$PROJECT_FOLDER/"
+          git commit -m "feat: initialize Meta Workflow branch for Issue #$ISSUE_NUM
+
+          - Create dedicated branch: $BRANCH_NAME
+          - Setup project structure: $PROJECT_FOLDER
+          - Prepare for clean workflow generation
+          
+          🎯 Branch strategy implementation for Issue #$ISSUE_NUM"
+          
+          # Push new branch
+          git push origin "$BRANCH_NAME"
+          
+          echo "✅ Branch setup completed successfully"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "project_folder=$PROJECT_FOLDER" >> $GITHUB_OUTPUT
+
   # Phase 2: Ultra-Detailed Task Decomposition with Claude Code SDK
   decompose-tasks:
-    needs: extract-requirements
+    needs: [extract-requirements, setup-dedicated-branch]
     runs-on: ubuntu-latest
     outputs:
       task_plan: ${{ steps.decompose.outputs.task_plan }}
@@ -1012,13 +1083,32 @@ jobs:
 
   # Phase 6: Validate & Deploy Final Workflow
   validate-and-deploy:
-    needs: [compare-and-merge, select-minimal-units, decompose-tasks, validate-trigger]
+    needs: [compare-and-merge, select-minimal-units, decompose-tasks, validate-trigger, setup-dedicated-branch]
     runs-on: ubuntu-latest
     if: needs.compare-and-merge.outputs.final_workflow_ready == 'true'
     
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        
+      - name: Switch to Dedicated Branch
+        run: |
+          echo "🌿 Switching to dedicated branch for clean deployment..."
+          BRANCH_NAME="${{ needs.setup-dedicated-branch.outputs.branch_name }}"
+          PROJECT_FOLDER="${{ needs.setup-dedicated-branch.outputs.project_folder }}"
+          
+          echo "📌 Branch: $BRANCH_NAME"
+          echo "📁 Project: $PROJECT_FOLDER"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Switch to dedicated branch
+          git fetch origin "$BRANCH_NAME"
+          git checkout "$BRANCH_NAME"
+          
+          echo "✅ Successfully switched to dedicated branch"
         
       - name: Download Final Workflow
         uses: actions/download-artifact@v4
@@ -1156,18 +1246,27 @@ EMERGENCY_FALLBACK
               ;;
           esac
           
-          # Generate workflow metadata
+          # Generate workflow metadata (using dedicated branch structure)
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
-          WORKFLOW_TYPE=$(echo "${{ needs.decompose-tasks.outputs.task_count }}" | cut -d'"' -f2)
+          PROJECT_FOLDER="${{ needs.setup-dedicated-branch.outputs.project_folder }}"
+          BRANCH_NAME="${{ needs.setup-dedicated-branch.outputs.branch_name }}"
           WORKFLOW_NAME="generated-issue-${ISSUE_NUMBER}-${TIMESTAMP}.yml"
           
-          # Ensure directory exists
-          mkdir -p .github/workflows/generated
+          echo "🌿 Deploying to dedicated branch: $BRANCH_NAME"
+          echo "📁 Project folder: $PROJECT_FOLDER"
           
-          # Copy with .disabled for safety
+          # Ensure project directory structure exists
+          mkdir -p "projects/$PROJECT_FOLDER/generated/workflows"
+          
+          # Copy final workflow to dedicated project structure
           cp generated/workflows/final/final-workflow.yml \
-            .github/workflows/generated/${WORKFLOW_NAME}.disabled
+            "projects/$PROJECT_FOLDER/generated/workflows/${WORKFLOW_NAME}"
+          
+          # Also create traditional .github/workflows/generated structure for compatibility
+          mkdir -p .github/workflows/generated
+          cp generated/workflows/final/final-workflow.yml \
+            ".github/workflows/generated/${WORKFLOW_NAME}.disabled"
           
           # Create comprehensive deployment summary
           cat > deployment-summary.md << 'EOF'
@@ -1238,11 +1337,45 @@ EMERGENCY_FALLBACK
           # Post comprehensive summary to issue
           gh issue comment $ISSUE_NUMBER --body-file deployment-summary.md
           
-      - name: Commit Generated Workflow
+      - name: Commit Generated Workflow to Dedicated Branch
         run: |
+          echo "🚀 Committing generated workflow to dedicated branch..."
+          
+          PROJECT_FOLDER="${{ needs.setup-dedicated-branch.outputs.project_folder }}"
+          BRANCH_NAME="${{ needs.setup-dedicated-branch.outputs.branch_name }}"
+          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
+          UNIT_COUNT="${{ needs.select-minimal-units.outputs.unit_count }}"
+          YAML_FIX_STATUS="${{ steps.yaml_fix.outputs.yaml_fixed }}"
+          
+          # Configure git (already done but ensure it's set)
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # Add all generated files to the dedicated project structure
+          git add "projects/$PROJECT_FOLDER/"
           git add .github/workflows/generated/
-          git commit -m "feat: generate human-like workflow with ${{ needs.select-minimal-units.outputs.unit_count }} units for issue #${{ needs.validate-trigger.outputs.issue_number }}"
-          git push
+          git add deployment-summary.md
+          
+          # Create comprehensive commit message
+          git commit -m "feat: generate Meta Workflow v9 for Issue #$ISSUE_NUMBER
+
+          🌿 Branch Strategy: Clean development in dedicated branch
+          📁 Project: $PROJECT_FOLDER  
+          🧩 Units: $UNIT_COUNT minimal units selected and composed
+          🔧 YAML Status: $YAML_FIX_STATUS
+          
+          Generated Files:
+          - projects/$PROJECT_FOLDER/generated/workflows/
+          - .github/workflows/generated/ (compatibility)
+          - deployment-summary.md
+          
+          🎯 Meta Workflow v9 with branch strategy and YAML auto-fix
+          
+          🤖 Generated with [Claude Code](https://claude.ai/code)
+          
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+          
+          # Push to dedicated branch
+          git push origin "$BRANCH_NAME"
+          
+          echo "✅ Successfully committed and pushed to branch: $BRANCH_NAME"
