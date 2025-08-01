@@ -933,12 +933,13 @@ jobs:
             }
           
           # Validate and analyze generated workflow
-          if [ -f "generated/workflows/orchestrator-workflow.yml" ]; then
+          ORCHESTRATOR_WORKFLOW_FILE=$(find generated/workflows -type f -name "orchestrator-*.yml" | head -n 1)
+          if [ -f "$ORCHESTRATOR_WORKFLOW_FILE" ]; then
             echo "workflow_ready=true" >> $GITHUB_OUTPUT
-            echo "workflow_path=generated/workflows/orchestrator-workflow.yml" >> $GITHUB_OUTPUT
+            echo "workflow_path=$ORCHESTRATOR_WORKFLOW_FILE" >> $GITHUB_OUTPUT
             
             # Calculate complexity
-            JOB_COUNT=$(grep -c "^\s*[a-zA-Z0-9_-]*:\s*$" generated/workflows/orchestrator-workflow.yml | grep -A1 "jobs:" | tail -1 || echo "1")
+            JOB_COUNT=$(grep -c "^\s*[a-zA-Z0-9_-]*:\s*$" "$ORCHESTRATOR_WORKFLOW_FILE" | grep -A1 "jobs:" | tail -1 || echo "1")
             COMPLEXITY=$(jq -r '.complexity_score // 50' generated/workflows/orchestrator-complexity.json 2>/dev/null || echo "50")
             
             echo "workflow_complexity=$(echo $COMPLEXITY | jq -c .overall_complexity)" >> $GITHUB_OUTPUT
