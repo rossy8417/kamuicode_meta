@@ -1,15 +1,13 @@
 name: Meta Workflow Executor v9
-run-name: 🚀 Dynamic minimal-unit based workflow for Issue #${{ github.event.issue.number || inputs.issue_number }}
+run-name: 🚀 Dynamic minimal-unit based workflow for Issue #${{ inputs.issue_number }}
 
 on:
-  issue_comment:
-    types: [created]
   workflow_dispatch:
     inputs:
       issue_number:
         description: 'Issue number to process'
         required: true
-        default: '46'
+        default: '56'
 
 permissions:
   contents: write
@@ -27,7 +25,7 @@ jobs:
   # Phase 1: Trigger Validation & Answer Extraction
   validate-trigger:
     runs-on: ubuntu-latest
-    if: github.event_name != 'push' && (github.event_name == 'workflow_dispatch' || contains(github.event.comment.body, 'start'))
+    if: github.event_name == 'workflow_dispatch'
     outputs:
       should_execute: ${{ steps.validate.outputs.should_execute }}
       issue_number: ${{ steps.validate.outputs.issue_number }}
@@ -36,39 +34,10 @@ jobs:
       - name: Validate Trigger
         id: validate
         run: |
-          echo "🔍 Validating trigger conditions..."
-          
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "✅ Manual trigger via workflow_dispatch"
-            echo "should_execute=true" >> $GITHUB_OUTPUT
-            echo "issue_number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
-            COMMENT_USER="${{ github.event.comment.user.login }}"
-            ISSUE_AUTHOR="${{ github.event.issue.user.login }}"
-            # Check for start trigger safely without variable expansion
-            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ]; then
-              echo "Checking for start trigger..."
-              # Use base64 encoding to safely handle special characters
-              COMMENT_B64=$(echo '${{ github.event.comment.body }}' | base64 -w 0)
-              DECODED=$(echo "$COMMENT_B64" | base64 -d)
-              if echo "$DECODED" | grep -q '^start'; then
-                START_FOUND=true
-              else
-                START_FOUND=false
-              fi
-            else
-              START_FOUND=false
-            fi
-            
-            if [ "$COMMENT_USER" = "$ISSUE_AUTHOR" ] && [ "$START_FOUND" = "true" ]; then
-              echo "✅ Valid start trigger from issue author"
-              echo "should_execute=true" >> $GITHUB_OUTPUT
-              echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
-            else
-              echo "❌ Invalid trigger"
-              echo "should_execute=false" >> $GITHUB_OUTPUT
-            fi
-          fi
+          echo "🔍 Manual workflow_dispatch trigger"
+          echo "✅ Processing Issue #${{ inputs.issue_number }}"
+          echo "should_execute=true" >> $GITHUB_OUTPUT
+          echo "issue_number=${{ inputs.issue_number }}" >> $GITHUB_OUTPUT
 
   extract-requirements:
     needs: validate-trigger
