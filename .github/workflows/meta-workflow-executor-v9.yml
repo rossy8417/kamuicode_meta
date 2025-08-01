@@ -787,7 +787,7 @@ jobs:
             JOB_COUNT=$(grep -c "^\s*[a-zA-Z0-9_-]*:\s*$" generated/workflows/original-workflow.yml | grep -A1 "jobs:" | tail -1 || echo "1")
             COMPLEXITY=$(jq -r '.complexity_score // 50' generated/workflows/workflow-complexity.json 2>/dev/null || echo "50")
             
-            echo "workflow_complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
+            echo "workflow_complexity=$(echo $COMPLEXITY | jq -c .overall_complexity)" >> $GITHUB_OUTPUT
             echo "📊 Original Workflow Complexity Score: $COMPLEXITY/100"
           else
             echo "workflow_ready=false" >> $GITHUB_OUTPUT
@@ -941,7 +941,7 @@ jobs:
             JOB_COUNT=$(grep -c "^\s*[a-zA-Z0-9_-]*:\s*$" generated/workflows/orchestrator-workflow.yml | grep -A1 "jobs:" | tail -1 || echo "1")
             COMPLEXITY=$(jq -r '.complexity_score // 50' generated/workflows/orchestrator-complexity.json 2>/dev/null || echo "50")
             
-            echo "workflow_complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
+            echo "workflow_complexity=$(echo $COMPLEXITY | jq -c .overall_complexity)" >> $GITHUB_OUTPUT
             echo "📊 Orchestrator Workflow Complexity Score: $COMPLEXITY/100"
           else
             echo "workflow_ready=false" >> $GITHUB_OUTPUT
