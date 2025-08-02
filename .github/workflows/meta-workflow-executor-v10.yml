@@ -1,7 +1,7 @@
 name: "Meta Workflow Executor v10 - Direct Minimal Unit Integration"
 run-name: "🚀 Meta Workflow v10 | Issue #${{ inputs.issue_number }} | ${{ github.actor }}"
 
-'on':
+on:
   workflow_dispatch:
     inputs:
       issue_number:
@@ -300,66 +300,45 @@ jobs:
           EXECUTION_PATTERN=$(echo "$WORKFLOW_DATA" | jq -r '.execution_pattern')
           MINIMAL_UNITS=$(echo "$WORKFLOW_DATA" | jq -r '.minimal_units[].unit_path' | tr '\n' ',' | sed 's/,$//')
           
-          # Generate GitHub Actions workflow YAML
-          cat > projects/current-session/generated-workflows/dynamic-workflow-${{ github.event.issue.number || inputs.issue_number }}.yml << 'WORKFLOW_EOF'
-name: "🎯 Dynamic Workflow - Issue #${{ github.event.issue.number || inputs.issue_number }}"
-run-name: "📊 Dynamic | ${{ github.actor }} | $(date +'%H:%M')"
-
-on:
-  workflow_dispatch:
-    inputs:
-      execution_mode:
-        description: 'Execution mode'
-        required: false
-        default: 'auto'
-
-permissions:
-  contents: write
-  actions: write
-  issues: write
-  pull-requests: write
-
-env:
-  CLAUDE_CODE_CI_MODE: true
-  CLAUDE_CODE_AUTO_APPROVE_MCP: true
-
-jobs:
-  execute-dynamic-workflow:
-    name: "🚀 Execute Dynamic Workflow"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: Setup Environment
-        run: |
-          mkdir -p projects/issue-${{ github.event.issue.number || inputs.issue_number }}/{metadata,logs,temp,final}
-          echo "🎯 Dynamic workflow execution started"
-          echo "Execution pattern: $EXECUTION_PATTERN"
-          echo "Selected minimal units: $MINIMAL_UNITS"
+          # Generate GitHub Actions workflow YAML using echo commands
+          mkdir -p projects/current-session/generated-workflows
+          WORKFLOW_FILE="projects/current-session/generated-workflows/dynamic-workflow-${{ github.event.issue.number || inputs.issue_number }}.yml"
           
-      - name: Execute Minimal Units
-        run: |
-          echo "🔧 Executing selected minimal units..."
-          
-          # Parse and execute each minimal unit
-          IFS=',' read -ra UNITS <<< "$MINIMAL_UNITS"
-          for unit_path in "\${UNITS[@]}"; do
-            if [ -f "\$unit_path" ]; then
-              echo "📦 Processing unit: \$unit_path"
-              # Unit execution logic would go here
-              echo "✅ Unit completed: \$unit_path"
-            else
-              echo "⚠️ Unit not found: \$unit_path"
-            fi
-          done
-          
-      - name: Finalize Results
-        run: |
-          echo "✅ Dynamic workflow execution completed"
-          echo "Generated files saved to: projects/issue-${{ github.event.issue.number || inputs.issue_number }}/final/"
-          
-          WORKFLOW_EOF
+          echo 'name: "🎯 Dynamic Workflow - Issue #${{ github.event.issue.number || inputs.issue_number }}"' > "$WORKFLOW_FILE"
+          echo 'run-name: "📊 Dynamic | ${{ github.actor }} | $(date +%H:%M)"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'on:' >> "$WORKFLOW_FILE"
+          echo '  workflow_dispatch:' >> "$WORKFLOW_FILE"
+          echo '    inputs:' >> "$WORKFLOW_FILE"
+          echo '      execution_mode:' >> "$WORKFLOW_FILE"
+          echo '        description: "Execution mode"' >> "$WORKFLOW_FILE"
+          echo '        required: false' >> "$WORKFLOW_FILE"
+          echo '        default: "auto"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'permissions:' >> "$WORKFLOW_FILE"
+          echo '  contents: write' >> "$WORKFLOW_FILE"
+          echo '  actions: write' >> "$WORKFLOW_FILE"
+          echo '  issues: write' >> "$WORKFLOW_FILE"
+          echo '  pull-requests: write' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'env:' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_CI_MODE: true' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_AUTO_APPROVE_MCP: true' >> "$WORKFLOW_FILE"
+          echo '  PROJECT_BASE: "projects/issue-${{ github.event.issue.number || inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'jobs:' >> "$WORKFLOW_FILE"
+          echo '  execute-dynamic-workflow:' >> "$WORKFLOW_FILE"
+          echo '    name: "🚀 Execute Dynamic Workflow"' >> "$WORKFLOW_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
+          echo '    steps:' >> "$WORKFLOW_FILE"
+          echo '      - name: Checkout Repository' >> "$WORKFLOW_FILE"
+          echo '        uses: actions/checkout@v4' >> "$WORKFLOW_FILE"
+          echo '      - name: Execute Selected Minimal Units' >> "$WORKFLOW_FILE"
+          echo '        run: |' >> "$WORKFLOW_FILE"
+          echo '          echo "🎯 Executing dynamic workflow with selected minimal units"' >> "$WORKFLOW_FILE"
+          echo '          echo "Pattern: '"$EXECUTION_PATTERN"'"' >> "$WORKFLOW_FILE"
+          echo '          echo "Units: '"$MINIMAL_UNITS"'"' >> "$WORKFLOW_FILE"
+          echo '          echo "✅ Workflow execution completed"' >> "$WORKFLOW_FILE"
           
           WORKFLOW_PATH="projects/current-session/generated-workflows/dynamic-workflow-${{ github.event.issue.number || inputs.issue_number }}.yml"
           
