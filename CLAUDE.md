@@ -263,16 +263,19 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
     └── *.yml                        # Generated workflows
 
 projects/                # ALL GitHub Actions outputs go here
-├── issue-{number}-{timestamp}/      # Issue-driven workflow outputs
-│   ├── metadata/                    # Analysis data
-│   ├── logs/                        # Execution logs
-│   ├── media/                       # Generated media files
-│   ├── temp/                        # Temporary processing files
-│   └── final/                       # Final deliverables
-└── workflow-{name}-{timestamp}/     # All other workflows (including meta-workflow)
-    ├── metadata/                    # Analysis data
+├── issue-{number}-{timestamp}/      # Meta-workflow outputs (Issue-driven)
+│   ├── metadata/                    # Analysis data, task decomposition
+│   ├── logs/                        # Meta-workflow execution logs
+│   ├── generated-workflow/          # Generated workflow file (.yml)
+│   └── validation-report/           # Workflow validation results
+└── {workflow-name}-{timestamp}/     # Generated workflow outputs (media files)
+    ├── metadata/                    # Processing metadata
     ├── logs/                        # Execution logs
     ├── media/                       # Generated media files
+    │   ├── images/                  # Generated images
+    │   ├── videos/                  # Generated videos
+    │   ├── audio/                   # Generated audio files
+    │   └── 3d/                      # Generated 3D models
     └── final/                       # Final deliverables
 ```
 
@@ -330,23 +333,20 @@ VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$video_file")
 AUDIO_PATH=$(jq -r '.audio_url // .file_path // "none"' "$audio_file")
 
 # IMPORTANT: Use projects/ paths for ALL GitHub Actions outputs
-# For Issue-driven workflows:
+# For Meta-workflow (Issue-driven) - generates workflows:
 mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/metadata
 mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/logs
-mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/media
-mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/temp
-mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/final
+mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/generated-workflow
+mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/validation-report
 
-# For other workflows:
-mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/metadata
-mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/logs
-mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/media
-mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/final
-
-# For meta-workflow execution:
-mkdir -p projects/meta-workflow-${TIMESTAMP}/metadata      # Task analysis, decomposition
-mkdir -p projects/meta-workflow-${TIMESTAMP}/logs          # Meta-workflow execution logs
-mkdir -p projects/meta-workflow-${TIMESTAMP}/generated     # Generated workflow files
+# For Generated workflows - produces media/artifacts:
+mkdir -p projects/${WORKFLOW_NAME}-${TIMESTAMP}/metadata
+mkdir -p projects/${WORKFLOW_NAME}-${TIMESTAMP}/logs
+mkdir -p projects/${WORKFLOW_NAME}-${TIMESTAMP}/media/images
+mkdir -p projects/${WORKFLOW_NAME}-${TIMESTAMP}/media/videos
+mkdir -p projects/${WORKFLOW_NAME}-${TIMESTAMP}/media/audio
+mkdir -p projects/${WORKFLOW_NAME}-${TIMESTAMP}/media/3d
+mkdir -p projects/${WORKFLOW_NAME}-${TIMESTAMP}/final
 
 # IMPORTANT: Use .github/workflows/generated/ for final workflow deployment
 mkdir -p .github/workflows/generated             # For generated workflows (simple structure)
