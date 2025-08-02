@@ -111,6 +111,8 @@ jobs:
       job_sequence: ${{ steps.decompose.outputs.job_sequence }}
       mermaid_diagram: ${{ steps.decompose.outputs.mermaid_diagram }}
       fine_grained_tasks: ${{ steps.decompose.outputs.fine_grained_tasks }}
+      work_based_decomposition: ${{ steps.decompose.outputs.work_based_decomposition }}
+      strategic_plan: ${{ steps.decompose.outputs.strategic_plan }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -150,6 +152,21 @@ jobs:
           if grep -qi "動画\|video\|ビデオ" /tmp/issue_body_safe.txt; then
             CAPABILITIES="${CAPABILITIES}video-generation,"
             echo "  ✓ Video generation detected"
+            
+            # ニュース動画の場合は追加機能を自動検出
+            if grep -qi "ニュース\|news" /tmp/issue_body_safe.txt; then
+              echo "  ✓ News video pattern detected - adding related capabilities"
+              # 画像生成（複数シーン用）
+              if [[ "$CAPABILITIES" != *"image-generation"* ]]; then
+                CAPABILITIES="${CAPABILITIES}image-generation,"
+              fi
+              # リップシンク
+              CAPABILITIES="${CAPABILITIES}lipsync,"
+              # 字幕オーバーレイ
+              CAPABILITIES="${CAPABILITIES}subtitle-overlay,"
+              # シーンベース構成
+              CAPABILITIES="${CAPABILITIES}scene-composition,"
+            fi
           fi
           
           # Image capabilities
@@ -249,8 +266,8 @@ jobs:
             echo "🤖 Claude CLI is available for enhanced analysis..."
             
             # Create enhanced prompt with orchestrator analysis
-            echo "You are the Meta Workflow Generator task decomposition agent." > /tmp/claude_prompt.txt
-            echo "Analyze the following issue and orchestrator recommendations to create an optimal workflow." >> /tmp/claude_prompt.txt
+            echo "You are the Meta Workflow Generator advanced task decomposition agent." > /tmp/claude_prompt.txt
+            echo "Perform multi-stage task decomposition and strategic workflow construction." >> /tmp/claude_prompt.txt
             echo "" >> /tmp/claude_prompt.txt
             echo "Issue: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
             cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
@@ -261,16 +278,29 @@ jobs:
               cat projects/current-session/metadata/orchestrator_analysis.json >> /tmp/claude_prompt.txt
             fi
             echo "" >> /tmp/claude_prompt.txt
-            echo "IMPORTANT: For complex tasks like 'news-planning', break them down into subtasks:" >> /tmp/claude_prompt.txt
-            echo "- content-planning (内容の企画)" >> /tmp/claude_prompt.txt
-            echo "- narration-creation (ナレーション作成)" >> /tmp/claude_prompt.txt
-            echo "- scene-planning (シーン企画)" >> /tmp/claude_prompt.txt
+            echo "DECOMPOSITION PROCESS:" >> /tmp/claude_prompt.txt
+            echo "1. Task-level decomposition (タスク分解)" >> /tmp/claude_prompt.txt
+            echo "   - news-planning → content-planning, narration-creation, scene-planning" >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
+            echo "2. Work-based detailed decomposition (作業ベース詳細分解)" >> /tmp/claude_prompt.txt
+            echo "   - scene-planning → scene1-intro, scene2-main, scene3-conclusion" >> /tmp/claude_prompt.txt
+            echo "   - Each scene needs: image generation, narration, timing" >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
+            echo "3. Strategic workflow construction (戦略的ワークフロー構築)" >> /tmp/claude_prompt.txt
+            echo "   - Identify parallel execution opportunities" >> /tmp/claude_prompt.txt
+            echo "   - For images: ensure consistency with shared style/seed" >> /tmp/claude_prompt.txt
+            echo "   - For narration: align with scene timing" >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
+            echo "IMPORTANT CONSIDERATIONS:" >> /tmp/claude_prompt.txt
+            echo "- Image consistency: Use same character descriptions, style, seed across scenes" >> /tmp/claude_prompt.txt
+            echo "- Scene-based structure: Each scene = image + narration + timing" >> /tmp/claude_prompt.txt
+            echo "- Parallel execution: Images can be generated in parallel with shared context" >> /tmp/claude_prompt.txt
             echo "" >> /tmp/claude_prompt.txt
             echo "Output format:" >> /tmp/claude_prompt.txt
-            echo "1. Fine-grained task decomposition in JSON" >> /tmp/claude_prompt.txt
-            echo "2. Mermaid diagram showing execution flow" >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "Please provide the optimal job execution order considering dependencies." >> /tmp/claude_prompt.txt
+            echo "1. Task decomposition tree (JSON)" >> /tmp/claude_prompt.txt
+            echo "2. Work-based decomposition (JSON)" >> /tmp/claude_prompt.txt
+            echo "3. Strategic execution plan with dependencies" >> /tmp/claude_prompt.txt
+            echo "4. Mermaid diagram showing parallel/sequential flow" >> /tmp/claude_prompt.txt
             
             # Try Claude
             CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" 2>&1 || echo '')
@@ -294,6 +324,24 @@ jobs:
                 MERMAID_DIAGRAM=$(echo "$CLAUDE_RESPONSE" | sed -n '/```mermaid/,/```/p' | sed '1d;$d' || echo '')
                 echo "mermaid_diagram<<EOF" >> $GITHUB_OUTPUT
                 echo "$MERMAID_DIAGRAM" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              fi
+              
+              # Extract work-based decomposition
+              if echo "$CLAUDE_RESPONSE" | grep -q "work-based"; then
+                echo "📋 Work-based decomposition detected"
+                WORK_BASED=$(echo "$CLAUDE_RESPONSE" | grep -A 100 '"work-based"' | head -100 || echo '')
+                echo "work_based_decomposition<<EOF" >> $GITHUB_OUTPUT
+                echo "$WORK_BASED" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              fi
+              
+              # Extract strategic plan
+              if echo "$CLAUDE_RESPONSE" | grep -q "strategic"; then
+                echo "🎯 Strategic plan detected"
+                STRATEGIC=$(echo "$CLAUDE_RESPONSE" | grep -A 50 '"strategic"' | head -50 || echo '')
+                echo "strategic_plan<<EOF" >> $GITHUB_OUTPUT
+                echo "$STRATEGIC" >> $GITHUB_OUTPUT
                 echo "EOF" >> $GITHUB_OUTPUT
               fi
             fi
@@ -843,6 +891,44 @@ jobs:
             echo "既存のオーケストレーターパターンがマッチしなかったため、専門家視点のロジックで構築しました。" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 📋 タスク分解詳細" >> $GITHUB_STEP_SUMMARY
+          echo "#### 初期タスク分解" >> $GITHUB_STEP_SUMMARY
+          echo "検出されたタスク：" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.ultra-task-decomposition.outputs.detected_capabilities }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # 細粒度タスク分解があれば表示
+          if [ -n "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" ]; then
+            echo "#### 🎯 細粒度タスク分解" >> $GITHUB_STEP_SUMMARY
+            echo "複雑なタスクは以下のサブタスクに分解されました：" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # 作業ベース詳細分解があれば表示
+          if [ -n "${{ needs.ultra-task-decomposition.outputs.work_based_decomposition }}" ]; then
+            echo "#### 📋 作業ベース詳細分解" >> $GITHUB_STEP_SUMMARY
+            echo "各タスクを実作業レベルに分解しました：" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.ultra-task-decomposition.outputs.work_based_decomposition }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # 戦略的計画があれば表示
+          if [ -n "${{ needs.ultra-task-decomposition.outputs.strategic_plan }}" ]; then
+            echo "#### 🎯 戦略的ワークフロー構築" >> $GITHUB_STEP_SUMMARY
+            echo "並列実行と一貫性確保の戦略：" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.ultra-task-decomposition.outputs.strategic_plan }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
           
           echo "### 🔄 ジョブ実行順序" >> $GITHUB_STEP_SUMMARY
           
