@@ -1,0 +1,99 @@
+name: "Test WebSearch with Fact Check"
+run-name: "🔍 WebSearch Fact Check Test"
+
+on:
+  workflow_dispatch:
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  test:
+    name: "Test WebSearch with Real-time Data"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      
+      - name: Create Output Directory
+        run: mkdir -p test-results
+      
+      - name: Test 1 - Today's Date and Weather
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "=== Test 1: Real-time data test ==="
+          echo "Current date: $(date)"
+          
+          npx @anthropic-ai/claude-code \
+            -p "WebSearchツールを使って以下を調べてください：
+            1. 今日の日付は？（システムの知識ではなくWebSearchの結果から）
+            2. 京都の今日の天気は？
+            3. 検索したURLを必ず表示してください" \
+            --allowedTools "WebSearch" \
+            --permission-mode "acceptEdits"
+      
+      - name: Test 2 - Recent News with Sources
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "=== Test 2: Recent news with sources ==="
+          
+          npx @anthropic-ai/claude-code \
+            -p "WebSearchツールを使って以下を調べて、test-results/news-search.txt に保存してください：
+            1. 2025年8月の京都に関する最新ニュース（3件）
+            2. 各ニュースについて：
+               - ニュースのタイトル
+               - 掲載日
+               - ソースURL
+               - 簡単な要約
+            3. 実際に検索したクエリも記載してください" \
+            --allowedTools "WebSearch,Write" \
+            --permission-mode "acceptEdits"
+      
+      - name: Test 3 - Specific Restaurant Check
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "=== Test 3: Specific restaurant verification ==="
+          
+          npx @anthropic-ai/claude-code \
+            -p "WebSearchツールを使って以下の店舗情報を確認し、test-results/restaurant-check.txt に保存してください：
+            1. 先斗町の鴨蕎麦「田」の実在性
+            2. 営業時間、住所、電話番号
+            3. 最近の口コミや評価
+            4. 情報源のURL
+            
+            もし実在しない場合は、その旨を明記してください。" \
+            --allowedTools "WebSearch,Write" \
+            --permission-mode "acceptEdits"
+      
+      - name: Check Results
+        run: |
+          echo "=== Generated Files ==="
+          ls -la test-results/
+          
+          if [ -f "test-results/news-search.txt" ]; then
+            echo "=== News Search Results ==="
+            cat test-results/news-search.txt
+          fi
+          
+          if [ -f "test-results/restaurant-check.txt" ]; then
+            echo "=== Restaurant Check Results ==="
+            cat test-results/restaurant-check.txt
+          fi
+      
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: websearch-factcheck-results
+          path: test-results/
