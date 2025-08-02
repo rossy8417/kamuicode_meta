@@ -1,5 +1,32 @@
 # Scripts Directory
 
+## 🚀 Quick Reference for Claude Code
+
+### 最頻出コマンド（毎日使う）
+```bash
+# ワークフロー結果の取得（対話モード）
+./scripts/download-workflow-results.sh -i
+
+# Claude Code設定の復元
+./scripts/restore-claude-permissions.sh
+
+# uses:参照をインライン実装に変換
+./scripts/inline-minimal-unit.sh workflow.yml
+```
+
+### メンテナンスコマンド
+```bash
+# GitHub Actions完全リセット
+./scripts/balus-complete.sh
+
+# YAML構文修正
+python scripts/fix-yaml-syntax.py workflow.yml
+```
+
+詳細な説明は`SCRIPT_CATALOG.md`を参照してください。
+
+---
+
 ## Workflow Results Download System
 
 ### 🚀 Universal Workflow Results Downloader
