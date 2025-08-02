@@ -109,3 +109,8 @@ Action: Created v2 with fixes:
   - Added Checkout Repository to all jobs for file access
   - Kept MCP tool names with mcp__ prefix (seems required)
 Result: Created dynamic-workflow-60-v2.yml ready for testing
+
+### [17:01:48] [RUNNING] dynamic-workflow-60-v2.yml
+Issue: Testing v2 with path fixes
+Action: Started workflow with topic="京都の食べ物トレンド"
+Result: Workflow in progress - Run ID: 16695329833

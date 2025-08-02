@@ -256,20 +256,28 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 └── blog-article-creation.yml (9 tasks, 35min)
 
 .github/workflows/
-├── meta-workflow-executor-v8.yml    # Main meta workflow (v8.1)
+├── meta-workflow-executor-v10.yml   # Main meta workflow (v10.0)
 ├── auto-fix-deployment.yml          # Automated error recovery system
 ├── continuous-system-monitor.yml    # System health monitoring
 └── generated/                       # Simple generated workflow deployment
     └── *.yml                        # Generated workflows
 
-generated/               # Metadata and logs storage
-├── metadata/            # Analysis data (persistent)
-│   ├── stepback-analysis/
-│   ├── requirement-analysis/
-│   ├── task-decomposition/
-│   └── evaluation/
-└── logs/               # Execution logs (persistent)
-    └── run-{number}-{timestamp}/
+projects/                # ALL GitHub Actions outputs go here
+├── issue-{number}-{timestamp}/      # Issue-driven workflow outputs
+│   ├── metadata/                    # Analysis data
+│   ├── logs/                        # Execution logs
+│   ├── media/                       # Generated media files
+│   ├── temp/                        # Temporary processing files
+│   └── final/                       # Final deliverables
+├── workflow-{name}-{timestamp}/     # Other workflow outputs
+│   ├── metadata/                    # Analysis data
+│   ├── logs/                        # Execution logs
+│   ├── media/                       # Generated media files
+│   └── final/                       # Final deliverables
+└── current-session/                 # Current meta-workflow session
+    ├── metadata/                    # Task analysis, decomposition
+    ├── logs/                        # Meta-workflow execution logs
+    └── generated/                   # Generated workflow files
 ```
 
 ### MCP Integration Rules
@@ -325,12 +333,24 @@ IMAGE_PATH=$(jq -r '.image_url // .file_path // "none"' "$ref_file" 2>/dev/null)
 VIDEO_PATH=$(jq -r '.video_url // .file_path // "none"' "$video_file")
 AUDIO_PATH=$(jq -r '.audio_url // .file_path // "none"' "$audio_file")
 
-# IMPORTANT: Use projects/ paths for all project storage
-mkdir -p projects/current-session/metadata      # For current session metadata
-mkdir -p projects/current-session/logs          # For execution logs
-mkdir -p projects/current-session/temp          # For temporary files
-mkdir -p projects/current-session/scripts       # For temporary scripts
-mkdir -p projects/current-session/final         # For final deliverables
+# IMPORTANT: Use projects/ paths for ALL GitHub Actions outputs
+# For Issue-driven workflows:
+mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/metadata
+mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/logs
+mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/media
+mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/temp
+mkdir -p projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}/final
+
+# For other workflows:
+mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/metadata
+mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/logs
+mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/media
+mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/final
+
+# For meta-workflow execution:
+mkdir -p projects/current-session/metadata      # Task analysis, decomposition
+mkdir -p projects/current-session/logs          # Meta-workflow execution logs
+mkdir -p projects/current-session/generated     # Generated workflow files
 
 # IMPORTANT: Use .github/workflows/generated/ for final workflow deployment
 mkdir -p .github/workflows/generated             # For generated workflows (simple structure)
