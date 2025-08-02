@@ -556,7 +556,7 @@ jobs:
           echo '  summary:' >> "$WORKFLOW_FILE"
           echo '    name: "📊 Summary"' >> "$WORKFLOW_FILE"
           echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
-          echo '    if: ${{ always() }}' >> "$WORKFLOW_FILE"
+          echo '    if: always()' >> "$WORKFLOW_FILE"
           
           # Build needs list for summary
           ALL_JOBS="setup"
@@ -664,7 +664,7 @@ jobs:
           fi
           
           # Check job count
-          JOB_COUNT=$(grep -c "^  [a-zA-Z].*:$" "$WORKFLOW_FILE" | grep -v "^on:" | grep -v "^jobs:" || echo 0)
+          JOB_COUNT=$(grep -c "^  [a-zA-Z][a-zA-Z0-9_-]*:" "$WORKFLOW_FILE" | grep -v "^on:" | grep -v "^jobs:" || echo 0)
           if [ "$JOB_COUNT" -gt 10 ]; then
             echo "⚠️ Too many jobs ($JOB_COUNT), consider parallelization"
             echo "needs_optimization=true" >> $GITHUB_OUTPUT
