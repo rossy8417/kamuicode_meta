@@ -72,19 +72,23 @@ jobs:
         run: |
           echo "📊 Analyzing request type from issue content..."
           
-          ISSUE_BODY="${{ steps.extract.outputs.issue_body }}"
+          # Save issue body to a file to avoid shell interpretation issues
+          cat << 'ISSUE_CONTENT_EOF' > /tmp/issue_body.txt
+          ${{ steps.extract.outputs.issue_body }}
+          ISSUE_CONTENT_EOF
+          
           REQUEST_TYPE="unknown"
           
           # Determine request type based on content
-          if echo "$ISSUE_BODY" | grep -i "video" > /dev/null; then
+          if grep -i "video" /tmp/issue_body.txt > /dev/null; then
             REQUEST_TYPE="video-generation"
-          elif echo "$ISSUE_BODY" | grep -i "image" > /dev/null; then
+          elif grep -i "image" /tmp/issue_body.txt > /dev/null; then
             REQUEST_TYPE="image-generation"
-          elif echo "$ISSUE_BODY" | grep -i "audio\|music" > /dev/null; then
+          elif grep -i "audio\|music" /tmp/issue_body.txt > /dev/null; then
             REQUEST_TYPE="audio-generation"
-          elif echo "$ISSUE_BODY" | grep -i "data\|analysis" > /dev/null; then
+          elif grep -i "data\|analysis" /tmp/issue_body.txt > /dev/null; then
             REQUEST_TYPE="data-analysis"
-          elif echo "$ISSUE_BODY" | grep -i "blog\|article" > /dev/null; then
+          elif grep -i "blog\|article" /tmp/issue_body.txt > /dev/null; then
             REQUEST_TYPE="content-creation"
           fi
           
@@ -128,22 +132,25 @@ jobs:
           
           # Issue details
           ISSUE_TITLE="${{ needs.validate-trigger.outputs.issue_title }}"
-          ISSUE_BODY="${{ needs.validate-trigger.outputs.issue_body }}"
           REQUEST_TYPE="${{ needs.validate-trigger.outputs.request_type }}"
           
           echo "Request: $ISSUE_TITLE"
           echo "Type: $REQUEST_TYPE"
-          echo "Details: $ISSUE_BODY"
+          
+          # Save issue body to file to avoid shell interpretation issues
+          cat << 'ISSUE_BODY_EOF' > /tmp/issue_body_safe.txt
+          ${{ needs.validate-trigger.outputs.issue_body }}
+          ISSUE_BODY_EOF
           
           # Dynamic task decomposition based on issue content
           echo "🧠 Analyzing issue content for dynamic task decomposition..."
           
           # Extract key requirements from issue body
-          echo "$ISSUE_BODY" | grep -i "要求\|requirement\|期待\|expected" > requirements.txt || echo "General workflow request" > requirements.txt
-          echo "$ISSUE_BODY" | grep -i "技術\|technical\|仕様\|spec" > tech_specs.txt || echo "Standard specifications" > tech_specs.txt
+          grep -i "要求\|requirement\|期待\|expected" /tmp/issue_body_safe.txt > requirements.txt || echo "General workflow request" > requirements.txt
+          grep -i "技術\|technical\|仕様\|spec" /tmp/issue_body_safe.txt > tech_specs.txt || echo "Standard specifications" > tech_specs.txt
           
           # Determine complexity based on issue content
-          WORD_COUNT=$(echo "$ISSUE_BODY" | wc -w)
+          WORD_COUNT=$(wc -w < /tmp/issue_body_safe.txt)
           if [ "$WORD_COUNT" -gt 200 ]; then
             COMPLEXITY="complex"
             DURATION="45-60 minutes"
@@ -157,13 +164,15 @@ jobs:
           
           # Identify required capabilities from issue content
           CAPABILITIES=""
-          echo "$ISSUE_BODY" | grep -qi "動画\|video" && CAPABILITIES="$CAPABILITIES,video_generation"
-          echo "$ISSUE_BODY" | grep -qi "画像\|image" && CAPABILITIES="$CAPABILITIES,image_generation"
-          echo "$ISSUE_BODY" | grep -qi "音声\|audio\|sound" && CAPABILITIES="$CAPABILITIES,audio_generation"
-          echo "$ISSUE_BODY" | grep -qi "検索\|search" && CAPABILITIES="$CAPABILITIES,web_search"
-          echo "$ISSUE_BODY" | grep -qi "分析\|analysis" && CAPABILITIES="$CAPABILITIES,data_analysis"
-          echo "$ISSUE_BODY" | grep -qi "ニュース\|news" && CAPABILITIES="$CAPABILITIES,news_content"
-          echo "$ISSUE_BODY" | grep -qi "BGM\|music" && CAPABILITIES="$CAPABILITIES,background_music"
+          grep -qi "動画\|video" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,video-generation"
+          grep -qi "画像\|image" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,image-generation"
+          grep -qi "音声\|audio\|sound" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,audio-generation"
+          grep -qi "検索\|search" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,web-search"
+          grep -qi "分析\|analysis" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,data-analysis"
+          grep -qi "ニュース\|news" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,news-planning"
+          grep -qi "BGM\|music" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,audio-generation"
+          grep -qi "ナレーション\|speech" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,text-to-speech"
+          grep -qi "編集\|editing" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,video-editing"
           
           # Remove leading comma
           CAPABILITIES=$(echo "$CAPABILITIES" | sed 's/^,//')
