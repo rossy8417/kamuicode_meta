@@ -556,7 +556,7 @@ jobs:
           echo '  summary:' >> "$WORKFLOW_FILE"
           echo '    name: "📊 Summary"' >> "$WORKFLOW_FILE"
           echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
-          echo '    if: always()' >> "$WORKFLOW_FILE"
+          echo '    if: ${{ always() }}' >> "$WORKFLOW_FILE"
           
           # Build needs list for summary
           ALL_JOBS="setup"
@@ -677,7 +677,7 @@ jobs:
           fi
           
       - name: Optimize if Needed
-        if: steps.validate.outputs.needs_optimization == 'true'
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
         run: |
           echo "🔧 Optimizing workflow..."
           
@@ -808,7 +808,7 @@ jobs:
     name: "📦 Deployment"
     runs-on: ubuntu-latest
     needs: [workflow-validation, workflow-generation]
-    if: needs.workflow-validation.outputs.validation_passed == 'true'
+    if: ${{ needs.workflow-validation.outputs.validation_passed == 'true' }}
     outputs:
       deployed_path: ${{ steps.deploy.outputs.path }}
     steps:
@@ -855,7 +855,7 @@ jobs:
     name: "📊 Execution Summary"
     runs-on: ubuntu-latest
     needs: [validate-trigger, basic-task-decomposition, detailed-analysis, workflow-generation, workflow-validation, deployment]
-    if: always()
+    if: ${{ always() }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
