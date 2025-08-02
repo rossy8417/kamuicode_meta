@@ -1,0 +1,143 @@
+name: fact-check-claude
+description: Claude Code WebSearchを使用したファクトチェックの最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      fact_to_check:
+        description: '検証したい事実・情報'
+        required: true
+        type: string
+      check_items:
+        description: '検証項目（カンマ区切り）'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      check_depth:
+        description: '検証の深さ（basic, detailed, comprehensive）'
+        required: false
+        type: string
+        default: 'detailed'
+      include_sources:
+        description: '情報源を含めるか'
+        required: false
+        type: string
+        default: 'true'
+    outputs:
+      check_completed:
+        description: 'ファクトチェック完了ステータス'
+        value: ${{ jobs.factcheck.outputs.completed }}
+      result_path:
+        description: '検証結果ファイルのパス'
+        value: ${{ jobs.factcheck.outputs.result_path }}
+      verification_status:
+        description: '検証ステータス（verified, unverified, mixed）'
+        value: ${{ jobs.factcheck.outputs.verification_status }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
+        required: true
+
+jobs:
+  factcheck:
+    runs-on: ubuntu-latest
+    outputs:
+      completed: ${{ steps.execute.outputs.completed }}
+      result_path: ${{ steps.execute.outputs.result_path }}
+      verification_status: ${{ steps.execute.outputs.verification_status }}
+    
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Create output directory
+        run: mkdir -p ${{ inputs.output_dir }}
+      
+      - name: Execute Fact Check
+        id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # 検証深度の設定
+          case "${{ inputs.check_depth }}" in
+            "comprehensive")
+              DEPTH_INSTRUCTION="徹底的な検証を行い、複数の情報源から確認し、矛盾する情報がある場合はすべて記載してください。"
+              ;;
+            "basic")
+              DEPTH_INSTRUCTION="基本的な事実確認を行い、主要な情報源から確認してください。"
+              ;;
+            *)
+              DEPTH_INSTRUCTION="詳細な検証を行い、信頼できる複数の情報源から確認してください。"
+              ;;
+          esac
+          
+          # ソース情報の設定
+          if [ "${{ inputs.include_sources }}" = "true" ]; then
+            SOURCE_INSTRUCTION="各検証結果について、必ず情報源のURLと参照日を記載してください。"
+          else
+            SOURCE_INSTRUCTION="情報源の詳細は省略して、検証結果のみを記載してください。"
+          fi
+          
+          PROMPT="以下の情報についてファクトチェックを実行してください：
+          
+          **検証対象**: ${{ inputs.fact_to_check }}
+          **検証項目**: ${{ inputs.check_items }}
+          
+          タスク：
+          1. WebSearchツールを使用して各検証項目について最新の情報を検索
+          2. $DEPTH_INSTRUCTION
+          3. $SOURCE_INSTRUCTION
+          4. 検証結果を以下のファイルに保存：
+             - ${{ inputs.output_dir }}/factcheck-result.md（検証結果の詳細）
+             - ${{ inputs.output_dir }}/verification-summary.json（検証サマリー：verified/unverified/mixed）
+             - ${{ inputs.output_dir }}/sources-used.txt（使用した情報源のリスト）
+          
+          検証結果の形式：
+          - 各検証項目について「✅ 確認済み」「❌ 確認できず」「⚠️ 一部確認」のいずれかを明記
+          - 検証日時を記載
+          - 矛盾する情報がある場合は両方を記載
+          
+          verification-summary.jsonの形式：
+          {
+            \"verification_status\": \"verified|unverified|mixed\",
+            \"check_date\": \"YYYY-MM-DD HH:MM:SS\",
+            \"total_items\": number,
+            \"verified_items\": number,
+            \"unverified_items\": number
+          }"
+          
+          # Claude Code CLIの実行
+          npx @anthropic-ai/claude-code \
+            -p "$PROMPT" \
+            --allowedTools "WebSearch,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 出力の確認
+          if [ -f "${{ inputs.output_dir }}/factcheck-result.md" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "result_path=${{ inputs.output_dir }}/factcheck-result.md" >> $GITHUB_OUTPUT
+            
+            # 検証ステータスの取得
+            if [ -f "${{ inputs.output_dir }}/verification-summary.json" ]; then
+              STATUS=$(grep -o '"verification_status": *"[^"]*"' "${{ inputs.output_dir }}/verification-summary.json" | cut -d'"' -f4)
+              echo "verification_status=${STATUS:-unknown}" >> $GITHUB_OUTPUT
+            else
+              echo "verification_status=unknown" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Fact check failed - no result file found"
+            exit 1
+          fi

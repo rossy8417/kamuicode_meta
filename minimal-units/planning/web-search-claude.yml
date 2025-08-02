@@ -74,7 +74,7 @@ jobs:
           # プロンプトの構築
           case "${{ inputs.output_format }}" in
             "detailed")
-              FORMAT_INSTRUCTION="詳細な情報を含めて、各ソースからの重要な引用も含めてください。"
+              FORMAT_INSTRUCTION="詳細な情報を含めて、各ソースからの重要な引用も含めてください。各検索結果について、タイトル、URL、日付、要約を必ず含めてください。"
               ;;
             "sources_only")
               FORMAT_INSTRUCTION="URLとタイトルのリストのみを提供してください。"
@@ -96,12 +96,13 @@ jobs:
           3. 検索結果を以下のファイルに保存：
              - ${{ inputs.output_dir }}/search-summary.md（検索結果のまとめ）
              - ${{ inputs.output_dir }}/sources.txt（参照したURLのリスト）
-             - ${{ inputs.output_dir }}/raw-results.json（生の検索結果、可能な場合）
+             - ${{ inputs.output_dir }}/search-metadata.json（検索メタデータ：クエリ、実行日時、結果数など）
           
           注意事項：
           - 信頼できるソースを優先してください
           - 最新の情報を重視してください
-          - 検索言語に応じて適切な結果を選択してください"
+          - 検索言語に応じて適切な結果を選択してください
+          - 実際の検索結果であることを明確にするため、検索日時とソースURLを必ず記載してください"
           
           # Claude Code CLIの実行
           npx @anthropic-ai/claude-code \
