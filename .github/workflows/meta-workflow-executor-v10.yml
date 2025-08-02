@@ -12,8 +12,9 @@ on:
 permissions:
   contents: write
   issues: write
-  actions: read
+  actions: write
   pull-requests: write
+  workflows: write
 
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -50,8 +51,18 @@ jobs:
           ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.number')
           
           echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
-          echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
-          echo "issue_body=$ISSUE_BODY" >> $GITHUB_OUTPUT
+          
+          {
+            echo 'issue_title<<EOF'
+            echo "$ISSUE_TITLE"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+          
+          {
+            echo 'issue_body<<EOF'
+            echo "$ISSUE_BODY"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
           
           echo "✅ Issue #$ISSUE_NUMBER validated: $ISSUE_TITLE"
         env:
