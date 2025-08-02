@@ -534,7 +534,7 @@ custom-processing:
 - **MCP services are limited to AI generation - use external APIs for other functions**
 - **Final workflows are deployed to `.github/workflows/generated/` in simple structure**
 
-## 🚨 Important Development Rules for Claude Code
+## 🚨 System Development Rules for Claude Code
 
 ### 1. Workflow Execution Logs
 **Always log workflow execution issues and solutions**:
@@ -557,30 +557,7 @@ Result: Success in 1m3s
 - Don't wait to batch multiple changes
 - Continue working locally without interruption
 
-### 3. WebSearch Tool Usage
-- Use `npx @anthropic-ai/claude-code -p` with WebSearch tool
-- WebSearch returns real web data, not Claude's knowledge
-- Always include `--allowedTools "WebSearch,Write"`
-- Typical execution time: 1-2 minutes for simple queries
-
-### 4. Workflow Input Parameters
-- **Always use variables for user-specific data**
-- **Never hardcode specific values**
-- Ask users for input when running non-meta workflows
-- Example: search queries, target locations, preferences
-
-### 5. Meta-Workflow Issues to Fix
-- Generated workflows use `uses: ./minimal-units/...` which doesn't work
-- Need to inline minimal unit implementations
-- Uses references only work for published actions
-
-### 6. Question Rules for Non-Meta Workflows
-When executing a generated workflow (not meta-workflow), ask:
-- What specific content to search/create?
-- What parameters to use?
-- What output format is preferred?
-
-### 7. Error Tracking Pattern
+### 3. Error Tracking Pattern
 ```bash
 # In workflow logs
 echo "[$(date +%Y-%m-%d_%H:%M:%S)] ERROR: $ERROR_MESSAGE" >> error.log
@@ -588,8 +565,7 @@ echo "[$(date +%Y-%m-%d_%H:%M:%S)] SOLUTION: $SOLUTION" >> error.log
 echo "[$(date +%Y-%m-%d_%H:%M:%S)] RESULT: $RESULT" >> error.log
 ```
 
-### 8. Minimal Unit Best Practices
-- Use Claude Code CLI (`npx`) for MCP services
-- Include proper error handling
-- Make all inputs configurable
-- Test thoroughly before adding to catalog
+### 4. System Issues to Track
+- Meta-workflow generates `uses: ./minimal-units/...` which doesn't work in GitHub Actions
+- Need to inline minimal unit implementations
+- WebSearch execution takes 1-2 minutes for simple queries
