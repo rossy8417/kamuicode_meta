@@ -277,20 +277,7 @@ jobs:
               echo "📊 Recommended execution pattern: $EXECUTION_PATTERN"
               
               # Extract additional capabilities from orchestrator patterns
-              ORCH_CAPS=$(echo "$ORCHESTRATOR_ANALYSIS" | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-caps = set()
-for orch in data.get('analysis', {}).get('orchestrators', []):
-    for job in orch.get('data', {}).get('jobs', []):
-        job_name = job.get('name', '').lower()
-        if 'image' in job_name: caps.add('image-generation')
-        if 'lipsync' in job_name: caps.add('lipsync')
-        if 'subtitle' in job_name: caps.add('subtitle-overlay')
-        if 'planning' in job_name and 'planning' not in '$CAPABILITIES': caps.add('planning')
-        if 'audio' in job_name and 'audio' not in '$CAPABILITIES': caps.add('audio-generation')
-print(','.join(caps))
-" 2>/dev/null || echo '')
+              ORCH_CAPS=$(echo "$ORCHESTRATOR_ANALYSIS" | python3 -c "import json, sys; data = json.load(sys.stdin); caps = set(); [caps.add('image-generation') if 'image' in job.get('name', '').lower() else caps.add('lipsync') if 'lipsync' in job.get('name', '').lower() else caps.add('subtitle-overlay') if 'subtitle' in job.get('name', '').lower() else caps.add('planning') if 'planning' in job.get('name', '').lower() and 'planning' not in '$CAPABILITIES' else caps.add('audio-generation') if 'audio' in job.get('name', '').lower() and 'audio' not in '$CAPABILITIES' else None for orch in data.get('analysis', {}).get('orchestrators', []) for job in orch.get('data', {}).get('jobs', [])]; print(','.join(caps))" 2>/dev/null || echo '')
               
               if [ -n "$ORCH_CAPS" ]; then
                 echo "  📚 Additional capabilities from orchestrator patterns: $ORCH_CAPS"
