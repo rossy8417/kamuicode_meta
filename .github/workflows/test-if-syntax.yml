@@ -1,0 +1,23 @@
+name: "Test If Syntax"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-if:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Output
+        id: test
+        run: |
+          echo "needs_optimization=true" >> $GITHUB_OUTPUT
+          
+      - name: Test Step If
+        if: ${{ steps.test.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "This step runs conditionally"
+          
+      - name: Test Without Expression
+        if: steps.test.outputs.needs_optimization == 'true'
+        run: |
+          echo "This also runs conditionally"
