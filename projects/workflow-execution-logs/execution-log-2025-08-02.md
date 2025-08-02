@@ -87,3 +87,8 @@ Action: Created fixed version with inline implementations:
   - Converted all MCP calls to npx claude-code format
   - Added input parameter for topic customization
 Result: Created dynamic-workflow-60-fixed.yml ready for execution
+
+### [16:52:11] [RUNNING] dynamic-workflow-60.yml
+Issue: Running fixed workflow to create Kyoto food trend video
+Action: Started workflow with topic="京都の食べ物トレンド"
+Result: Workflow in progress - Run ID: 16695260820
