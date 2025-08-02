@@ -1,0 +1,76 @@
+name: "Kyoto Food Trend News - Test"
+run-name: "🍜 Test: Claude Code Web Search"
+
+on:
+  workflow_dispatch:
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  test-web-search:
+    name: "🔍 Test Web Search with Claude Code"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Project Directory
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="projects/test-web-search-$TIMESTAMP"
+          mkdir -p "$PROJECT_DIR"/{logs,metadata}
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Execute Web Search
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          PROJECT_DIR="${{ steps.setup.outputs.project_dir }}"
+          
+          # Claude Code CLIを使用してWebSearchを実行
+          PROMPT="京都で流行っている食べ物のトレンドについて調べてください。
+          
+          以下の情報を収集してください：
+          1. 2024-2025年に京都で話題の食べ物・グルメトレンド
+          2. 人気の店舗や料理
+          3. SNSで話題になっている京都グルメ
+          
+          調査結果を以下のファイルに保存してください：
+          - $PROJECT_DIR/metadata/trend-summary.md（トレンドのまとめ）
+          - $PROJECT_DIR/metadata/sources.txt（参照したURL一覧）
+          - $PROJECT_DIR/metadata/content-plan.md（動画構成案）"
+          
+          npx @anthropic-ai/claude-code \
+            -p "$PROMPT" \
+            --allowedTools "WebSearch,Write" \
+            --permission-mode "acceptEdits"
+      
+      - name: Check Results
+        run: |
+          PROJECT_DIR="${{ steps.setup.outputs.project_dir }}"
+          echo "=== Generated Files ==="
+          ls -la "$PROJECT_DIR/metadata/"
+          
+          if [ -f "$PROJECT_DIR/metadata/trend-summary.md" ]; then
+            echo "=== Trend Summary ==="
+            head -20 "$PROJECT_DIR/metadata/trend-summary.md"
+          fi
+      
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-search-results
+          path: ${{ steps.setup.outputs.project_dir }}/
