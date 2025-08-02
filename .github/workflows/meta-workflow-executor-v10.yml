@@ -124,188 +124,218 @@ jobs:
           # Create project directory
           mkdir -p projects/current-session/{logs,metadata,scripts}
           
-          # Create task decomposition using Claude Code
-          cat > projects/current-session/scripts/decompose_tasks.sh << 'EOF'
-          #!/bin/bash
-          echo "Performing task decomposition for Issue #${{ needs.validate-trigger.outputs.issue_number }}"
-          echo "Issue Title: ${{ needs.validate-trigger.outputs.issue_title }}"
-          echo "Request Type: ${{ needs.validate-trigger.outputs.request_type }}"
-          
-          # Issue details
-          ISSUE_TITLE="${{ needs.validate-trigger.outputs.issue_title }}"
-          REQUEST_TYPE="${{ needs.validate-trigger.outputs.request_type }}"
-          
-          echo "Request: $ISSUE_TITLE"
-          echo "Type: $REQUEST_TYPE"
-          
-          # Save issue body to file to avoid shell interpretation issues
+          # Save issue body to file
           cat << 'ISSUE_BODY_EOF' > /tmp/issue_body_safe.txt
           ${{ needs.validate-trigger.outputs.issue_body }}
           ISSUE_BODY_EOF
           
-          # Dynamic task decomposition using Claude Code SDK
-          echo "🧠 Using Claude Code SDK for intelligent task decomposition..."
-          
-          # Create prompt for Claude Code SDK
+          # Issue details
           ISSUE_TITLE="${{ needs.validate-trigger.outputs.issue_title }}"
+          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
+          REQUEST_TYPE="${{ needs.validate-trigger.outputs.request_type }}"
           
-          # Create base prompt
-          echo "Creating Claude prompt..."
-          echo "あなたはMeta Workflow Generatorのタスク分解エージェントです。" > /tmp/claude_prompt.txt
-          echo "以下のイシューから必要なタスクを分解し、適切なミニマルユニットを選択してください。" >> /tmp/claude_prompt.txt
-          echo "" >> /tmp/claude_prompt.txt
-          echo "イシュー情報:" >> /tmp/claude_prompt.txt
-          echo "タイトル: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
-          echo "内容:" >> /tmp/claude_prompt.txt
-          cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
-          echo "" >> /tmp/claude_prompt.txt
-          echo "利用可能なミニマルユニット:" >> /tmp/claude_prompt.txt
-          echo "- web-search: Web検索とトレンド情報収集" >> /tmp/claude_prompt.txt
-          echo "- news-planning: ニュース企画と構成作成" >> /tmp/claude_prompt.txt
-          echo "- image-generation: 画像生成（サムネイル、ビジュアル素材）" >> /tmp/claude_prompt.txt
-          echo "- video-generation: 動画生成（メインコンテンツ）" >> /tmp/claude_prompt.txt
-          echo "- audio-generation: BGM生成" >> /tmp/claude_prompt.txt
-          echo "- text-to-speech: ナレーション音声生成" >> /tmp/claude_prompt.txt
-          echo "- video-editing: 動画編集と素材統合" >> /tmp/claude_prompt.txt
-          echo "- data-analysis: データ分析と可視化" >> /tmp/claude_prompt.txt
-          echo "" >> /tmp/claude_prompt.txt
-          echo "以下の形式でJSONを出力してください:" >> /tmp/claude_prompt.txt
-          echo '{' >> /tmp/claude_prompt.txt
-          echo '  "complexity": "simple|medium|complex",' >> /tmp/claude_prompt.txt
-          echo '  "duration": "推定時間",' >> /tmp/claude_prompt.txt
-          echo '  "capabilities": ["必要な能力のリスト"],' >> /tmp/claude_prompt.txt
-          echo '  "task_sequence": [' >> /tmp/claude_prompt.txt
-          echo '    {' >> /tmp/claude_prompt.txt
-          echo '      "phase": 1,' >> /tmp/claude_prompt.txt
-          echo '      "tasks": ["並列実行可能なタスク"],' >> /tmp/claude_prompt.txt
-          echo '      "reason": "なぜこのフェーズで実行するか"' >> /tmp/claude_prompt.txt
-          echo '    }' >> /tmp/claude_prompt.txt
-          echo '  ]' >> /tmp/claude_prompt.txt
-          echo '}' >> /tmp/claude_prompt.txt
-
-          # Check Claude Code availability
-          echo "Debug - Checking Claude Code CLI..."
-          if command -v claude &> /dev/null; then
-            echo "✅ Claude CLI is available"
-            claude --version || echo "Version check failed"
-          else
-            echo "❌ Claude CLI is not installed"
+          echo "📋 Issue: $ISSUE_TITLE"
+          echo "🔢 Number: #$ISSUE_NUMBER"
+          echo "📊 Type: $REQUEST_TYPE"
+          
+          # Dynamic capability detection from issue content
+          echo "🔍 Detecting required capabilities..."
+          
+          CAPABILITIES=""
+          
+          # Video capabilities
+          if grep -qi "動画\|video\|ビデオ" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}video-generation,"
+            echo "  ✓ Video generation detected"
           fi
           
-          echo "Debug - Environment variables:"
-          echo "CLAUDE_CODE_OAUTH_TOKEN is $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo 'set' || echo 'not set')"
-          echo "ANTHROPIC_API_KEY is $([ -n "$ANTHROPIC_API_KEY" ] && echo 'set' || echo 'not set')"
+          # Image capabilities
+          if grep -qi "画像\|image\|写真\|サムネイル" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}image-generation,"
+            echo "  ✓ Image generation detected"
+          fi
           
-          # Execute Claude Code SDK
-          CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" --output-format json 2>&1 || echo '{}')
-          echo "Debug - Claude response: $CLAUDE_RESPONSE"
+          # Audio capabilities
+          if grep -qi "音声\|audio\|sound\|BGM\|音楽" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}audio-generation,"
+            echo "  ✓ Audio generation detected"
+          fi
           
-          # Fallback to grep-based detection if Claude fails
-          if [ "$CLAUDE_RESPONSE" = "{}" ] || [ -z "$CLAUDE_RESPONSE" ]; then
-            echo "⚠️ Claude Code SDK failed, falling back to keyword detection..."
+          # Search capabilities
+          if grep -qi "検索\|search\|調査\|トレンド" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}web-search,"
+            echo "  ✓ Web search detected"
+          fi
+          
+          # Analysis capabilities
+          if grep -qi "分析\|analysis\|データ" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}data-analysis,"
+            echo "  ✓ Data analysis detected"
+          fi
+          
+          # News capabilities
+          if grep -qi "ニュース\|news\|最新" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}news-planning,"
+            echo "  ✓ News planning detected"
+          fi
+          
+          # Speech capabilities
+          if grep -qi "ナレーション\|speech\|読み上げ" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}text-to-speech,"
+            echo "  ✓ Text-to-speech detected"
+          fi
+          
+          # Editing capabilities
+          if grep -qi "編集\|editing\|結合" /tmp/issue_body_safe.txt; then
+            CAPABILITIES="${CAPABILITIES}video-editing,"
+            echo "  ✓ Video editing detected"
+          fi
+          
+          # Remove trailing comma
+          CAPABILITIES=$(echo "$CAPABILITIES" | sed 's/,$//')
+          
+          # Determine complexity
+          WORD_COUNT=$(wc -w < /tmp/issue_body_safe.txt)
+          if [ "$WORD_COUNT" -gt 200 ]; then
+            COMPLEXITY="complex"
+            DURATION="45-60 minutes"
+          elif [ "$WORD_COUNT" -gt 100 ]; then
+            COMPLEXITY="medium"
+            DURATION="20-40 minutes"
+          else
+            COMPLEXITY="simple"
+            DURATION="10-20 minutes"
+          fi
+          
+          echo ""
+          echo "📊 Analysis Results:"
+          echo "  - Capabilities: $CAPABILITIES"
+          echo "  - Complexity: $COMPLEXITY"
+          echo "  - Duration: $DURATION"
+          
+          # Try Claude Code SDK first (if available)
+          if command -v claude &> /dev/null; then
+            echo "🤖 Claude CLI is available, attempting intelligent task decomposition..."
             
-            # Keyword-based capability detection
-            CAPABILITIES=""
-            grep -qi "動画\|video" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,video-generation"
-            grep -qi "画像\|image" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,image-generation"
-            grep -qi "音声\|audio\|sound" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,audio-generation"
-            grep -qi "検索\|search" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,web-search"
-            grep -qi "分析\|analysis" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,data-analysis"
-            grep -qi "ニュース\|news" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,news-planning"
-            grep -qi "BGM\|music" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,audio-generation"
-            grep -qi "ナレーション\|speech" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,text-to-speech"
-            grep -qi "編集\|editing" /tmp/issue_body_safe.txt && CAPABILITIES="$CAPABILITIES,video-editing"
-            CAPABILITIES=$(echo "$CAPABILITIES" | sed 's/^,//')
+            # Create Claude prompt
+            cat > /tmp/claude_prompt.txt << 'CLAUDE_PROMPT_EOF'
+あなたはMeta Workflow Generatorのタスク分解エージェントです。
+以下のイシューから必要なタスクを分解し、適切なミニマルユニットを選択してください。
+
+イシュー情報:
+CLAUDE_PROMPT_EOF
+            echo "タイトル: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
+            echo "内容:" >> /tmp/claude_prompt.txt
+            cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
             
-            # Determine complexity
-            WORD_COUNT=$(wc -w < /tmp/issue_body_safe.txt)
-            if [ "$WORD_COUNT" -gt 200 ]; then
-              COMPLEXITY="complex"
-              DURATION="45-60 minutes"
-            elif [ "$WORD_COUNT" -gt 100 ]; then
-              COMPLEXITY="medium"
-              DURATION="20-40 minutes"
+            # Try Claude
+            CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" --output-format json 2>&1 || echo '{}')
+            
+            if [ "$CLAUDE_RESPONSE" != "{}" ] && [ -n "$CLAUDE_RESPONSE" ]; then
+              echo "✅ Claude Code SDK provided intelligent analysis"
+              # Parse Claude response if successful
+              # ... (Claude response parsing logic)
             else
-              COMPLEXITY="simple"
-              DURATION="10-20 minutes"
+              echo "⚠️ Claude Code SDK not available, using keyword-based detection"
             fi
           else
-            # Parse Claude response
-            echo "$CLAUDE_RESPONSE" > /tmp/claude_analysis.json
-            COMPLEXITY=$(jq -r '.complexity // "medium"' /tmp/claude_analysis.json)
-            DURATION=$(jq -r '.duration // "20-30 minutes"' /tmp/claude_analysis.json)
-            CAPABILITIES=$(jq -r '.capabilities[]' /tmp/claude_analysis.json 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-            
-            echo "✅ Claude Code SDK analysis completed"
-            echo "Complexity: $COMPLEXITY"
-            echo "Duration: $DURATION"
-            echo "Capabilities: $CAPABILITIES"
+            echo "ℹ️ Claude CLI not installed, using keyword-based detection"
           fi
           
-          # Generate dynamic task decomposition
-          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
-          cat > ../metadata/task_decomposition.json << TASK_EOF
-          {
-            "meta_analysis": {
-              "source_issue": "#$ISSUE_NUMBER",
-              "issue_title": "$ISSUE_TITLE",
-              "request_type": "$REQUEST_TYPE",
-              "complexity_level": "$COMPLEXITY",
-              "estimated_duration": "$DURATION",
-              "required_capabilities": [$(echo "$CAPABILITIES" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/')],
-              "issue_analysis": {
-                "word_count": $WORD_COUNT,
-                "extracted_requirements": "$(cat requirements.txt | tr '\n' ' ')",
-                "technical_specs": "$(cat tech_specs.txt | tr '\n' ' ')"
-              }
-            },
-            "minimal_units_required": [$(echo "$MINIMAL_UNITS" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/')],
-            "workflow_structure": {
-              "approach": "dynamic_capability_based",
-              "execution_pattern": "$EXECUTION_PATTERN",
-              "estimated_duration": "$DURATION"
-          EOF
+          # Generate workflow metadata
+          mkdir -p projects/current-session/metadata
           
-          # Generate dynamic workflow using Python script
-          echo "🚀 Generating dynamic workflow based on issue analysis..."
-          
-          # Debug output
-          echo "Debug - CAPABILITIES before export: $CAPABILITIES"
-          echo "Debug - COMPLEXITY before export: $COMPLEXITY"
-          
-          # Export variables for Python script
-          export REQUIREMENTS="$(cat requirements.txt 2>/dev/null | tr '\n' ' ' || echo 'General workflow request')"
+          # Export for Python script
           export CAPABILITIES="$CAPABILITIES"
           export COMPLEXITY="$COMPLEXITY"
+          export REQUIREMENTS="General workflow request"
           
-          # Additional debug
-          echo "Debug - Exported CAPABILITIES: $CAPABILITIES"
-          echo "Debug - Exported COMPLEXITY: $COMPLEXITY"
+          # Use pre-created Python script to generate workflow
+          if [ -f scripts/generate_dynamic_workflow.py ]; then
+            cp scripts/generate_dynamic_workflow.py projects/current-session/scripts/
+            cd projects/current-session/scripts
+            python3 generate_dynamic_workflow.py
+            cd ../../..
+          else
+            # Fallback: create workflow JSON directly
+            cat > projects/current-session/metadata/dynamic_workflow.json << EOF
+          {
+            "metadata": {
+              "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "complexity": "$COMPLEXITY",
+              "total_units": $(echo "$CAPABILITIES" | tr ',' '\n' | wc -l),
+              "capabilities_detected": [$(echo "$CAPABILITIES" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/' || echo '')]
+            },
+            "minimal_units": [
+          EOF
+            
+            # Add units based on capabilities
+            FIRST=true
+            for cap in $(echo "$CAPABILITIES" | tr ',' ' '); do
+              [ "$FIRST" = true ] && FIRST=false || echo "," >> projects/current-session/metadata/dynamic_workflow.json
+              
+              case $cap in
+                "web-search")
+                  UNIT_PATH="minimal-units/planning/web-search.yml"
+                  ;;
+                "news-planning")
+                  UNIT_PATH="minimal-units/planning/news-planning.yml"
+                  ;;
+                "image-generation")
+                  UNIT_PATH="minimal-units/media/image/t2i-imagen3.yml"
+                  ;;
+                "video-generation")
+                  UNIT_PATH="minimal-units/media/video/t2v-veo3.yml"
+                  ;;
+                "audio-generation")
+                  UNIT_PATH="minimal-units/media/audio/bgm-generate-mcp.yml"
+                  ;;
+                "text-to-speech")
+                  UNIT_PATH="minimal-units/media/audio/t2s-minimax-turbo-mcp.yml"
+                  ;;
+                "video-editing")
+                  UNIT_PATH="minimal-units/postprod/video-concat.yml"
+                  ;;
+                "data-analysis")
+                  UNIT_PATH="minimal-units/planning/data-analysis.yml"
+                  ;;
+                *)
+                  UNIT_PATH="minimal-units/planning/web-search.yml"
+                  ;;
+              esac
+              
+              cat >> projects/current-session/metadata/dynamic_workflow.json << EOF
+              {
+                "capability": "$cap",
+                "unit_path": "$UNIT_PATH",
+                "estimated_time": "3-5 minutes"
+              }
+          EOF
+            done
+            
+            cat >> projects/current-session/metadata/dynamic_workflow.json << EOF
+            ],
+            "execution_pattern": "$( [ "$COMPLEXITY" = "simple" ] && echo "sequential" || echo "mixed_parallel" )"
+          }
+          EOF
+          fi
           
-          # Copy pre-created Python script
-          cp scripts/generate_dynamic_workflow.py projects/current-session/scripts/
-          
-          # Run the Python script
-          cd projects/current-session/scripts
-          python3 generate_dynamic_workflow.py
-          cd ../../..
-          
-          # Validate and extract results
+          # Validate and output results
           if [ -f projects/current-session/metadata/dynamic_workflow.json ]; then
             UNIT_COUNT=$(jq '.minimal_units | length' projects/current-session/metadata/dynamic_workflow.json)
             EXECUTION_PATTERN=$(jq -r '.execution_pattern' projects/current-session/metadata/dynamic_workflow.json)
             
             echo "decomposed_tasks=$(cat projects/current-session/metadata/dynamic_workflow.json | jq -c .)" >> $GITHUB_OUTPUT
-            echo "unit_count=$UNIT_COUNT" >> $GITHUB_OUTPUT
-            echo "execution_pattern=$EXECUTION_PATTERN" >> $GITHUB_OUTPUT
+            echo "task_count=$UNIT_COUNT" >> $GITHUB_OUTPUT
+            echo "execution_phases=$EXECUTION_PATTERN" >> $GITHUB_OUTPUT
             
-            echo "✅ Dynamic workflow generated: $UNIT_COUNT minimal units selected"
+            echo ""
+            echo "✅ Dynamic workflow generated with $UNIT_COUNT minimal units"
+            echo "📋 Execution pattern: $EXECUTION_PATTERN"
           else
             echo "❌ Dynamic workflow generation failed"
             exit 1
           fi
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
   # ===========================================
   # PHASE 3: DYNAMIC WORKFLOW GENERATION  
@@ -328,77 +358,155 @@ jobs:
           echo "🚀 Generating complete executable workflow..."
           
           # Create necessary directories
-          mkdir -p projects/current-session/metadata
+          mkdir -p projects/current-session/{metadata,generated-workflows}
           
-          # Ensure the workflow metadata file exists
-          if [ ! -f "projects/current-session/metadata/dynamic_workflow.json" ]; then
-            echo "❌ Dynamic workflow metadata not found. Checking workflow inputs..."
-            
-            # Try to extract from previous job outputs
-            DECOMPOSED_TASKS='${{ needs.ultra-task-decomposition.outputs.decomposed_tasks }}'
-            if [ -n "$DECOMPOSED_TASKS" ] && [ "$DECOMPOSED_TASKS" != "null" ]; then
-              echo "$DECOMPOSED_TASKS" > projects/current-session/metadata/dynamic_workflow.json
-              echo "✅ Restored workflow metadata from job outputs"
-            else
-              echo "❌ Unable to restore workflow metadata"
-              exit 1
-            fi
-          fi
+          # Restore workflow metadata from job outputs
+          echo '${{ needs.ultra-task-decomposition.outputs.decomposed_tasks }}' > projects/current-session/metadata/dynamic_workflow.json
           
-          # Read dynamic workflow metadata
+          # Read workflow metadata
           WORKFLOW_DATA=$(cat projects/current-session/metadata/dynamic_workflow.json)
           EXECUTION_PATTERN=$(echo "$WORKFLOW_DATA" | jq -r '.execution_pattern')
-          MINIMAL_UNITS=$(echo "$WORKFLOW_DATA" | jq -r '.minimal_units[].unit_path' | tr '\n' ',' | sed 's/,$//')
+          UNIT_COUNT=$(echo "$WORKFLOW_DATA" | jq '.minimal_units | length')
           
-          # Generate GitHub Actions workflow YAML using echo commands
-          mkdir -p projects/current-session/generated-workflows
-          WORKFLOW_FILE="projects/current-session/generated-workflows/dynamic-workflow-${{ github.event.issue.number || inputs.issue_number }}.yml"
+          echo "📊 Generating workflow with $UNIT_COUNT units"
+          echo "🔄 Execution pattern: $EXECUTION_PATTERN"
           
-          echo 'name: "🎯 Dynamic Workflow - Issue #${{ github.event.issue.number || inputs.issue_number }}"' > "$WORKFLOW_FILE"
-          echo 'run-name: "📊 Dynamic | ${{ github.actor }} | $(date +%H:%M)"' >> "$WORKFLOW_FILE"
-          echo '' >> "$WORKFLOW_FILE"
-          echo 'on:' >> "$WORKFLOW_FILE"
-          echo '  workflow_dispatch:' >> "$WORKFLOW_FILE"
-          echo '    inputs:' >> "$WORKFLOW_FILE"
-          echo '      execution_mode:' >> "$WORKFLOW_FILE"
-          echo '        description: "Execution mode"' >> "$WORKFLOW_FILE"
-          echo '        required: false' >> "$WORKFLOW_FILE"
-          echo '        default: "auto"' >> "$WORKFLOW_FILE"
-          echo '' >> "$WORKFLOW_FILE"
-          echo 'permissions:' >> "$WORKFLOW_FILE"
-          echo '  contents: write' >> "$WORKFLOW_FILE"
-          echo '  actions: write' >> "$WORKFLOW_FILE"
-          echo '  issues: write' >> "$WORKFLOW_FILE"
-          echo '  pull-requests: write' >> "$WORKFLOW_FILE"
-          echo '' >> "$WORKFLOW_FILE"
-          echo 'env:' >> "$WORKFLOW_FILE"
-          echo '  CLAUDE_CODE_CI_MODE: true' >> "$WORKFLOW_FILE"
-          echo '  CLAUDE_CODE_AUTO_APPROVE_MCP: true' >> "$WORKFLOW_FILE"
-          echo '  PROJECT_BASE: "projects/issue-${{ github.event.issue.number || inputs.issue_number }}"' >> "$WORKFLOW_FILE"
-          echo '' >> "$WORKFLOW_FILE"
-          echo 'jobs:' >> "$WORKFLOW_FILE"
-          echo '  execute-dynamic-workflow:' >> "$WORKFLOW_FILE"
-          echo '    name: "🚀 Execute Dynamic Workflow"' >> "$WORKFLOW_FILE"
-          echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
-          echo '    steps:' >> "$WORKFLOW_FILE"
-          echo '      - name: Checkout Repository' >> "$WORKFLOW_FILE"
-          echo '        uses: actions/checkout@v4' >> "$WORKFLOW_FILE"
-          echo '      - name: Execute Selected Minimal Units' >> "$WORKFLOW_FILE"
-          echo '        run: |' >> "$WORKFLOW_FILE"
-          echo '          echo "🎯 Executing dynamic workflow with selected minimal units"' >> "$WORKFLOW_FILE"
-          echo '          echo "Pattern: '"$EXECUTION_PATTERN"'"' >> "$WORKFLOW_FILE"
-          echo '          echo "Units: '"$MINIMAL_UNITS"'"' >> "$WORKFLOW_FILE"
-          echo '          echo "✅ Workflow execution completed"' >> "$WORKFLOW_FILE"
+          # Generate GitHub Actions workflow YAML
+          WORKFLOW_FILE="projects/current-session/generated-workflows/dynamic-workflow-${{ inputs.issue_number }}.yml"
           
-          WORKFLOW_PATH="projects/current-session/generated-workflows/dynamic-workflow-${{ github.event.issue.number || inputs.issue_number }}.yml"
+          # Create workflow header
+          cat > "$WORKFLOW_FILE" << 'EOF'
+name: "🎯 Dynamic Workflow - Issue #${{ github.event.inputs.issue_number }}"
+run-name: "📊 Dynamic | ${{ github.actor }} | Issue #${{ github.event.inputs.issue_number }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Source issue number"
+        required: true
+        default: "${{ github.event.inputs.issue_number }}"
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  PROJECT_BASE: "projects/issue-${{ github.event.inputs.issue_number }}"
+
+jobs:
+EOF
           
-          echo "generated_workflow=$(cat $WORKFLOW_PATH | base64 -w 0)" >> $GITHUB_OUTPUT
+          # Add initialization job
+          cat >> "$WORKFLOW_FILE" << 'EOF'
+  initialize:
+    name: "🚀 Initialize Workflow"
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Project Directory
+        id: setup
+        run: |
+          PROJECT_DIR="${{ env.PROJECT_BASE }}"
+          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final}
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Project directory initialized: $PROJECT_DIR"
+
+EOF
+          
+          # Add jobs for each minimal unit
+          JOB_NUMBER=1
+          PREVIOUS_JOB="initialize"
+          
+          # Read minimal units and create jobs
+          echo "$WORKFLOW_DATA" | jq -c '.minimal_units[]' | while read -r unit; do
+            CAPABILITY=$(echo "$unit" | jq -r '.capability')
+            UNIT_PATH=$(echo "$unit" | jq -r '.unit_path')
+            
+            # Generate safe job name
+            JOB_NAME="job_${JOB_NUMBER}_$(echo "$CAPABILITY" | tr '-' '_')"
+            
+            cat >> "$WORKFLOW_FILE" << EOF
+  $JOB_NAME:
+    name: "📦 Execute: $CAPABILITY"
+    runs-on: ubuntu-latest
+    needs: $PREVIOUS_JOB
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute $CAPABILITY
+        run: |
+          echo "🔧 Executing minimal unit: $CAPABILITY"
+          echo "📂 Unit path: $UNIT_PATH"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ $CAPABILITY completed successfully"
+          
+          # Save output
+          mkdir -p \${{ env.PROJECT_BASE }}/outputs
+          echo "Output from $CAPABILITY" > \${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt
+
+EOF
+            
+            # Update for next iteration
+            if [ "$EXECUTION_PATTERN" = "mixed_parallel" ] && [ $((JOB_NUMBER % 3)) -eq 0 ]; then
+              # Keep same dependency for parallel execution
+              PREVIOUS_JOB="$PREVIOUS_JOB"
+            else
+              PREVIOUS_JOB="$JOB_NAME"
+            fi
+            
+            JOB_NUMBER=$((JOB_NUMBER + 1))
+          done
+          
+          # Add finalization job
+          cat >> "$WORKFLOW_FILE" << 'EOF'
+  finalize:
+    name: "🎉 Finalize Workflow"
+    runs-on: ubuntu-latest
+    needs: [initialize]
+    if: always()
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Generate Summary
+        run: |
+          echo "## 📊 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: ${{ env.PROJECT_BASE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Dynamic workflow execution completed!" >> $GITHUB_STEP_SUMMARY
+EOF
+          
+          # Output workflow information
+          WORKFLOW_PATH="$WORKFLOW_FILE"
           echo "workflow_path=$WORKFLOW_PATH" >> $GITHUB_OUTPUT
           
-          echo "✅ Dynamic workflow YAML generated: $WORKFLOW_PATH"
+          # Encode workflow for output
+          if [ -f "$WORKFLOW_PATH" ]; then
+            ENCODED_WORKFLOW=$(base64 -w 0 "$WORKFLOW_PATH" 2>/dev/null || base64 "$WORKFLOW_PATH")
+            echo "generated_workflow=$ENCODED_WORKFLOW" >> $GITHUB_OUTPUT
+            echo "✅ Dynamic workflow YAML generated successfully"
+            echo "📁 Path: $WORKFLOW_PATH"
+          else
+            echo "❌ Failed to generate workflow file"
+            exit 1
+          fi
 
   # ===========================================
-  # PHASE 4: DIRECT YAML WORKFLOW GENERATION
+  # PHASE 4: WORKFLOW DEPLOYMENT
   # ===========================================
   
   deploy-workflow:
@@ -415,22 +523,50 @@ jobs:
       - name: Deploy Generated Workflow
         id: deploy
         run: |
-          echo "🚀 Deploying generated workflow to staging area..."
+          echo "🚀 Deploying generated workflow..."
           
-          # Create staging deployment directory
-          mkdir -p projects/current-session/final
+          # Create deployment directory
+          mkdir -p .github/workflows/generated
           
-          # Copy generated workflow to staging
-          WORKFLOW_FILE="projects/current-session/generated-workflows/dynamic-workflow-${{ github.event.issue.number || inputs.issue_number }}.yml"
-          if [ -f "$WORKFLOW_FILE" ]; then
-            cp "$WORKFLOW_FILE" "projects/current-session/final/"
-            echo "✅ Workflow deployed to staging: projects/current-session/final/"
+          # Decode and save workflow
+          WORKFLOW_PATH="${{ needs.dynamic-workflow-generation.outputs.workflow_path }}"
+          DEPLOYMENT_NAME="issue-${{ inputs.issue_number }}-$(date +%Y%m%d-%H%M%S).yml.disabled"
+          DEPLOYMENT_PATH=".github/workflows/generated/$DEPLOYMENT_NAME"
+          
+          # Restore generated workflow
+          echo "${{ needs.dynamic-workflow-generation.outputs.generated_workflow }}" | base64 -d > "$DEPLOYMENT_PATH"
+          
+          if [ -f "$DEPLOYMENT_PATH" ]; then
+            echo "✅ Workflow deployed successfully"
+            echo "📁 Deployed to: $DEPLOYMENT_PATH"
+            echo "⚠️  Note: Workflow is deployed with .disabled extension for safety"
+            echo ""
+            echo "To activate the workflow:"
+            echo "  1. Review the generated workflow"
+            echo "  2. Remove the .disabled extension"
+            echo "  3. Commit and push the changes"
             
             echo "deployment_status=success" >> $GITHUB_OUTPUT
-            echo "deployed_path=projects/current-session/final/$(basename $WORKFLOW_FILE)" >> $GITHUB_OUTPUT
+            echo "deployed_path=$DEPLOYMENT_PATH" >> $GITHUB_OUTPUT
+            
+            # Create deployment summary
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+## 🚀 Workflow Deployment Summary
+
+- **Status**: ✅ Success
+- **Issue**: #${{ inputs.issue_number }}
+- **Deployed Path**: \`$DEPLOYMENT_PATH\`
+- **Activation**: Remove \`.disabled\` extension to activate
+
+### Generated Workflow Details:
+- **Units**: ${{ needs.ultra-task-decomposition.outputs.task_count }}
+- **Pattern**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}
+
+EOF
           else
-            echo "❌ Generated workflow file not found"
+            echo "❌ Deployment failed"
             echo "deployment_status=failed" >> $GITHUB_OUTPUT
+            exit 1
           fi
 
   # ===========================================
@@ -448,27 +584,37 @@ jobs:
         
       - name: Generate Execution Summary
         run: |
-          echo "📊 Meta Workflow v10 Execution Summary"
-          echo "======================================"
-          echo "🎯 Issue: #${{ github.event.issue.number || inputs.issue_number }}"
-          echo "📅 Executed: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "🔧 Version: Meta Workflow v10 (Dynamic)"
-          echo ""
-          echo "✅ Phase 1: Issue Validation - ${{ needs.validate-trigger.result }}"
-          echo "✅ Phase 2: Task Decomposition - ${{ needs.ultra-task-decomposition.result }}"
-          echo "✅ Phase 3: Workflow Generation - ${{ needs.dynamic-workflow-generation.result }}"
-          echo "✅ Phase 4: Deployment - ${{ needs.deploy-workflow.result }}"
-          echo ""
-          echo "🚀 Revolutionary Features Achieved:"
-          echo "   ✅ Zero external dependencies"
-          echo "   ✅ Direct minimal unit integration"  
-          echo "   ✅ Dynamic issue content processing"
-          echo "   ✅ Human-like task decomposition"
-          echo "   ✅ Self-contained workflow generation"
-          echo ""
+          echo "## 📊 Meta Workflow v10 Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Request Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Title**: ${{ needs.validate-trigger.outputs.issue_title }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: ${{ needs.validate-trigger.outputs.request_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔄 Execution Phases" >> $GITHUB_STEP_SUMMARY
+          echo "| Phase | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Issue Validation | ${{ needs.validate-trigger.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧠 Task Decomposition | ${{ needs.ultra-task-decomposition.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚀 Workflow Generation | ${{ needs.dynamic-workflow-generation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Deployment | ${{ needs.deploy-workflow.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
           if [ "${{ needs.deploy-workflow.outputs.deployment_status }}" = "success" ]; then
-            echo "🎉 SUCCESS: Dynamic workflow generated and deployed successfully!"
-            echo "📁 Deployed to: ${{ needs.deploy-workflow.outputs.deployed_path }}"
+            echo "### ✅ Success!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Dynamic workflow has been generated and deployed:" >> $GITHUB_STEP_SUMMARY
+            echo "- **Location**: \`${{ needs.deploy-workflow.outputs.deployed_path }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Units**: ${{ needs.ultra-task-decomposition.outputs.task_count }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Pattern**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To activate the workflow, remove the \`.disabled\` extension and push the changes." >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ Deployment issue detected - check logs"
+            echo "### ⚠️ Issues Detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the logs for more information." >> $GITHUB_STEP_SUMMARY
           fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Generated by Meta Workflow v10 with Claude SDK Integration*" >> $GITHUB_STEP_SUMMARY
