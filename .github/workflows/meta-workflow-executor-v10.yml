@@ -91,7 +91,7 @@ jobs:
   basic-task-decomposition:
     name: "📋 Basic Task Decomposition"
     runs-on: ubuntu-latest
-    needs: validate-trigger
+    needs: ['validate-trigger']
     outputs:
       capabilities_count: ${{ steps.detect.outputs.capabilities_count }}
       has_video: ${{ steps.detect.outputs.has_video }}
@@ -172,7 +172,7 @@ jobs:
   detailed-analysis:
     name: "🧠 Detailed Analysis"
     runs-on: ubuntu-latest
-    needs: [validate-trigger, basic-task-decomposition]
+    needs: ['validate-trigger', 'basic-task-decomposition']
     outputs:
       orchestrator_match: ${{ steps.orchestrator.outputs.match_found }}
       execution_pattern: ${{ steps.orchestrator.outputs.pattern }}
@@ -273,7 +273,7 @@ jobs:
   workflow-generation:
     name: "🚀 Workflow Generation"
     runs-on: ubuntu-latest
-    needs: [validate-trigger, basic-task-decomposition, detailed-analysis]
+    needs: ['validate-trigger', 'basic-task-decomposition', 'detailed-analysis']
     outputs:
       workflow_id: ${{ steps.generate.outputs.workflow_id }}
       total_jobs: ${{ steps.generate.outputs.total_jobs }}
@@ -622,7 +622,7 @@ jobs:
   workflow-validation:
     name: "✅ Workflow Validation"
     runs-on: ubuntu-latest
-    needs: workflow-generation
+    needs: ['workflow-generation']
     outputs:
       validation_passed: ${{ steps.validate.outputs.passed }}
       optimization_needed: ${{ steps.validate.outputs.needs_optimization }}
@@ -807,7 +807,7 @@ jobs:
   deployment:
     name: "📦 Deployment"
     runs-on: ubuntu-latest
-    needs: [workflow-validation, workflow-generation]
+    needs: ['workflow-validation', 'workflow-generation']
     if: ${{ needs['workflow-validation'].outputs.validation_passed == 'true' }}
     outputs:
       deployed_path: ${{ steps.deploy.outputs.path }}
@@ -854,7 +854,7 @@ jobs:
   execution-summary:
     name: "📊 Execution Summary"
     runs-on: ubuntu-latest
-    needs: [validate-trigger, basic-task-decomposition, detailed-analysis, workflow-generation, workflow-validation, deployment]
+    needs: ['validate-trigger', 'basic-task-decomposition', 'detailed-analysis', 'workflow-generation', 'workflow-validation', 'deployment']
     if: ${{ always() }}
     steps:
       - name: Checkout Repository
