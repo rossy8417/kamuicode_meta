@@ -1,4 +1,4 @@
-name: "Meta Workflow Executor v10 with Claude SDK"
+name: "Meta Workflow Executor v10 with Optimized Design"
 run-name: "🚀 Meta Workflow v10 | Issue #${{ inputs.issue_number }} | ${{ github.actor }}"
 
 on:
@@ -22,15 +22,14 @@ env:
 
 jobs:
   # ===========================================
-  # PHASE 1: ISSUE ANALYSIS & VALIDATION
+  # PHASE 1: ISSUE VALIDATION
   # ===========================================
   
   validate-trigger:
-    name: "🔍 Issue Analysis & Validation"
+    name: "🔍 Issue Validation"
     runs-on: ubuntu-latest
     outputs:
       issue_number: ${{ steps.extract.outputs.issue_number }}
-      issue_body: ${{ steps.extract.outputs.issue_body }}
       issue_title: ${{ steps.extract.outputs.issue_title }}
       request_type: ${{ steps.analyze.outputs.request_type }}
     steps:
@@ -49,19 +48,15 @@ jobs:
           ISSUE_BODY=$(echo "$ISSUE_DATA" | jq -r '.body')
           ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.number')
           
+          # Save to artifacts for next jobs
+          mkdir -p artifacts
+          echo "$ISSUE_TITLE" > artifacts/issue_title.txt
+          echo "$ISSUE_BODY" > artifacts/issue_body.txt
+          echo "$ISSUE_NUMBER" > artifacts/issue_number.txt
+          
+          # Output minimal data
           echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
-          
-          {
-            echo 'issue_title<<EOF'
-            echo "$ISSUE_TITLE"
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-          
-          {
-            echo 'issue_body<<EOF'
-            echo "$ISSUE_BODY"
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
+          echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
           
           echo "✅ Issue #$ISSUE_NUMBER validated: $ISSUE_TITLE"
         env:
@@ -70,573 +65,241 @@ jobs:
       - name: Analyze Request Type
         id: analyze
         run: |
-          echo "📊 Analyzing request type from issue content..."
-          
-          # Save issue body to a file to avoid shell interpretation issues
-          echo '${{ steps.extract.outputs.issue_body }}' > /tmp/issue_body.txt
+          ISSUE_BODY=$(cat artifacts/issue_body.txt)
           
           REQUEST_TYPE="unknown"
-          
-          # Determine request type based on content
-          if grep -i "video" /tmp/issue_body.txt > /dev/null; then
+          if echo "$ISSUE_BODY" | grep -qi "video\|動画"; then
             REQUEST_TYPE="video-generation"
-          elif grep -i "image" /tmp/issue_body.txt > /dev/null; then
+          elif echo "$ISSUE_BODY" | grep -qi "image\|画像"; then
             REQUEST_TYPE="image-generation"
-          elif grep -i "audio\|music" /tmp/issue_body.txt > /dev/null; then
+          elif echo "$ISSUE_BODY" | grep -qi "audio\|音声\|music"; then
             REQUEST_TYPE="audio-generation"
-          elif grep -i "data\|analysis" /tmp/issue_body.txt > /dev/null; then
-            REQUEST_TYPE="data-analysis"
-          elif grep -i "blog\|article" /tmp/issue_body.txt > /dev/null; then
-            REQUEST_TYPE="content-creation"
           fi
           
           echo "request_type=$REQUEST_TYPE" >> $GITHUB_OUTPUT
-          echo "🎯 Request type identified: $REQUEST_TYPE"
+          
+      - name: Upload Issue Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-data
+          path: artifacts/
 
   # ===========================================
-  # PHASE 2: ULTRA-DETAILED TASK DECOMPOSITION
+  # PHASE 2: BASIC TASK DECOMPOSITION
   # ===========================================
   
-  ultra-task-decomposition:
-    name: "🧠 Ultra-Detailed Task Decomposition"
+  basic-task-decomposition:
+    name: "📋 Basic Task Decomposition"
     runs-on: ubuntu-latest
     needs: validate-trigger
     outputs:
-      decomposed_tasks: ${{ steps.decompose.outputs.decomposed_tasks }}
-      task_count: ${{ steps.decompose.outputs.task_count }}
-      execution_phases: ${{ steps.decompose.outputs.execution_phases }}
-      detected_capabilities: ${{ steps.decompose.outputs.detected_capabilities }}
-      orchestrator_used: ${{ steps.decompose.outputs.orchestrator_used }}
-      orchestrator_sources: ${{ steps.decompose.outputs.orchestrator_sources }}
-      job_sequence: ${{ steps.decompose.outputs.job_sequence }}
-      mermaid_diagram: ${{ steps.decompose.outputs.mermaid_diagram }}
-      fine_grained_tasks: ${{ steps.decompose.outputs.fine_grained_tasks }}
-      work_based_decomposition: ${{ steps.decompose.outputs.work_based_decomposition }}
-      strategic_plan: ${{ steps.decompose.outputs.strategic_plan }}
+      capabilities_count: ${{ steps.detect.outputs.capabilities_count }}
+      has_video: ${{ steps.detect.outputs.has_video }}
+      has_narration: ${{ steps.detect.outputs.has_narration }}
+      complexity: ${{ steps.detect.outputs.complexity }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Install dependencies
+      - name: Download Issue Data
+        uses: actions/download-artifact@v4
+        with:
+          name: issue-data
+          path: artifacts/
+          
+      - name: Detect Capabilities
+        id: detect
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq python3-pip
-          pip3 install pyyaml
-        
-      - name: Perform Ultra-Detailed Task Decomposition
-        id: decompose
-        run: |
-          echo "🧠 Starting ultra-detailed task decomposition..."
-          
-          # Create project directory
-          mkdir -p projects/current-session/{logs,metadata,scripts}
-          
-          # Save issue body to file
-          echo '${{ needs.validate-trigger.outputs.issue_body }}' > /tmp/issue_body_safe.txt
-          
-          # Issue details
-          ISSUE_TITLE="${{ needs.validate-trigger.outputs.issue_title }}"
-          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
-          REQUEST_TYPE="${{ needs.validate-trigger.outputs.request_type }}"
-          
-          echo "📋 Issue: $ISSUE_TITLE"
-          echo "🔢 Number: #$ISSUE_NUMBER"
-          echo "📊 Type: $REQUEST_TYPE"
-          
-          # Dynamic capability detection from issue content
           echo "🔍 Detecting required capabilities..."
           
+          ISSUE_BODY=$(cat artifacts/issue_body.txt)
           CAPABILITIES=""
           
           # Video capabilities
-          if grep -qi "動画\|video\|ビデオ" /tmp/issue_body_safe.txt; then
+          if echo "$ISSUE_BODY" | grep -qi "動画\|video\|ビデオ"; then
             CAPABILITIES="${CAPABILITIES}video-generation,"
-            echo "  ✓ Video generation detected"
+            echo "has_video=true" >> $GITHUB_OUTPUT
             
-            # コンテキストベースの追加機能検出
-            echo "  🔍 Analyzing context for additional capabilities..."
-            
-            # ナレーション・音声が必要な場合
-            if grep -qi "ナレーション\|narration\|話\|speak\|音声付\|解説" /tmp/issue_body_safe.txt; then
-              echo "  ✓ Narration context detected"
-              CAPABILITIES="${CAPABILITIES}lipsync,"
-              CAPABILITIES="${CAPABILITIES}subtitle-overlay,"
+            # Context-based additions
+            if echo "$ISSUE_BODY" | grep -qi "ナレーション\|narration\|音声付"; then
+              CAPABILITIES="${CAPABILITIES}lipsync,subtitle-overlay,"
+              echo "has_narration=true" >> $GITHUB_OUTPUT
             fi
             
-            # 複数シーン・ストーリー性がある場合
-            if grep -qi "シーン\|scene\|ストーリー\|story\|流れ\|sequence\|複数" /tmp/issue_body_safe.txt; then
-              echo "  ✓ Multi-scene context detected"
-              if [[ "$CAPABILITIES" != *"image-generation"* ]]; then
-                CAPABILITIES="${CAPABILITIES}image-generation,"
-              fi
-              CAPABILITIES="${CAPABILITIES}scene-composition,"
-            fi
-            
-            # 教育・説明コンテンツの場合
-            if grep -qi "説明\|解説\|教育\|tutorial\|explain\|educational\|学習" /tmp/issue_body_safe.txt; then
-              echo "  ✓ Educational content detected"
-              CAPABILITIES="${CAPABILITIES}subtitle-overlay,"
-              CAPABILITIES="${CAPABILITIES}diagram-generation,"
-            fi
-            
-            # プロフェッショナル・商用コンテンツの場合
-            if grep -qi "プロ\|professional\|商用\|commercial\|広告\|advertisement\|マーケティング" /tmp/issue_body_safe.txt; then
-              echo "  ✓ Professional content detected"
-              CAPABILITIES="${CAPABILITIES}quality-enhancement,"
-              CAPABILITIES="${CAPABILITIES}branding-overlay,"
+            if echo "$ISSUE_BODY" | grep -qi "シーン\|複数\|ストーリー"; then
+              CAPABILITIES="${CAPABILITIES}scene-composition,image-generation,"
             fi
           fi
           
-          # Image capabilities
-          if grep -qi "画像\|image\|写真\|サムネイル" /tmp/issue_body_safe.txt; then
-            CAPABILITIES="${CAPABILITIES}image-generation,"
-            echo "  ✓ Image generation detected"
-          fi
-          
-          # Audio capabilities
-          if grep -qi "音声\|audio\|sound\|BGM\|音楽" /tmp/issue_body_safe.txt; then
-            CAPABILITIES="${CAPABILITIES}audio-generation,"
-            echo "  ✓ Audio generation detected"
-          fi
-          
-          # Search capabilities
-          if grep -qi "検索\|search\|調査\|トレンド" /tmp/issue_body_safe.txt; then
+          # Web search
+          if echo "$ISSUE_BODY" | grep -qi "検索\|調査\|ニュース\|最新"; then
             CAPABILITIES="${CAPABILITIES}web-search,"
-            echo "  ✓ Web search detected"
           fi
           
-          # Analysis capabilities
-          if grep -qi "分析\|analysis\|データ" /tmp/issue_body_safe.txt; then
-            CAPABILITIES="${CAPABILITIES}data-analysis,"
-            echo "  ✓ Data analysis detected"
+          # Planning
+          if echo "$ISSUE_BODY" | grep -qi "企画\|計画\|構成"; then
+            CAPABILITIES="${CAPABILITIES}planning,"
           fi
           
-          # News capabilities
-          if grep -qi "ニュース\|news\|最新" /tmp/issue_body_safe.txt; then
-            CAPABILITIES="${CAPABILITIES}news-planning,"
-            echo "  ✓ News planning detected"
-          fi
+          # Save capabilities
+          mkdir -p metadata
+          echo "$CAPABILITIES" > metadata/capabilities.txt
           
-          # Speech capabilities
-          if grep -qi "ナレーション\|speech\|読み上げ" /tmp/issue_body_safe.txt; then
-            CAPABILITIES="${CAPABILITIES}text-to-speech,"
-            echo "  ✓ Text-to-speech detected"
-          fi
+          # Count and complexity
+          CAP_COUNT=$(echo "$CAPABILITIES" | tr ',' '\n' | grep -v '^$' | wc -l)
+          echo "capabilities_count=$CAP_COUNT" >> $GITHUB_OUTPUT
           
-          # Editing capabilities
-          if grep -qi "編集\|editing\|結合" /tmp/issue_body_safe.txt; then
-            CAPABILITIES="${CAPABILITIES}video-editing,"
-            echo "  ✓ Video editing detected"
-          fi
-          
-          # Remove trailing comma
-          CAPABILITIES=$(echo "$CAPABILITIES" | sed 's/,$//')
-          
-          # Determine complexity
-          WORD_COUNT=$(wc -w < /tmp/issue_body_safe.txt)
-          if [ "$WORD_COUNT" -gt 200 ]; then
-            COMPLEXITY="complex"
-            DURATION="45-60 minutes"
-          elif [ "$WORD_COUNT" -gt 100 ]; then
-            COMPLEXITY="medium"
-            DURATION="20-40 minutes"
+          if [ "$CAP_COUNT" -gt 6 ]; then
+            echo "complexity=complex" >> $GITHUB_OUTPUT
+          elif [ "$CAP_COUNT" -gt 3 ]; then
+            echo "complexity=medium" >> $GITHUB_OUTPUT
           else
-            COMPLEXITY="simple"
-            DURATION="10-20 minutes"
+            echo "complexity=simple" >> $GITHUB_OUTPUT
           fi
           
-          echo ""
-          echo "📊 Analysis Results:"
-          echo "  - Capabilities: $CAPABILITIES"
-          echo "  - Complexity: $COMPLEXITY"
-          echo "  - Duration: $DURATION"
+          echo "✅ Detected $CAP_COUNT capabilities"
           
-          # Copy orchestrator analyzer script
-          if [ -f scripts/orchestrator_analyzer.py ]; then
-            cp scripts/orchestrator_analyzer.py projects/current-session/scripts/
-          fi
-          
-          # Run orchestrator analysis
-          echo "🔍 Running orchestrator analysis..."
-          export USER_REQUEST="$ISSUE_TITLE $(</tmp/issue_body_safe.txt)"
-          export CAPABILITIES="$CAPABILITIES"
-          
-          if [ -f scripts/orchestrator_analyzer.py ]; then
-            cp scripts/orchestrator_analyzer.py projects/current-session/scripts/
-            cd projects/current-session/scripts
-            python3 orchestrator_analyzer.py || echo "⚠️ Orchestrator analysis failed, using default logic"
-            cd ../../..
-            
-            # Check if orchestrator analysis succeeded
-            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
-              echo "✅ Orchestrator analysis completed successfully"
-              ORCHESTRATOR_ANALYSIS=$(cat projects/current-session/metadata/orchestrator_analysis.json)
-              
-              # Extract execution pattern and job count
-              EXECUTION_PATTERN=$(echo "$ORCHESTRATOR_ANALYSIS" | python3 -c "import json, sys; print(json.load(sys.stdin).get('execution_pattern', 'sequential'))")
-              echo "📊 Recommended execution pattern: $EXECUTION_PATTERN"
-              
-              # Extract additional capabilities from orchestrator patterns
-              echo "$ORCHESTRATOR_ANALYSIS" > /tmp/orch_analysis.json
-              
-              # Create Python script for capability extraction
-              echo 'import json' > /tmp/extract_caps.py
-              echo "with open('/tmp/orch_analysis.json', 'r') as f:" >> /tmp/extract_caps.py
-              echo '    data = json.load(f)' >> /tmp/extract_caps.py
-              echo 'caps = set()' >> /tmp/extract_caps.py
-              echo "for orch in data.get('analysis', {}).get('orchestrators', []):" >> /tmp/extract_caps.py
-              echo "    for job in orch.get('data', {}).get('jobs', []):" >> /tmp/extract_caps.py
-              echo "        job_name = job.get('name', '').lower()" >> /tmp/extract_caps.py
-              echo "        if 'image' in job_name: caps.add('image-generation')" >> /tmp/extract_caps.py
-              echo "        if 'lipsync' in job_name: caps.add('lipsync')" >> /tmp/extract_caps.py
-              echo "        if 'subtitle' in job_name: caps.add('subtitle-overlay')" >> /tmp/extract_caps.py
-              echo "        if 'planning' in job_name: caps.add('planning')" >> /tmp/extract_caps.py
-              echo "        if 'audio' in job_name: caps.add('audio-generation')" >> /tmp/extract_caps.py
-              echo "print(','.join(caps))" >> /tmp/extract_caps.py
-              
-              ORCH_CAPS=$(python3 /tmp/extract_caps.py 2>/dev/null || echo '')
-              
-              if [ -n "$ORCH_CAPS" ]; then
-                echo "  📚 Additional capabilities from orchestrator patterns: $ORCH_CAPS"
-                CAPABILITIES="${CAPABILITIES}${ORCH_CAPS},"
-              fi
-            fi
-          else
-            echo "⚠️ Orchestrator analyzer not found, using keyword-based detection"
-          fi
-          
-          # Try Claude Code SDK for additional analysis (if available)
-          if command -v claude &> /dev/null; then
-            echo "🤖 Claude CLI is available for enhanced analysis..."
-            
-            # Create enhanced prompt with orchestrator analysis
-            echo "You are the Meta Workflow Generator advanced task decomposition agent." > /tmp/claude_prompt.txt
-            echo "Perform multi-stage task decomposition and strategic workflow construction." >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "Issue: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
-            cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "Detected capabilities: $CAPABILITIES" >> /tmp/claude_prompt.txt
-            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
-              echo "Orchestrator analysis:" >> /tmp/claude_prompt.txt
-              cat projects/current-session/metadata/orchestrator_analysis.json >> /tmp/claude_prompt.txt
-            fi
-            echo "" >> /tmp/claude_prompt.txt
-            echo "CAPABILITY DETECTION:" >> /tmp/claude_prompt.txt
-            echo "Beyond the basic keywords detected ($CAPABILITIES), analyze the user's intent and add necessary capabilities:" >> /tmp/claude_prompt.txt
-            echo "- For storytelling content: add scene-composition, multiple image-generation" >> /tmp/claude_prompt.txt
-            echo "- For educational content: add diagram-generation, subtitle-overlay" >> /tmp/claude_prompt.txt
-            echo "- For news/documentary: add research, fact-checking, narration" >> /tmp/claude_prompt.txt
-            echo "- For marketing: add branding, call-to-action, analytics" >> /tmp/claude_prompt.txt
-            echo "- For entertainment: add special-effects, music-sync, transitions" >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "DECOMPOSITION PROCESS:" >> /tmp/claude_prompt.txt
-            echo "1. Task-level decomposition (タスク分解)" >> /tmp/claude_prompt.txt
-            echo "   - Break down the main request into logical tasks" >> /tmp/claude_prompt.txt
-            echo "   - Consider the content type and purpose" >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "2. Work-based detailed decomposition (作業ベース詳細分解)" >> /tmp/claude_prompt.txt
-            echo "   - Break each task into concrete work items" >> /tmp/claude_prompt.txt
-            echo "   - Define dependencies and sequences" >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "3. Strategic workflow construction (戦略的ワークフロー構築)" >> /tmp/claude_prompt.txt
-            echo "   - Identify parallel execution opportunities" >> /tmp/claude_prompt.txt
-            echo "   - Ensure consistency across parallel tasks" >> /tmp/claude_prompt.txt
-            echo "   - Optimize resource usage"
-            echo "" >> /tmp/claude_prompt.txt
-            echo "IMPORTANT CONSIDERATIONS:" >> /tmp/claude_prompt.txt
-            echo "- Image consistency: Use same character descriptions, style, seed across scenes" >> /tmp/claude_prompt.txt
-            echo "- Scene-based structure: Each scene = image + narration + timing" >> /tmp/claude_prompt.txt
-            echo "- Parallel execution: Images can be generated in parallel with shared context" >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "Output format:" >> /tmp/claude_prompt.txt
-            echo "1. Task decomposition tree (JSON)" >> /tmp/claude_prompt.txt
-            echo "2. Work-based decomposition (JSON)" >> /tmp/claude_prompt.txt
-            echo "3. Strategic execution plan with dependencies" >> /tmp/claude_prompt.txt
-            echo "4. Mermaid diagram showing parallel/sequential flow" >> /tmp/claude_prompt.txt
-            
-            # Try Claude
-            CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" 2>&1 || echo '')
-            
-            if [ -n "$CLAUDE_RESPONSE" ]; then
-              echo "✅ Claude Code SDK provided enhanced analysis"
-              echo "$CLAUDE_RESPONSE" > projects/current-session/metadata/claude_analysis.txt
-              
-              # Extract fine-grained tasks if available
-              if echo "$CLAUDE_RESPONSE" | grep -q "subtasks"; then
-                echo "🔍 Fine-grained task decomposition detected"
-                FINE_GRAINED_TASKS=$(echo "$CLAUDE_RESPONSE" | grep -A 50 '"subtasks"' || echo '')
-                echo "fine_grained_tasks<<EOF" >> $GITHUB_OUTPUT
-                echo "$FINE_GRAINED_TASKS" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
-              fi
-              
-              # Extract Mermaid diagram if available
-              if echo "$CLAUDE_RESPONSE" | grep -q "graph"; then
-                echo "📊 Mermaid diagram detected"
-                MERMAID_DIAGRAM=$(echo "$CLAUDE_RESPONSE" | sed -n '/```mermaid/,/```/p' | sed '1d;$d' || echo '')
-                echo "mermaid_diagram<<EOF" >> $GITHUB_OUTPUT
-                echo "$MERMAID_DIAGRAM" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
-              fi
-              
-              # Extract work-based decomposition
-              if echo "$CLAUDE_RESPONSE" | grep -q "work-based"; then
-                echo "📋 Work-based decomposition detected"
-                # Save to file instead of output to avoid size limit
-                echo "$CLAUDE_RESPONSE" | grep -A 100 '"work-based"' | head -100 > projects/current-session/metadata/work_based.txt
-                echo "work_based_decomposition=Available in metadata/work_based.txt" >> $GITHUB_OUTPUT
-              fi
-              
-              # Extract strategic plan  
-              if echo "$CLAUDE_RESPONSE" | grep -q "strategic"; then
-                echo "🎯 Strategic plan detected"
-                # Save to file instead of output to avoid size limit
-                echo "$CLAUDE_RESPONSE" | grep -A 50 '"strategic"' | head -50 > projects/current-session/metadata/strategic.txt
-                echo "strategic_plan=Available in metadata/strategic.txt" >> $GITHUB_OUTPUT
-              fi
-            fi
-          else
-            echo "ℹ️ Claude CLI not installed, generating basic Mermaid diagram"
-            
-            # Generate basic Mermaid diagram based on capabilities
-            echo "graph TD" > projects/current-session/metadata/mermaid.txt
-            echo "    Start[開始]" >> projects/current-session/metadata/mermaid.txt
-            
-            # Parse capabilities and create diagram
-            IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
-            PREV_NODE="Start"
-            NODE_COUNT=1
-            
-            for cap in "${CAP_ARRAY[@]}"; do
-              NODE_NAME="Node$NODE_COUNT"
-              
-              # Create node label based on capability
-              case "$cap" in
-                "web-search") LABEL="🔍 Web検索" ;;
-                "data-analysis") LABEL="📊 データ分析" ;;
-                "news-planning") LABEL="📰 ニュース企画\\n├─ 内容企画\\n├─ ナレーション作成\\n└─ シーン構成" ;;
-                "image-generation") LABEL="🖼️ 画像生成" ;;
-                "audio-generation") LABEL="🎵 音声生成" ;;
-                "video-generation") LABEL="🎬 動画生成" ;;
-                "video-editing") LABEL="✂️ 動画編集" ;;
-                *) LABEL="$cap" ;;
-              esac
-              
-              echo "    $NODE_NAME[$LABEL]" >> projects/current-session/metadata/mermaid.txt
-              echo "    $PREV_NODE --> $NODE_NAME" >> projects/current-session/metadata/mermaid.txt
-              
-              PREV_NODE=$NODE_NAME
-              NODE_COUNT=$((NODE_COUNT + 1))
-            done
-            
-            echo "    $PREV_NODE --> End[完了]" >> projects/current-session/metadata/mermaid.txt
-            
-            # Save as output
-            MERMAID_CONTENT=$(cat projects/current-session/metadata/mermaid.txt)
-            echo "mermaid_diagram<<EOF" >> $GITHUB_OUTPUT
-            echo "$MERMAID_CONTENT" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          fi
-          
-          # Generate workflow metadata
-          mkdir -p projects/current-session/metadata
-          
-          # Export for Python script
-          export CAPABILITIES="$CAPABILITIES"
-          export COMPLEXITY="$COMPLEXITY"
-          export REQUIREMENTS="General workflow request"
-          
-          # Use optimized workflow generator
-          if [ -f scripts/generate_optimized_workflow.py ]; then
-            cp scripts/generate_optimized_workflow.py projects/current-session/scripts/
-            cd projects/current-session/scripts
-            python3 generate_optimized_workflow.py
-            cd ../../..
-          elif [ -f scripts/generate_dynamic_workflow.py ]; then
-            cp scripts/generate_dynamic_workflow.py projects/current-session/scripts/
-            cd projects/current-session/scripts
-            python3 generate_dynamic_workflow.py
-            cd ../../..
-          else
-            # Fallback: create workflow JSON directly
-            echo '{' > projects/current-session/metadata/dynamic_workflow.json
-            echo '  "metadata": {' >> projects/current-session/metadata/dynamic_workflow.json
-            echo "    \"generated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> projects/current-session/metadata/dynamic_workflow.json
-            echo "    \"complexity\": \"$COMPLEXITY\"," >> projects/current-session/metadata/dynamic_workflow.json
-            echo "    \"total_units\": $(echo \"$CAPABILITIES\" | tr ',' '\n' | wc -l)," >> projects/current-session/metadata/dynamic_workflow.json
-            CAPS_JSON=$(echo "$CAPABILITIES" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/' || echo '')
-            echo "    \"capabilities_detected\": [$CAPS_JSON]" >> projects/current-session/metadata/dynamic_workflow.json
-            echo '  },' >> projects/current-session/metadata/dynamic_workflow.json
-            echo '  "minimal_units": [' >> projects/current-session/metadata/dynamic_workflow.json
-            
-            # Add units based on capabilities
-            FIRST=true
-            for cap in $(echo "$CAPABILITIES" | tr ',' ' '); do
-              [ "$FIRST" = true ] && FIRST=false || echo "," >> projects/current-session/metadata/dynamic_workflow.json
-              
-              case $cap in
-                "web-search")
-                  UNIT_PATH="minimal-units/planning/web-search.yml"
-                  ;;
-                "news-planning")
-                  UNIT_PATH="minimal-units/planning/news-planning.yml"
-                  ;;
-                "image-generation")
-                  UNIT_PATH="minimal-units/media/image/t2i-imagen3.yml"
-                  ;;
-                "video-generation")
-                  UNIT_PATH="minimal-units/media/video/t2v-veo3.yml"
-                  ;;
-                "audio-generation")
-                  UNIT_PATH="minimal-units/media/audio/bgm-generate-mcp.yml"
-                  ;;
-                "text-to-speech")
-                  UNIT_PATH="minimal-units/media/audio/t2s-minimax-turbo-mcp.yml"
-                  ;;
-                "video-editing")
-                  UNIT_PATH="minimal-units/postprod/video-concat.yml"
-                  ;;
-                "data-analysis")
-                  UNIT_PATH="minimal-units/planning/data-analysis.yml"
-                  ;;
-                *)
-                  UNIT_PATH="minimal-units/planning/web-search.yml"
-                  ;;
-              esac
-              
-              echo '    {' >> projects/current-session/metadata/dynamic_workflow.json
-              echo "      \"capability\": \"$cap\"," >> projects/current-session/metadata/dynamic_workflow.json
-              echo "      \"unit_path\": \"$UNIT_PATH\"," >> projects/current-session/metadata/dynamic_workflow.json
-              echo '      "estimated_time": "3-5 minutes"' >> projects/current-session/metadata/dynamic_workflow.json
-              echo -n '    }' >> projects/current-session/metadata/dynamic_workflow.json
-            done
-            
-            echo '' >> projects/current-session/metadata/dynamic_workflow.json
-            echo '  ],' >> projects/current-session/metadata/dynamic_workflow.json
-            EXEC_PATTERN=$( [ "$COMPLEXITY" = "simple" ] && echo "sequential" || echo "mixed_parallel" )
-            echo "  \"execution_pattern\": \"$EXEC_PATTERN\"" >> projects/current-session/metadata/dynamic_workflow.json
-            echo '}' >> projects/current-session/metadata/dynamic_workflow.json
-          fi
-          
-          # Generate fine-grained task decomposition for complex tasks
-          echo '{}' > projects/current-session/metadata/fine_grained_tasks.json
-          
-          # Check for complex tasks that need decomposition
-          if echo "$CAPABILITIES" | grep -q "news-planning"; then
-            echo "🔍 Decomposing news-planning into subtasks..."
-            
-            # Create fine-grained decomposition
-            echo '{' > projects/current-session/metadata/fine_grained_tasks.json
-            echo '  "news-planning": {' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '    "subtasks": [' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '      {' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "name": "content-planning",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "description": "ニュース内容の企画",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "unit": "minimal-units/planning/content-planning.yml",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "duration": "5-10 minutes"' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '      },' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '      {' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "name": "narration-creation",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "description": "ナレーション原稿作成",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "unit": "minimal-units/planning/narration-creation.yml",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "duration": "10-15 minutes"' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '      },' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '      {' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "name": "scene-planning",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "description": "シーン構成の企画",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "unit": "minimal-units/planning/scene-planning.yml",' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '        "duration": "5-10 minutes"' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '      }' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '    ]' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '  }' >> projects/current-session/metadata/fine_grained_tasks.json
-            echo '}' >> projects/current-session/metadata/fine_grained_tasks.json
-          fi
-          
-          # Validate and output results
-          if [ -f projects/current-session/metadata/dynamic_workflow.json ]; then
-            UNIT_COUNT=$(jq '.minimal_units | length' projects/current-session/metadata/dynamic_workflow.json)
-            EXECUTION_PATTERN=$(jq -r '.execution_pattern' projects/current-session/metadata/dynamic_workflow.json)
-            
-            echo "decomposed_tasks=$(cat projects/current-session/metadata/dynamic_workflow.json | jq -c .)" >> $GITHUB_OUTPUT
-            echo "task_count=$UNIT_COUNT" >> $GITHUB_OUTPUT
-            echo "execution_phases=$EXECUTION_PATTERN" >> $GITHUB_OUTPUT
-            
-            # Extract additional information for summary
-            DETECTED_CAPS=$(jq -r '.metadata.capabilities_detected | join(", ")' projects/current-session/metadata/dynamic_workflow.json)
-            echo "detected_capabilities=$DETECTED_CAPS" >> $GITHUB_OUTPUT
-            
-            # Check if orchestrator was used
-            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
-              ORCH_USED=$(jq -r '.analysis.orchestrators | length > 0' projects/current-session/metadata/orchestrator_analysis.json)
-              ORCH_SOURCES=$(jq -r '.analysis.orchestrators[].name' projects/current-session/metadata/orchestrator_analysis.json | head -3 | tr '\n' ',' | sed 's/,$//')
-              echo "orchestrator_used=$ORCH_USED" >> $GITHUB_OUTPUT
-              echo "orchestrator_sources=$ORCH_SOURCES" >> $GITHUB_OUTPUT
-            else
-              echo "orchestrator_used=false" >> $GITHUB_OUTPUT
-              echo "orchestrator_sources=none" >> $GITHUB_OUTPUT
-            fi
-            
-            # Export fine-grained tasks if available
-            if [ -f projects/current-session/metadata/fine_grained_tasks.json ] && [ -s projects/current-session/metadata/fine_grained_tasks.json ]; then
-              FINE_GRAINED=$(cat projects/current-session/metadata/fine_grained_tasks.json)
-              if [ "$FINE_GRAINED" != "{}" ]; then
-                echo "fine_grained_tasks<<EOF" >> $GITHUB_OUTPUT
-                echo "$FINE_GRAINED" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
-              fi
-            fi
-            
-            # Extract job sequence
-            JOB_SEQUENCE=$(jq -r '.minimal_units[].capability' projects/current-session/metadata/dynamic_workflow.json | tr '\n' ' → ' | sed 's/ → $//')
-            echo "job_sequence=$JOB_SEQUENCE" >> $GITHUB_OUTPUT
-            
-            echo ""
-            echo "✅ Dynamic workflow generated with $UNIT_COUNT minimal units"
-            echo "📋 Execution pattern: $EXECUTION_PATTERN"
-          else
-            echo "❌ Dynamic workflow generation failed"
-            exit 1
-          fi
+      - name: Upload Capabilities
+        uses: actions/upload-artifact@v4
+        with:
+          name: capabilities-data
+          path: metadata/
 
   # ===========================================
-  # PHASE 3: DYNAMIC WORKFLOW GENERATION  
+  # PHASE 3: DETAILED ANALYSIS
   # ===========================================
   
-  dynamic-workflow-generation:
-    name: "🚀 Dynamic Workflow Generation"
+  detailed-analysis:
+    name: "🧠 Detailed Analysis"
     runs-on: ubuntu-latest
-    needs: [validate-trigger, ultra-task-decomposition]
+    needs: [validate-trigger, basic-task-decomposition]
     outputs:
-      generated_workflow: ${{ steps.generation.outputs.generated_workflow }}
-      workflow_path: ${{ steps.generation.outputs.workflow_path }}
+      orchestrator_match: ${{ steps.orchestrator.outputs.match_found }}
+      execution_pattern: ${{ steps.orchestrator.outputs.pattern }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Generate Dynamic Workflow
-        id: generation
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          
+      - name: Install Dependencies
         run: |
-          echo "🚀 Generating complete executable workflow..."
+          pip install pyyaml
           
-          # Create necessary directories
-          mkdir -p projects/current-session/{metadata,generated-workflows}
+      - name: Download Previous Data
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
           
-          # Restore workflow metadata from job outputs
-          echo '${{ needs.ultra-task-decomposition.outputs.decomposed_tasks }}' > projects/current-session/metadata/dynamic_workflow.json
+      - name: Orchestrator Analysis
+        id: orchestrator
+        run: |
+          echo "🔍 Running orchestrator analysis..."
           
-          # Read workflow metadata
-          WORKFLOW_DATA=$(cat projects/current-session/metadata/dynamic_workflow.json)
-          EXECUTION_PATTERN=$(echo "$WORKFLOW_DATA" | jq -r '.execution_pattern')
-          UNIT_COUNT=$(echo "$WORKFLOW_DATA" | jq '.minimal_units | length')
+          # Copy analyzer script
+          if [ -f scripts/orchestrator_analyzer.py ]; then
+            cp scripts/orchestrator_analyzer.py .
+            
+            # Run analysis
+            export USER_REQUEST=$(cat artifacts/issue-data/issue_title.txt)
+            export CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
+            
+            python orchestrator_analyzer.py || echo "⚠️ Orchestrator analysis failed"
+            
+            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
+              echo "match_found=true" >> $GITHUB_OUTPUT
+              # Extract pattern
+              PATTERN=$(jq -r '.execution_pattern // "sequential"' projects/current-session/metadata/orchestrator_analysis.json)
+              echo "pattern=$PATTERN" >> $GITHUB_OUTPUT
+            else
+              echo "match_found=false" >> $GITHUB_OUTPUT
+              echo "pattern=sequential" >> $GITHUB_OUTPUT
+            fi
+          fi
           
-          echo "📊 Generating workflow with $UNIT_COUNT units"
-          echo "🔄 Execution pattern: $EXECUTION_PATTERN"
+      - name: Generate Mermaid Diagram
+        run: |
+          echo "📊 Generating execution flow diagram..."
           
-          # Generate GitHub Actions workflow YAML
-          WORKFLOW_FILE="projects/current-session/generated-workflows/dynamic-workflow-${{ inputs.issue_number }}.yml"
+          CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
           
-          # Create workflow header
+          # Generate basic Mermaid diagram
+          echo "graph TD" > metadata/mermaid.txt
+          echo "    Start[開始]" >> metadata/mermaid.txt
+          
+          IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
+          PREV_NODE="Start"
+          NODE_COUNT=1
+          
+          for cap in "${CAP_ARRAY[@]}"; do
+            if [ -n "$cap" ]; then
+              NODE_NAME="Node$NODE_COUNT"
+              
+              case "$cap" in
+                "web-search") LABEL="🔍 Web検索" ;;
+                "planning") LABEL="📋 企画・計画" ;;
+                "image-generation") LABEL="🖼️ 画像生成" ;;
+                "video-generation") LABEL="🎬 動画生成" ;;
+                "lipsync") LABEL="👄 リップシンク" ;;
+                "subtitle-overlay") LABEL="📝 字幕追加" ;;
+                *) LABEL="$cap" ;;
+              esac
+              
+              echo "    $NODE_NAME[$LABEL]" >> metadata/mermaid.txt
+              echo "    $PREV_NODE --> $NODE_NAME" >> metadata/mermaid.txt
+              
+              PREV_NODE=$NODE_NAME
+              NODE_COUNT=$((NODE_COUNT + 1))
+            fi
+          done
+          
+          echo "    $PREV_NODE --> End[完了]" >> metadata/mermaid.txt
+          
+      - name: Upload Analysis Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-data
+          path: |
+            metadata/
+            projects/current-session/metadata/
+
+  # ===========================================
+  # PHASE 4: WORKFLOW GENERATION
+  # ===========================================
+  
+  workflow-generation:
+    name: "🚀 Workflow Generation"
+    runs-on: ubuntu-latest
+    needs: [validate-trigger, basic-task-decomposition, detailed-analysis]
+    outputs:
+      workflow_id: ${{ steps.generate.outputs.workflow_id }}
+      total_jobs: ${{ steps.generate.outputs.total_jobs }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          
+      - name: Generate Workflow
+        id: generate
+        run: |
+          echo "🚀 Generating optimized workflow..."
+          
+          ISSUE_NUMBER=$(cat artifacts/issue-data/issue_number.txt)
+          CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
+          COMPLEXITY="${{ needs.basic-task-decomposition.outputs.complexity }}"
+          
+          # Create workflow directory
+          mkdir -p generated-workflows
+          WORKFLOW_FILE="generated-workflows/dynamic-workflow-${ISSUE_NUMBER}.yml"
+          
+          # Generate workflow header
           echo 'name: "🎯 Dynamic Workflow - Issue #${{ github.event.inputs.issue_number }}"' > "$WORKFLOW_FILE"
           echo 'run-name: "📊 Dynamic | ${{ github.actor }} | Issue #${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
           echo '' >> "$WORKFLOW_FILE"
@@ -646,398 +309,649 @@ jobs:
           echo '      issue_number:' >> "$WORKFLOW_FILE"
           echo '        description: "Source issue number"' >> "$WORKFLOW_FILE"
           echo '        required: true' >> "$WORKFLOW_FILE"
-          echo '        default: "${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+          echo "        default: \"$ISSUE_NUMBER\"" >> "$WORKFLOW_FILE"
+          echo '      branch_name:' >> "$WORKFLOW_FILE"
+          echo '        description: "Working branch name"' >> "$WORKFLOW_FILE"
+          echo '        required: false' >> "$WORKFLOW_FILE"
+          echo "        default: \"issue-${ISSUE_NUMBER}\"" >> "$WORKFLOW_FILE"
           echo '' >> "$WORKFLOW_FILE"
+          
+          # Add permissions and environment
           echo 'permissions:' >> "$WORKFLOW_FILE"
           echo '  contents: write' >> "$WORKFLOW_FILE"
           echo '  actions: write' >> "$WORKFLOW_FILE"
           echo '  issues: write' >> "$WORKFLOW_FILE"
+          echo '  pull-requests: write' >> "$WORKFLOW_FILE"
           echo '' >> "$WORKFLOW_FILE"
           echo 'env:' >> "$WORKFLOW_FILE"
           echo '  CLAUDE_CODE_CI_MODE: true' >> "$WORKFLOW_FILE"
           echo '  CLAUDE_CODE_AUTO_APPROVE_MCP: true' >> "$WORKFLOW_FILE"
-          echo '  PROJECT_BASE: "projects/issue-${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' >> "$WORKFLOW_FILE"
           echo '' >> "$WORKFLOW_FILE"
+          
+          # Add jobs based on capabilities
           echo 'jobs:' >> "$WORKFLOW_FILE"
           
-          # Add initialization job
-          echo '  initialize:' >> "$WORKFLOW_FILE"
-          echo '    name: "🚀 Initialize Workflow"' >> "$WORKFLOW_FILE"
+          # Setup job (minimal to avoid expression limits)
+          echo '  setup:' >> "$WORKFLOW_FILE"
+          echo '    name: "🚀 Setup"' >> "$WORKFLOW_FILE"
           echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
           echo '    outputs:' >> "$WORKFLOW_FILE"
           echo '      project_dir: ${{ steps.setup.outputs.project_dir }}' >> "$WORKFLOW_FILE"
+          echo '      timestamp: ${{ steps.setup.outputs.timestamp }}' >> "$WORKFLOW_FILE"
           echo '    steps:' >> "$WORKFLOW_FILE"
           echo '      - name: Checkout Repository' >> "$WORKFLOW_FILE"
           echo '        uses: actions/checkout@v4' >> "$WORKFLOW_FILE"
-          echo '        ' >> "$WORKFLOW_FILE"
-          echo '      - name: Setup Project Directory' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo '      - name: Create Project Structure' >> "$WORKFLOW_FILE"
           echo '        id: setup' >> "$WORKFLOW_FILE"
           echo '        run: |' >> "$WORKFLOW_FILE"
-          echo '          PROJECT_DIR="${{ env.PROJECT_BASE }}"' >> "$WORKFLOW_FILE"
-          echo '          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final}' >> "$WORKFLOW_FILE"
+          echo '          TIMESTAMP=$(date +%Y%m%d-%H%M%S)' >> "$WORKFLOW_FILE"
+          echo '          PROJECT_DIR="projects/issue-${{ github.event.inputs.issue_number }}-$TIMESTAMP"' >> "$WORKFLOW_FILE"
+          echo '          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final,media}' >> "$WORKFLOW_FILE"
           echo '          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT' >> "$WORKFLOW_FILE"
-          echo '          echo "✅ Project directory initialized: $PROJECT_DIR"' >> "$WORKFLOW_FILE"
+          echo '          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT' >> "$WORKFLOW_FILE"
+          echo '          echo "✅ Project structure created: $PROJECT_DIR"' >> "$WORKFLOW_FILE"
           echo '' >> "$WORKFLOW_FILE"
           
-          # Add jobs based on execution phases
-          JOB_NUMBER=1
-          PREVIOUS_JOB="initialize"
-          PHASE_JOBS=""
+          # Group capabilities and create phases
+          IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
           
-          # Check if we have execution phases
-          HAS_PHASES=$(echo "$WORKFLOW_DATA" | jq -r '.metadata.execution_phases // null')
+          # Capability mapping to minimal units
+          declare -A UNIT_MAP
+          UNIT_MAP["web-search"]="./minimal-units/planning/web-search.yml"
+          UNIT_MAP["data-analysis"]="./minimal-units/planning/data-analysis.yml"
+          UNIT_MAP["planning"]="./minimal-units/planning/planning-ccsdk.yml"
+          UNIT_MAP["content-planning"]="./minimal-units/planning/content-planning.yml"
+          UNIT_MAP["scene-composition"]="./minimal-units/planning/scene-composition.yml"
+          UNIT_MAP["image-generation"]="./minimal-units/media/image/t2i-imagen3.yml"
+          UNIT_MAP["video-generation"]="./minimal-units/media/video/t2v-veo3.yml"
+          UNIT_MAP["audio-generation"]="./minimal-units/media/audio/bgm-generate-mcp.yml"
+          UNIT_MAP["lipsync"]="./minimal-units/postprod/lipsync-generation.yml"
+          UNIT_MAP["subtitle-overlay"]="./minimal-units/postprod/subtitle-overlay.yml"
+          UNIT_MAP["video-editing"]="./minimal-units/postprod/video-concat.yml"
           
-          if [ "$HAS_PHASES" != "null" ]; then
-            # Process by phases for optimized execution
-            echo "$WORKFLOW_DATA" | jq -c '.metadata.execution_phases[]' | while read -r phase; do
-              PHASE_NAME=$(echo "$phase" | jq -r '.name')
-              IS_PARALLEL=$(echo "$phase" | jq -r '.parallel')
-              
-              echo "# Phase: $PHASE_NAME (parallel: $IS_PARALLEL)" >> "$WORKFLOW_FILE"
-              
-              PHASE_FIRST_JOB=""
-              PHASE_JOB_NAMES=""
-              
-              echo "$phase" | jq -c '.jobs[]' | while read -r job; do
-                CAPABILITY=$(echo "$job" | jq -r '.capability')
-                UNIT_PATH=$(echo "$job" | jq -r '.unit_path')
-                
-                # Generate safe job name
-                JOB_NAME="job_${JOB_NUMBER}_$(echo "$CAPABILITY" | tr '-' '_')"
-                
-                if [ -z "$PHASE_FIRST_JOB" ]; then
-                  PHASE_FIRST_JOB="$JOB_NAME"
-                fi
-                PHASE_JOB_NAMES="${PHASE_JOB_NAMES}${JOB_NAME},"
-                
-                echo "  $JOB_NAME:" >> "$WORKFLOW_FILE"
-                echo "    name: \"📦 Execute: $CAPABILITY\"" >> "$WORKFLOW_FILE"
-                echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
-                
-                # Set dependencies based on parallel execution
-                if [ "$IS_PARALLEL" = "true" ]; then
-                  echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
+          # Phase separation
+          RESEARCH_JOBS=""
+          PLANNING_JOBS=""
+          MEDIA_JOBS=""
+          POST_JOBS=""
+          
+          for cap in "${CAP_ARRAY[@]}"; do
+            if [ -n "$cap" ]; then
+              case "$cap" in
+                web-search|data-analysis)
+                  RESEARCH_JOBS="${RESEARCH_JOBS}${cap},"
+                  ;;
+                planning|scene-composition|content-planning|narration*)
+                  PLANNING_JOBS="${PLANNING_JOBS}${cap},"
+                  ;;
+                image-generation|video-generation|audio-generation|text-to-speech)
+                  MEDIA_JOBS="${MEDIA_JOBS}${cap},"
+                  ;;
+                lipsync|subtitle-overlay|video-editing|video-concat)
+                  POST_JOBS="${POST_JOBS}${cap},"
+                  ;;
+              esac
+            fi
+          done
+          
+          # Research phase (sequential)
+          if [ -n "$RESEARCH_JOBS" ]; then
+            IFS=',' read -ra RESEARCH_ARRAY <<< "$RESEARCH_JOBS"
+            JOB_INDEX=1
+            for research_job in "${RESEARCH_ARRAY[@]}"; do
+              if [ -n "$research_job" ]; then
+                JOB_NAME="research_${JOB_INDEX}"
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"🔍 Research: ${research_job}\"" >> "$WORKFLOW_FILE"
+                if [ -f "${UNIT_MAP[$research_job]}" ]; then
+                  echo "    uses: ${UNIT_MAP[$research_job]}" >> "$WORKFLOW_FILE"
                 else
-                  if [ "$JOB_NAME" = "$PHASE_FIRST_JOB" ]; then
-                    echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
-                  else
-                    PREV_JOB_NAME="job_$((JOB_NUMBER - 1))_$(echo "$CAPABILITY" | tr '-' '_')"
-                    echo "    needs: $PREV_JOB_NAME" >> "$WORKFLOW_FILE"
-                  fi
+                  echo "    uses: ./minimal-units/planning/web-search.yml" >> "$WORKFLOW_FILE"
                 fi
-                
-                echo "    steps:" >> "$WORKFLOW_FILE"
-                echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
-                echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
-                echo "        " >> "$WORKFLOW_FILE"
-                echo "      - name: Execute $CAPABILITY" >> "$WORKFLOW_FILE"
-                echo "        run: |" >> "$WORKFLOW_FILE"
-                echo "          echo \"🔧 Executing minimal unit: $CAPABILITY\"" >> "$WORKFLOW_FILE"
-                echo "          echo \"📂 Unit path: $UNIT_PATH\"" >> "$WORKFLOW_FILE"
-                echo "          " >> "$WORKFLOW_FILE"
-                echo "          # Here you would include the actual minimal unit" >> "$WORKFLOW_FILE"
-                echo "          # For now, we'll simulate execution" >> "$WORKFLOW_FILE"
-                echo "          echo \"✅ $CAPABILITY completed successfully\"" >> "$WORKFLOW_FILE"
-                echo "          " >> "$WORKFLOW_FILE"
-                echo "          # Save output" >> "$WORKFLOW_FILE"
-                echo "          mkdir -p \\\${{ env.PROJECT_BASE }}/outputs" >> "$WORKFLOW_FILE"
-                echo "          echo \"Output from $CAPABILITY\" > \\\${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt" >> "$WORKFLOW_FILE"
-                echo "" >> "$WORKFLOW_FILE"
-                
-                JOB_NUMBER=$((JOB_NUMBER + 1))
-              done
-              
-              # Update previous job for next phase
-              if [ "$IS_PARALLEL" = "true" ]; then
-                # All jobs in parallel phase become dependencies for next phase
-                PREVIOUS_JOB="[${PHASE_JOB_NAMES%,}]"
-              else
-                # Last job in sequential phase
-                PREVIOUS_JOB="job_$((JOB_NUMBER - 1))_*"
+                if [ $JOB_INDEX -eq 1 ]; then
+                  echo '    needs: setup' >> "$WORKFLOW_FILE"
+                else
+                  PREV_JOB="research_$((JOB_INDEX - 1))"
+                  echo "    needs: [setup, ${PREV_JOB}]" >> "$WORKFLOW_FILE"
+                fi
+                echo '    with:' >> "$WORKFLOW_FILE"
+                echo '      query: "${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+                echo '      output_dir: "${{ needs.setup.outputs.project_dir }}/metadata"' >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+                JOB_INDEX=$((JOB_INDEX + 1))
               fi
             done
-          else
-            # Fallback to simple sequential execution
-            echo "$WORKFLOW_DATA" | jq -c '.minimal_units[]' | while read -r unit; do
-              CAPABILITY=$(echo "$unit" | jq -r '.capability')
-              UNIT_PATH=$(echo "$unit" | jq -r '.unit_path')
-              
-              # Generate safe job name
-              JOB_NAME="job_${JOB_NUMBER}_$(echo "$CAPABILITY" | tr '-' '_')"
-              
-              echo "  $JOB_NAME:" >> "$WORKFLOW_FILE"
-              echo "    name: \"📦 Execute: $CAPABILITY\"" >> "$WORKFLOW_FILE"
-              echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
-              echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
-              echo "    steps:" >> "$WORKFLOW_FILE"
-              echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
-              echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
-              echo "        " >> "$WORKFLOW_FILE"
-              echo "      - name: Execute $CAPABILITY" >> "$WORKFLOW_FILE"
-              echo "        run: |" >> "$WORKFLOW_FILE"
-              echo "          echo \"🔧 Executing minimal unit: $CAPABILITY\"" >> "$WORKFLOW_FILE"
-              echo "          echo \"📂 Unit path: $UNIT_PATH\"" >> "$WORKFLOW_FILE"
-              echo "          " >> "$WORKFLOW_FILE"
-              echo "          # Here you would include the actual minimal unit" >> "$WORKFLOW_FILE"
-              echo "          # For now, we'll simulate execution" >> "$WORKFLOW_FILE"
-              echo "          echo \"✅ $CAPABILITY completed successfully\"" >> "$WORKFLOW_FILE"
-              echo "          " >> "$WORKFLOW_FILE"
-              echo "          # Save output" >> "$WORKFLOW_FILE"
-              echo "          mkdir -p \\\${{ env.PROJECT_BASE }}/outputs" >> "$WORKFLOW_FILE"
-              echo "          echo \"Output from $CAPABILITY\" > \\\${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt" >> "$WORKFLOW_FILE"
-              echo "" >> "$WORKFLOW_FILE"
-              
-              PREVIOUS_JOB="$JOB_NAME"
-              JOB_NUMBER=$((JOB_NUMBER + 1))
+          fi
+          
+          # Planning phase (sequential with dependency)
+          if [ -n "$PLANNING_JOBS" ]; then
+            IFS=',' read -ra PLANNING_ARRAY <<< "$PLANNING_JOBS"
+            JOB_INDEX=1
+            PREV_PHASE_JOB=""
+            if [ -n "$RESEARCH_JOBS" ]; then
+              RESEARCH_COUNT=$(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+              PREV_PHASE_JOB="research_${RESEARCH_COUNT}"
+            fi
+            
+            for planning_job in "${PLANNING_ARRAY[@]}"; do
+              if [ -n "$planning_job" ]; then
+                JOB_NAME="planning_${JOB_INDEX}"
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"📋 Planning: ${planning_job}\"" >> "$WORKFLOW_FILE"
+                if [ -f "${UNIT_MAP[$planning_job]}" ]; then
+                  echo "    uses: ${UNIT_MAP[$planning_job]}" >> "$WORKFLOW_FILE"
+                else
+                  echo "    uses: ./minimal-units/planning/planning-ccsdk.yml" >> "$WORKFLOW_FILE"
+                fi
+                
+                # Dependencies
+                if [ $JOB_INDEX -eq 1 ]; then
+                  if [ -n "$PREV_PHASE_JOB" ]; then
+                    echo "    needs: [setup, ${PREV_PHASE_JOB}]" >> "$WORKFLOW_FILE"
+                  else
+                    echo '    needs: setup' >> "$WORKFLOW_FILE"
+                  fi
+                else
+                  PREV_JOB="planning_$((JOB_INDEX - 1))"
+                  echo "    needs: ${PREV_JOB}" >> "$WORKFLOW_FILE"
+                fi
+                
+                echo '    with:' >> "$WORKFLOW_FILE"
+                echo '      concept: "Issue #${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+                echo '      output_dir: "${{ needs.setup.outputs.project_dir }}/metadata"' >> "$WORKFLOW_FILE"
+                echo '    secrets:' >> "$WORKFLOW_FILE"
+                echo '      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+                JOB_INDEX=$((JOB_INDEX + 1))
+              fi
             done
           fi
           
-          # Add finalization job
-          echo '  finalize:' >> "$WORKFLOW_FILE"
-          echo '    name: "🎉 Finalize Workflow"' >> "$WORKFLOW_FILE"
+          # Media generation phase (parallel execution)
+          if [ -n "$MEDIA_JOBS" ]; then
+            # Determine dependencies for media jobs
+            MEDIA_DEPS="setup"
+            if [ -n "$PLANNING_JOBS" ]; then
+              PLANNING_COUNT=$(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+              MEDIA_DEPS="planning_${PLANNING_COUNT}"
+            elif [ -n "$RESEARCH_JOBS" ]; then
+              RESEARCH_COUNT=$(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+              MEDIA_DEPS="research_${RESEARCH_COUNT}"
+            fi
+            
+            IFS=',' read -ra MEDIA_ARRAY <<< "$MEDIA_JOBS"
+            for media_job in "${MEDIA_ARRAY[@]}"; do
+              if [ -n "$media_job" ]; then
+                JOB_NAME=$(echo "$media_job" | tr '-' '_')
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"🎨 ${media_job}\"" >> "$WORKFLOW_FILE"
+                if [ -f "${UNIT_MAP[$media_job]}" ]; then
+                  echo "    uses: ${UNIT_MAP[$media_job]}" >> "$WORKFLOW_FILE"
+                else
+                  echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+                fi
+                echo "    needs: ${MEDIA_DEPS}" >> "$WORKFLOW_FILE"
+                echo '    with:' >> "$WORKFLOW_FILE"
+                echo '      prompt: "Generated content for issue #${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+                echo '      output_dir: "${{ needs.setup.outputs.project_dir }}/media"' >> "$WORKFLOW_FILE"
+                echo '    secrets:' >> "$WORKFLOW_FILE"
+                echo '      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+              fi
+            done
+          fi
+          
+          # Post-processing phase (sequential)
+          if [ -n "$POST_JOBS" ]; then
+            # Collect all media job names for dependencies
+            MEDIA_JOB_NAMES=""
+            if [ -n "$MEDIA_JOBS" ]; then
+              IFS=',' read -ra MEDIA_ARRAY <<< "$MEDIA_JOBS"
+              for media_job in "${MEDIA_ARRAY[@]}"; do
+                if [ -n "$media_job" ]; then
+                  JOB_NAME=$(echo "$media_job" | tr '-' '_')
+                  MEDIA_JOB_NAMES="${MEDIA_JOB_NAMES}${JOB_NAME}, "
+                fi
+              done
+              MEDIA_JOB_NAMES="${MEDIA_JOB_NAMES%, }"
+            fi
+            
+            IFS=',' read -ra POST_ARRAY <<< "$POST_JOBS"
+            JOB_INDEX=1
+            for post_job in "${POST_ARRAY[@]}"; do
+              if [ -n "$post_job" ]; then
+                JOB_NAME="post_${JOB_INDEX}"
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"🔧 Post: ${post_job}\"" >> "$WORKFLOW_FILE"
+                if [ -f "${UNIT_MAP[$post_job]}" ]; then
+                  echo "    uses: ${UNIT_MAP[$post_job]}" >> "$WORKFLOW_FILE"
+                else
+                  echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+                fi
+                
+                # Dependencies
+                if [ $JOB_INDEX -eq 1 ]; then
+                  if [ -n "$MEDIA_JOB_NAMES" ]; then
+                    echo "    needs: [${MEDIA_JOB_NAMES}]" >> "$WORKFLOW_FILE"
+                  else
+                    echo '    needs: setup' >> "$WORKFLOW_FILE"
+                  fi
+                else
+                  PREV_JOB="post_$((JOB_INDEX - 1))"
+                  echo "    needs: ${PREV_JOB}" >> "$WORKFLOW_FILE"
+                fi
+                
+                echo '    with:' >> "$WORKFLOW_FILE"
+                echo '      video_list: "placeholder"' >> "$WORKFLOW_FILE"
+                echo '      output_dir: "${{ needs.setup.outputs.project_dir }}/final"' >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+                JOB_INDEX=$((JOB_INDEX + 1))
+              fi
+            done
+          fi
+          
+          # Summary job
+          echo '  summary:' >> "$WORKFLOW_FILE"
+          echo '    name: "📊 Summary"' >> "$WORKFLOW_FILE"
           echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
-          echo '    needs: [initialize]' >> "$WORKFLOW_FILE"
           echo '    if: always()' >> "$WORKFLOW_FILE"
+          
+          # Build needs list for summary
+          ALL_JOBS="setup"
+          if [ -n "$RESEARCH_JOBS" ]; then
+            RESEARCH_COUNT=$(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+            for i in $(seq 1 $RESEARCH_COUNT); do
+              ALL_JOBS="${ALL_JOBS}, research_${i}"
+            done
+          fi
+          if [ -n "$PLANNING_JOBS" ]; then
+            PLANNING_COUNT=$(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+            for i in $(seq 1 $PLANNING_COUNT); do
+              ALL_JOBS="${ALL_JOBS}, planning_${i}"
+            done
+          fi
+          if [ -n "$MEDIA_JOBS" ]; then
+            IFS=',' read -ra MEDIA_ARRAY <<< "$MEDIA_JOBS"
+            for media_job in "${MEDIA_ARRAY[@]}"; do
+              if [ -n "$media_job" ]; then
+                JOB_NAME=$(echo "$media_job" | tr '-' '_')
+                ALL_JOBS="${ALL_JOBS}, ${JOB_NAME}"
+              fi
+            done
+          fi
+          if [ -n "$POST_JOBS" ]; then
+            POST_COUNT=$(echo "$POST_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+            for i in $(seq 1 $POST_COUNT); do
+              ALL_JOBS="${ALL_JOBS}, post_${i}"
+            done
+          fi
+          
+          echo "    needs: [${ALL_JOBS}]" >> "$WORKFLOW_FILE"
           echo '    steps:' >> "$WORKFLOW_FILE"
-          echo '      - name: Checkout Repository' >> "$WORKFLOW_FILE"
-          echo '        uses: actions/checkout@v4' >> "$WORKFLOW_FILE"
-          echo '        ' >> "$WORKFLOW_FILE"
           echo '      - name: Generate Summary' >> "$WORKFLOW_FILE"
           echo '        run: |' >> "$WORKFLOW_FILE"
-          echo '          echo "## 📊 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
-          echo '          echo "" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "# 🎯 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
           echo '          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
-          echo '          echo "- **Project**: ${{ env.PROJECT_BASE }}" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
           echo '          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
-          echo '          echo "" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
-          echo '          echo "✅ Dynamic workflow execution completed!" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "- **Project**: ${{ needs.setup.outputs.project_dir }}" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
           
-          # Output workflow information
-          WORKFLOW_PATH="$WORKFLOW_FILE"
-          echo "workflow_path=$WORKFLOW_PATH" >> $GITHUB_OUTPUT
+          # Count total jobs
+          JOB_COUNT=2  # setup + summary
+          [ -n "$RESEARCH_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
+          [ -n "$PLANNING_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
+          [ -n "$MEDIA_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$MEDIA_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
+          [ -n "$POST_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$POST_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
           
-          # Encode workflow for output
-          if [ -f "$WORKFLOW_PATH" ]; then
-            ENCODED_WORKFLOW=$(base64 -w 0 "$WORKFLOW_PATH" 2>/dev/null || base64 "$WORKFLOW_PATH")
-            echo "generated_workflow=$ENCODED_WORKFLOW" >> $GITHUB_OUTPUT
-            echo "✅ Dynamic workflow YAML generated successfully"
-            echo "📁 Path: $WORKFLOW_PATH"
-          else
-            echo "❌ Failed to generate workflow file"
-            exit 1
-          fi
+          echo "workflow_id=${ISSUE_NUMBER}-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          echo "total_jobs=$JOB_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "✅ Generated workflow with $JOB_COUNT jobs"
+          
+      - name: Upload Generated Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-workflow
+          path: generated-workflows/
 
   # ===========================================
-  # PHASE 4: WORKFLOW DEPLOYMENT
+  # PHASE 5: WORKFLOW VALIDATION
   # ===========================================
   
-  deploy-workflow:
-    name: "🚀 Deploy Generated Workflow"
+  workflow-validation:
+    name: "✅ Workflow Validation"
     runs-on: ubuntu-latest
-    needs: [validate-trigger, ultra-task-decomposition, dynamic-workflow-generation]
+    needs: workflow-generation
     outputs:
-      deployment_status: ${{ steps.deploy.outputs.deployment_status }}
-      deployed_path: ${{ steps.deploy.outputs.deployed_path }}
+      validation_passed: ${{ steps.validate.outputs.passed }}
+      optimization_needed: ${{ steps.validate.outputs.needs_optimization }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Deploy Generated Workflow
+      - name: Download Generated Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-workflow
+          path: generated-workflows/
+          
+      - name: Validate Workflow
+        id: validate
+        run: |
+          echo "✅ Validating generated workflow..."
+          
+          WORKFLOW_FILE=$(find generated-workflows -name "*.yml" | head -1)
+          
+          # Check YAML syntax
+          python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null
+          if [ $? -eq 0 ]; then
+            echo "✅ YAML syntax valid"
+            SYNTAX_OK=true
+          else
+            echo "❌ YAML syntax error"
+            SYNTAX_OK=false
+          fi
+          
+          # Check for long expressions
+          LONG_LINES=$(grep -n ".*\${{.*}}.*" "$WORKFLOW_FILE" | awk 'length($0) > 500' | wc -l)
+          if [ "$LONG_LINES" -gt 0 ]; then
+            echo "⚠️ Found $LONG_LINES long expression lines"
+            echo "needs_optimization=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No long expressions found"
+            echo "needs_optimization=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check job count
+          JOB_COUNT=$(grep -c "^  [a-zA-Z].*:$" "$WORKFLOW_FILE" | grep -v "^on:" | grep -v "^jobs:" || echo 0)
+          if [ "$JOB_COUNT" -gt 10 ]; then
+            echo "⚠️ Too many jobs ($JOB_COUNT), consider parallelization"
+            echo "needs_optimization=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "$SYNTAX_OK" = true ]; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Optimize if Needed
+        if: steps.validate.outputs.needs_optimization == 'true'
+        run: |
+          echo "🔧 Optimizing workflow..."
+          
+          # Create optimization script
+          cat > optimize_workflow.py << 'EOF'
+import yaml
+import sys
+import re
+
+def check_expression_length(content):
+    """Check for GitHub expressions that might exceed 21000 chars"""
+    # Find all ${{ }} expressions
+    expressions = re.findall(r'\$\{\{[^}]+\}\}', content)
+    long_expressions = []
+    for expr in expressions:
+        if len(expr) > 1000:  # Conservative limit
+            long_expressions.append(expr)
+    return long_expressions
+
+def split_long_outputs(job_config):
+    """Split jobs with potentially long outputs"""
+    if 'outputs' in job_config:
+        output_count = len(job_config['outputs'])
+        if output_count > 5:
+            # Move outputs to artifact uploads
+            new_steps = job_config.get('steps', [])
+            new_steps.append({
+                'name': 'Save outputs to artifacts',
+                'uses': 'actions/upload-artifact@v4',
+                'with': {
+                    'name': 'job-outputs',
+                    'path': 'outputs/'
+                }
+            })
+            job_config['steps'] = new_steps
+            # Reduce outputs
+            job_config['outputs'] = {k: v for k, v in list(job_config['outputs'].items())[:3]}
+    return job_config
+
+def optimize_workflow(file_path):
+    with open(file_path, 'r') as f:
+        content = f.read()
+        workflow = yaml.safe_load(content)
+    
+    # Check for long expressions
+    long_exprs = check_expression_length(content)
+    if long_exprs:
+        print(f"Found {len(long_exprs)} potentially long expressions")
+    
+    # Optimize jobs
+    optimized_jobs = {}
+    job_split_count = 0
+    
+    for job_name, job_config in workflow.get('jobs', {}).items():
+        if isinstance(job_config, dict):
+            # Check steps count
+            steps = job_config.get('steps', [])
+            if len(steps) > 10:
+                # Split into multiple jobs
+                for i in range(0, len(steps), 8):
+                    part_num = i//8 + 1
+                    new_job_name = f"{job_name}_part{part_num}"
+                    new_job = {
+                        'name': f"{job_config.get('name', job_name)} (Part {part_num})",
+                        'runs-on': job_config.get('runs-on', 'ubuntu-latest'),
+                        'steps': steps[i:i+8]
+                    }
+                    
+                    # Handle dependencies
+                    if part_num == 1:
+                        new_job['needs'] = job_config.get('needs', [])
+                    else:
+                        prev_job = f"{job_name}_part{part_num-1}"
+                        existing_needs = job_config.get('needs', [])
+                        if isinstance(existing_needs, list):
+                            new_job['needs'] = existing_needs + [prev_job]
+                        else:
+                            new_job['needs'] = [existing_needs, prev_job]
+                    
+                    optimized_jobs[new_job_name] = new_job
+                job_split_count += 1
+            else:
+                # Optimize outputs
+                optimized_jobs[job_name] = split_long_outputs(job_config)
+    
+    if job_split_count > 0:
+        workflow['jobs'] = optimized_jobs
+        print(f"Split {job_split_count} jobs into smaller parts")
+    
+    # Add workflow-level optimizations
+    if 'env' not in workflow:
+        workflow['env'] = {}
+    workflow['env']['ACTIONS_RUNNER_FORCED_INTERNAL_NODE_VERSION'] = 'node16'
+    workflow['env']['ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT'] = 'true'
+    
+    with open(file_path + '.optimized', 'w') as f:
+        yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)
+
+if __name__ == "__main__":
+    optimize_workflow(sys.argv[1])
+EOF
+          
+          WORKFLOW_FILE=$(find generated-workflows -name "*.yml" | head -1)
+          python3 optimize_workflow.py "$WORKFLOW_FILE"
+          
+          if [ -f "${WORKFLOW_FILE}.optimized" ]; then
+            mv "${WORKFLOW_FILE}.optimized" "$WORKFLOW_FILE"
+            echo "✅ Workflow optimized"
+            
+            # Re-validate
+            python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null
+            if [ $? -eq 0 ]; then
+              echo "✅ Optimized workflow is valid"
+            else
+              echo "❌ Optimization created invalid YAML"
+            fi
+          fi
+          
+      - name: Upload Validated Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-workflow
+          path: generated-workflows/
+
+  # ===========================================
+  # PHASE 6: DEPLOYMENT
+  # ===========================================
+  
+  deployment:
+    name: "📦 Deployment"
+    runs-on: ubuntu-latest
+    needs: [workflow-validation, workflow-generation]
+    if: needs.workflow-validation.outputs.validation_passed == 'true'
+    outputs:
+      deployed_path: ${{ steps.deploy.outputs.path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Validated Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: validated-workflow
+          path: generated-workflows/
+          
+      - name: Deploy Workflow
         id: deploy
         run: |
-          echo "🚀 Deploying generated workflow..."
+          echo "📦 Deploying workflow..."
+          
+          WORKFLOW_FILE=$(find generated-workflows -name "*.yml" | head -1)
+          DEPLOYMENT_NAME="issue-${{ inputs.issue_number }}-$(date +%Y%m%d-%H%M%S).yml.disabled"
+          DEPLOYMENT_PATH=".github/workflows/generated/$DEPLOYMENT_NAME"
           
           # Create deployment directory
           mkdir -p .github/workflows/generated
           
-          # Decode and save workflow
-          WORKFLOW_PATH="${{ needs.dynamic-workflow-generation.outputs.workflow_path }}"
-          DEPLOYMENT_NAME="issue-${{ inputs.issue_number }}-$(date +%Y%m%d-%H%M%S).yml.disabled"
-          DEPLOYMENT_PATH=".github/workflows/generated/$DEPLOYMENT_NAME"
+          # Copy workflow
+          cp "$WORKFLOW_FILE" "$DEPLOYMENT_PATH"
           
-          # Restore generated workflow
-          echo "${{ needs.dynamic-workflow-generation.outputs.generated_workflow }}" | base64 -d > "$DEPLOYMENT_PATH"
+          echo "path=$DEPLOYMENT_PATH" >> $GITHUB_OUTPUT
           
-          if [ -f "$DEPLOYMENT_PATH" ]; then
-            echo "✅ Workflow deployed successfully"
-            echo "📁 Deployed to: $DEPLOYMENT_PATH"
-            echo "⚠️  Note: Workflow is deployed with .disabled extension for safety"
-            
-            # Display generated workflow content
-            echo ""
-            echo "📄 Generated Workflow Content:"
-            echo "================================"
-            head -50 "$DEPLOYMENT_PATH"
-            echo "================================"
-            echo "(Showing first 50 lines)"
-            echo ""
-            echo "To activate the workflow:"
-            echo "  1. Review the generated workflow"
-            echo "  2. Remove the .disabled extension"
-            echo "  3. Commit and push the changes"
-            
-            # Commit the generated workflow
-            git config --global user.name "github-actions[bot]"
-            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add "$DEPLOYMENT_PATH"
-            git commit -m "🤖 Generated workflow for Issue #${{ inputs.issue_number }} - Meta Workflow v10 with dynamic capability detection" || echo "No changes to commit"
-            
-            git push origin main || echo "Push failed - may need permissions"
-            
-            echo "deployment_status=success" >> $GITHUB_OUTPUT
-            echo "deployed_path=$DEPLOYMENT_PATH" >> $GITHUB_OUTPUT
-            
-            # Create deployment summary
-            echo "## 🚀 Workflow Deployment Summary" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
-            echo "- **Issue**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Deployed Path**: \`$DEPLOYMENT_PATH\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Activation**: Remove \`.disabled\` extension to activate" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Generated Workflow Details:" >> $GITHUB_STEP_SUMMARY
-            echo "- **Units**: ${{ needs.ultra-task-decomposition.outputs.task_count }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Pattern**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ Deployment failed"
-            echo "deployment_status=failed" >> $GITHUB_OUTPUT
-            exit 1
-          fi
+          # Commit and push
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$DEPLOYMENT_PATH"
+          git commit -m "🤖 Generated workflow for Issue #${{ inputs.issue_number }}" || echo "No changes"
+          git push origin main || echo "Push failed"
+          
+          echo "✅ Deployed to: $DEPLOYMENT_PATH"
 
   # ===========================================
-  # PHASE 5: EXECUTION SUMMARY
+  # PHASE 7: EXECUTION SUMMARY
   # ===========================================
   
   execution-summary:
     name: "📊 Execution Summary"
-    runs-on: ubuntu-latest  
-    needs: [validate-trigger, ultra-task-decomposition, dynamic-workflow-generation, deploy-workflow]
+    runs-on: ubuntu-latest
+    needs: [validate-trigger, basic-task-decomposition, detailed-analysis, workflow-generation, workflow-validation, deployment]
     if: always()
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Generate Execution Summary
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          
+      - name: Generate Summary
         run: |
-          echo "# 📊 Meta Workflow v10 実行結果レポート" >> $GITHUB_STEP_SUMMARY
+          echo "# 📊 Meta Workflow v10 実行結果" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## 📋 リクエスト情報" >> $GITHUB_STEP_SUMMARY
-          echo "- **Issue番号**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
           echo "- **タイトル**: ${{ needs.validate-trigger.outputs.issue_title }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **検出されたタイプ**: ${{ needs.validate-trigger.outputs.request_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **タイプ**: ${{ needs.validate-trigger.outputs.request_type }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## 🔍 タスク分解結果" >> $GITHUB_STEP_SUMMARY
           echo "### 検出された能力" >> $GITHUB_STEP_SUMMARY
-          echo "${{ needs.ultra-task-decomposition.outputs.detected_capabilities }}" >> $GITHUB_STEP_SUMMARY
+          if [ -f "artifacts/capabilities-data/capabilities.txt" ]; then
+            CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
+            IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
+            for cap in "${CAP_ARRAY[@]}"; do
+              if [ -n "$cap" ]; then
+                echo "- ✅ $cap" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "### 📚 参考にしたオーケストレーター" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ needs.ultra-task-decomposition.outputs.orchestrator_used }}" = "true" ]; then
-            echo "以下のオーケストレーターパターンを参考に最適化しました：" >> $GITHUB_STEP_SUMMARY
-            echo "- ${{ needs.ultra-task-decomposition.outputs.orchestrator_sources }}" | sed 's/,/\n- /g' >> $GITHUB_STEP_SUMMARY
+          echo "### タスク分解の詳細" >> $GITHUB_STEP_SUMMARY
+          echo "- **検出能力数**: ${{ needs.basic-task-decomposition.outputs.capabilities_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **複雑度**: ${{ needs.basic-task-decomposition.outputs.complexity }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Show fine-grained decomposition
+          if [ "${{ needs.basic-task-decomposition.outputs.has_video }}" == "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### 🎬 動画生成タスクの詳細分解:" >> $GITHUB_STEP_SUMMARY
+            echo "- 📋 コンテンツ企画 (content-planning)" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ needs.basic-task-decomposition.outputs.has_narration }}" == "true" ]; then
+              echo "- 🎤 ナレーション作成 (narration-creation)" >> $GITHUB_STEP_SUMMARY
+              echo "- 👄 リップシンク処理 (lipsync)" >> $GITHUB_STEP_SUMMARY
+              echo "- 📝 字幕オーバーレイ (subtitle-overlay)" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "- 🎨 シーン構成 (scene-composition)" >> $GITHUB_STEP_SUMMARY
+            echo "- 🖼️ 画像生成 (image-generation)" >> $GITHUB_STEP_SUMMARY
+            echo "- 🎬 動画生成 (video-generation)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🧠 オーケストレーター分析" >> $GITHUB_STEP_SUMMARY
+          echo "- **マッチング**: ${{ needs.detailed-analysis.outputs.orchestrator_match }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行パターン**: ${{ needs.detailed-analysis.outputs.execution_pattern }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Show Mermaid diagram if exists
+          if [ -f "artifacts/analysis-data/metadata/mermaid.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 実行フロー図" >> $GITHUB_STEP_SUMMARY
+            echo '```mermaid' >> $GITHUB_STEP_SUMMARY
+            cat artifacts/analysis-data/metadata/mermaid.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🚀 ワークフロー生成" >> $GITHUB_STEP_SUMMARY
+          echo "- **生成ジョブ数**: ${{ needs.workflow-generation.outputs.total_jobs }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **検証結果**: ${{ needs.workflow-validation.outputs.validation_passed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **最適化**: ${{ needs.workflow-validation.outputs.optimization_needed }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Show job structure
+          if [ -f "artifacts/generated-workflow/"*.yml ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📋 生成されたジョブ構造" >> $GITHUB_STEP_SUMMARY
+            WORKFLOW_FILE=$(find artifacts/generated-workflow -name "*.yml" | head -1)
+            # Extract job names
+            grep -E "^  [a-zA-Z_-]+:" "$WORKFLOW_FILE" | grep -v "^  workflow_dispatch:" | sed 's/://g' | while read job; do
+              echo "- $job" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.deployment.outputs.deployed_path }}" != "" ]; then
+            echo "## ✅ デプロイ完了" >> $GITHUB_STEP_SUMMARY
+            echo "- **保存場所**: \`${{ needs.deployment.outputs.deployed_path }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **アクティベーション**: .disabled拡張子を削除して有効化" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🎯 次のステップ" >> $GITHUB_STEP_SUMMARY
+            echo "1. 生成されたワークフローを確認" >> $GITHUB_STEP_SUMMARY
+            echo "2. \`.disabled\`拡張子を削除して有効化" >> $GITHUB_STEP_SUMMARY
+            echo "3. Actions タブから手動実行" >> $GITHUB_STEP_SUMMARY
           else
-            echo "既存のオーケストレーターパターンがマッチしなかったため、専門家視点のロジックで構築しました。" >> $GITHUB_STEP_SUMMARY
+            echo "## ⚠️ デプロイスキップ" >> $GITHUB_STEP_SUMMARY
+            echo "検証エラーのためデプロイをスキップしました。" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "### 📋 タスク分解詳細" >> $GITHUB_STEP_SUMMARY
-          echo "#### 初期タスク分解" >> $GITHUB_STEP_SUMMARY
-          echo "検出されたタスク：" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ needs.ultra-task-decomposition.outputs.detected_capabilities }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # 細粒度タスク分解があれば表示
-          if [ -n "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" ]; then
-            echo "#### 🎯 細粒度タスク分解" >> $GITHUB_STEP_SUMMARY
-            echo "複雑なタスクは以下のサブタスクに分解されました：" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
-            echo "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # 作業ベース詳細分解があれば表示
-          if [[ "${{ needs.ultra-task-decomposition.outputs.work_based_decomposition }}" == *"Available"* ]]; then
-            echo "#### 📋 作業ベース詳細分解" >> $GITHUB_STEP_SUMMARY
-            echo "各タスクを実作業レベルに分解しました。" >> $GITHUB_STEP_SUMMARY
-            echo "詳細は metadata/work_based.txt に保存されています。" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          # 戦略的計画があれば表示
-          if [[ "${{ needs.ultra-task-decomposition.outputs.strategic_plan }}" == *"Available"* ]]; then
-            echo "#### 🎯 戦略的ワークフロー構築" >> $GITHUB_STEP_SUMMARY
-            echo "並列実行と一貫性確保の戦略を策定しました。" >> $GITHUB_STEP_SUMMARY
-            echo "詳細は metadata/strategic.txt に保存されています。" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "### 🔄 ジョブ実行順序" >> $GITHUB_STEP_SUMMARY
-          
-          # Mermaid図があれば表示
-          if [ -n "${{ needs.ultra-task-decomposition.outputs.mermaid_diagram }}" ]; then
-            echo "#### 📊 実行フロー図" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`mermaid" >> $GITHUB_STEP_SUMMARY
-            echo "${{ needs.ultra-task-decomposition.outputs.mermaid_diagram }}" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "#### 📝 実行順序詳細" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ needs.ultra-task-decomposition.outputs.job_sequence }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # 細粒度タスク分解があれば表示
-          if [ -n "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" ]; then
-            echo "### 🎯 細粒度タスク分解" >> $GITHUB_STEP_SUMMARY
-            echo "複雑なタスクは以下のサブタスクに分解されました：" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
-            echo "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "## 📊 実行統計" >> $GITHUB_STEP_SUMMARY
-          echo "- **総ユニット数**: ${{ needs.ultra-task-decomposition.outputs.task_count }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **実行パターン**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "## 🔄 実行フェーズ" >> $GITHUB_STEP_SUMMARY
-          echo "| フェーズ | ステータス |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔍 Issue検証 | ${{ needs.validate-trigger.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧠 タスク分解 | ${{ needs.ultra-task-decomposition.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🚀 ワークフロー生成 | ${{ needs.dynamic-workflow-generation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📦 デプロイ | ${{ needs.deploy-workflow.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ needs.deploy-workflow.outputs.deployment_status }}" = "success" ]; then
-            echo "## ✅ 実行結果: 成功" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "動的ワークフローが正常に生成・デプロイされました：" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 📁 生成されたワークフロー" >> $GITHUB_STEP_SUMMARY
-            echo "- **保存場所**: \`${{ needs.deploy-workflow.outputs.deployed_path }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **ステータス**: .disabled拡張子付き（安全のため）" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 🚀 アクティベーション方法" >> $GITHUB_STEP_SUMMARY
-            echo "1. 生成されたワークフローをレビュー" >> $GITHUB_STEP_SUMMARY
-            echo "2. \`.disabled\`拡張子を削除" >> $GITHUB_STEP_SUMMARY
-            echo "3. コミット・プッシュして有効化" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ⚠️ 実行結果: 問題検出" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "エラーの詳細はログを確認してください。" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Meta Workflow v10 with Claude SDK & Orchestrator Integration により生成*" >> $GITHUB_STEP_SUMMARY
-          echo "*実行時刻: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*" >> $GITHUB_STEP_SUMMARY

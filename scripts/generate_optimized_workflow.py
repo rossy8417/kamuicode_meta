@@ -40,24 +40,25 @@ def create_logical_job_order(capabilities: List[str], orchestrator_analysis: Dic
             'category': 'research',
             'priority': 2
         },
-        'news-planning': {
-            'path': 'minimal-units/planning/news-planning.yml',
+        'planning': {
+            'path': 'minimal-units/planning/planning-ccsdk.yml',
             'category': 'planning',
-            'priority': 3,
-            'subtasks': [
-                {
-                    'name': 'content-planning',
-                    'description': 'ニュース内容の企画',
-                    'path': 'minimal-units/planning/content-planning.yml',
-                    'priority': 3.1
-                },
-                {
-                    'name': 'narration-creation', 
-                    'description': 'ナレーション原稿作成',
-                    'path': 'minimal-units/planning/narration-creation.yml',
-                    'priority': 3.2
-                }
-            ]
+            'priority': 3
+        },
+        'content-planning': {
+            'path': 'minimal-units/planning/content-planning.yml',
+            'category': 'planning',
+            'priority': 3.1
+        },
+        'narration-creation': { 
+            'path': 'minimal-units/planning/narration-creation.yml',
+            'category': 'planning',
+            'priority': 3.2
+        },
+        'scene-composition': {
+            'path': 'minimal-units/planning/scene-composition.yml',
+            'category': 'planning', 
+            'priority': 3.3
         },
         'image-generation': {
             'path': 'minimal-units/media/image/t2i-imagen3.yml',
