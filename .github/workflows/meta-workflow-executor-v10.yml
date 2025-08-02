@@ -109,6 +109,8 @@ jobs:
       orchestrator_used: ${{ steps.decompose.outputs.orchestrator_used }}
       orchestrator_sources: ${{ steps.decompose.outputs.orchestrator_sources }}
       job_sequence: ${{ steps.decompose.outputs.job_sequence }}
+      mermaid_diagram: ${{ steps.decompose.outputs.mermaid_diagram }}
+      fine_grained_tasks: ${{ steps.decompose.outputs.fine_grained_tasks }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -259,6 +261,15 @@ jobs:
               cat projects/current-session/metadata/orchestrator_analysis.json >> /tmp/claude_prompt.txt
             fi
             echo "" >> /tmp/claude_prompt.txt
+            echo "IMPORTANT: For complex tasks like 'news-planning', break them down into subtasks:" >> /tmp/claude_prompt.txt
+            echo "- content-planning (内容の企画)" >> /tmp/claude_prompt.txt
+            echo "- narration-creation (ナレーション作成)" >> /tmp/claude_prompt.txt
+            echo "- scene-planning (シーン企画)" >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
+            echo "Output format:" >> /tmp/claude_prompt.txt
+            echo "1. Fine-grained task decomposition in JSON" >> /tmp/claude_prompt.txt
+            echo "2. Mermaid diagram showing execution flow" >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
             echo "Please provide the optimal job execution order considering dependencies." >> /tmp/claude_prompt.txt
             
             # Try Claude
@@ -266,9 +277,67 @@ jobs:
             
             if [ -n "$CLAUDE_RESPONSE" ]; then
               echo "✅ Claude Code SDK provided enhanced analysis"
+              echo "$CLAUDE_RESPONSE" > projects/current-session/metadata/claude_analysis.txt
+              
+              # Extract fine-grained tasks if available
+              if echo "$CLAUDE_RESPONSE" | grep -q "subtasks"; then
+                echo "🔍 Fine-grained task decomposition detected"
+                FINE_GRAINED_TASKS=$(echo "$CLAUDE_RESPONSE" | grep -A 50 '"subtasks"' || echo '')
+                echo "fine_grained_tasks<<EOF" >> $GITHUB_OUTPUT
+                echo "$FINE_GRAINED_TASKS" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              fi
+              
+              # Extract Mermaid diagram if available
+              if echo "$CLAUDE_RESPONSE" | grep -q "graph"; then
+                echo "📊 Mermaid diagram detected"
+                MERMAID_DIAGRAM=$(echo "$CLAUDE_RESPONSE" | sed -n '/```mermaid/,/```/p' | sed '1d;$d' || echo '')
+                echo "mermaid_diagram<<EOF" >> $GITHUB_OUTPUT
+                echo "$MERMAID_DIAGRAM" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              fi
             fi
           else
-            echo "ℹ️ Claude CLI not installed, using orchestrator analysis only"
+            echo "ℹ️ Claude CLI not installed, generating basic Mermaid diagram"
+            
+            # Generate basic Mermaid diagram based on capabilities
+            echo "graph TD" > projects/current-session/metadata/mermaid.txt
+            echo "    Start[開始]" >> projects/current-session/metadata/mermaid.txt
+            
+            # Parse capabilities and create diagram
+            IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
+            PREV_NODE="Start"
+            NODE_COUNT=1
+            
+            for cap in "${CAP_ARRAY[@]}"; do
+              NODE_NAME="Node$NODE_COUNT"
+              
+              # Create node label based on capability
+              case "$cap" in
+                "web-search") LABEL="🔍 Web検索" ;;
+                "data-analysis") LABEL="📊 データ分析" ;;
+                "news-planning") LABEL="📰 ニュース企画\\n├─ 内容企画\\n├─ ナレーション作成\\n└─ シーン構成" ;;
+                "image-generation") LABEL="🖼️ 画像生成" ;;
+                "audio-generation") LABEL="🎵 音声生成" ;;
+                "video-generation") LABEL="🎬 動画生成" ;;
+                "video-editing") LABEL="✂️ 動画編集" ;;
+                *) LABEL="$cap" ;;
+              esac
+              
+              echo "    $NODE_NAME[$LABEL]" >> projects/current-session/metadata/mermaid.txt
+              echo "    $PREV_NODE --> $NODE_NAME" >> projects/current-session/metadata/mermaid.txt
+              
+              PREV_NODE=$NODE_NAME
+              NODE_COUNT=$((NODE_COUNT + 1))
+            done
+            
+            echo "    $PREV_NODE --> End[完了]" >> projects/current-session/metadata/mermaid.txt
+            
+            # Save as output
+            MERMAID_CONTENT=$(cat projects/current-session/metadata/mermaid.txt)
+            echo "mermaid_diagram<<EOF" >> $GITHUB_OUTPUT
+            echo "$MERMAID_CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           fi
           
           # Generate workflow metadata
@@ -351,6 +420,42 @@ jobs:
             echo '}' >> projects/current-session/metadata/dynamic_workflow.json
           fi
           
+          # Generate fine-grained task decomposition for complex tasks
+          echo '{}' > projects/current-session/metadata/fine_grained_tasks.json
+          
+          # Check for complex tasks that need decomposition
+          if echo "$CAPABILITIES" | grep -q "news-planning"; then
+            echo "🔍 Decomposing news-planning into subtasks..."
+            
+            # Create fine-grained decomposition
+            cat > projects/current-session/metadata/fine_grained_tasks.json << 'EOF'
+{
+  "news-planning": {
+    "subtasks": [
+      {
+        "name": "content-planning",
+        "description": "ニュース内容の企画",
+        "unit": "minimal-units/planning/content-planning.yml",
+        "duration": "5-10 minutes"
+      },
+      {
+        "name": "narration-creation",
+        "description": "ナレーション原稿作成",
+        "unit": "minimal-units/planning/narration-creation.yml", 
+        "duration": "10-15 minutes"
+      },
+      {
+        "name": "scene-planning",
+        "description": "シーン構成の企画",
+        "unit": "minimal-units/planning/scene-planning.yml",
+        "duration": "5-10 minutes"
+      }
+    ]
+  }
+}
+EOF
+          fi
+          
           # Validate and output results
           if [ -f projects/current-session/metadata/dynamic_workflow.json ]; then
             UNIT_COUNT=$(jq '.minimal_units | length' projects/current-session/metadata/dynamic_workflow.json)
@@ -373,6 +478,16 @@ jobs:
             else
               echo "orchestrator_used=false" >> $GITHUB_OUTPUT
               echo "orchestrator_sources=none" >> $GITHUB_OUTPUT
+            fi
+            
+            # Export fine-grained tasks if available
+            if [ -f projects/current-session/metadata/fine_grained_tasks.json ] && [ -s projects/current-session/metadata/fine_grained_tasks.json ]; then
+              FINE_GRAINED=$(cat projects/current-session/metadata/fine_grained_tasks.json)
+              if [ "$FINE_GRAINED" != "{}" ]; then
+                echo "fine_grained_tasks<<EOF" >> $GITHUB_OUTPUT
+                echo "$FINE_GRAINED" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              fi
             fi
             
             # Extract job sequence
@@ -732,10 +847,31 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### 🔄 ジョブ実行順序" >> $GITHUB_STEP_SUMMARY
+          
+          # Mermaid図があれば表示
+          if [ -n "${{ needs.ultra-task-decomposition.outputs.mermaid_diagram }}" ]; then
+            echo "#### 📊 実行フロー図" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`mermaid" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.ultra-task-decomposition.outputs.mermaid_diagram }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "#### 📝 実行順序詳細" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "${{ needs.ultra-task-decomposition.outputs.job_sequence }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # 細粒度タスク分解があれば表示
+          if [ -n "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" ]; then
+            echo "### 🎯 細粒度タスク分解" >> $GITHUB_STEP_SUMMARY
+            echo "複雑なタスクは以下のサブタスクに分解されました：" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.ultra-task-decomposition.outputs.fine_grained_tasks }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
           
           echo "## 📊 実行統計" >> $GITHUB_STEP_SUMMARY
           echo "- **総ユニット数**: ${{ needs.ultra-task-decomposition.outputs.task_count }}" >> $GITHUB_STEP_SUMMARY
