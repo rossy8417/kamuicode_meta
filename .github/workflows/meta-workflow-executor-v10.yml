@@ -679,15 +679,193 @@ jobs:
             echo "passed=false" >> $GITHUB_OUTPUT
           fi
           
-      - name: Optimize if Needed
+      - name: Prepare Optimization Script Part 1
         if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
         run: |
-          echo "Optimizing workflow..."
+          echo "📊 Preparing optimization script (Part 1)..."
           
-          # Simple optimization: just log the optimization would happen
+          # Create optimization script header
+          cat > optimize_part1.py << 'EOF'
+#!/usr/bin/env python3
+import yaml
+import sys
+import json
+from typing import List, Dict, Any
+
+def load_workflow(file_path: str) -> Dict:
+    """ワークフローファイルを読み込む"""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
+
+def analyze_node_length(job_content: Dict) -> int:
+    """ノードの長さを分析"""
+    content_str = yaml.dump(job_content)
+    return len(content_str)
+
+def identify_long_nodes(workflow: Dict, threshold: int = 15000) -> List[str]:
+    """長いノードを特定"""
+    long_nodes = []
+    if 'jobs' in workflow:
+        for job_name, job_content in workflow['jobs'].items():
+            length = analyze_node_length(job_content)
+            if length > threshold:
+                long_nodes.append(job_name)
+                print(f"⚠️ Long node detected: {job_name} ({length} chars)")
+    return long_nodes
+EOF
+          
+      - name: Prepare Optimization Script Part 2
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "📊 Preparing optimization script (Part 2)..."
+          
+          # Add node splitting logic
+          cat >> optimize_part1.py << 'EOF'
+
+def split_long_node(job_name: str, job_content: Dict) -> Dict[str, Dict]:
+    """長いノードを分割"""
+    split_jobs = {}
+    
+    if 'steps' in job_content and len(job_content['steps']) > 10:
+        # ステップ数が多い場合は分割
+        steps = job_content['steps']
+        mid_point = len(steps) // 2
+        
+        # Part 1
+        job1 = job_content.copy()
+        job1['steps'] = steps[:mid_point]
+        split_jobs[f"{job_name}_part1"] = job1
+        
+        # Part 2
+        job2 = job_content.copy()
+        job2['steps'] = steps[mid_point:]
+        if 'needs' in job1:
+            job2['needs'] = [f"{job_name}_part1"]
+        split_jobs[f"{job_name}_part2"] = job2
+        
+        print(f"✅ Split {job_name} into 2 parts")
+    else:
+        split_jobs[job_name] = job_content
+    
+    return split_jobs
+
+def identify_parallel_opportunities(workflow: Dict) -> List[List[str]]:
+    """並列実行可能なジョブを特定"""
+    parallel_groups = []
+    jobs = workflow.get('jobs', {})
+    
+    # 依存関係のないジョブをグループ化
+    no_deps = []
+    for job_name, job_content in jobs.items():
+        if 'needs' not in job_content or not job_content['needs']:
+            no_deps.append(job_name)
+    
+    if len(no_deps) > 1:
+        parallel_groups.append(no_deps)
+        print(f"🚀 Found parallel group: {no_deps}")
+    
+    return parallel_groups
+EOF
+
+      - name: Prepare Optimization Script Part 3
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "📊 Preparing optimization script (Part 3)..."
+          
+          # Add main optimization logic
+          cat >> optimize_part1.py << 'EOF'
+
+def optimize_workflow(workflow: Dict) -> Dict:
+    """ワークフローを最適化"""
+    optimized = workflow.copy()
+    
+    # 1. 長いノードを特定して分割
+    long_nodes = identify_long_nodes(workflow)
+    if long_nodes:
+        print(f"\n🔍 Found {len(long_nodes)} long nodes to split")
+        new_jobs = {}
+        
+        for job_name, job_content in workflow.get('jobs', {}).items():
+            if job_name in long_nodes:
+                split_jobs = split_long_node(job_name, job_content)
+                new_jobs.update(split_jobs)
+            else:
+                new_jobs[job_name] = job_content
+        
+        optimized['jobs'] = new_jobs
+    
+    # 2. 並列実行の最適化
+    parallel_groups = identify_parallel_opportunities(optimized)
+    if parallel_groups:
+        print(f"\n🚀 Identified {len(parallel_groups)} parallel execution opportunities")
+    
+    return optimized
+
+# メイン処理
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python optimize.py <workflow.yml>")
+        sys.exit(1)
+    
+    workflow_file = sys.argv[1]
+    print(f"🔧 Optimizing workflow: {workflow_file}")
+    
+    # ワークフローを読み込み
+    workflow = load_workflow(workflow_file)
+    
+    # 最適化
+    optimized = optimize_workflow(workflow)
+    
+    # 結果を保存
+    output_file = workflow_file.replace('.yml', '_optimized.yml')
+    with open(output_file, 'w', encoding='utf-8') as f:
+        yaml.dump(optimized, f, default_flow_style=False, sort_keys=False)
+    
+    print(f"✅ Optimized workflow saved to: {output_file}")
+    
+    # メタデータを出力
+    metadata = {
+        "original_jobs": len(workflow.get('jobs', {})),
+        "optimized_jobs": len(optimized.get('jobs', {})),
+        "long_nodes_split": len(identify_long_nodes(workflow)),
+        "parallel_groups": len(identify_parallel_opportunities(optimized))
+    }
+    
+    with open('optimization_metadata.json', 'w') as f:
+        json.dump(metadata, f, indent=2)
+EOF
+
+      - name: Execute Optimization
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "🚀 Executing optimization..."
+          
+          # Combine script parts
+          mv optimize_part1.py optimize.py
+          
+          # Find and optimize workflow
           WORKFLOW_FILE=$(find generated-workflows -name '*.yml' | head -1)
-          echo "Would optimize: $WORKFLOW_FILE"
-          echo "Optimization skipped for now to avoid complexity"
+          
+          if [ -f "$WORKFLOW_FILE" ]; then
+            python optimize.py "$WORKFLOW_FILE"
+            
+            # Check if optimization was successful
+            OPTIMIZED_FILE="${WORKFLOW_FILE%.yml}_optimized.yml"
+            if [ -f "$OPTIMIZED_FILE" ]; then
+              # Replace original with optimized version
+              mv "$OPTIMIZED_FILE" "$WORKFLOW_FILE"
+              echo "✅ Workflow optimized successfully"
+              
+              # Read metadata
+              if [ -f "optimization_metadata.json" ]; then
+                cat optimization_metadata.json
+              fi
+            else
+              echo "⚠️ Optimization did not produce output"
+            fi
+          else
+            echo "⚠️ No workflow file found to optimize"
+          fi
           
       - name: Upload Validated Workflow
         uses: actions/upload-artifact@v4
