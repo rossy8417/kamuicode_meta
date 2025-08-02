@@ -123,8 +123,6 @@ jobs:
           # Detection phase (categorized)
           HAS_VIDEO=false
           HAS_NARRATION=false
-          HAS_EXTERNAL_API=false
-          EXTERNAL_CAPS=""
           
           # Video capabilities
           if echo "$ISSUE_BODY" | grep -qi "動画\|video\|ビデオ"; then
@@ -141,132 +139,6 @@ jobs:
           # Research phase
           if echo "$ISSUE_BODY" | grep -qi "検索\|調査\|ニュース\|最新"; then
             RESEARCH_CAPS="${RESEARCH_CAPS}web-search,"
-          fi
-          
-          # External API detection - ALL 27 APIs
-          # News & Weather
-          if echo "$ISSUE_BODY" | grep -qi "ニュース\|news\|記事"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}newsapi,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "天気\|weather\|気象"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}weather,"
-            HAS_EXTERNAL_API=true
-          fi
-          
-          # YouTube
-          if echo "$ISSUE_BODY" | grep -qi "youtube\|ユーチューブ"; then
-            if echo "$ISSUE_BODY" | grep -qi "アップロード\|upload\|投稿"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}youtube-upload,"
-            fi
-            if echo "$ISSUE_BODY" | grep -qi "情報\|info\|取得"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}youtube-video-info,"
-            fi
-            HAS_EXTERNAL_API=true
-          fi
-          
-          # AI Services
-          if echo "$ISSUE_BODY" | grep -qi "要約\|summarize\|まとめ"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}openai-summarize,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "翻訳\|translate\|translation"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}openai-translate,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "gpt\|チャット\|会話"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}openai-gpt,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "dall-e\|画像生成\|image.*generation"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}openai-image-gen,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "elevenlabs\|音声合成"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}elevenlabs-tts,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "huggingface\|ハギングフェイス"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}huggingface-inference,"
-            HAS_EXTERNAL_API=true
-          fi
-          
-          # Communication
-          if echo "$ISSUE_BODY" | grep -qi "slack\|スラック"; then
-            if echo "$ISSUE_BODY" | grep -qi "通知\|notify\|メッセージ"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}slack-notify,"
-            fi
-            if echo "$ISSUE_BODY" | grep -qi "ファイル\|file\|アップロード"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}slack-file-upload,"
-            fi
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "discord\|ディスコード"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}discord-webhook,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "telegram\|テレグラム"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}telegram-send-message,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "メール\|email\|mail"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}sendgrid-send-email,"
-            HAS_EXTERNAL_API=true
-          fi
-          
-          # Social Media
-          if echo "$ISSUE_BODY" | grep -qi "twitter\|ツイッター\|x\.com"; then
-            if echo "$ISSUE_BODY" | grep -qi "投稿\|post\|ツイート"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}twitter-post,"
-            fi
-            if echo "$ISSUE_BODY" | grep -qi "検索\|search"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}twitter-search,"
-            fi
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "reddit\|レディット"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}reddit-search,"
-            HAS_EXTERNAL_API=true
-          fi
-          
-          # Data & Analytics
-          if echo "$ISSUE_BODY" | grep -qi "google.*sheets\|スプレッドシート"; then
-            if echo "$ISSUE_BODY" | grep -qi "読み\|read\|取得"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}google-sheets-read,"
-            fi
-            if echo "$ISSUE_BODY" | grep -qi "書き\|write\|保存"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}google-sheets-write,"
-            fi
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "株\|stock\|株価"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}finnhub-stock-quote,"
-            HAS_EXTERNAL_API=true
-          fi
-          
-          # Development
-          if echo "$ISSUE_BODY" | grep -qi "github\|ギットハブ"; then
-            if echo "$ISSUE_BODY" | grep -qi "issue\|イシュー"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}github-issue-create,"
-            fi
-            if echo "$ISSUE_BODY" | grep -qi "リポジトリ\|repository\|検索"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}github-repo-search,"
-            fi
-            if echo "$ISSUE_BODY" | grep -qi "workflow\|ワークフロー\|実行"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}github-workflow-dispatch,"
-            fi
-            if echo "$ISSUE_BODY" | grep -qi "release\|リリース"; then
-              EXTERNAL_CAPS="${EXTERNAL_CAPS}github-release-create,"
-            fi
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "arxiv\|論文"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}arxiv-search,"
-            HAS_EXTERNAL_API=true
-          fi
-          if echo "$ISSUE_BODY" | grep -qi "notion\|ノーション"; then
-            EXTERNAL_CAPS="${EXTERNAL_CAPS}notion-create-page,"
-            HAS_EXTERNAL_API=true
           fi
           
           # Planning phase
@@ -300,7 +172,7 @@ jobs:
           fi
           
           # Combine in logical order
-          CAPABILITIES="${RESEARCH_CAPS}${PLANNING_CAPS}${MEDIA_CAPS}${POST_CAPS}${EXTERNAL_CAPS}"
+          CAPABILITIES="${RESEARCH_CAPS}${PLANNING_CAPS}${MEDIA_CAPS}${POST_CAPS}"
           
           # Save capabilities
           mkdir -p metadata
@@ -413,32 +285,6 @@ jobs:
                 "video-generation") LABEL="🎬 動画生成" ;;
                 "lipsync") LABEL="👄 リップシンク" ;;
                 "subtitle-overlay") LABEL="📝 字幕追加" ;;
-                "newsapi") LABEL="📰 ニュースAPI" ;;
-                "weather") LABEL="🌤️ 天気API" ;;
-                "youtube-upload") LABEL="📹 YouTubeアップロード" ;;
-                "openai-summarize") LABEL="📄 AI要約" ;;
-                "openai-translate") LABEL="🌐 AI翻訳" ;;
-                "openai-gpt") LABEL="🤖 ChatGPT" ;;
-                "openai-image-gen") LABEL="🎨 DALL-E画像生成" ;;
-                "elevenlabs-tts") LABEL="🎙️ ElevenLabs音声" ;;
-                "huggingface-inference") LABEL="🤗 HuggingFace推論" ;;
-                "slack-notify") LABEL="💬 Slack通知" ;;
-                "slack-file-upload") LABEL="📎 Slackファイル" ;;
-                "discord-webhook") LABEL="🎮 Discord通知" ;;
-                "telegram-send-message") LABEL="✈️ Telegram送信" ;;
-                "sendgrid-send-email") LABEL="📧 メール送信" ;;
-                "twitter-post") LABEL="🐦 Twitter投稿" ;;
-                "twitter-search") LABEL="🔍 Twitter検索" ;;
-                "reddit-search") LABEL="🔍 Reddit検索" ;;
-                "google-sheets-read") LABEL="📊 Sheets読込" ;;
-                "google-sheets-write") LABEL="📊 Sheets書込" ;;
-                "finnhub-stock-quote") LABEL="📈 株価取得" ;;
-                "github-issue-create") LABEL="🐛 Issue作成" ;;
-                "github-repo-search") LABEL="🔍 リポジトリ検索" ;;
-                "github-workflow-dispatch") LABEL="⚙️ Workflow実行" ;;
-                "github-release-create") LABEL="🏷️ Release作成" ;;
-                "arxiv-search") LABEL="📚 論文検索" ;;
-                "notion-create-page") LABEL="📄 Notionページ" ;;
                 *) LABEL="$cap" ;;
               esac
               
@@ -521,58 +367,6 @@ jobs:
           echo '  CLAUDE_CODE_CI_MODE: true' >> "$WORKFLOW_FILE"
           echo '  CLAUDE_CODE_AUTO_APPROVE_MCP: true' >> "$WORKFLOW_FILE"
           echo '  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' >> "$WORKFLOW_FILE"
-          
-          # Add environment variables for external APIs if needed
-          if echo "$CAPABILITIES" | grep -q "newsapi"; then
-            echo '  NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "weather"; then
-            echo '  OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "youtube"; then
-            echo '  YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "openai"; then
-            echo '  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "elevenlabs"; then
-            echo '  ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "huggingface"; then
-            echo '  HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "slack"; then
-            echo '  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "discord"; then
-            echo '  DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "telegram"; then
-            echo '  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "sendgrid"; then
-            echo '  SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "twitter"; then
-            echo '  TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "reddit"; then
-            echo '  REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}' >> "$WORKFLOW_FILE"
-            echo '  REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "google-sheets"; then
-            echo '  GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "finnhub"; then
-            echo '  FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "github-"; then
-            echo '  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}' >> "$WORKFLOW_FILE"
-          fi
-          if echo "$CAPABILITIES" | grep -q "notion"; then
-            echo '  NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}' >> "$WORKFLOW_FILE"
-          fi
-          
           echo '' >> "$WORKFLOW_FILE"
           
           # Add jobs based on capabilities
@@ -616,41 +410,12 @@ jobs:
           UNIT_MAP["lipsync"]="./minimal-units/postprod/lipsync-generation.yml"
           UNIT_MAP["subtitle-overlay"]="./minimal-units/postprod/subtitle-overlay.yml"
           UNIT_MAP["video-editing"]="./minimal-units/postprod/video-concat.yml"
-          # External API units - ALL 27
-          UNIT_MAP["newsapi"]="./minimal-units/external/newsapi-fetch.yml"
-          UNIT_MAP["weather"]="./minimal-units/external/weather-fetch.yml"
-          UNIT_MAP["youtube-upload"]="./minimal-units/external/youtube-upload.yml"
-          UNIT_MAP["youtube-video-info"]="./minimal-units/external/youtube-video-info.yml"
-          UNIT_MAP["openai-gpt"]="./minimal-units/external/openai-gpt.yml"
-          UNIT_MAP["openai-summarize"]="./minimal-units/external/openai-summarize.yml"
-          UNIT_MAP["openai-translate"]="./minimal-units/external/openai-translate.yml"
-          UNIT_MAP["openai-image-gen"]="./minimal-units/external/openai-image-gen.yml"
-          UNIT_MAP["elevenlabs-tts"]="./minimal-units/external/elevenlabs-tts.yml"
-          UNIT_MAP["huggingface-inference"]="./minimal-units/external/huggingface-inference.yml"
-          UNIT_MAP["slack-notify"]="./minimal-units/external/slack-notify.yml"
-          UNIT_MAP["slack-file-upload"]="./minimal-units/external/slack-file-upload.yml"
-          UNIT_MAP["discord-webhook"]="./minimal-units/external/discord-webhook.yml"
-          UNIT_MAP["telegram-send-message"]="./minimal-units/external/telegram-send-message.yml"
-          UNIT_MAP["sendgrid-send-email"]="./minimal-units/external/sendgrid-send-email.yml"
-          UNIT_MAP["twitter-post"]="./minimal-units/external/twitter-post.yml"
-          UNIT_MAP["twitter-search"]="./minimal-units/external/twitter-search.yml"
-          UNIT_MAP["reddit-search"]="./minimal-units/external/reddit-search.yml"
-          UNIT_MAP["google-sheets-read"]="./minimal-units/external/google-sheets-read.yml"
-          UNIT_MAP["google-sheets-write"]="./minimal-units/external/google-sheets-write.yml"
-          UNIT_MAP["finnhub-stock-quote"]="./minimal-units/external/finnhub-stock-quote.yml"
-          UNIT_MAP["github-issue-create"]="./minimal-units/external/github-issue-create.yml"
-          UNIT_MAP["github-repo-search"]="./minimal-units/external/github-repo-search.yml"
-          UNIT_MAP["github-workflow-dispatch"]="./minimal-units/external/github-workflow-dispatch.yml"
-          UNIT_MAP["github-release-create"]="./minimal-units/external/github-release-create.yml"
-          UNIT_MAP["arxiv-search"]="./minimal-units/external/arxiv-search.yml"
-          UNIT_MAP["notion-create-page"]="./minimal-units/external/notion-create-page.yml"
           
           # Phase separation
           RESEARCH_JOBS=""
           PLANNING_JOBS=""
           MEDIA_JOBS=""
           POST_JOBS=""
-          EXTERNAL_JOBS=""
           
           for cap in "${CAP_ARRAY[@]}"; do
             if [ -n "$cap" ]; then
@@ -666,9 +431,6 @@ jobs:
                   ;;
                 lipsync|subtitle-overlay|video-editing|video-concat)
                   POST_JOBS="${POST_JOBS}${cap},"
-                  ;;
-                newsapi|weather|youtube-upload|youtube-video-info|openai-gpt|openai-summarize|openai-translate|openai-image-gen|elevenlabs-tts|huggingface-inference|slack-notify|slack-file-upload|discord-webhook|telegram-send-message|sendgrid-send-email|twitter-post|twitter-search|reddit-search|google-sheets-read|google-sheets-write|finnhub-stock-quote|github-issue-create|github-repo-search|github-workflow-dispatch|github-release-create|arxiv-search|notion-create-page)
-                  EXTERNAL_JOBS="${EXTERNAL_JOBS}${cap},"
                   ;;
               esac
             fi
@@ -830,149 +592,6 @@ jobs:
             done
           fi
           
-          # External API phase (mixed parallel/sequential)
-          if [ -n "$EXTERNAL_JOBS" ]; then
-            # Determine dependencies for external API jobs
-            EXTERNAL_DEPS="setup"
-            if [ -n "$POST_JOBS" ]; then
-              POST_COUNT=$(echo "$POST_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
-              EXTERNAL_DEPS="post_${POST_COUNT}"
-            elif [ -n "$MEDIA_JOBS" ]; then
-              EXTERNAL_DEPS="${MEDIA_JOB_NAMES}"
-            elif [ -n "$PLANNING_JOBS" ]; then
-              PLANNING_COUNT=$(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
-              EXTERNAL_DEPS="planning_${PLANNING_COUNT}"
-            elif [ -n "$RESEARCH_JOBS" ]; then
-              RESEARCH_COUNT=$(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
-              EXTERNAL_DEPS="research_${RESEARCH_COUNT}"
-            fi
-            
-            IFS=',' read -ra EXTERNAL_ARRAY <<< "$EXTERNAL_JOBS"
-            for external_job in "${EXTERNAL_ARRAY[@]}"; do
-              if [ -n "$external_job" ]; then
-                JOB_NAME=$(echo "$external_job" | tr '-' '_')
-                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
-                echo "    name: \"🌐 External API: ${external_job}\"" >> "$WORKFLOW_FILE"
-                if [ -f "${UNIT_MAP[$external_job]}" ]; then
-                  echo "    uses: ${UNIT_MAP[$external_job]}" >> "$WORKFLOW_FILE"
-                else
-                  echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
-                fi
-                
-                # Dependencies based on type
-                case "$external_job" in
-                  # Input APIs - can run early/parallel
-                  newsapi|weather|youtube-video-info|reddit-search|arxiv-search|github-repo-search|finnhub-stock-quote|google-sheets-read)
-                    echo "    needs: setup" >> "$WORKFLOW_FILE"
-                    ;;
-                  
-                  # Processing APIs - need content first
-                  openai-gpt|openai-summarize|openai-translate|openai-image-gen|huggingface-inference)
-                    if [ -n "$PLANNING_JOBS" ]; then
-                      PLANNING_COUNT=$(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
-                      echo "    needs: planning_${PLANNING_COUNT}" >> "$WORKFLOW_FILE"
-                    else
-                      echo "    needs: ${EXTERNAL_DEPS}" >> "$WORKFLOW_FILE"
-                    fi
-                    ;;
-                  
-                  # Audio generation - after planning
-                  elevenlabs-tts)
-                    if [ -n "$PLANNING_JOBS" ]; then
-                      PLANNING_COUNT=$(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
-                      echo "    needs: planning_${PLANNING_COUNT}" >> "$WORKFLOW_FILE"
-                    else
-                      echo "    needs: ${EXTERNAL_DEPS}" >> "$WORKFLOW_FILE"
-                    fi
-                    ;;
-                  
-                  # Output APIs - need final content
-                  youtube-upload|slack-notify|slack-file-upload|discord-webhook|telegram-send-message|sendgrid-send-email|twitter-post|google-sheets-write|github-issue-create|github-workflow-dispatch|github-release-create|notion-create-page)
-                    if [ -n "$POST_JOBS" ]; then
-                      POST_COUNT=$(echo "$POST_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
-                      echo "    needs: post_${POST_COUNT}" >> "$WORKFLOW_FILE"
-                    elif [ -n "$MEDIA_JOBS" ]; then
-                      echo "    needs: [${MEDIA_JOB_NAMES}]" >> "$WORKFLOW_FILE"
-                    else
-                      echo "    needs: ${EXTERNAL_DEPS}" >> "$WORKFLOW_FILE"
-                    fi
-                    ;;
-                  
-                  # Search APIs - can run early
-                  twitter-search)
-                    echo "    needs: setup" >> "$WORKFLOW_FILE"
-                    ;;
-                  
-                  *)
-                    echo "    needs: ${EXTERNAL_DEPS}" >> "$WORKFLOW_FILE"
-                    ;;
-                esac
-                
-                echo '    with:' >> "$WORKFLOW_FILE"
-                echo '      project_dir: "${{ needs.setup.outputs.project_dir }}"' >> "$WORKFLOW_FILE"
-                echo '    secrets:' >> "$WORKFLOW_FILE"
-                
-                # Add required secrets based on API type
-                case "$external_job" in
-                  newsapi)
-                    echo '      NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  weather)
-                    echo '      OPENWEATHERMAP_API_KEY: ${{ secrets.OPENWEATHERMAP_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  youtube-upload|youtube-video-info)
-                    echo '      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  openai-*)
-                    echo '      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  elevenlabs-tts)
-                    echo '      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  huggingface-inference)
-                    echo '      HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  slack-notify|slack-file-upload)
-                    echo '      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  discord-webhook)
-                    echo '      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  telegram-send-message)
-                    echo '      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  sendgrid-send-email)
-                    echo '      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  twitter-post|twitter-search)
-                    echo '      TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  reddit-search)
-                    echo '      REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}' >> "$WORKFLOW_FILE"
-                    echo '      REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  google-sheets-read|google-sheets-write)
-                    echo '      GOOGLE_SHEETS_CREDENTIALS: ${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  finnhub-stock-quote)
-                    echo '      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  github-*)
-                    echo '      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}' >> "$WORKFLOW_FILE"
-                    ;;
-                  arxiv-search)
-                    # arXiv API doesn't require authentication
-                    ;;
-                  notion-create-page)
-                    echo '      NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}' >> "$WORKFLOW_FILE"
-                    ;;
-                esac
-                
-                echo '' >> "$WORKFLOW_FILE"
-              fi
-            done
-          fi
-          
           # Summary job
           echo '  summary:' >> "$WORKFLOW_FILE"
           echo '    name: "📊 Summary"' >> "$WORKFLOW_FILE"
@@ -1008,15 +627,6 @@ jobs:
               ALL_JOBS="${ALL_JOBS}, post_${i}"
             done
           fi
-          if [ -n "$EXTERNAL_JOBS" ]; then
-            IFS=',' read -ra EXTERNAL_ARRAY <<< "$EXTERNAL_JOBS"
-            for external_job in "${EXTERNAL_ARRAY[@]}"; do
-              if [ -n "$external_job" ]; then
-                JOB_NAME=$(echo "$external_job" | tr '-' '_')
-                ALL_JOBS="${ALL_JOBS}, ${JOB_NAME}"
-              fi
-            done
-          fi
           
           echo "    needs: [${ALL_JOBS}]" >> "$WORKFLOW_FILE"
           echo '    steps:' >> "$WORKFLOW_FILE"
@@ -1033,7 +643,6 @@ jobs:
           [ -n "$PLANNING_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
           [ -n "$MEDIA_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$MEDIA_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
           [ -n "$POST_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$POST_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
-          [ -n "$EXTERNAL_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$EXTERNAL_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
           
           echo "workflow_id=${ISSUE_NUMBER}-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
           echo "total_jobs=$JOB_COUNT" >> $GITHUB_OUTPUT
