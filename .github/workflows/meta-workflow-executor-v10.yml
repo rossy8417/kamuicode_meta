@@ -277,7 +277,23 @@ jobs:
               echo "📊 Recommended execution pattern: $EXECUTION_PATTERN"
               
               # Extract additional capabilities from orchestrator patterns
-              ORCH_CAPS=$(echo "$ORCHESTRATOR_ANALYSIS" | python3 -c "import json, sys; data = json.load(sys.stdin); caps = set(); [caps.add('image-generation') if 'image' in job.get('name', '').lower() else caps.add('lipsync') if 'lipsync' in job.get('name', '').lower() else caps.add('subtitle-overlay') if 'subtitle' in job.get('name', '').lower() else caps.add('planning') if 'planning' in job.get('name', '').lower() and 'planning' not in '$CAPABILITIES' else caps.add('audio-generation') if 'audio' in job.get('name', '').lower() and 'audio' not in '$CAPABILITIES' else None for orch in data.get('analysis', {}).get('orchestrators', []) for job in orch.get('data', {}).get('jobs', [])]; print(','.join(caps))" 2>/dev/null || echo '')
+              echo "$ORCHESTRATOR_ANALYSIS" > /tmp/orch_analysis.json
+              python3 > /tmp/orch_caps.txt << 'PYTHON_EOF'
+import json
+with open('/tmp/orch_analysis.json', 'r') as f:
+    data = json.load(f)
+caps = set()
+for orch in data.get('analysis', {}).get('orchestrators', []):
+    for job in orch.get('data', {}).get('jobs', []):
+        job_name = job.get('name', '').lower()
+        if 'image' in job_name: caps.add('image-generation')
+        if 'lipsync' in job_name: caps.add('lipsync')
+        if 'subtitle' in job_name: caps.add('subtitle-overlay')
+        if 'planning' in job_name: caps.add('planning')
+        if 'audio' in job_name: caps.add('audio-generation')
+print(','.join(caps))
+PYTHON_EOF
+              ORCH_CAPS=$(cat /tmp/orch_caps.txt 2>/dev/null || echo '')
               
               if [ -n "$ORCH_CAPS" ]; then
                 echo "  📚 Additional capabilities from orchestrator patterns: $ORCH_CAPS"
@@ -366,19 +382,17 @@ jobs:
               # Extract work-based decomposition
               if echo "$CLAUDE_RESPONSE" | grep -q "work-based"; then
                 echo "📋 Work-based decomposition detected"
-                WORK_BASED=$(echo "$CLAUDE_RESPONSE" | grep -A 100 '"work-based"' | head -100 || echo '')
-                echo "work_based_decomposition<<EOF" >> $GITHUB_OUTPUT
-                echo "$WORK_BASED" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
+                # Save to file instead of output to avoid size limit
+                echo "$CLAUDE_RESPONSE" | grep -A 100 '"work-based"' | head -100 > projects/current-session/metadata/work_based.txt
+                echo "work_based_decomposition=Available in metadata/work_based.txt" >> $GITHUB_OUTPUT
               fi
               
-              # Extract strategic plan
+              # Extract strategic plan  
               if echo "$CLAUDE_RESPONSE" | grep -q "strategic"; then
                 echo "🎯 Strategic plan detected"
-                STRATEGIC=$(echo "$CLAUDE_RESPONSE" | grep -A 50 '"strategic"' | head -50 || echo '')
-                echo "strategic_plan<<EOF" >> $GITHUB_OUTPUT
-                echo "$STRATEGIC" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
+                # Save to file instead of output to avoid size limit
+                echo "$CLAUDE_RESPONSE" | grep -A 50 '"strategic"' | head -50 > projects/current-session/metadata/strategic.txt
+                echo "strategic_plan=Available in metadata/strategic.txt" >> $GITHUB_OUTPUT
               fi
             fi
           else
@@ -947,22 +961,18 @@ jobs:
           fi
           
           # 作業ベース詳細分解があれば表示
-          if [ -n "${{ needs.ultra-task-decomposition.outputs.work_based_decomposition }}" ]; then
+          if [[ "${{ needs.ultra-task-decomposition.outputs.work_based_decomposition }}" == *"Available"* ]]; then
             echo "#### 📋 作業ベース詳細分解" >> $GITHUB_STEP_SUMMARY
-            echo "各タスクを実作業レベルに分解しました：" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "${{ needs.ultra-task-decomposition.outputs.work_based_decomposition }}" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "各タスクを実作業レベルに分解しました。" >> $GITHUB_STEP_SUMMARY
+            echo "詳細は metadata/work_based.txt に保存されています。" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
           
           # 戦略的計画があれば表示
-          if [ -n "${{ needs.ultra-task-decomposition.outputs.strategic_plan }}" ]; then
+          if [[ "${{ needs.ultra-task-decomposition.outputs.strategic_plan }}" == *"Available"* ]]; then
             echo "#### 🎯 戦略的ワークフロー構築" >> $GITHUB_STEP_SUMMARY
-            echo "並列実行と一貫性確保の戦略：" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            echo "${{ needs.ultra-task-decomposition.outputs.strategic_plan }}" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "並列実行と一貫性確保の戦略を策定しました。" >> $GITHUB_STEP_SUMMARY
+            echo "詳細は metadata/strategic.txt に保存されています。" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
           
