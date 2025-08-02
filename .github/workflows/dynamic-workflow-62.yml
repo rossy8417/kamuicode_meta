@@ -66,7 +66,11 @@ jobs:
           npm install @anthropic-ai/claude-code
       
       - name: Create output directory
-        run: mkdir -p ${{ needs.setup.outputs.project_dir }}/metadata
+        run: |
+          echo "Setup project_dir: ${{ needs.setup.outputs.project_dir }}"
+          echo "Direct access test: projects/issue-62-*"
+          ls -la projects/ || true
+          mkdir -p ${{ needs.setup.outputs.project_dir }}/metadata
       
       - name: Execute Planning Agent
         id: execute
