@@ -109,10 +109,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Install jq
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq
+          sudo apt-get install -y jq python3-pip
+          pip3 install pyyaml
         
       - name: Perform Ultra-Detailed Task Decomposition
         id: decompose
@@ -209,31 +210,61 @@ jobs:
           echo "  - Complexity: $COMPLEXITY"
           echo "  - Duration: $DURATION"
           
-          # Try Claude Code SDK first (if available)
-          if command -v claude &> /dev/null; then
-            echo "🤖 Claude CLI is available, attempting intelligent task decomposition..."
+          # Copy orchestrator analyzer script
+          if [ -f scripts/orchestrator_analyzer.py ]; then
+            cp scripts/orchestrator_analyzer.py projects/current-session/scripts/
+          fi
+          
+          # Run orchestrator analysis
+          echo "🔍 Running orchestrator analysis..."
+          export USER_REQUEST="$ISSUE_TITLE $(<tmp/issue_body_safe.txt)"
+          export CAPABILITIES="$CAPABILITIES"
+          
+          if [ -f projects/current-session/scripts/orchestrator_analyzer.py ]; then
+            cd projects/current-session/scripts
+            python3 orchestrator_analyzer.py || echo "⚠️ Orchestrator analysis failed, using default logic"
+            cd ../../..
             
-            # Create Claude prompt
-            echo "You are the Meta Workflow Generator task decomposition agent." > /tmp/claude_prompt.txt
-            echo "Please decompose tasks from the following issue and select appropriate minimal units." >> /tmp/claude_prompt.txt
-            echo "" >> /tmp/claude_prompt.txt
-            echo "Issue Information:" >> /tmp/claude_prompt.txt
-            echo "Title: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
-            echo "Content:" >> /tmp/claude_prompt.txt
-            cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
-            
-            # Try Claude
-            CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" --output-format json 2>&1 || echo '{}')
-            
-            if [ "$CLAUDE_RESPONSE" != "{}" ] && [ -n "$CLAUDE_RESPONSE" ]; then
-              echo "✅ Claude Code SDK provided intelligent analysis"
-              # Parse Claude response if successful
-              # ... (Claude response parsing logic)
-            else
-              echo "⚠️ Claude Code SDK not available, using keyword-based detection"
+            # Check if orchestrator analysis succeeded
+            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
+              echo "✅ Orchestrator analysis completed successfully"
+              ORCHESTRATOR_ANALYSIS=$(cat projects/current-session/metadata/orchestrator_analysis.json)
+              
+              # Extract execution pattern and job count
+              EXECUTION_PATTERN=$(echo "$ORCHESTRATOR_ANALYSIS" | python3 -c "import json, sys; print(json.load(sys.stdin).get('execution_pattern', 'sequential'))")
+              echo "📊 Recommended execution pattern: $EXECUTION_PATTERN"
             fi
           else
-            echo "ℹ️ Claude CLI not installed, using keyword-based detection"
+            echo "⚠️ Orchestrator analyzer not found, using keyword-based detection"
+          fi
+          
+          # Try Claude Code SDK for additional analysis (if available)
+          if command -v claude &> /dev/null; then
+            echo "🤖 Claude CLI is available for enhanced analysis..."
+            
+            # Create enhanced prompt with orchestrator analysis
+            echo "You are the Meta Workflow Generator task decomposition agent." > /tmp/claude_prompt.txt
+            echo "Analyze the following issue and orchestrator recommendations to create an optimal workflow." >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
+            echo "Issue: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
+            cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
+            echo "Detected capabilities: $CAPABILITIES" >> /tmp/claude_prompt.txt
+            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
+              echo "Orchestrator analysis:" >> /tmp/claude_prompt.txt
+              cat projects/current-session/metadata/orchestrator_analysis.json >> /tmp/claude_prompt.txt
+            fi
+            echo "" >> /tmp/claude_prompt.txt
+            echo "Please provide the optimal job execution order considering dependencies." >> /tmp/claude_prompt.txt
+            
+            # Try Claude
+            CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" 2>&1 || echo '')
+            
+            if [ -n "$CLAUDE_RESPONSE" ]; then
+              echo "✅ Claude Code SDK provided enhanced analysis"
+            fi
+          else
+            echo "ℹ️ Claude CLI not installed, using orchestrator analysis only"
           fi
           
           # Generate workflow metadata
@@ -244,8 +275,13 @@ jobs:
           export COMPLEXITY="$COMPLEXITY"
           export REQUIREMENTS="General workflow request"
           
-          # Use pre-created Python script to generate workflow
-          if [ -f scripts/generate_dynamic_workflow.py ]; then
+          # Use optimized workflow generator
+          if [ -f scripts/generate_optimized_workflow.py ]; then
+            cp scripts/generate_optimized_workflow.py projects/current-session/scripts/
+            cd projects/current-session/scripts
+            python3 generate_optimized_workflow.py
+            cd ../../..
+          elif [ -f scripts/generate_dynamic_workflow.py ]; then
             cp scripts/generate_dynamic_workflow.py projects/current-session/scripts/
             cd projects/current-session/scripts
             python3 generate_dynamic_workflow.py
@@ -408,50 +444,118 @@ jobs:
           echo '          echo "✅ Project directory initialized: $PROJECT_DIR"' >> "$WORKFLOW_FILE"
           echo '' >> "$WORKFLOW_FILE"
           
-          # Add jobs for each minimal unit
+          # Add jobs based on execution phases
           JOB_NUMBER=1
           PREVIOUS_JOB="initialize"
+          PHASE_JOBS=""
           
-          # Read minimal units and create jobs
-          echo "$WORKFLOW_DATA" | jq -c '.minimal_units[]' | while read -r unit; do
-            CAPABILITY=$(echo "$unit" | jq -r '.capability')
-            UNIT_PATH=$(echo "$unit" | jq -r '.unit_path')
-            
-            # Generate safe job name
-            JOB_NAME="job_${JOB_NUMBER}_$(echo "$CAPABILITY" | tr '-' '_')"
-            
-            echo "  $JOB_NAME:" >> "$WORKFLOW_FILE"
-            echo "    name: \"📦 Execute: $CAPABILITY\"" >> "$WORKFLOW_FILE"
-            echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
-            echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
-            echo "    steps:" >> "$WORKFLOW_FILE"
-            echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
-            echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
-            echo "        " >> "$WORKFLOW_FILE"
-            echo "      - name: Execute $CAPABILITY" >> "$WORKFLOW_FILE"
-            echo "        run: |" >> "$WORKFLOW_FILE"
-            echo "          echo \"🔧 Executing minimal unit: $CAPABILITY\"" >> "$WORKFLOW_FILE"
-            echo "          echo \"📂 Unit path: $UNIT_PATH\"" >> "$WORKFLOW_FILE"
-            echo "          " >> "$WORKFLOW_FILE"
-            echo "          # Here you would include the actual minimal unit" >> "$WORKFLOW_FILE"
-            echo "          # For now, we'll simulate execution" >> "$WORKFLOW_FILE"
-            echo "          echo \"✅ $CAPABILITY completed successfully\"" >> "$WORKFLOW_FILE"
-            echo "          " >> "$WORKFLOW_FILE"
-            echo "          # Save output" >> "$WORKFLOW_FILE"
-            echo "          mkdir -p \\\${{ env.PROJECT_BASE }}/outputs" >> "$WORKFLOW_FILE"
-            echo "          echo \"Output from $CAPABILITY\" > \\\${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt" >> "$WORKFLOW_FILE"
-            echo "" >> "$WORKFLOW_FILE"
-            
-            # Update for next iteration
-            if [ "$EXECUTION_PATTERN" = "mixed_parallel" ] && [ $((JOB_NUMBER % 3)) -eq 0 ]; then
-              # Keep same dependency for parallel execution
-              PREVIOUS_JOB="$PREVIOUS_JOB"
-            else
+          # Check if we have execution phases
+          HAS_PHASES=$(echo "$WORKFLOW_DATA" | jq -r '.metadata.execution_phases // null')
+          
+          if [ "$HAS_PHASES" != "null" ]; then
+            # Process by phases for optimized execution
+            echo "$WORKFLOW_DATA" | jq -c '.metadata.execution_phases[]' | while read -r phase; do
+              PHASE_NAME=$(echo "$phase" | jq -r '.name')
+              IS_PARALLEL=$(echo "$phase" | jq -r '.parallel')
+              
+              echo "# Phase: $PHASE_NAME (parallel: $IS_PARALLEL)" >> "$WORKFLOW_FILE"
+              
+              PHASE_FIRST_JOB=""
+              PHASE_JOB_NAMES=""
+              
+              echo "$phase" | jq -c '.jobs[]' | while read -r job; do
+                CAPABILITY=$(echo "$job" | jq -r '.capability')
+                UNIT_PATH=$(echo "$job" | jq -r '.unit_path')
+                
+                # Generate safe job name
+                JOB_NAME="job_${JOB_NUMBER}_$(echo "$CAPABILITY" | tr '-' '_')"
+                
+                if [ -z "$PHASE_FIRST_JOB" ]; then
+                  PHASE_FIRST_JOB="$JOB_NAME"
+                fi
+                PHASE_JOB_NAMES="${PHASE_JOB_NAMES}${JOB_NAME},"
+                
+                echo "  $JOB_NAME:" >> "$WORKFLOW_FILE"
+                echo "    name: \"📦 Execute: $CAPABILITY\"" >> "$WORKFLOW_FILE"
+                echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+                
+                # Set dependencies based on parallel execution
+                if [ "$IS_PARALLEL" = "true" ]; then
+                  echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
+                else
+                  if [ "$JOB_NAME" = "$PHASE_FIRST_JOB" ]; then
+                    echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
+                  else
+                    PREV_JOB_NAME="job_$((JOB_NUMBER - 1))_$(echo "$CAPABILITY" | tr '-' '_')"
+                    echo "    needs: $PREV_JOB_NAME" >> "$WORKFLOW_FILE"
+                  fi
+                fi
+                
+                echo "    steps:" >> "$WORKFLOW_FILE"
+                echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
+                echo "        " >> "$WORKFLOW_FILE"
+                echo "      - name: Execute $CAPABILITY" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                echo "          echo \"🔧 Executing minimal unit: $CAPABILITY\"" >> "$WORKFLOW_FILE"
+                echo "          echo \"📂 Unit path: $UNIT_PATH\"" >> "$WORKFLOW_FILE"
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          # Here you would include the actual minimal unit" >> "$WORKFLOW_FILE"
+                echo "          # For now, we'll simulate execution" >> "$WORKFLOW_FILE"
+                echo "          echo \"✅ $CAPABILITY completed successfully\"" >> "$WORKFLOW_FILE"
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          # Save output" >> "$WORKFLOW_FILE"
+                echo "          mkdir -p \\\${{ env.PROJECT_BASE }}/outputs" >> "$WORKFLOW_FILE"
+                echo "          echo \"Output from $CAPABILITY\" > \\\${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt" >> "$WORKFLOW_FILE"
+                echo "" >> "$WORKFLOW_FILE"
+                
+                JOB_NUMBER=$((JOB_NUMBER + 1))
+              done
+              
+              # Update previous job for next phase
+              if [ "$IS_PARALLEL" = "true" ]; then
+                # All jobs in parallel phase become dependencies for next phase
+                PREVIOUS_JOB="[${PHASE_JOB_NAMES%,}]"
+              else
+                # Last job in sequential phase
+                PREVIOUS_JOB="job_$((JOB_NUMBER - 1))_*"
+              fi
+            done
+          else
+            # Fallback to simple sequential execution
+            echo "$WORKFLOW_DATA" | jq -c '.minimal_units[]' | while read -r unit; do
+              CAPABILITY=$(echo "$unit" | jq -r '.capability')
+              UNIT_PATH=$(echo "$unit" | jq -r '.unit_path')
+              
+              # Generate safe job name
+              JOB_NAME="job_${JOB_NUMBER}_$(echo "$CAPABILITY" | tr '-' '_')"
+              
+              echo "  $JOB_NAME:" >> "$WORKFLOW_FILE"
+              echo "    name: \"📦 Execute: $CAPABILITY\"" >> "$WORKFLOW_FILE"
+              echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+              echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
+              echo "    steps:" >> "$WORKFLOW_FILE"
+              echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
+              echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
+              echo "        " >> "$WORKFLOW_FILE"
+              echo "      - name: Execute $CAPABILITY" >> "$WORKFLOW_FILE"
+              echo "        run: |" >> "$WORKFLOW_FILE"
+              echo "          echo \"🔧 Executing minimal unit: $CAPABILITY\"" >> "$WORKFLOW_FILE"
+              echo "          echo \"📂 Unit path: $UNIT_PATH\"" >> "$WORKFLOW_FILE"
+              echo "          " >> "$WORKFLOW_FILE"
+              echo "          # Here you would include the actual minimal unit" >> "$WORKFLOW_FILE"
+              echo "          # For now, we'll simulate execution" >> "$WORKFLOW_FILE"
+              echo "          echo \"✅ $CAPABILITY completed successfully\"" >> "$WORKFLOW_FILE"
+              echo "          " >> "$WORKFLOW_FILE"
+              echo "          # Save output" >> "$WORKFLOW_FILE"
+              echo "          mkdir -p \\\${{ env.PROJECT_BASE }}/outputs" >> "$WORKFLOW_FILE"
+              echo "          echo \"Output from $CAPABILITY\" > \\\${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt" >> "$WORKFLOW_FILE"
+              echo "" >> "$WORKFLOW_FILE"
+              
               PREVIOUS_JOB="$JOB_NAME"
-            fi
-            
-            JOB_NUMBER=$((JOB_NUMBER + 1))
-          done
+              JOB_NUMBER=$((JOB_NUMBER + 1))
+            done
+          fi
           
           # Add finalization job
           echo '  finalize:' >> "$WORKFLOW_FILE"
