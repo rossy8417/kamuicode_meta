@@ -242,10 +242,10 @@ jobs:
             
             python orchestrator_analyzer.py || echo "⚠️ Orchestrator analysis failed"
             
-            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
+            if [ -f projects/meta-workflow-${{ github.run_number }}-${{ github.run_id }}/metadata/orchestrator_analysis.json ]; then
               echo "match_found=true" >> $GITHUB_OUTPUT
               # Extract pattern
-              PATTERN=$(jq -r '.execution_pattern // "sequential"' projects/current-session/metadata/orchestrator_analysis.json)
+              PATTERN=$(jq -r '.execution_pattern // "sequential"' projects/meta-workflow-${{ github.run_number }}-${{ github.run_id }}/metadata/orchestrator_analysis.json)
               echo "pattern=$PATTERN" >> $GITHUB_OUTPUT
             else
               echo "match_found=false" >> $GITHUB_OUTPUT
@@ -304,7 +304,7 @@ jobs:
           name: analysis-data
           path: |
             metadata/
-            projects/current-session/metadata/
+            projects/meta-workflow-${{ github.run_number }}-${{ github.run_id }}/metadata/
 
   # ===========================================
   # PHASE 4: WORKFLOW GENERATION

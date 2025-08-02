@@ -269,15 +269,11 @@ projects/                # ALL GitHub Actions outputs go here
 │   ├── media/                       # Generated media files
 │   ├── temp/                        # Temporary processing files
 │   └── final/                       # Final deliverables
-├── workflow-{name}-{timestamp}/     # Other workflow outputs
-│   ├── metadata/                    # Analysis data
-│   ├── logs/                        # Execution logs
-│   ├── media/                       # Generated media files
-│   └── final/                       # Final deliverables
-└── current-session/                 # Current meta-workflow session
-    ├── metadata/                    # Task analysis, decomposition
-    ├── logs/                        # Meta-workflow execution logs
-    └── generated/                   # Generated workflow files
+└── workflow-{name}-{timestamp}/     # All other workflows (including meta-workflow)
+    ├── metadata/                    # Analysis data
+    ├── logs/                        # Execution logs
+    ├── media/                       # Generated media files
+    └── final/                       # Final deliverables
 ```
 
 ### MCP Integration Rules
@@ -348,9 +344,9 @@ mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/media
 mkdir -p projects/workflow-${WORKFLOW_NAME}-${TIMESTAMP}/final
 
 # For meta-workflow execution:
-mkdir -p projects/current-session/metadata      # Task analysis, decomposition
-mkdir -p projects/current-session/logs          # Meta-workflow execution logs
-mkdir -p projects/current-session/generated     # Generated workflow files
+mkdir -p projects/meta-workflow-${TIMESTAMP}/metadata      # Task analysis, decomposition
+mkdir -p projects/meta-workflow-${TIMESTAMP}/logs          # Meta-workflow execution logs
+mkdir -p projects/meta-workflow-${TIMESTAMP}/generated     # Generated workflow files
 
 # IMPORTANT: Use .github/workflows/generated/ for final workflow deployment
 mkdir -p .github/workflows/generated             # For generated workflows (simple structure)
