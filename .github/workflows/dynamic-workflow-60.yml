@@ -1,0 +1,133 @@
+name: "🎯 Dynamic Workflow - Issue #60"
+run-name: "📊 Dynamic | rossy8417 | Issue #60"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Source issue number"
+        required: true
+        default: "60"
+      branch_name:
+        description: "Working branch name"
+        required: false
+        default: "issue-60"
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  setup:
+    name: "🚀 Setup"
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      timestamp: ${{ steps.setup.outputs.timestamp }} 
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Project Structure
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="projects/issue-60-$TIMESTAMP"
+          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final,media}
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "✅ Project structure created: $PROJECT_DIR"
+
+  research_1:
+    name: "🔍 Research: web-search"
+    uses: ./minimal-units/planning/web-search.yml
+    needs: setup
+    with:
+      query: "latest AI technology trends news 2025"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/metadata"
+
+  planning_1:
+    name: "📋 Planning: content-planning"
+    uses: ./minimal-units/planning/planning-ccsdk.yml
+    needs: [setup, research_1]
+    with:
+      concept: "Issue #${{ github.event.inputs.issue_number }}"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/metadata"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  planning_2:
+    name: "📋 Planning: narration-creation"
+    uses: ./minimal-units/planning/planning-ccsdk.yml
+    needs: planning_1
+    with:
+      concept: "Issue #${{ github.event.inputs.issue_number }}"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/metadata"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  image_generation:
+    name: "🎨 image-generation"
+    uses: ./minimal-units/media/image/t2i-imagen3.yml
+    needs: planning_2
+    with:
+      prompt: "Generated content for issue #${{ github.event.inputs.issue_number }}"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/media"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  text_to_speech:
+    name: "🎨 text-to-speech"
+    uses: ./minimal-units/media/audio/t2s-minimax-turbo-mcp.yml
+    needs: planning_2
+    with:
+      prompt: "Generated content for issue #${{ github.event.inputs.issue_number }}"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/media"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  video_generation:
+    name: "🎨 video-generation"
+    uses: ./minimal-units/media/video/t2v-veo3.yml
+    needs: planning_2
+    with:
+      prompt: "Generated content for issue #${{ github.event.inputs.issue_number }}"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/media"
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  post_1:
+    name: "🔧 Post: lipsync"
+    uses: ./minimal-units/postprod/lipsync-pixverse.yml
+    needs: [image_generation, text_to_speech, video_generation]
+    with:
+      video_list: "placeholder"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/final"
+
+  post_2:
+    name: "🔧 Post: subtitle-overlay"
+    uses: ./minimal-units/postprod/subtitle-overlay.yml
+    needs: post_1
+    with:
+      video_list: "placeholder"
+      output_dir: "${{ needs.setup.outputs.project_dir }}/final"
+
+  summary:
+    name: "📊 Summary"
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [setup, research_1, planning_1, planning_2, image_generation, text_to_speech, video_generation, post_1, post_2]
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "# 🎯 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: ${{ needs.setup.outputs.project_dir }}" >> $GITHUB_STEP_SUMMARY
