@@ -113,33 +113,66 @@ jobs:
           echo "🔍 Detecting required capabilities..."
           
           ISSUE_BODY=$(cat artifacts/issue_body.txt)
-          CAPABILITIES=""
+          
+          # Temporary arrays to store detected capabilities
+          RESEARCH_CAPS=""
+          PLANNING_CAPS=""
+          MEDIA_CAPS=""
+          POST_CAPS=""
+          
+          # Detection phase (categorized)
+          HAS_VIDEO=false
+          HAS_NARRATION=false
           
           # Video capabilities
           if echo "$ISSUE_BODY" | grep -qi "動画\|video\|ビデオ"; then
-            CAPABILITIES="${CAPABILITIES}video-generation,"
+            HAS_VIDEO=true
             echo "has_video=true" >> $GITHUB_OUTPUT
             
             # Context-based additions
             if echo "$ISSUE_BODY" | grep -qi "ナレーション\|narration\|音声付"; then
-              CAPABILITIES="${CAPABILITIES}lipsync,subtitle-overlay,"
+              HAS_NARRATION=true
               echo "has_narration=true" >> $GITHUB_OUTPUT
             fi
-            
+          fi
+          
+          # Research phase
+          if echo "$ISSUE_BODY" | grep -qi "検索\|調査\|ニュース\|最新"; then
+            RESEARCH_CAPS="${RESEARCH_CAPS}web-search,"
+          fi
+          
+          # Planning phase
+          if echo "$ISSUE_BODY" | grep -qi "企画\|計画\|構成"; then
+            PLANNING_CAPS="${PLANNING_CAPS}planning,"
+          fi
+          
+          # For video content, add detailed planning capabilities
+          if [ "$HAS_VIDEO" = true ]; then
+            PLANNING_CAPS="${PLANNING_CAPS}content-planning,"
+            if [ "$HAS_NARRATION" = true ]; then
+              PLANNING_CAPS="${PLANNING_CAPS}narration-creation,"
+            fi
             if echo "$ISSUE_BODY" | grep -qi "シーン\|複数\|ストーリー"; then
-              CAPABILITIES="${CAPABILITIES}scene-composition,image-generation,"
+              PLANNING_CAPS="${PLANNING_CAPS}scene-composition,"
             fi
           fi
           
-          # Web search
-          if echo "$ISSUE_BODY" | grep -qi "検索\|調査\|ニュース\|最新"; then
-            CAPABILITIES="${CAPABILITIES}web-search,"
+          # Media generation phase
+          if [ "$HAS_VIDEO" = true ]; then
+            MEDIA_CAPS="${MEDIA_CAPS}image-generation,"
+            if [ "$HAS_NARRATION" = true ]; then
+              MEDIA_CAPS="${MEDIA_CAPS}text-to-speech,"
+            fi
+            MEDIA_CAPS="${MEDIA_CAPS}video-generation,"
           fi
           
-          # Planning
-          if echo "$ISSUE_BODY" | grep -qi "企画\|計画\|構成"; then
-            CAPABILITIES="${CAPABILITIES}planning,"
+          # Post-processing phase
+          if [ "$HAS_VIDEO" = true ] && [ "$HAS_NARRATION" = true ]; then
+            POST_CAPS="${POST_CAPS}lipsync,subtitle-overlay,"
           fi
+          
+          # Combine in logical order
+          CAPABILITIES="${RESEARCH_CAPS}${PLANNING_CAPS}${MEDIA_CAPS}${POST_CAPS}"
           
           # Save capabilities
           mkdir -p metadata
@@ -244,7 +277,11 @@ jobs:
               case "$cap" in
                 "web-search") LABEL="🔍 Web検索" ;;
                 "planning") LABEL="📋 企画・計画" ;;
+                "content-planning") LABEL="📝 コンテンツ企画" ;;
+                "narration-creation") LABEL="🎤 ナレーション作成" ;;
+                "scene-composition") LABEL="🎨 シーン構成" ;;
                 "image-generation") LABEL="🖼️ 画像生成" ;;
+                "text-to-speech") LABEL="🗣️ 音声合成" ;;
                 "video-generation") LABEL="🎬 動画生成" ;;
                 "lipsync") LABEL="👄 リップシンク" ;;
                 "subtitle-overlay") LABEL="📝 字幕追加" ;;
@@ -386,7 +423,7 @@ jobs:
                 web-search|data-analysis)
                   RESEARCH_JOBS="${RESEARCH_JOBS}${cap},"
                   ;;
-                planning|scene-composition|content-planning|narration*)
+                planning|scene-composition|content-planning|narration-creation)
                   PLANNING_JOBS="${PLANNING_JOBS}${cap},"
                   ;;
                 image-generation|video-generation|audio-generation|text-to-speech)
