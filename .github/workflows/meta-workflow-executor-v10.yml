@@ -808,7 +808,7 @@ jobs:
     name: "📦 Deployment"
     runs-on: ubuntu-latest
     needs: ['workflow-validation', 'workflow-generation']
-    if: ${{ needs['workflow-validation'].outputs.validation_passed == 'true' }}
+    if: needs['workflow-validation'].outputs.validation_passed == 'true'
     outputs:
       deployed_path: ${{ steps.deploy.outputs.path }}
     steps:
@@ -866,14 +866,28 @@ jobs:
           path: artifacts/
           
       - name: Generate Summary
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ISSUE_TITLE: ${{ needs['validate-trigger'].outputs.issue_title }}
+          REQUEST_TYPE: ${{ needs['validate-trigger'].outputs.request_type }}
+          CAPABILITIES_COUNT: ${{ needs['basic-task-decomposition'].outputs.capabilities_count }}
+          COMPLEXITY: ${{ needs['basic-task-decomposition'].outputs.complexity }}
+          HAS_VIDEO: ${{ needs['basic-task-decomposition'].outputs.has_video }}
+          HAS_NARRATION: ${{ needs['basic-task-decomposition'].outputs.has_narration }}
+          ORCHESTRATOR_MATCH: ${{ needs['detailed-analysis'].outputs.orchestrator_match }}
+          EXECUTION_PATTERN: ${{ needs['detailed-analysis'].outputs.execution_pattern }}
+          TOTAL_JOBS: ${{ needs['workflow-generation'].outputs.total_jobs }}
+          VALIDATION_PASSED: ${{ needs['workflow-validation'].outputs.validation_passed }}
+          OPTIMIZATION_NEEDED: ${{ needs['workflow-validation'].outputs.optimization_needed }}
+          DEPLOYED_PATH: ${{ needs.deployment.outputs.deployed_path }}
         run: |
           echo "# 📊 Meta Workflow v10 実行結果" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## 📋 リクエスト情報" >> $GITHUB_STEP_SUMMARY
-          echo "- **Issue**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **タイトル**: ${{ needs['validate-trigger'].outputs.issue_title }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **タイプ**: ${{ needs['validate-trigger'].outputs.request_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "- **タイトル**: $ISSUE_TITLE" >> $GITHUB_STEP_SUMMARY
+          echo "- **タイプ**: $REQUEST_TYPE" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## 🔍 タスク分解結果" >> $GITHUB_STEP_SUMMARY
@@ -890,15 +904,15 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "### タスク分解の詳細" >> $GITHUB_STEP_SUMMARY
-          echo "- **検出能力数**: ${{ needs['basic-task-decomposition'].outputs.capabilities_count }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **複雑度**: ${{ needs['basic-task-decomposition'].outputs.complexity }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **検出能力数**: $CAPABILITIES_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "- **複雑度**: $COMPLEXITY" >> $GITHUB_STEP_SUMMARY
           
           # Show fine-grained decomposition
-          if [ "${{ needs['basic-task-decomposition'].outputs.has_video }}" == "true" ]; then
+          if [ "$HAS_VIDEO" == "true" ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "#### 🎬 動画生成タスクの詳細分解:" >> $GITHUB_STEP_SUMMARY
             echo "- 📋 コンテンツ企画 (content-planning)" >> $GITHUB_STEP_SUMMARY
-            if [ "${{ needs['basic-task-decomposition'].outputs.has_narration }}" == "true" ]; then
+            if [ "$HAS_NARRATION" == "true" ]; then
               echo "- 🎤 ナレーション作成 (narration-creation)" >> $GITHUB_STEP_SUMMARY
               echo "- 👄 リップシンク処理 (lipsync)" >> $GITHUB_STEP_SUMMARY
               echo "- 📝 字幕オーバーレイ (subtitle-overlay)" >> $GITHUB_STEP_SUMMARY
@@ -910,8 +924,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## 🧠 オーケストレーター分析" >> $GITHUB_STEP_SUMMARY
-          echo "- **マッチング**: ${{ needs['detailed-analysis'].outputs.orchestrator_match }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **実行パターン**: ${{ needs['detailed-analysis'].outputs.execution_pattern }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **マッチング**: $ORCHESTRATOR_MATCH" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行パターン**: $EXECUTION_PATTERN" >> $GITHUB_STEP_SUMMARY
           
           # Show Mermaid diagram if exists
           if [ -f "artifacts/analysis-data/metadata/mermaid.txt" ]; then
@@ -924,9 +938,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "## 🚀 ワークフロー生成" >> $GITHUB_STEP_SUMMARY
-          echo "- **生成ジョブ数**: ${{ needs['workflow-generation'].outputs.total_jobs }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **検証結果**: ${{ needs['workflow-validation'].outputs.validation_passed }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **最適化**: ${{ needs['workflow-validation'].outputs.optimization_needed }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **生成ジョブ数**: $TOTAL_JOBS" >> $GITHUB_STEP_SUMMARY
+          echo "- **検証結果**: $VALIDATION_PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "- **最適化**: $OPTIMIZATION_NEEDED" >> $GITHUB_STEP_SUMMARY
           
           # Show job structure
           if [ -d "artifacts/generated-workflow" ] && [ -n "$(ls -A artifacts/generated-workflow/*.yml 2>/dev/null)" ]; then
@@ -940,9 +954,9 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ needs.deployment.outputs.deployed_path }}" != "" ]; then
+          if [ "$DEPLOYED_PATH" != "" ]; then
             echo "## ✅ デプロイ完了" >> $GITHUB_STEP_SUMMARY
-            echo "- **保存場所**: \`${{ needs.deployment.outputs.deployed_path }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **保存場所**: \`$DEPLOYED_PATH\`" >> $GITHUB_STEP_SUMMARY
             echo "- **アクティベーション**: .disabled拡張子を削除して有効化" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 🎯 次のステップ" >> $GITHUB_STEP_SUMMARY
