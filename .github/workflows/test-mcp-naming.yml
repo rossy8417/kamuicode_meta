@@ -1,0 +1,71 @@
+name: "Test MCP Naming Convention"
+run-name: "Test MCP Tool Names"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  test_mcp_names:
+    name: "Test MCP Tool Names"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Test MCP Tool Names
+        run: |
+          echo "Testing different MCP tool name formats..."
+          
+          # Test 1: With mcp__ prefix and full name
+          echo "=== Test 1: mcp__t2i-google-imagen3__imagen_t2i ==="
+          npx @anthropic-ai/claude-code \
+            -p "List all available MCP tools and try to use the tool 'mcp__t2i-google-imagen3__imagen_t2i' to generate a test image. Save the list of available tools to ./mcp-tools-list.txt" \
+            --allowedTools "*" \
+            --permission-mode "acceptEdits"
+          
+          # Test 2: Without prefix
+          echo "=== Test 2: t2i-google-imagen3 ==="
+          npx @anthropic-ai/claude-code \
+            -p "Try to use the MCP tool 't2i-google-imagen3' to generate a test image of 'a red apple'. Save any error messages to ./mcp-test-result.txt" \
+            --allowedTools "*" \
+            --permission-mode "acceptEdits"
+          
+          # Test 3: Check available tools
+          echo "=== Test 3: List all MCP tools ==="
+          npx @anthropic-ai/claude-code \
+            -p "List all available MCP tools that you can access. Save the complete list with proper tool names to ./available-mcp-tools.txt" \
+            --allowedTools "*" \
+            --permission-mode "acceptEdits"
+          
+          # Display results
+          echo "=== Results ==="
+          if [ -f "./mcp-tools-list.txt" ]; then
+            echo "MCP Tools List:"
+            cat ./mcp-tools-list.txt
+          fi
+          if [ -f "./mcp-test-result.txt" ]; then
+            echo "MCP Test Result:"
+            cat ./mcp-test-result.txt
+          fi
+          if [ -f "./available-mcp-tools.txt" ]; then
+            echo "Available MCP Tools:"
+            cat ./available-mcp-tools.txt
+          fi
