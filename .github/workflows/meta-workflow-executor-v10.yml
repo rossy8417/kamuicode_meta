@@ -255,10 +255,18 @@ jobs:
           # Generate dynamic workflow using Python script
           echo "🚀 Generating dynamic workflow based on issue analysis..."
           
+          # Debug output
+          echo "Debug - CAPABILITIES before export: $CAPABILITIES"
+          echo "Debug - COMPLEXITY before export: $COMPLEXITY"
+          
           # Export variables for Python script
-          export REQUIREMENTS="$(cat requirements.txt | tr '\n' ' ')"
+          export REQUIREMENTS="$(cat requirements.txt 2>/dev/null | tr '\n' ' ' || echo 'General workflow request')"
           export CAPABILITIES="$CAPABILITIES"
           export COMPLEXITY="$COMPLEXITY"
+          
+          # Additional debug
+          echo "Debug - Exported CAPABILITIES: $CAPABILITIES"
+          echo "Debug - Exported COMPLEXITY: $COMPLEXITY"
           
           # Copy pre-created Python script
           cp scripts/generate_dynamic_workflow.py projects/current-session/scripts/
