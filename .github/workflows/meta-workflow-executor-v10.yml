@@ -278,22 +278,23 @@ jobs:
               
               # Extract additional capabilities from orchestrator patterns
               echo "$ORCHESTRATOR_ANALYSIS" > /tmp/orch_analysis.json
-              python3 > /tmp/orch_caps.txt << 'PYTHON_EOF'
-import json
-with open('/tmp/orch_analysis.json', 'r') as f:
-    data = json.load(f)
-caps = set()
-for orch in data.get('analysis', {}).get('orchestrators', []):
-    for job in orch.get('data', {}).get('jobs', []):
-        job_name = job.get('name', '').lower()
-        if 'image' in job_name: caps.add('image-generation')
-        if 'lipsync' in job_name: caps.add('lipsync')
-        if 'subtitle' in job_name: caps.add('subtitle-overlay')
-        if 'planning' in job_name: caps.add('planning')
-        if 'audio' in job_name: caps.add('audio-generation')
-print(','.join(caps))
-PYTHON_EOF
-              ORCH_CAPS=$(cat /tmp/orch_caps.txt 2>/dev/null || echo '')
+              
+              # Create Python script for capability extraction
+              echo 'import json' > /tmp/extract_caps.py
+              echo "with open('/tmp/orch_analysis.json', 'r') as f:" >> /tmp/extract_caps.py
+              echo '    data = json.load(f)' >> /tmp/extract_caps.py
+              echo 'caps = set()' >> /tmp/extract_caps.py
+              echo "for orch in data.get('analysis', {}).get('orchestrators', []):" >> /tmp/extract_caps.py
+              echo "    for job in orch.get('data', {}).get('jobs', []):" >> /tmp/extract_caps.py
+              echo "        job_name = job.get('name', '').lower()" >> /tmp/extract_caps.py
+              echo "        if 'image' in job_name: caps.add('image-generation')" >> /tmp/extract_caps.py
+              echo "        if 'lipsync' in job_name: caps.add('lipsync')" >> /tmp/extract_caps.py
+              echo "        if 'subtitle' in job_name: caps.add('subtitle-overlay')" >> /tmp/extract_caps.py
+              echo "        if 'planning' in job_name: caps.add('planning')" >> /tmp/extract_caps.py
+              echo "        if 'audio' in job_name: caps.add('audio-generation')" >> /tmp/extract_caps.py
+              echo "print(','.join(caps))" >> /tmp/extract_caps.py
+              
+              ORCH_CAPS=$(python3 /tmp/extract_caps.py 2>/dev/null || echo '')
               
               if [ -n "$ORCH_CAPS" ]; then
                 echo "  📚 Additional capabilities from orchestrator patterns: $ORCH_CAPS"
