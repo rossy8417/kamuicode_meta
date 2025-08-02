@@ -654,7 +654,7 @@ jobs:
           fi
           
           # Check for long expressions
-          LONG_LINES=$(grep -n '\${{.*}}' "$WORKFLOW_FILE" | awk 'length($0) > 500' | wc -l)
+          LONG_LINES=$(grep -n '\${{' "$WORKFLOW_FILE" | grep '}}' | awk 'length($0) > 500' | wc -l)
           if [ "$LONG_LINES" -gt 0 ]; then
             echo "⚠️ Found $LONG_LINES long expression lines"
             echo "needs_optimization=true" >> $GITHUB_OUTPUT
