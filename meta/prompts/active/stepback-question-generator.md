@@ -1,101 +1,101 @@
 # Dynamic Stepback Question Generator
 
-ユーザーのワークフロー要求を分析し、より精密なワークフロー生成のために必要な具体的質問を動的に生成してください。
+Analyze the user's workflow request and dynamically generate specific questions necessary for more precise workflow generation.
 
-## 分析対象のユーザー要求
+## User Request to Analyze
 
 {{USER_REQUEST}}
 
-## 質問生成指示
+## Question Generation Instructions
 
-以下の観点から、**ワークフロー設計**に関する不足している情報や曖昧な部分を特定し、3-5個の具体的な質問を生成してください：
+From the following perspectives, identify missing information or ambiguous parts regarding **workflow design** and generate 3-5 specific questions:
 
-**重要**: 完成したワークフローへの入力項目（コンテンツ、スタイル、具体的プロンプトなど）は避け、**ワークフローの構造・設計**に関する質問のみ生成してください。
+**Important**: Avoid questions about input items for the completed workflow (content, style, specific prompts, etc.) and generate only questions related to **workflow structure/design**.
 
-### 1. **ワークフロー構造・アーキテクチャ**
-- 処理方式の選択（単一処理 vs 複合処理）
-- 入力形式対応（テキスト、画像、複数形式対応）
-- 処理段階設計（一段階 vs 多段階 vs 動的選択）
+### 1. **Workflow Structure/Architecture**
+- Processing method selection (single processing vs composite processing)
+- Input format support (text, image, multiple format support)
+- Processing stage design (single stage vs multi-stage vs dynamic selection)
 
-### 2. **品質・パフォーマンス設計**
-- 品質段階の設計（固定 vs 選択可能 vs 動的調整）
-- 実行時間制限の設計（制限なし vs 段階的タイムアウト vs ユーザー指定）
-- 並列処理設計（単一 vs 部分並列 vs 完全並列）
+### 2. **Quality/Performance Design**
+- Quality level design (fixed vs selectable vs dynamic adjustment)
+- Execution time limit design (no limit vs staged timeout vs user-specified)
+- Parallel processing design (single vs partial parallel vs fully parallel)
 
-### 3. **エラー処理・フォールバック設計**
-- エラー対応方式（即座停止 vs 自動リトライ vs 代替手法）
-- フォールバック機能（サービス切り替え vs 品質ダウン vs 外部API）
-- 復旧機能設計（再開 vs 再実行 vs 部分処理）
+### 3. **Error Handling/Fallback Design**
+- Error response method (immediate stop vs auto retry vs alternative method)
+- Fallback functionality (service switching vs quality downgrade vs external API)
+- Recovery function design (resume vs re-execute vs partial processing)
 
-### 4. **出力・保存設計**
-- 出力形式設計（単一固定 vs 複数同時 vs 選択可能）
-- 保存方式設計（最終のみ vs 中間保持 vs 段階別選択）
-- メタデータ設計（基本情報 vs 詳細情報 vs カスタム対応）
+### 4. **Output/Storage Design**
+- Output format design (single fixed vs multiple simultaneous vs selectable)
+- Storage method design (final only vs intermediate retention vs stage-based selection)
+- Metadata design (basic information vs detailed information vs custom support)
 
-### 5. **拡張性・統合設計**
-- 機能拡張設計（現在要件のみ vs プラグイン対応 vs API統合）
-- ワークフロー連携（単独完結 vs 他ワークフロー連携 vs パイプライン対応）
-- 監視・ログ設計（基本ログ vs 詳細監視 vs 外部システム連携）
+### 5. **Extensibility/Integration Design**
+- Feature extension design (current requirements only vs plugin support vs API integration)
+- Workflow coordination (standalone vs other workflow coordination vs pipeline support)
+- Monitoring/logging design (basic logging vs detailed monitoring vs external system integration)
 
-## 必須出力形式
+## Required Output Format
 
-以下の形式で質問を生成し、**必ずファイルに保存**してください：
+Generate questions in the following format and **always save to file**:
 
 ```bash
 mkdir -p generated/metadata/stepback-analysis
 cat > generated/metadata/stepback-analysis/generated-questions.md << 'EOF'
-## 📋 ワークフロー詳細化のための質問
+## 📋 Questions for Workflow Detailing
 
-より正確で最適化されたワークフローを生成するために、以下の質問にお答えください：
+Please answer the following questions to generate a more accurate and optimized workflow:
 
-**Q1: [ワークフロー構造・アーキテクチャ]**
-[具体的な質問文]
-**回答：**（ここに詳細をお書きください）
+**Q1: [Workflow Structure/Architecture]**
+[Specific question text]
+**Answer:** (Please write details here)
 
-**Q2: [品質・パフォーマンス設計]**
-[具体的な質問文]
-**回答：**（ここに詳細をお書きください）
+**Q2: [Quality/Performance Design]**
+[Specific question text]
+**Answer:** (Please write details here)
 
-**Q3: [エラー処理・フォールバック設計]**
-[具体的な質問文]
-**回答：**（ここに詳細をお書きください）
+**Q3: [Error Handling/Fallback Design]**
+[Specific question text]
+**Answer:** (Please write details here)
 
-**Q4: [出力・保存設計]** ※必要に応じて
-[具体的な質問文]
-**回答：**（ここに詳細をお書きください）
+**Q4: [Output/Storage Design]** *If necessary
+[Specific question text]
+**Answer:** (Please write details here)
 
-**Q5: [拡張性・統合設計]** ※必要に応じて
-[具体的な質問文]
-**回答：**（ここに詳細をお書きください）
+**Q5: [Extensibility/Integration Design]** *If necessary
+[Specific question text]
+**Answer:** (Please write details here)
 
 ---
 
-### 📝 回答後の手順
-1. 上記の質問に回答を記入
-2. このIssueの本文を編集して、回答部分を追加
-3. Issue保存後、自動的にワークフロー生成が開始されます
+### 📝 Steps After Answering
+1. Fill in answers to the above questions
+2. Edit this Issue's body to add the answer sections
+3. After saving the Issue, workflow generation will start automatically
 
 🤖 *Generated by Dynamic Stepback Question System*
 EOF
 ```
 
-## 質問生成のガイドライン
+## Question Generation Guidelines
 
-- **具体的で回答しやすい質問**にする
-- **選択肢や例を提示**して回答を容易にする
-- **必須情報と推奨情報を区別**する
-- **ユーザーが「分からない」と答えても問題ない**質問構成にする
-- **デフォルト値や推奨設定を併記**する
+- Make **specific and easily answerable questions**
+- **Present choices and examples** to facilitate answering
+- **Distinguish between required and recommended information**
+- Structure questions so users can answer **"I don't know"** without issues
+- **Include default values and recommended settings**
 
-## 出力例
+## Output Example
 
 ```markdown
-**Q1: ワークフロー構造・アーキテクチャ**
-動画生成ワークフローの基本構造をどのように設計しますか？
-- 生成方式: T2V単一処理 / T2I→I2V複合処理 / 両方対応可能
-- 入力形式: テキストのみ / 画像のみ / テキスト・画像両対応
-- 処理段階: シンプル一段階 / 多段階品質向上 / 動的選択可能
-**回答：**（ここに詳細をお書きください）
+**Q1: Workflow Structure/Architecture**
+How would you like to design the basic structure of the video generation workflow?
+- Generation method: T2V single processing / T2I→I2V composite processing / Both supported
+- Input format: Text only / Image only / Both text and image supported
+- Processing stages: Simple single stage / Multi-stage quality enhancement / Dynamic selection available
+**Answer:** (Please write details here)
 ```
 
-重要：生成した質問は必ず `generated/metadata/stepback-analysis/generated-questions.md` に保存してください。
+Important: Always save the generated questions to `generated/metadata/stepback-analysis/generated-questions.md`.

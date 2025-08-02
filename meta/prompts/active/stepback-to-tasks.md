@@ -1,63 +1,63 @@
 # Stepback Answers to Task Plan Generator
 
-ユーザーのステップバック回答を分析して、具体的なタスクプランに変換します。
+Analyze user's stepback answers and convert them into a concrete task plan.
 
-## 入力データ
+## Input Data
 
-### ワークフロータイプ
+### Workflow Type
 ```
 {{WORKFLOW_TYPE}}
 ```
 
-### ステップバック回答
-以下に実際のユーザー回答が追記されます:
+### Stepback Answers
+Actual user answers will be appended below:
 
-## 分析指示
+## Analysis Instructions
 
-以下のステップバック回答を分析し、ユーザーの要求に最適化されたタスクプランを生成してください：
+Analyze the following stepback answers and generate a task plan optimized for the user's requirements:
 
-### 分析ポイント
-1. **Q1（構造・アーキテクチャ）** → 処理方式・段階設計に反映
-2. **Q2（品質・パフォーマンス）** → 品質設定・並列処理設計に反映
-3. **Q3（エラー処理）** → フォールバック戦略・リトライ設定に反映
-4. **Q4（出力・保存）** → 出力形式・中間ファイル保存に反映
-5. **Q5（拡張性）** → 監視・ログ設定に反映
+### Analysis Points
+1. **Q1 (Structure/Architecture)** → Reflect in processing method/stage design
+2. **Q2 (Quality/Performance)** → Reflect in quality settings/parallel processing design
+3. **Q3 (Error Handling)** → Reflect in fallback strategy/retry settings
+4. **Q4 (Output/Storage)** → Reflect in output format/intermediate file storage
+5. **Q5 (Extensibility)** → Reflect in monitoring/log settings
 
-## 必須出力形式
+## Required Output Format
 
-以下のJSON形式で `generated/metadata/task-decomposition/task-plan.json` に出力してください：
+Output in the following JSON format to `generated/metadata/task-decomposition/task-plan.json`:
 
 ```json
 {
   "workflow_type": "{{WORKFLOW_TYPE}}",
-  "estimated_duration_minutes": 数値,
+  "estimated_duration_minutes": number,
   "user_requirements": {
-    "architecture": "ユーザー指定の構造設計",
-    "quality_priority": "品質優先度",
-    "error_handling": "エラー対応方式",
-    "output_format": "出力要求",
-    "extensibility": "拡張性要求"
+    "architecture": "User-specified structural design",
+    "quality_priority": "Quality priority",
+    "error_handling": "Error response method",
+    "output_format": "Output requirements",
+    "extensibility": "Extensibility requirements"
   },
   "tasks": [
     {
       "id": "task-001",
-      "name": "具体的なタスク名",
-      "description": "ユーザー要求を反映した詳細説明",
+      "name": "Specific task name",
+      "description": "Detailed description reflecting user requirements",
       "type": "mcp_generation|processing|integration|validation",
-      "dependencies": ["依存するタスクID"],
+      "dependencies": ["Dependent task IDs"],
       "required_tools": ["t2i-google-imagen3", "i2v-fal-hailuo-02-pro"],
       "quality_settings": {
         "priority": "high|medium|low",
-        "timeout_minutes": 数値,
-        "retry_count": 数値
+        "timeout_minutes": number,
+        "retry_count": number
       },
       "error_handling": {
         "strategy": "retry|fallback|skip|abort",
-        "fallback_service": "代替サービス名（該当時）"
+        "fallback_service": "Alternative service name (if applicable)"
       },
       "outputs": {
         "save_intermediate": true/false,
-        "formats": ["形式1", "形式2"],
+        "formats": ["format1", "format2"],
         "metadata_level": "basic|detailed|custom"
       }
     }
@@ -67,7 +67,7 @@
       "stage": 1,
       "parallel": false,
       "tasks": ["task-001"],
-      "quality_gate": "必須品質条件"
+      "quality_gate": "Required quality conditions"
     }
   ],
   "monitoring": {
@@ -78,10 +78,10 @@
 }
 ```
 
-## タスク生成例
+## Task Generation Examples
 
-### video-generation の場合
-ユーザーが「T2I→I2V複合処理、最高品質、エラー時サービス切り替え、中間ファイル保存」と回答した場合：
+### For video-generation
+When user answers "T2I→I2V composite processing, highest quality, service switching on error, save intermediate files":
 
 ```json
 {
@@ -90,7 +90,7 @@
   "tasks": [
     {
       "id": "task-001",
-      "name": "高品質画像生成（T2I）",
+      "name": "High-quality image generation (T2I)",
       "type": "mcp_generation",
       "required_tools": ["t2i-google-imagen3"],
       "quality_settings": {
@@ -110,7 +110,7 @@
     },
     {
       "id": "task-002", 
-      "name": "画像から動画生成（I2V）",
+      "name": "Image to video generation (I2V)",
       "type": "mcp_generation",
       "dependencies": ["task-001"],
       "required_tools": ["i2v-fal-hailuo-02-pro"],
@@ -124,18 +124,18 @@
 }
 ```
 
-## 重要な指針
+## Important Guidelines
 
-1. **ユーザー回答の最大活用**: フォールバックではなく、回答内容を具体的に反映
-2. **品質とパフォーマンスのバランス**: ユーザーの優先度に応じて調整
-3. **エラー対応の具体化**: 抽象的ではなく、実行可能な戦略を指定
-4. **段階的実行**: 依存関係を考慮した効率的な実行順序
-5. **監視可能性**: 進行状況とエラーを追跡可能な設計
+1. **Maximize use of user answers**: Specifically reflect answer content rather than fallbacks
+2. **Balance quality and performance**: Adjust according to user's priority
+3. **Concrete error handling**: Specify executable strategies, not abstract ones
+4. **Staged execution**: Efficient execution order considering dependencies
+5. **Observability**: Design to track progress and errors
 
-## フォールバック処理
+## Fallback Processing
 
-ステップバック回答が不十分な場合のみ、以下のデフォルト設定を使用：
-- 品質優先度: medium
-- エラー処理: retry (3回)
-- 出力: 最終結果のみ保存
-- ログレベル: basic
+Use the following default settings only when stepback answers are insufficient:
+- Quality priority: medium
+- Error handling: retry (3 times)
+- Output: Save final results only
+- Log level: basic

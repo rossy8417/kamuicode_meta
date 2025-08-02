@@ -10,49 +10,49 @@ This document provides comprehensive dependency relationships for all components
 4. [Typical Flow Patterns](#typical-flow-patterns)
 5. [AI System Quick Reference](#ai-system-quick-reference)
 
-## システム階層構造
+## System Hierarchy
 
 ```
-オーケストレーター（完全なワークフロー）
-├── モジュール（機能グループ）
-│   └── ミニマルユニット（最小機能）
-└── 直接実行ミニマルユニット
+Orchestrator (Complete Workflow)
+├── Module (Function Group)
+│   └── Minimal Unit (Minimum Function)
+└── Direct Execution Minimal Unit
 ```
 
-### レイヤー説明
-- **ミニマルユニット**: 単一機能（53個）- 最新構造：`minimal-units/[category]/[unit].yml`
-- **モジュール**: 関連ユニット組み合わせ（`kamuicode-workflow/module-workflow/module-*.yml`）
-- **オーケストレーター**: 完全ワークフロー（`kamuicode-workflow/module-workflow/orchestrator-*.yml`）
+### Layer Description
+- **Minimal Unit**: Single function (80 units) - Latest structure: `minimal-units/[category]/[unit].yml`
+- **Module**: Related unit combination (`kamuicode-workflow/module-workflow/module-*.yml`)
+- **Orchestrator**: Complete workflow (`kamuicode-workflow/module-workflow/orchestrator-*.yml`)
 
-## 依存関係マトリックス
+## Dependency Matrix
 
-### 🚦 フェーズベース依存関係
+### 🚦 Phase-Based Dependencies
 
-| フェーズ | 必須前提 | 次フェーズ | 並列可能 |
-|---------|---------|-----------|---------|
-| **Setup** | なし | Planning | ❌ |
-| **Planning** | Setup完了 | Production | ✅（複数企画並列） |
-| **Production** | Planning完了 | Post-Production | ✅（画像・音声・動画並列） |
-| **Post-Production** | Production完了 | Delivery | ✅（字幕・エフェクト並列） |
-| **Delivery** | Post-Production完了 | なし | ✅（アップロード・PR並列） |
+| Phase | Required Prerequisites | Next Phase | Parallelizable |
+|-------|----------------------|------------|----------------|
+| **Setup** | None | Planning | ❌ |
+| **Planning** | Setup completed | Production | ✅ (Multiple plans in parallel) |
+| **Production** | Planning completed | Post-Production | ✅ (Image/Audio/Video in parallel) |
+| **Post-Production** | Production completed | Delivery | ✅ (Subtitle/Effects in parallel) |
+| **Delivery** | Post-Production completed | None | ✅ (Upload/PR in parallel) |
 
-### 📁 カテゴリ別依存関係
+### 📁 Category-Based Dependencies
 
 #### 🔧 Setup & Workflow Management
 ```yaml
-必須実行順序:
+Required execution order:
   1. git-branch-setup     # minimal-units/git-ops/git-branch-setup.yml
-  2. [メイン処理]
+  2. [Main processing]
   3. git-pr-create       # minimal-units/external/git-pr-create.yml
   
-モジュール参照:
+Module references:
   - module-setup-branch.yml
   - module-create-pr.yml
 ```
 
 #### 📋 Planning Phase
 ```yaml
-並列実行可能:
+Parallel executable:
   - planning-ccsdk        # minimal-units/planning/planning-ccsdk.yml
   - banner-planning       # minimal-units/planning/banner-planning.yml
   - news-planning         # minimal-units/planning/news-planning.yml
@@ -60,7 +60,7 @@ This document provides comprehensive dependency relationships for all components
   - data-analysis        # minimal-units/planning/data-analysis.yml
   - data-visualization   # minimal-units/planning/data-visualization.yml
 
-モジュール参照:
+Module references:
   - module-planning-ccsdk.yml
   - module-banner-planning-ccsdk.yml
   - module-news-planning-ccsdk.yml
@@ -69,8 +69,8 @@ This document provides comprehensive dependency relationships for all components
 
 #### 🎨 Media Production Phase
 ```yaml
-画像生成（5ユニット - 並列可能）:
-  dependencies: [planning完了]
+Image generation (5 units - parallelizable):
+  dependencies: [planning completed]
   units:
     - t2i-imagen3         # minimal-units/media/image/t2i-imagen3.yml
     - image-t2i           # minimal-units/media/image/image-t2i.yml
@@ -79,8 +79,8 @@ This document provides comprehensive dependency relationships for all components
   analysis:
     - image-analysis      # minimal-units/media/image/image-analysis.yml
   
-動画生成（7ユニット）:  
-  dependencies: [画像生成完了(optional)]
+Video generation (7 units):  
+  dependencies: [image generation completed (optional)]
   units:
     - video-generation    # minimal-units/media/video/video-generation.yml
     - t2v-veo3           # minimal-units/media/video/t2v-veo3.yml
@@ -91,30 +91,31 @@ This document provides comprehensive dependency relationships for all components
     - video-analysis     # minimal-units/media/video/video-analysis.yml
     - video-prompt-opt   # minimal-units/media/video/video-prompt-opt.yml
 
-音声生成（9ユニット - 並列可能）:
-  dependencies: [planning完了]
+Audio generation (10 units - parallelizable):
+  dependencies: [planning completed]
   units:
     - bgm-generate       # minimal-units/media/audio/bgm-generate.yml
     - bgm-generate-mcp   # minimal-units/media/audio/bgm-generate-mcp.yml
     - t2s-google         # minimal-units/media/audio/t2s-google.yml
     - t2s-minimax-turbo  # minimal-units/media/audio/t2s-minimax-turbo.yml
+    - t2s-minimax-turbo-mcp  # minimal-units/media/audio/t2s-minimax-turbo-mcp.yml
     - t2s-minimax-voice  # minimal-units/media/audio/t2s-minimax-voice.yml
     - t2s-openai         # minimal-units/media/audio/t2s-openai.yml
     - audio-elevenlabs   # minimal-units/media/audio/audio-elevenlabs.yml
     - audio-minimax      # minimal-units/media/audio/audio-minimax.yml
     - wav-segmentation   # minimal-units/media/audio/wav-segmentation.yml
 
-バナーデザイン（1ユニット）:
-  dependencies: [banner-planning完了]
+Banner design (1 unit):
+  dependencies: [banner-planning completed]
   units:
     - banner-text        # minimal-units/media/banner/banner-text.yml
 
-3D生成（1ユニット）:
-  dependencies: [画像生成完了]
+3D generation (1 unit):
+  dependencies: [image generation completed]
   units:
     - i2i3d-hunyuan     # minimal-units/media/3d/i2i3d-hunyuan.yml
 
-モジュール参照:
+Module references:
   - module-image-generation-kc-*.yml
   - module-video-generation-kc-*.yml
   - module-audio-generation-kc-*.yml
@@ -123,8 +124,8 @@ This document provides comprehensive dependency relationships for all components
 
 #### 📰 Content Creation Phase
 ```yaml
-並列実行可能:
-  dependencies: [planning完了、web-search完了(optional)]
+Parallel executable:
+  dependencies: [planning completed, web-search completed (optional)]
   units:
     - blog-generation     # minimal-units/content/blog-generation.yml
     - article-generation  # minimal-units/content/article-generation.yml
@@ -132,14 +133,14 @@ This document provides comprehensive dependency relationships for all components
     - slide-generation    # minimal-units/content/slide-generation.yml
     - markdown-summary    # minimal-units/content/markdown-summary.yml
 
-モジュール参照:
+Module references:
   - module-article-creation-ccsdk.yml
 ```
 
 #### ⚡ Post-Production Phase
 ```yaml
-字幕・リップシンク（6ユニット）:
-  dependencies: [音声生成完了、動画生成完了]
+Subtitle & Lipsync (6 units):
+  dependencies: [audio generation completed, video generation completed]
   sequential_required:
     - pixverse-quota-guard  # minimal-units/postprod/pixverse-quota-guard.yml
     - lipsync-pixverse      # minimal-units/postprod/lipsync-pixverse.yml
@@ -149,8 +150,8 @@ This document provides comprehensive dependency relationships for all components
     - srt-translate        # minimal-units/postprod/srt-translate.yml
     - subtitle-overlay     # minimal-units/postprod/subtitle-overlay.yml
 
-統合・強化（6ユニット）:
-  dependencies: [メディア生成完了]
+Integration & Enhancement (6 units):
+  dependencies: [media generation completed]
   units:
     - video-concat         # minimal-units/postprod/video-concat.yml
     - title-composition    # minimal-units/postprod/title-composition.yml
@@ -159,7 +160,7 @@ This document provides comprehensive dependency relationships for all components
     - v2v-creatify         # minimal-units/postprod/v2v-creatify.yml
     - bgm-overlay          # minimal-units/postprod/bgm-overlay.yml
 
-モジュール参照:
+Module references:
   - module-lipsync-generation-kc-*.yml
   - module-subtitle-overlay-ffmpeg-ccsdk.yml
   - module-video-concatenation-ffmpeg-ccsdk.yml
@@ -167,91 +168,97 @@ This document provides comprehensive dependency relationships for all components
 
 #### 🛠️ Utility & Integration Phase
 ```yaml
-ストレージ（2ユニット）:
-  dependencies: [ファイル生成完了]
+Storage (2 units):
+  dependencies: [file generation completed]
   units:
     - local-save          # minimal-units/utility/local-save.yml
     - fal-upload          # minimal-units/utility/fal-upload.yml
 
-外部連携（3ユニット）:
-  dependencies: [コンテンツ完成]
-  units:
+External integration (30 units):
+  dependencies: [content completed]
+  core units:
     - pdf-create          # minimal-units/external/pdf-create.yml
     - sns-publish         # minimal-units/external/sns-publish.yml
     - git-pr-create       # minimal-units/external/git-pr-create.yml
+  api units:
+    - youtube-upload      # minimal-units/external/youtube-upload.yml
+    - newsapi-fetch       # minimal-units/external/newsapi-fetch.yml
+    - slack-notify        # minimal-units/external/slack-notify.yml
+    - openai-gpt          # minimal-units/external/openai-gpt.yml
+    # ... and 23 more external API units
 
-Git操作（2ユニット）:
+Git operations (2 units):
   git-branch-setup:       # minimal-units/git-ops/git-branch-setup.yml
-    - position: workflow開始時
+    - position: workflow start
   cleanup-branch:         # minimal-units/git-ops/cleanup-branch.yml
-    - position: workflow終了時（optional）
+    - position: workflow end (optional)
 
-モジュール参照:
+Module references:
   - module-upload-fal-ccsdk.yml
 ```
 
-## 実行順序ルール
+## Execution Order Rules
 
-### 🚦 必須実行順序
+### 🚦 Required Execution Order
 ```yaml
-# 基本フロー
+# Basic flow
 1. git-branch-setup
-2. planning-* (並列可能)
-3. media-production-* (並列可能、planning後)
-4. content-creation-* (並列可能、planning後)
-5. post-production-* (media/content後)
-6. utility-* (ファイル完成後)
+2. planning-* (parallelizable)
+3. media-production-* (parallelizable, after planning)
+4. content-creation-* (parallelizable, after planning)
+5. post-production-* (after media/content)
+6. utility-* (after file completion)
 7. git-pr-create
 
-# 特別な依存関係
-pixverse系:
+# Special dependencies
+pixverse series:
   pixverse-quota-guard → lipsync-pixverse
 
-分析系:
+Analysis series:
   *-generation → *-analysis
 
-字幕系:
+Subtitle series:
   srt-make → srt-sync → srt-translate → subtitle-overlay
 
-強化系:
+Enhancement series:
   video-generation → upscale-topaz
   video-generation → v2v-luma-ray2
   video-generation → v2v-creatify
 ```
 
-### ⚡ 並列実行推奨
+### ⚡ Recommended Parallel Execution
 ```yaml
-# 企画フェーズ
+# Planning phase
 planning-ccsdk || banner-planning || news-planning || web-search
 
-# 制作フェーズ  
+# Production phase  
 image-generation || audio-generation || bgm-generation
 
-# 後処理フェーズ
+# Post-processing phase
 srt-make || srt-sync || title-composition
 
-# 配信フェーズ
+# Delivery phase
 fal-upload || sns-publish
 ```
 
-## 典型的なフローパターン
+## Typical Flow Patterns
 
-### パターン1: シンプル動画制作
+### Pattern 1: Simple Video Production
 ```yaml
-参考オーケストレーター: orchestrator-video-generation.yml
+Reference orchestrator: orchestrator-video-generation.yml
 flow:
   setup: git-branch-setup
   planning: planning-ccsdk
   production: image-t2i → video-generation
   delivery: fal-upload → git-pr-create
   
-duration: 15-20分
-units_used: 4個
+duration: 15-20 minutes
+units_used: 4 units
 ```
 
-### パターン2: リップシンク動画制作
+### Pattern 2: Lipsync Video Production
 ```yaml
-参考オーケストレーター: orchestrator-v2v-pixverse-lipsync-single.yml
+Reference orchestrator: orchestrator-v2v-pixverse-lipsync-single.yml
 flow:
   setup: git-branch-setup
   planning: planning-ccsdk
@@ -259,13 +266,13 @@ flow:
   postprod: pixverse-quota-guard → lipsync-pixverse → subtitle-overlay
   delivery: fal-upload → git-pr-create
   
-duration: 25-30分
-units_used: 8個
+duration: 25-30 minutes
+units_used: 8 units
 ```
 
-### パターン3: マルチメディアキャンペーン
+### Pattern 3: Multimedia Campaign
 ```yaml
-参考オーケストレーター: orchestrator-banner-advertisement-creation.yml
+Reference orchestrator: orchestrator-banner-advertisement-creation.yml
 flow:
   setup: git-branch-setup
   planning: banner-planning || news-planning
@@ -275,13 +282,13 @@ flow:
   content: blog-generation || markdown-summary
   delivery: fal-upload || sns-publish || git-pr-create
   
-duration: 45-60分
-units_used: 15-20個
+duration: 45-60 minutes
+units_used: 15-20 units
 ```
 
-### パターン4: ニュース動画制作
+### Pattern 4: News Video Production
 ```yaml
-参考オーケストレーター: orchestrator-news-video-generation.yml
+Reference orchestrator: orchestrator-news-video-generation.yml
 flow:
   setup: git-branch-setup
   research: web-search → news-summary → news-planning
@@ -290,30 +297,30 @@ flow:
   content: article-generation → markdown-summary
   delivery: fal-upload → sns-publish → git-pr-create
   
-duration: 35-45分
-units_used: 12-15個
+duration: 35-45 minutes
+units_used: 12-15 units
 ```
 
-## AI生成システム用クイックリファレンス
+## AI Generation System Quick Reference
 
-### 🎯 ユニット選択指針
+### 🎯 Unit Selection Guidelines
 
 ```yaml
-目的別推奨ユニット:
-  画像重視: t2i-imagen3, i2i-flux-kontext, image-analysis
-  動画重視: video-generation, t2v-veo3, upscale-topaz
-  音声重視: t2s-minimax-voice, bgm-generate-mcp, bgm-overlay
-  コンテンツ重視: article-generation, blog-generation, markdown-summary
-  速度重視: image-t2i, t2v-wan, t2s-google
-  品質重視: t2i-imagen3, t2v-veo3, audio-elevenlabs
+Purpose-based recommended units:
+  Image-focused: t2i-imagen3, i2i-flux-kontext, image-analysis
+  Video-focused: video-generation, t2v-veo3, upscale-topaz
+  Audio-focused: t2s-minimax-voice, bgm-generate-mcp, bgm-overlay
+  Content-focused: article-generation, blog-generation, markdown-summary
+  Speed-focused: image-t2i, t2v-wan, t2s-google
+  Quality-focused: t2i-imagen3, t2v-veo3, audio-elevenlabs
   
-品質レベル別:
-  エコノミー: t2s-google, image-t2i, basic-concat
-  スタンダード: t2i-sdxl, video-generation, bgm-generate
-  プレミアム: t2i-imagen3, t2v-veo3, audio-elevenlabs
+Quality levels:
+  Economy: t2s-google, image-t2i, basic-concat
+  Standard: t2i-sdxl, video-generation, bgm-generate
+  Premium: t2i-imagen3, t2v-veo3, audio-elevenlabs
 ```
 
-### 🚀 自動選択ルール
+### 🚀 Automatic Selection Rules
 
 ```yaml
 IF request_type == "video":
@@ -334,53 +341,53 @@ IF request_type == "campaign":
   optional: [sns-publish, pdf-create]
 ```
 
-### 📊 リソース使用量予測
+### 📊 Resource Usage Prediction
 
 ```yaml
-軽量ワークフロー（10分以内）:
-  units: 3-5個
+Lightweight workflow (within 10 minutes):
+  units: 3-5 units
   pattern: planning → single-generation → upload
   example: banner-planning → banner-text → fal-upload
 
-中量ワークフロー（20-30分）:
-  units: 6-10個  
+Medium workflow (20-30 minutes):
+  units: 6-10 units  
   pattern: planning → parallel-generation → postprod → upload
   example: planning → (image + audio) → lipsync → upload
 
-重量ワークフロー（45分以上）:
-  units: 12-20個
+Heavy workflow (45+ minutes):
+  units: 12-20 units
   pattern: multi-planning → multi-generation → complex-postprod → multi-delivery
   example: (planning + research) → (image + video + audio) → (edit + enhance) → (upload + social)
 ```
 
-### 🔄 エラーハンドリング指針
+### 🔄 Error Handling Guidelines
 
 ```yaml
-必須チェックポイント:
-  - pixverse-quota-guard: リップシンク前に必須
-  - *-analysis: 生成後の品質確認
-  - fal-upload: 成功確認後に次のステップ
+Required checkpoints:
+  - pixverse-quota-guard: Required before lipsync
+  - *-analysis: Quality check after generation
+  - fal-upload: Confirm success before next step
 
-フォールバック戦略:
-  t2i-imagen3 失敗 → t2i-sdxl → image-t2i
-  lipsync-pixverse 失敗 → subtitle-overlay のみ
-  bgm-generate 失敗 → audio生成なしで継続
+Fallback strategies:
+  t2i-imagen3 failure → t2i-sdxl → image-t2i
+  lipsync-pixverse failure → subtitle-overlay only
+  bgm-generate failure → continue without audio generation
 
-リトライ推奨:
-  - ネットワーク系: web-search, fal-upload
-  - AI生成系: image-*, video-*, audio-*
-  - 解析系: *-analysis
+Retry recommended:
+  - Network-based: web-search, fal-upload
+  - AI generation: image-*, video-*, audio-*
+  - Analysis: *-analysis
 
-スキップ可能:
-  - 品質向上系: upscale-*, v2v-*
-  - 装飾系: title-composition, bgm-overlay
-  - 外部連携系: sns-publish, pdf-create
+Skippable:
+  - Quality enhancement: upscale-*, v2v-*
+  - Decoration: title-composition, bgm-overlay
+  - External integration: sns-publish, pdf-create
 ```
 
 ---
 
-**このガイドを使用することで、AIシステムは適切な依存関係を理解し、効率的で信頼性の高いワークフローを自動生成できます。**
+**By using this guide, AI systems can understand appropriate dependencies and automatically generate efficient and reliable workflows.**
 
-**最終更新**: 2025-07-31  
-**対応バージョン**: v9.0（ミニマルユニットベース）  
-**統合ソース**: DEPENDENCY_MAP.md + WORKFLOW_PATTERNS.md + kamuicode-workflow/README.md
+**Last updated**: 2025-08-02  
+**Compatible version**: v10.0 (Minimal unit based + External API integration)  
+**Integrated sources**: DEPENDENCY_MAP.md + WORKFLOW_PATTERNS.md + kamuicode-workflow/README.md

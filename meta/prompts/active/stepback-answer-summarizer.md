@@ -1,62 +1,62 @@
 # Stepback Answer Summarizer
 
-ユーザーの詳細なステップバック回答を、GitHub Actions抽出用の簡潔で意味が通る形式に要約してください。
+Summarize the user's detailed stepback answers into a concise, meaningful format for GitHub Actions extraction.
 
-## 入力: ユーザーの詳細回答
+## Input: User's Detailed Answers
 
 {{DETAILED_ANSWERS}}
 
-## 要約指示
+## Summarization Instructions
 
-以下のルールに従って、各回答を**意味が通る簡潔な形式**に要約してください：
+Follow these rules to summarize each answer into a **meaningful and concise format**:
 
-### 要約ルール
-1. **単語だけではなく、文として意味が通るように**
-2. **重要なキーワードと判断内容を含める**
-3. **一行で表現（最大100文字程度）**
-4. **技術的な詳細は保持しつつ簡潔に**
+### Summarization Rules
+1. **Ensure the summary makes sense as a complete thought, not just keywords**
+2. **Include important keywords and decision content**
+3. **Express in one line (approximately 100 characters maximum)**
+4. **Keep technical details while being concise**
 
-### 対象質問カテゴリ
-- **Q1: ワークフロー構造・アーキテクチャ**
-- **Q2: 品質・パフォーマンス設計**  
-- **Q3: エラー処理・フォールバック設計**
-- **Q4: 出力・保存設計**
-- **Q5: 拡張性・統合設計**
+### Target Question Categories
+- **Q1: Workflow Structure/Architecture**
+- **Q2: Quality/Performance Design**  
+- **Q3: Error Handling/Fallback Design**
+- **Q4: Output/Storage Design**
+- **Q5: Extensibility/Integration Design**
 
-## 必須出力形式
+## Required Output Format
 
-以下の形式で要約を生成してください：
+Generate summaries in the following format:
 
 ```
-Q1回答: [ワークフロー構造に関する簡潔で意味が通る要約]
-Q2回答: [品質・パフォーマンスに関する簡潔で意味が通る要約]  
-Q3回答: [エラー処理に関する簡潔で意味が通る要約]
-Q4回答: [出力・保存に関する簡潔で意味が通る要約]
-Q5回答: [拡張性に関する簡潔で意味が通る要約]
+Q1 Answer: [Concise, meaningful summary about workflow structure]
+Q2 Answer: [Concise, meaningful summary about quality/performance]  
+Q3 Answer: [Concise, meaningful summary about error handling]
+Q4 Answer: [Concise, meaningful summary about output/storage]
+Q5 Answer: [Concise, meaningful summary about extensibility]
 ```
 
-## 要約例
+## Summary Examples
 
-### 詳細回答例:
+### Detailed Answer Example:
 ```
-Q1: T2I→I2V複合処理を採用します。テキストのみを入力として受け取り、まずテキストから高品質画像を生成し、その画像を基に動画を作成する2段階処理を実装します。必要に応じて処理段階を柔軟に調整可能な設計とし、品質向上のための追加処理ステップも組み込める構造にします。
-```
-
-### 簡潔要約例:
-```
-Q1回答: T2I→I2V複合処理、テキスト入力、2段階処理で柔軟な品質調整が可能
+Q1: We will adopt T2I→I2V composite processing. Taking only text as input, we'll first generate high-quality images from text, then create videos based on those images in a two-stage process. The design allows flexible adjustment of processing stages as needed, with a structure that can incorporate additional processing steps for quality improvement.
 ```
 
-## 使用方法
+### Concise Summary Example:
+```
+Q1 Answer: T2I→I2V composite processing, text input, two-stage processing with flexible quality adjustment
+```
 
-1. **ユーザーの詳細回答を上記{{DETAILED_ANSWERS}}部分に貼り付け**
-2. **Claude Codeで要約実行**
-3. **生成された簡潔形式をIssueに追加**
-4. **GitHub Actionsで自動抽出・処理**
+## Usage
 
-## 重要な注意点
+1. **Paste user's detailed answers in the {{DETAILED_ANSWERS}} section above**
+2. **Execute summarization with Claude Code**
+3. **Add generated concise format to Issue**
+4. **Automatic extraction/processing by GitHub Actions**
 
-- **意味を損なわずに簡潔に**
-- **技術的な重要要素は必ず含める**
-- **GitHub Actions抽出パターン`Q[1-5]回答:`に準拠**
-- **各行は独立して理解可能に**
+## Important Notes
+
+- **Be concise without losing meaning**
+- **Always include technically important elements**
+- **Conform to GitHub Actions extraction pattern `Q[1-5] Answer:`**
+- **Each line should be independently understandable**

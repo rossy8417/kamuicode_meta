@@ -7,13 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **🎯 Context-based references - Only access needed docs for your specific task**
 
 ### For workflow generation & dependencies
-→ **`UNIFIED_DEPENDENCY_GUIDE.md`** (AI-optimized, single source)
+→ **`docs/UNIFIED_DEPENDENCY_GUIDE.md`** (AI-optimized, single source)
 
 ### For minimal unit selection & catalog
 → **`minimal-units/MINIMAL_UNITS_CATALOG.md`** (80 units, full paths)
 
 ### For technical implementation details
-→ **`minimal-units/UNIT_INTERFACE_SPEC.md`** (YAML interface specs)
+→ **`docs/UNIT_INTERFACE_SPEC.md`** (YAML interface specs)
 
 ### For prompt creation & meta-workflow design
 → **`meta/prompts/`** directory specific prompt files

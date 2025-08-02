@@ -109,18 +109,51 @@
 
 ## 🔧 MCP設定
 
-### **共有設定**
-- **`.claude/mcp-kamuicode.json`**: MCP サービス設定（GitHub Actions・CLI共用）
+### **核心設定ファイル：`.claude/mcp-kamuicode.json`**
+このファイルはKamui Rossyシステムの**最重要設定ファイル**です。
+
+#### **ファイルの役割**
+- **MCP サービス定義**: 44個以上のAI生成・外部APIサービスのエンドポイント設定
+- **Claude Code統合**: GitHub ActionsでClaude CodeがMCPツールを使用するための必須設定
+- **環境変数参照**: `{{API_KEY_NAME}}`形式でシークレットを安全に参照
+
+#### **設定されているサービス**
+1. **AI生成サービス（24個）**: 初期から組み込まれている画像・動画・音声生成サービス
+2. **外部APIサービス（20個以上）**: v10.0で追加された外部連携サービス
 
 ### **CLI専用設定**
 - **`cli_config/.claude_mcp_defaults.md`**: CLI用デフォルト設定
 - **`cli_config/claude_mcp_helpers.md`**: 使用例・ヘルパー関数
 
-### **利用可能サービス**
-- **T2I**: 画像生成 (Google Imagen3, Fal.ai等)
-- **T2V**: 動画生成 (Veo3, Hailuo等)
-- **T2M**: 音楽生成 (Google Lyria等)
-- **I2V, V2V, V2A, I2I3D**: その他マルチモーダル生成サービス
+### **利用可能サービス（`.claude/mcp-kamuicode.json`に設定済み）**
+
+#### **AI生成サービス（24個）**
+- **T2I（画像生成）**: 
+  - `t2i-google-imagen3`: Google Imagen3
+  - `t2i-fal-imagen4-ultra`: 高品質画像生成
+  - `t2i-fal-imagen4-fast`: 高速画像生成
+  - `t2i-fal-flux-schnell`: Flux高速生成
+  - `t2i-fal-rundiffusion-photo-flux`: フォトリアル画像
+- **T2V（動画生成）**: 
+  - `t2v-fal-veo3-fast`: 高速動画生成
+  - `t2v-fal-wan-v2-2-a14b-t2v`: 高品質動画生成
+- **I2V（画像→動画）**: 
+  - `i2v-fal-hailuo-02-pro`: プロ品質アニメーション
+  - `i2v-fal-bytedance-seedance-v1-lite`: 軽量アニメーション
+- **T2M（音楽生成）**: `t2m-google-lyria`
+- **T2S（音声合成）**: `t2s-fal-minimax-speech-02-turbo`
+- **V2A（動画→音声）**: `v2a-fal-thinksound`
+- **V2V（動画編集）**: リップシンク、背景除去、アップスケール等
+- **I2I（画像編集）**: Flux Kontext編集
+- **I2I3D（画像→3D）**: `i2i3d-fal-hunyuan3d-v21`
+- **その他**: トレーニング、Reference-to-Video等
+
+#### **外部APIサービス（20個以上）**
+- **AI・ML**: OpenAI GPT/DALL-E、ElevenLabs、HuggingFace
+- **SNS**: YouTube、Twitter/X、Reddit
+- **通信**: Slack、Discord、Telegram、SendGrid
+- **データ**: NewsAPI、天気、Google Sheets、株価、arXiv
+- **開発**: GitHub API、Notion
 
 ## 🛡️ 環境分離システム
 
@@ -136,10 +169,74 @@
 
 ## 📊 システム状況
 
-- **アーキテクチャ**: v9.0（ミニマルユニットベース動的生成）
-- **ミニマルユニット**: 53個（画像5、バナー1、動画12、音声10、字幕6、企画6、コンテンツ5、ユーティリティ8、3D1）
+- **アーキテクチャ**: v10.0（ミニマルユニットベース動的生成 + 外部API統合）
+- **ミニマルユニット**: 80個
+  - 画像: 5個
+  - 動画: 7個
+  - 音声: 10個
+  - バナー: 1個
+  - 3D: 1個
+  - 企画: 6個
+  - コンテンツ: 5個
+  - 後処理: 12個
+  - ユーティリティ: 7個
+  - **外部API: 27個** ⭐NEW
+- **MCP サービス**: 44個以上（AI生成24個 + 外部API 20個以上）
 - **参考パターン**: kamuicode-workflowオーケストレーター
 - **CLI環境**: アクティブ（2025-07-28 17:22）
+
+## 🔑 必要なGitHub Actionsシークレット
+
+### **必須シークレット**
+- `CLAUDE_CODE_OAUTH_TOKEN`: Claude Code認証トークン（必須）
+
+### **外部API用シークレット**（使用するAPIに応じて設定）
+
+#### **AI・機械学習**
+- `OPENAI_API_KEY`: OpenAI API（GPT、DALL-E、要約、翻訳）
+- `ELEVENLABS_API_KEY`: ElevenLabs音声合成
+- `HUGGINGFACE_API_KEY`: Hugging Face推論API
+
+#### **コミュニケーション**
+- `SLACK_BOT_TOKEN`: Slack通知・ファイルアップロード
+- `DISCORD_WEBHOOK_URL`: Discord Webhook通知
+- `TELEGRAM_BOT_TOKEN`: Telegramメッセージ送信
+- `SENDGRID_API_KEY`: SendGridメール送信
+
+#### **ソーシャルメディア**
+- `YOUTUBE_API_KEY`: YouTube動画アップロード・情報取得
+- `TWITTER_API_KEY`: Twitter/X投稿・検索（Bearer Token）
+- `REDDIT_CLIENT_ID`: Reddit API クライアントID
+- `REDDIT_CLIENT_SECRET`: Reddit API クライアントシークレット
+
+#### **データ・分析**
+- `NEWSAPI_KEY`: NewsAPI.org ニュース取得
+- `OPENWEATHERMAP_API_KEY`: OpenWeatherMap天気情報
+- `GOOGLE_SHEETS_CREDENTIALS`: Google Sheetsサービスアカウント（Base64エンコード）
+- `FINNHUB_API_KEY`: Finnhub株価データ
+
+#### **開発ツール**
+- `GITHUB_TOKEN`: GitHub API（デフォルトと異なる場合）
+- `NOTION_API_KEY`: Notion統合トークン
+
+### **設定方法**
+1. GitHub リポジトリの Settings → Secrets and variables → Actions
+2. 「New repository secret」をクリック
+3. Name と Secret value を入力して保存
+
+## 📝 バージョン履歴
+
+### v10.0 (2025-08-02) - 外部API統合
+- **外部API統合**: 27個の外部APIミニマルユニットを追加
+- **ミニマルユニット拡張**: 53個 → 80個に増加
+- **MCP サービス拡張**: 24個 → 44個以上に拡張
+- **メタワークフロー強化**: 全外部APIの自動検出、日英キーワード対応
+- **新カテゴリ追加**: AI・ML、SNS、通信、データ分析、開発ツール
+
+### v9.0 (2025-07-31) - ミニマルユニットベース
+- ミニマルユニットベース動的生成システムの確立
+- kamuicode-workflowパターンの採用
+- 段階的デプロイシステムの実装
 
 ## 🔗 重要リンク
 
@@ -147,13 +244,14 @@
 - **CLI環境管理**: `docs/system/CLI_ENVIRONMENT_MANAGEMENT.md`
 - **成功パターン**: `docs/successful-workflow-patterns.md`
 - **MCP設定**: `docs/mcp/MCP_CONFIGURATION_GUIDE.md`
+- **外部API使用パターン**: `docs/external-api-usage-patterns.md`
 
 ---
 
 **🤖 Kamui Rossy Meta Workflow Generator System**  
-**⚡ Version: v9.0**  
-**📅 Last Updated: 2025-07-31**  
-**🔄 Status: ミニマルユニットベース動的生成 + kamuicode-workflowパターン採用**
+**⚡ Version: v10.0**  
+**📅 Last Updated: 2025-08-02**  
+**🔄 Status: ミニマルユニットベース動的生成 + 外部API統合 + kamuicode-workflowパターン採用**
 ## Video Production v8 - Run #16
 - **Concept**: テスト：静かな森と朝の光
 - **Video URL**: local://projects/video-production-v8-16/final/final_video.mp4
