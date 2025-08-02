@@ -48,6 +48,24 @@ Result: Confirmed WebSearch is working:
 - ✅ Can be used with -p parameter in GitHub Actions
 
 ### Implementation Pattern
+
+## Directory Structure Updates
+
+### [01:05:00] [UPDATE] Project Output Structure
+Issue: Consolidate all GitHub Actions outputs to projects/ directory
+Action: Updated CLAUDE.md to clarify output structure:
+  - Meta-workflow (issue-driven): projects/issue-{number}-{timestamp}/
+    - Generated workflows go to generated-workflow/
+    - Validation reports go to validation-report/
+  - Generated workflows: projects/{workflow-name}-{timestamp}/
+    - Media files go to media/ (images, videos, audio, 3d)
+    - Final deliverables go to final/
+Result: Clear separation between workflow generation and media generation outputs
+
+### [01:06:00] [CLEANUP] Remove current-session
+Issue: current-session directory is unnecessary
+Action: Removed projects/current-session/ and updated all references to use timestamped directories
+Result: Consistent naming pattern for all workflow outputs
 ```bash
 npx @anthropic-ai/claude-code \
   -p "YOUR_SEARCH_PROMPT" \
