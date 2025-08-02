@@ -105,6 +105,10 @@ jobs:
       decomposed_tasks: ${{ steps.decompose.outputs.decomposed_tasks }}
       task_count: ${{ steps.decompose.outputs.task_count }}
       execution_phases: ${{ steps.decompose.outputs.execution_phases }}
+      detected_capabilities: ${{ steps.decompose.outputs.detected_capabilities }}
+      orchestrator_used: ${{ steps.decompose.outputs.orchestrator_used }}
+      orchestrator_sources: ${{ steps.decompose.outputs.orchestrator_sources }}
+      job_sequence: ${{ steps.decompose.outputs.job_sequence }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -355,6 +359,25 @@ jobs:
             echo "decomposed_tasks=$(cat projects/current-session/metadata/dynamic_workflow.json | jq -c .)" >> $GITHUB_OUTPUT
             echo "task_count=$UNIT_COUNT" >> $GITHUB_OUTPUT
             echo "execution_phases=$EXECUTION_PATTERN" >> $GITHUB_OUTPUT
+            
+            # Extract additional information for summary
+            DETECTED_CAPS=$(jq -r '.metadata.capabilities_detected | join(", ")' projects/current-session/metadata/dynamic_workflow.json)
+            echo "detected_capabilities=$DETECTED_CAPS" >> $GITHUB_OUTPUT
+            
+            # Check if orchestrator was used
+            if [ -f projects/current-session/metadata/orchestrator_analysis.json ]; then
+              ORCH_USED=$(jq -r '.analysis.orchestrators | length > 0' projects/current-session/metadata/orchestrator_analysis.json)
+              ORCH_SOURCES=$(jq -r '.analysis.orchestrators[].name' projects/current-session/metadata/orchestrator_analysis.json | head -3 | tr '\n' ',' | sed 's/,$//')
+              echo "orchestrator_used=$ORCH_USED" >> $GITHUB_OUTPUT
+              echo "orchestrator_sources=$ORCH_SOURCES" >> $GITHUB_OUTPUT
+            else
+              echo "orchestrator_used=false" >> $GITHUB_OUTPUT
+              echo "orchestrator_sources=none" >> $GITHUB_OUTPUT
+            fi
+            
+            # Extract job sequence
+            JOB_SEQUENCE=$(jq -r '.minimal_units[].capability' projects/current-session/metadata/dynamic_workflow.json | tr '\n' ' → ' | sed 's/ → $//')
+            echo "job_sequence=$JOB_SEQUENCE" >> $GITHUB_OUTPUT
             
             echo ""
             echo "✅ Dynamic workflow generated with $UNIT_COUNT minimal units"
@@ -685,37 +708,69 @@ jobs:
         
       - name: Generate Execution Summary
         run: |
-          echo "## 📊 Meta Workflow v10 Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# 📊 Meta Workflow v10 実行結果レポート" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Request Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **Issue**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Title**: ${{ needs.validate-trigger.outputs.issue_title }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Type**: ${{ needs.validate-trigger.outputs.request_type }}" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📋 リクエスト情報" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue番号**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **タイトル**: ${{ needs.validate-trigger.outputs.issue_title }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **検出されたタイプ**: ${{ needs.validate-trigger.outputs.request_type }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔄 Execution Phases" >> $GITHUB_STEP_SUMMARY
-          echo "| Phase | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔍 Issue Validation | ${{ needs.validate-trigger.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧠 Task Decomposition | ${{ needs.ultra-task-decomposition.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🚀 Workflow Generation | ${{ needs.dynamic-workflow-generation.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📦 Deployment | ${{ needs.deploy-workflow.result }} |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔍 タスク分解結果" >> $GITHUB_STEP_SUMMARY
+          echo "### 検出された能力" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.ultra-task-decomposition.outputs.detected_capabilities }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 📚 参考にしたオーケストレーター" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.ultra-task-decomposition.outputs.orchestrator_used }}" = "true" ]; then
+            echo "以下のオーケストレーターパターンを参考に最適化しました：" >> $GITHUB_STEP_SUMMARY
+            echo "- ${{ needs.ultra-task-decomposition.outputs.orchestrator_sources }}" | sed 's/,/\n- /g' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "既存のオーケストレーターパターンがマッチしなかったため、専門家視点のロジックで構築しました。" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🔄 ジョブ実行順序" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.ultra-task-decomposition.outputs.job_sequence }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📊 実行統計" >> $GITHUB_STEP_SUMMARY
+          echo "- **総ユニット数**: ${{ needs.ultra-task-decomposition.outputs.task_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行パターン**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔄 実行フェーズ" >> $GITHUB_STEP_SUMMARY
+          echo "| フェーズ | ステータス |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Issue検証 | ${{ needs.validate-trigger.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧠 タスク分解 | ${{ needs.ultra-task-decomposition.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚀 ワークフロー生成 | ${{ needs.dynamic-workflow-generation.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 デプロイ | ${{ needs.deploy-workflow.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ "${{ needs.deploy-workflow.outputs.deployment_status }}" = "success" ]; then
-            echo "### ✅ Success!" >> $GITHUB_STEP_SUMMARY
+            echo "## ✅ 実行結果: 成功" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Dynamic workflow has been generated and deployed:" >> $GITHUB_STEP_SUMMARY
-            echo "- **Location**: \`${{ needs.deploy-workflow.outputs.deployed_path }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- **Units**: ${{ needs.ultra-task-decomposition.outputs.task_count }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Pattern**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}" >> $GITHUB_STEP_SUMMARY
+            echo "動的ワークフローが正常に生成・デプロイされました：" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "To activate the workflow, remove the \`.disabled\` extension and push the changes." >> $GITHUB_STEP_SUMMARY
+            echo "### 📁 生成されたワークフロー" >> $GITHUB_STEP_SUMMARY
+            echo "- **保存場所**: \`${{ needs.deploy-workflow.outputs.deployed_path }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **ステータス**: .disabled拡張子付き（安全のため）" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🚀 アクティベーション方法" >> $GITHUB_STEP_SUMMARY
+            echo "1. 生成されたワークフローをレビュー" >> $GITHUB_STEP_SUMMARY
+            echo "2. \`.disabled\`拡張子を削除" >> $GITHUB_STEP_SUMMARY
+            echo "3. コミット・プッシュして有効化" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### ⚠️ Issues Detected" >> $GITHUB_STEP_SUMMARY
+            echo "## ⚠️ 実行結果: 問題検出" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Please check the logs for more information." >> $GITHUB_STEP_SUMMARY
+            echo "エラーの詳細はログを確認してください。" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Generated by Meta Workflow v10 with Claude SDK Integration*" >> $GITHUB_STEP_SUMMARY
+          echo "*Meta Workflow v10 with Claude SDK & Orchestrator Integration により生成*" >> $GITHUB_STEP_SUMMARY
+          echo "*実行時刻: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*" >> $GITHUB_STEP_SUMMARY
