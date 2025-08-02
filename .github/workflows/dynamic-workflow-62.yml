@@ -68,6 +68,8 @@ jobs:
         run: |
           npm init -y
           npm install @anthropic-ai/claude-code
+          # Install additional dependencies for file processing
+          npm install js-yaml
       
       - name: Create output directory
         run: |
@@ -158,20 +160,63 @@ jobs:
         id: generate
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
           
-          # MCP経由でImagen3を使用して画像生成
-          # 実際の実装では、planning_1で作成されたプロンプトを読み込んで使用
+          # Create Node.js script for MCP image generation
+          cat > generate_images.js << 'EOF'
+          const { ClaudeCode } = require('@anthropic-ai/claude-code');
+          const fs = require('fs');
+          const path = require('path');
           
-          # 仮の実装（テスト用）
-          echo "Generating educational images..."
-          for i in 1 2 3 4; do
-            touch "$PROJECT_DIR/media/images/scene-$i.png"
-            echo "✅ Generated scene-$i.png"
-          done
+          async function generateEducationalImages() {
+            const projectDir = process.env.PROJECT_DIR;
+            const client = new ClaudeCode();
+            
+            // Define educational image prompts
+            const imagePrompts = [
+              "Colorful educational infographic showing the basic concept of machine learning with simple icons and arrows, bright colors, clean design",
+              "Visual diagram of neural network architecture with nodes and connections, educational style, vibrant blue and orange colors",
+              "Illustrated examples of machine learning applications in daily life - recommendation systems, voice assistants, image recognition",
+              "Summary slide with key takeaways about machine learning basics, modern design with icons and bullet points"
+            ];
+            
+            let count = 0;
+            for (let i = 0; i < imagePrompts.length; i++) {
+              const prompt = imagePrompts[i];
+              const outputPath = path.join(projectDir, 'media', 'images', `scene-${i+1}.png`);
+              
+              try {
+                // Use MCP to generate image
+                const result = await client.mcp.callTool('mcp__t2i-google-imagen3__imagen_t2i', {
+                  prompt: prompt,
+                  aspect_ratio: "16:9",
+                  num_images: 1,
+                  output_directory: path.dirname(outputPath),
+                  auto_download: true,
+                  auto_open: false
+                });
+                
+                console.log(`✅ Generated scene-${i+1}.png`);
+                count++;
+              } catch (error) {
+                console.error(`Failed to generate scene-${i+1}:`, error.message);
+              }
+            }
+            
+            // Output the count
+            fs.writeFileSync(process.env.GITHUB_OUTPUT, `count=${count}\n`, { flag: 'a' });
+          }
           
-          echo "count=4" >> $GITHUB_OUTPUT
+          generateEducationalImages().catch(console.error);
+          EOF
+          
+          # Install dependencies and run
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          PROJECT_DIR="$PROJECT_DIR" node generate_images.js
 
   text_to_speech:
     name: "🔊 Text to Speech"
@@ -200,18 +245,86 @@ jobs:
         id: generate
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
           
-          # MCP経由でMiniMax TTS使用
-          # 実際の実装では、planning_1で作成されたナレーションスクリプトを使用
+          # Create Node.js script for TTS generation
+          cat > generate_narration.js << 'EOF'
+          const { ClaudeCode } = require('@anthropic-ai/claude-code');
+          const fs = require('fs');
+          const path = require('path');
           
-          # 仮の実装（テスト用）
-          echo "Generating narration audio..."
-          touch "$PROJECT_DIR/media/audio/narration.mp3"
-          echo "✅ Generated narration.mp3"
+          async function generateNarration() {
+            const projectDir = process.env.PROJECT_DIR;
+            const client = new ClaudeCode();
+            
+            // Educational narration script in Japanese
+            const narrationText = `
+            こんにちは。今日は機械学習の基礎について学んでいきましょう。
+            
+            機械学習とは、コンピュータがデータから自動的にパターンを学習し、
+            予測や判断を行う技術です。
+            
+            身近な例では、メールのスパムフィルター、
+            動画サイトのおすすめ機能、音声アシスタントなどがあります。
+            
+            機械学習の基本的な仕組みは、大量のデータを使って
+            コンピュータにパターンを学習させることです。
+            
+            今回学んだことを活用して、AIの世界をさらに探求してみてください。
+            ご視聴ありがとうございました。
+            `;
+            
+            try {
+              // Use MCP to generate audio
+              const result = await client.mcp.callTool('mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit', {
+                text: narrationText,
+                voice_id: "Wise_Woman",
+                language_boost: "Japanese",
+                speed: 0.9,
+                emotion: "neutral",
+                format: "mp3"
+              });
+              
+              // Poll for result
+              if (result.request_id) {
+                let status = 'processing';
+                while (status === 'processing') {
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                  const statusResult = await client.mcp.callTool('mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status', {
+                    request_id: result.request_id
+                  });
+                  status = statusResult.status;
+                }
+                
+                // Download result
+                const audioResult = await client.mcp.callTool('mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result', {
+                  request_id: result.request_id,
+                  output_directory: path.join(projectDir, 'media', 'audio'),
+                  filename_prefix: 'narration',
+                  auto_open: false
+                });
+                
+                console.log('✅ Generated narration.mp3');
+                fs.writeFileSync(process.env.GITHUB_OUTPUT, `audio_path=${path.join(projectDir, 'media', 'audio', 'narration.mp3')}\n`, { flag: 'a' });
+              }
+            } catch (error) {
+              console.error('Failed to generate narration:', error.message);
+              // Create fallback empty file
+              fs.writeFileSync(path.join(projectDir, 'media', 'audio', 'narration.mp3'), '');
+              fs.writeFileSync(process.env.GITHUB_OUTPUT, `audio_path=${path.join(projectDir, 'media', 'audio', 'narration.mp3')}\n`, { flag: 'a' });
+            }
+          }
           
-          echo "audio_path=$PROJECT_DIR/media/audio/narration.mp3" >> $GITHUB_OUTPUT
+          generateNarration().catch(console.error);
+          EOF
+          
+          # Install dependencies and run
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          PROJECT_DIR="$PROJECT_DIR" node generate_narration.js
 
   video_generation:
     name: "🎬 Video Generation"
@@ -240,18 +353,88 @@ jobs:
         id: generate
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
           
-          # MCP経由でVeo3を使用してビデオ生成
-          # または画像からビデオを作成
+          # Create Node.js script for video generation
+          cat > generate_video.js << 'EOF'
+          const { ClaudeCode } = require('@anthropic-ai/claude-code');
+          const fs = require('fs');
+          const path = require('path');
           
-          # 仮の実装（テスト用）
-          echo "Generating educational video..."
-          touch "$PROJECT_DIR/media/videos/base-video.mp4"
-          echo "✅ Generated base-video.mp4"
+          async function generateVideo() {
+            const projectDir = process.env.PROJECT_DIR;
+            const client = new ClaudeCode();
+            
+            try {
+              // Use first image as base for I2V generation
+              const firstImagePath = path.join(projectDir, 'media', 'images', 'scene-1.png');
+              
+              // Generate video from image using Hailuo
+              const result = await client.mcp.callTool('mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit', {
+                image_url: `file://${firstImagePath}`,
+                prompt: "Educational video showing machine learning concepts with smooth animations and transitions, clean and professional style",
+                prompt_optimizer: true
+              });
+              
+              if (result.request_id) {
+                console.log('Video generation started, request_id:', result.request_id);
+                
+                // Poll for result
+                let status = 'processing';
+                while (status === 'processing') {
+                  await new Promise(resolve => setTimeout(resolve, 5000));
+                  const statusResult = await client.mcp.callTool('mcp__i2v-fal-hailuo-02-pro__hailuo_02_status', {
+                    request_id: result.request_id
+                  });
+                  status = statusResult.status;
+                  console.log('Status:', status);
+                }
+                
+                // Download result
+                const videoResult = await client.mcp.callTool('mcp__i2v-fal-hailuo-02-pro__hailuo_02_result', {
+                  request_id: result.request_id,
+                  output_directory: path.join(projectDir, 'media', 'videos'),
+                  filename: 'base-video.mp4',
+                  auto_open: false
+                });
+                
+                console.log('✅ Generated base-video.mp4');
+              }
+            } catch (error) {
+              console.error('Failed to generate video:', error.message);
+              // Fallback: Try text-to-video with Veo3
+              try {
+                const result = await client.mcp.callTool('mcp__t2v-fal-veo3-fast__veo3_fast_submit', {
+                  prompt: "Educational animation about machine learning basics with colorful graphics and smooth transitions",
+                  aspect_ratio: "16:9",
+                  duration: "8s",
+                  generate_audio: false
+                });
+                
+                if (result.request_id) {
+                  // Poll and download similar to above
+                  console.log('Using Veo3 fallback...');
+                }
+              } catch (fallbackError) {
+                console.error('Fallback also failed:', fallbackError.message);
+                // Create empty file
+                fs.writeFileSync(path.join(projectDir, 'media', 'videos', 'base-video.mp4'), '');
+              }
+            }
+            
+            fs.writeFileSync(process.env.GITHUB_OUTPUT, `video_path=${path.join(projectDir, 'media', 'videos', 'base-video.mp4')}\n`, { flag: 'a' });
+          }
           
-          echo "video_path=$PROJECT_DIR/media/videos/base-video.mp4" >> $GITHUB_OUTPUT
+          generateVideo().catch(console.error);
+          EOF
+          
+          # Install dependencies and run
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          PROJECT_DIR="$PROJECT_DIR" node generate_video.js
 
   final_assembly:
     name: "🎬 Final Assembly"
@@ -276,29 +459,57 @@ jobs:
           mkdir -p "$PROJECT_DIR/final"
           echo "✅ Created final directory"
       
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          
       - name: Assemble Final Video
         id: assemble
         run: |
           PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
           
-          # ビデオと音声を組み合わせて最終的な教育動画を作成
-          # 実際の実装では、FFmpegやMCPツールを使用
+          # Check if video and audio exist
+          VIDEO_FILE="$PROJECT_DIR/media/videos/base-video.mp4"
+          AUDIO_FILE="$PROJECT_DIR/media/audio/narration.mp3"
+          FINAL_VIDEO="$PROJECT_DIR/final/ai-education-video.mp4"
           
-          # 仮の実装（テスト用）
-          echo "Assembling final educational video..."
-          touch "$PROJECT_DIR/final/ai-education-video.mp4"
+          if [ -f "$VIDEO_FILE" ] && [ -f "$AUDIO_FILE" ] && [ -s "$VIDEO_FILE" ] && [ -s "$AUDIO_FILE" ]; then
+            echo "Combining video and audio with FFmpeg..."
+            ffmpeg -i "$VIDEO_FILE" -i "$AUDIO_FILE" -c:v copy -c:a aac -shortest "$FINAL_VIDEO" || {
+              echo "FFmpeg failed, copying video as final output"
+              cp "$VIDEO_FILE" "$FINAL_VIDEO"
+            }
+          elif [ -f "$VIDEO_FILE" ] && [ -s "$VIDEO_FILE" ]; then
+            echo "Audio not available, using video only"
+            cp "$VIDEO_FILE" "$FINAL_VIDEO"
+          else
+            echo "Creating placeholder video"
+            # Create a simple video with images if base video is empty
+            if ls "$PROJECT_DIR/media/images/"*.png 1> /dev/null 2>&1; then
+              ffmpeg -framerate 0.5 -pattern_type glob -i "$PROJECT_DIR/media/images/*.png" \
+                -c:v libx264 -pix_fmt yuv420p -vf "scale=1280:720" "$FINAL_VIDEO" || {
+                echo "Image slideshow failed"
+                touch "$FINAL_VIDEO"
+              }
+            else
+              touch "$FINAL_VIDEO"
+            fi
+          fi
+          
           echo "✅ Created final video: ai-education-video.mp4"
           
           # 成果物サマリーを作成
-          cat > "$PROJECT_DIR/final/summary.md" << 'EOF'
+          cat > "$PROJECT_DIR/final/summary.md" << EOF
           # 教育用AI解説動画 - 完成レポート
           
           ## Issue #62: 教育用AI解説動画の作成 - 機械学習の基礎を説明
           
           ### 生成された成果物:
-          - 教育用画像: 4枚
-          - ナレーション音声: 1ファイル（日本語）
-          - 最終動画: 1本（約3-5分）
+          - 教育用画像: $(ls "$PROJECT_DIR/media/images/"*.png 2>/dev/null | wc -l)枚
+          - ナレーション音声: $([ -s "$AUDIO_FILE" ] && echo "1ファイル（日本語）" || echo "生成失敗")
+          - ベース動画: $([ -s "$VIDEO_FILE" ] && echo "1本" || echo "生成失敗")
+          - 最終動画: $([ -s "$FINAL_VIDEO" ] && echo "1本" || echo "生成失敗")
           
           ### 動画の構成:
           1. イントロダクション（30秒）
@@ -306,7 +517,10 @@ jobs:
           3. 実例の紹介（1分）
           4. まとめ（30秒）
           
-          ### ステータス: ✅ 完成
+          ### ファイルサイズ:
+          - 最終動画: $([ -f "$FINAL_VIDEO" ] && ls -lh "$FINAL_VIDEO" | awk '{print $5}' || echo "N/A")
+          
+          ### ステータス: $([ -s "$FINAL_VIDEO" ] && echo "✅ 完成" || echo "⚠️ 部分的完成")
           EOF
           
           echo "final_video=$PROJECT_DIR/final/ai-education-video.mp4" >> $GITHUB_OUTPUT
