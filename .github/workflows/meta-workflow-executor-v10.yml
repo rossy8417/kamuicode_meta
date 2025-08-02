@@ -681,104 +681,102 @@ jobs:
         run: |
           echo "🔧 Optimizing workflow..."
           
-          # Create optimization script
-          cat > optimize_workflow.py << 'EOF'
-import yaml
-import sys
-import re
-
-def check_expression_length(content):
-    """Check for GitHub expressions that might exceed 21000 chars"""
-    # Find all ${{ }} expressions
-    expressions = re.findall(r'\$\{\{[^}]+\}\}', content)
-    long_expressions = []
-    for expr in expressions:
-        if len(expr) > 1000:  # Conservative limit
-            long_expressions.append(expr)
-    return long_expressions
-
-def split_long_outputs(job_config):
-    """Split jobs with potentially long outputs"""
-    if 'outputs' in job_config:
-        output_count = len(job_config['outputs'])
-        if output_count > 5:
-            # Move outputs to artifact uploads
-            new_steps = job_config.get('steps', [])
-            new_steps.append({
-                'name': 'Save outputs to artifacts',
-                'uses': 'actions/upload-artifact@v4',
-                'with': {
-                    'name': 'job-outputs',
-                    'path': 'outputs/'
-                }
-            })
-            job_config['steps'] = new_steps
-            # Reduce outputs
-            job_config['outputs'] = {k: v for k, v in list(job_config['outputs'].items())[:3]}
-    return job_config
-
-def optimize_workflow(file_path):
-    with open(file_path, 'r') as f:
-        content = f.read()
-        workflow = yaml.safe_load(content)
-    
-    # Check for long expressions
-    long_exprs = check_expression_length(content)
-    if long_exprs:
-        print(f"Found {len(long_exprs)} potentially long expressions")
-    
-    # Optimize jobs
-    optimized_jobs = {}
-    job_split_count = 0
-    
-    for job_name, job_config in workflow.get('jobs', {}).items():
-        if isinstance(job_config, dict):
-            # Check steps count
-            steps = job_config.get('steps', [])
-            if len(steps) > 10:
-                # Split into multiple jobs
-                for i in range(0, len(steps), 8):
-                    part_num = i//8 + 1
-                    new_job_name = f"{job_name}_part{part_num}"
-                    new_job = {
-                        'name': f"{job_config.get('name', job_name)} (Part {part_num})",
-                        'runs-on': job_config.get('runs-on', 'ubuntu-latest'),
-                        'steps': steps[i:i+8]
-                    }
-                    
-                    # Handle dependencies
-                    if part_num == 1:
-                        new_job['needs'] = job_config.get('needs', [])
-                    else:
-                        prev_job = f"{job_name}_part{part_num-1}"
-                        existing_needs = job_config.get('needs', [])
-                        if isinstance(existing_needs, list):
-                            new_job['needs'] = existing_needs + [prev_job]
-                        else:
-                            new_job['needs'] = [existing_needs, prev_job]
-                    
-                    optimized_jobs[new_job_name] = new_job
-                job_split_count += 1
-            else:
-                # Optimize outputs
-                optimized_jobs[job_name] = split_long_outputs(job_config)
-    
-    if job_split_count > 0:
-        workflow['jobs'] = optimized_jobs
-        print(f"Split {job_split_count} jobs into smaller parts")
-    
-    # Add workflow-level optimizations
-    if 'env' not in workflow:
-        workflow['env'] = {}
-    workflow['env']['ACTIONS_RUNNER_FORCED_INTERNAL_NODE_VERSION'] = 'node16'
-    workflow['env']['ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT'] = 'true'
-    
-    with open(file_path + '.optimized', 'w') as f:
-        yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)
-
-if __name__ == "__main__":
-    optimize_workflow(sys.argv[1])
-EOF
+          # Create optimization script using echo commands
+          echo 'import yaml' > optimize_workflow.py
+          echo 'import sys' >> optimize_workflow.py
+          echo 'import re' >> optimize_workflow.py
+          echo '' >> optimize_workflow.py
+          echo 'def check_expression_length(content):' >> optimize_workflow.py
+          echo '    """Check for GitHub expressions that might exceed 21000 chars"""' >> optimize_workflow.py
+          echo '    # Find all ${{ }} expressions' >> optimize_workflow.py
+          echo '    expressions = re.findall(r"\$\{\{[^}]+\}\}", content)' >> optimize_workflow.py
+          echo '    long_expressions = []' >> optimize_workflow.py
+          echo '    for expr in expressions:' >> optimize_workflow.py
+          echo '        if len(expr) > 1000:  # Conservative limit' >> optimize_workflow.py
+          echo '            long_expressions.append(expr)' >> optimize_workflow.py
+          echo '    return long_expressions' >> optimize_workflow.py
+          echo '' >> optimize_workflow.py
+          echo 'def split_long_outputs(job_config):' >> optimize_workflow.py
+          echo '    """Split jobs with potentially long outputs"""' >> optimize_workflow.py
+          echo '    if "outputs" in job_config:' >> optimize_workflow.py
+          echo '        output_count = len(job_config["outputs"])' >> optimize_workflow.py
+          echo '        if output_count > 5:' >> optimize_workflow.py
+          echo '            # Move outputs to artifact uploads' >> optimize_workflow.py
+          echo '            new_steps = job_config.get("steps", [])' >> optimize_workflow.py
+          echo '            new_steps.append({' >> optimize_workflow.py
+          echo '                "name": "Save outputs to artifacts",' >> optimize_workflow.py
+          echo '                "uses": "actions/upload-artifact@v4",' >> optimize_workflow.py
+          echo '                "with": {' >> optimize_workflow.py
+          echo '                    "name": "job-outputs",' >> optimize_workflow.py
+          echo '                    "path": "outputs/"' >> optimize_workflow.py
+          echo '                }' >> optimize_workflow.py
+          echo '            })' >> optimize_workflow.py
+          echo '            job_config["steps"] = new_steps' >> optimize_workflow.py
+          echo '            # Reduce outputs' >> optimize_workflow.py
+          echo '            job_config["outputs"] = {k: v for k, v in list(job_config["outputs"].items())[:3]}' >> optimize_workflow.py
+          echo '    return job_config' >> optimize_workflow.py
+          echo '' >> optimize_workflow.py
+          echo 'def optimize_workflow(file_path):' >> optimize_workflow.py
+          echo '    with open(file_path, "r") as f:' >> optimize_workflow.py
+          echo '        content = f.read()' >> optimize_workflow.py
+          echo '        workflow = yaml.safe_load(content)' >> optimize_workflow.py
+          echo '    ' >> optimize_workflow.py
+          echo '    # Check for long expressions' >> optimize_workflow.py
+          echo '    long_exprs = check_expression_length(content)' >> optimize_workflow.py
+          echo '    if long_exprs:' >> optimize_workflow.py
+          echo '        print(f"Found {len(long_exprs)} potentially long expressions")' >> optimize_workflow.py
+          echo '    ' >> optimize_workflow.py
+          echo '    # Optimize jobs' >> optimize_workflow.py
+          echo '    optimized_jobs = {}' >> optimize_workflow.py
+          echo '    job_split_count = 0' >> optimize_workflow.py
+          echo '    ' >> optimize_workflow.py
+          echo '    for job_name, job_config in workflow.get("jobs", {}).items():' >> optimize_workflow.py
+          echo '        if isinstance(job_config, dict):' >> optimize_workflow.py
+          echo '            # Check steps count' >> optimize_workflow.py
+          echo '            steps = job_config.get("steps", [])' >> optimize_workflow.py
+          echo '            if len(steps) > 10:' >> optimize_workflow.py
+          echo '                # Split into multiple jobs' >> optimize_workflow.py
+          echo '                for i in range(0, len(steps), 8):' >> optimize_workflow.py
+          echo '                    part_num = i//8 + 1' >> optimize_workflow.py
+          echo '                    new_job_name = f"{job_name}_part{part_num}"' >> optimize_workflow.py
+          echo '                    new_job = {' >> optimize_workflow.py
+          echo '                        "name": f"{job_config.get('"'"'name'"'"', job_name)} (Part {part_num})",' >> optimize_workflow.py
+          echo '                        "runs-on": job_config.get("runs-on", "ubuntu-latest"),' >> optimize_workflow.py
+          echo '                        "steps": steps[i:i+8]' >> optimize_workflow.py
+          echo '                    }' >> optimize_workflow.py
+          echo '                    ' >> optimize_workflow.py
+          echo '                    # Handle dependencies' >> optimize_workflow.py
+          echo '                    if part_num == 1:' >> optimize_workflow.py
+          echo '                        new_job["needs"] = job_config.get("needs", [])' >> optimize_workflow.py
+          echo '                    else:' >> optimize_workflow.py
+          echo '                        prev_job = f"{job_name}_part{part_num-1}"' >> optimize_workflow.py
+          echo '                        existing_needs = job_config.get("needs", [])' >> optimize_workflow.py
+          echo '                        if isinstance(existing_needs, list):' >> optimize_workflow.py
+          echo '                            new_job["needs"] = existing_needs + [prev_job]' >> optimize_workflow.py
+          echo '                        else:' >> optimize_workflow.py
+          echo '                            new_job["needs"] = [existing_needs, prev_job]' >> optimize_workflow.py
+          echo '                    ' >> optimize_workflow.py
+          echo '                    optimized_jobs[new_job_name] = new_job' >> optimize_workflow.py
+          echo '                job_split_count += 1' >> optimize_workflow.py
+          echo '            else:' >> optimize_workflow.py
+          echo '                # Optimize outputs' >> optimize_workflow.py
+          echo '                optimized_jobs[job_name] = split_long_outputs(job_config)' >> optimize_workflow.py
+          echo '    ' >> optimize_workflow.py
+          echo '    if job_split_count > 0:' >> optimize_workflow.py
+          echo '        workflow["jobs"] = optimized_jobs' >> optimize_workflow.py
+          echo '        print(f"Split {job_split_count} jobs into smaller parts")' >> optimize_workflow.py
+          echo '    ' >> optimize_workflow.py
+          echo '    # Add workflow-level optimizations' >> optimize_workflow.py
+          echo '    if "env" not in workflow:' >> optimize_workflow.py
+          echo '        workflow["env"] = {}' >> optimize_workflow.py
+          echo '    workflow["env"]["ACTIONS_RUNNER_FORCED_INTERNAL_NODE_VERSION"] = "node16"' >> optimize_workflow.py
+          echo '    workflow["env"]["ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT"] = "true"' >> optimize_workflow.py
+          echo '    ' >> optimize_workflow.py
+          echo '    with open(file_path + ".optimized", "w") as f:' >> optimize_workflow.py
+          echo '        yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)' >> optimize_workflow.py
+          echo '' >> optimize_workflow.py
+          echo 'if __name__ == "__main__":' >> optimize_workflow.py
+          echo '    optimize_workflow(sys.argv[1])' >> optimize_workflow.py
           
           WORKFLOW_FILE=$(find generated-workflows -name "*.yml" | head -1)
           python3 optimize_workflow.py "$WORKFLOW_FILE"
