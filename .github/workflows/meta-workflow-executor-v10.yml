@@ -14,7 +14,6 @@ permissions:
   issues: write
   actions: write
   pull-requests: write
-  workflows: write
 
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -623,8 +622,9 @@ jobs:
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           WORKFLOW_NAME="generated-issue-${{ inputs.issue_number }}-${TIMESTAMP}.yml"
           
-          # Generate the complete self-contained workflow
-          cat > ".github/workflows/$WORKFLOW_NAME" << 'WORKFLOW_EOF'
+          # Generate the complete self-contained workflow in projects directory
+          mkdir -p "projects/current-session/generated-workflows"
+          cat > "projects/current-session/generated-workflows/$WORKFLOW_NAME" << 'WORKFLOW_EOF'
           name: "🎬 AI Trend News Video Generation - Direct Minimal Unit Integration"
           run-name: "🎯 AI Trend News | Issue #${{ inputs.issue_number }} | ${{ github.actor }}"
           
@@ -1487,16 +1487,16 @@ jobs:
                     GH_TOKEN: $${{ secrets.GITHUB_TOKEN }}
           WORKFLOW_EOF
           
-          echo "workflow_path=.github/workflows/$WORKFLOW_NAME" >> $$GITHUB_OUTPUT
+          echo "workflow_path=projects/current-session/generated-workflows/$WORKFLOW_NAME" >> $$GITHUB_OUTPUT
           echo "✅ Generated workflow: $WORKFLOW_NAME"
           EOF
           
           chmod +x projects/current-session/scripts/generate_workflow.sh
           bash projects/current-session/scripts/generate_workflow.sh
           
-          if [ -f ".github/workflows/generated-issue-${{ inputs.issue_number }}-${TIMESTAMP}.yml" ]; then
+          if [ -f "projects/current-session/generated-workflows/generated-issue-${{ inputs.issue_number }}-${TIMESTAMP}.yml" ]; then
             echo "workflow_generated=true" >> $GITHUB_OUTPUT
-            echo "workflow_path=.github/workflows/generated-issue-${{ inputs.issue_number }}-${TIMESTAMP}.yml" >> $GITHUB_OUTPUT
+            echo "workflow_path=projects/current-session/generated-workflows/generated-issue-${{ inputs.issue_number }}-${TIMESTAMP}.yml" >> $GITHUB_OUTPUT
             echo "✅ Direct YAML workflow generation completed"
           else
             echo "❌ Workflow generation failed"
