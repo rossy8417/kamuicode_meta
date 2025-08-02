@@ -17,6 +17,7 @@ permissions:
 
 env:
   CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
   CLAUDE_CODE_CI_MODE: true
   CLAUDE_CODE_AUTO_APPROVE_MCP: true
 
@@ -183,8 +184,22 @@ jobs:
           echo '  ]' >> /tmp/claude_prompt.txt
           echo '}' >> /tmp/claude_prompt.txt
 
+          # Check Claude Code availability
+          echo "Debug - Checking Claude Code CLI..."
+          if command -v claude &> /dev/null; then
+            echo "✅ Claude CLI is available"
+            claude --version || echo "Version check failed"
+          else
+            echo "❌ Claude CLI is not installed"
+          fi
+          
+          echo "Debug - Environment variables:"
+          echo "CLAUDE_CODE_OAUTH_TOKEN is $([ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] && echo 'set' || echo 'not set')"
+          echo "ANTHROPIC_API_KEY is $([ -n "$ANTHROPIC_API_KEY" ] && echo 'set' || echo 'not set')"
+          
           # Execute Claude Code SDK
-          CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" --output-format json 2>/dev/null || echo '{}')
+          CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" --output-format json 2>&1 || echo '{}')
+          echo "Debug - Claude response: $CLAUDE_RESPONSE"
           
           # Fallback to grep-based detection if Claude fails
           if [ "$CLAUDE_RESPONSE" = "{}" ] || [ -z "$CLAUDE_RESPONSE" ]; then
