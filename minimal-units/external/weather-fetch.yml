@@ -1,0 +1,146 @@
+name: "Weather API Fetch"
+description: "Fetch weather data from OpenWeatherMap API"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["weather", "api", "fetch", "external", "data"]
+
+inputs:
+  location:
+    description: "City name or coordinates (lat,lon)"
+    required: true
+    type: "string"
+  units:
+    description: "Temperature units (metric, imperial, kelvin)"
+    required: false
+    type: "string"
+    default: "metric"
+  lang:
+    description: "Language code for descriptions"
+    required: false
+    type: "string"
+    default: "en"
+  forecast_days:
+    description: "Number of forecast days (1-7)"
+    required: false
+    type: "integer"
+    default: 5
+
+outputs:
+  weather_json:
+    description: "Path to JSON file containing weather data"
+    type: "string"
+  temperature:
+    description: "Current temperature"
+    type: "string"
+  description:
+    description: "Weather description"
+    type: "string"
+  forecast_json:
+    description: "Path to forecast JSON file"
+    type: "string"
+
+workflow:
+  - name: "Check Weather API credentials"
+    run: |
+      if [ -z "${{ secrets.WEATHER_API_KEY }}" ]; then
+        echo "Error: WEATHER_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Fetch current weather"
+    run: |
+      # Determine if location is coordinates or city name
+      if echo "${{ inputs.location }}" | grep -q ","; then
+        # Coordinates format
+        LAT=$(echo "${{ inputs.location }}" | cut -d',' -f1)
+        LON=$(echo "${{ inputs.location }}" | cut -d',' -f2)
+        LOCATION_PARAM="lat=${LAT}&lon=${LON}"
+      else
+        # City name format
+        LOCATION_PARAM="q=${{ inputs.location }}"
+      fi
+      
+      # Fetch current weather
+      API_URL="https://api.openweathermap.org/data/2.5/weather"
+      PARAMS="${LOCATION_PARAM}&appid=${{ secrets.WEATHER_API_KEY }}&units=${{ inputs.units }}&lang=${{ inputs.lang }}"
+      
+      echo "Fetching current weather for ${{ inputs.location }}..."
+      curl -s "${API_URL}?${PARAMS}" > weather_current.json
+      
+      # Check response
+      if [ "$(jq -r '.cod' weather_current.json)" != "200" ]; then
+        echo "Error: Weather API request failed"
+        jq . weather_current.json
+        exit 1
+      fi
+      
+      # Extract key information
+      TEMP=$(jq -r '.main.temp' weather_current.json)
+      DESC=$(jq -r '.weather[0].description' weather_current.json)
+      
+      echo "Current temperature: ${TEMP}°"
+      echo "Description: ${DESC}"
+      
+      echo "weather_json=weather_current.json" >> $GITHUB_OUTPUT
+      echo "temperature=${TEMP}" >> $GITHUB_OUTPUT
+      echo "description=${DESC}" >> $GITHUB_OUTPUT
+      
+  - name: "Fetch weather forecast"
+    run: |
+      # Determine location parameters (same as above)
+      if echo "${{ inputs.location }}" | grep -q ","; then
+        LAT=$(echo "${{ inputs.location }}" | cut -d',' -f1)
+        LON=$(echo "${{ inputs.location }}" | cut -d',' -f2)
+        LOCATION_PARAM="lat=${LAT}&lon=${LON}"
+      else
+        LOCATION_PARAM="q=${{ inputs.location }}"
+      fi
+      
+      # Fetch forecast
+      API_URL="https://api.openweathermap.org/data/2.5/forecast"
+      PARAMS="${LOCATION_PARAM}&appid=${{ secrets.WEATHER_API_KEY }}&units=${{ inputs.units }}&lang=${{ inputs.lang }}&cnt=$((${{ inputs.forecast_days }} * 8))"
+      
+      echo "Fetching weather forecast..."
+      curl -s "${API_URL}?${PARAMS}" > weather_forecast.json
+      
+      # Check response
+      if [ "$(jq -r '.cod' weather_forecast.json)" != "200" ]; then
+        echo "Error: Forecast API request failed"
+        jq . weather_forecast.json
+        exit 1
+      fi
+      
+      echo "forecast_json=weather_forecast.json" >> $GITHUB_OUTPUT
+      
+  - name: "Generate weather report"
+    run: |
+      # Create formatted weather report
+      echo "# Weather Report for ${{ inputs.location }}" > weather_report.md
+      echo "" >> weather_report.md
+      echo "## Current Conditions" >> weather_report.md
+      
+      # Extract current weather details
+      jq -r '"- Temperature: \(.main.temp)°\n- Feels like: \(.main.feels_like)°\n- Description: \(.weather[0].description)\n- Humidity: \(.main.humidity)%\n- Wind: \(.wind.speed) m/s"' weather_current.json >> weather_report.md
+      
+      echo "" >> weather_report.md
+      echo "## Forecast" >> weather_report.md
+      echo "" >> weather_report.md
+      
+      # Extract forecast summary (daily averages)
+      jq -r '.list | group_by(.dt_txt | split(" ")[0]) | .[] | "### \(.[0].dt_txt | split(" ")[0])\n- Average temp: \([.[] | .main.temp] | add/length | round)°\n- Conditions: \([.[] | .weather[0].main] | unique | join(", "))\n"' weather_forecast.json >> weather_report.md
+      
+      echo "Weather report saved to weather_report.md"
+
+dependencies:
+  - name: "Weather API Key"
+    type: "secret"
+    required: true
+    description: "OpenWeatherMap API key"
+  - name: "curl"
+    type: "system"
+    required: true
+    description: "HTTP client"
+  - name: "jq"
+    type: "system"
+    required: true
+    description: "JSON processor"

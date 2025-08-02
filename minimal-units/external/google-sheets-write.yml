@@ -1,0 +1,132 @@
+name: "Google Sheets Write"
+description: "Write data to Google Sheets"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["google", "sheets", "api", "external", "data", "spreadsheet"]
+
+inputs:
+  spreadsheet_id:
+    description: "Google Sheets spreadsheet ID"
+    required: true
+    type: "string"
+  range:
+    description: "Sheet range (e.g., Sheet1!A1:C10)"
+    required: true
+    type: "string"
+  data_json:
+    description: "Path to JSON file containing data to write"
+    required: true
+    type: "string"
+  value_input_option:
+    description: "How to interpret input data (RAW, USER_ENTERED)"
+    required: false
+    type: "string"
+    default: "USER_ENTERED"
+  include_values_in_response:
+    description: "Include updated values in response"
+    required: false
+    type: "boolean"
+    default: true
+
+outputs:
+  updated_range:
+    description: "Range that was updated"
+    type: "string"
+  updated_rows:
+    description: "Number of rows updated"
+    type: "integer"
+  updated_columns:
+    description: "Number of columns updated"
+    type: "integer"
+  spreadsheet_url:
+    description: "URL to the spreadsheet"
+    type: "string"
+
+workflow:
+  - name: "Check Google Sheets credentials"
+    run: |
+      if [ -z "${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}" ]; then
+        echo "Error: GOOGLE_SHEETS_CREDENTIALS not set"
+        exit 1
+      fi
+      
+  - name: "Authenticate with Google Sheets"
+    run: |
+      # Save credentials
+      echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' > google_credentials.json
+      
+      # Install Google client library if needed
+      pip install --quiet google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+      
+  - name: "Write data to Google Sheets"
+    run: |
+      cat > sheets_writer.py << 'EOF'
+      import json
+      import sys
+      from google.oauth2 import service_account
+      from googleapiclient.discovery import build
+      
+      # Load credentials
+      creds = service_account.Credentials.from_service_account_file(
+          'google_credentials.json',
+          scopes=['https://www.googleapis.com/auth/spreadsheets']
+      )
+      
+      # Build service
+      service = build('sheets', 'v4', credentials=creds)
+      
+      # Load data
+      with open('${{ inputs.data_json }}', 'r') as f:
+          data = json.load(f)
+      
+      # Prepare request body
+      body = {
+          'values': data if isinstance(data, list) else [data],
+          'valueInputOption': '${{ inputs.value_input_option }}',
+          'includeValuesInResponse': ${{ inputs.include_values_in_response }}
+      }
+      
+      # Write to sheet
+      try:
+          result = service.spreadsheets().values().update(
+              spreadsheetId='${{ inputs.spreadsheet_id }}',
+              range='${{ inputs.range }}',
+              body=body
+          ).execute()
+          
+          # Output results
+          print(f"updated_range={result.get('updatedRange', '')}")
+          print(f"updated_rows={result.get('updatedRows', 0)}")
+          print(f"updated_columns={result.get('updatedColumns', 0)}")
+          
+      except Exception as e:
+          print(f"Error: {str(e)}", file=sys.stderr)
+          sys.exit(1)
+      EOF
+      
+      python3 sheets_writer.py >> $GITHUB_OUTPUT
+      
+      # Generate spreadsheet URL
+      SHEET_URL="https://docs.google.com/spreadsheets/d/${{ inputs.spreadsheet_id }}"
+      echo "spreadsheet_url=${SHEET_URL}" >> $GITHUB_OUTPUT
+      
+      echo "Data written to Google Sheets successfully"
+      
+  - name: "Clean up credentials"
+    if: always()
+    run: |
+      rm -f google_credentials.json
+
+dependencies:
+  - name: "Google Sheets Credentials"
+    type: "secret"
+    required: true
+    description: "Google service account credentials JSON"
+  - name: "google-api-python-client"
+    type: "python-package"
+    required: true
+    description: "Google API Python client"
+  - name: "google-auth"
+    type: "python-package"
+    required: true
+    description: "Google authentication library"

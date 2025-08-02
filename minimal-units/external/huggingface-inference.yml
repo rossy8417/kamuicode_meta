@@ -1,0 +1,141 @@
+name: "Hugging Face Model Inference"
+description: "Run inference on Hugging Face models"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["huggingface", "ml", "inference", "api", "external", "ai"]
+
+inputs:
+  model_id:
+    description: "Hugging Face model ID (e.g., gpt2, bert-base-uncased)"
+    required: true
+    type: "string"
+  task:
+    description: "Task type (text-generation, fill-mask, summarization, etc.)"
+    required: true
+    type: "string"
+  inputs_text:
+    description: "Input text for the model"
+    required: true
+    type: "string"
+  parameters_json:
+    description: "JSON string of model parameters"
+    required: false
+    type: "string"
+    default: "{}"
+  wait_for_model:
+    description: "Wait for model to load if not ready"
+    required: false
+    type: "boolean"
+    default: true
+
+outputs:
+  result_json:
+    description: "Path to JSON file with inference results"
+    type: "string"
+  generated_text:
+    description: "Generated or processed text"
+    type: "string"
+  inference_time:
+    description: "Inference time in seconds"
+    type: "float"
+
+workflow:
+  - name: "Check Hugging Face credentials"
+    run: |
+      if [ -z "${{ secrets.HUGGINGFACE_API_KEY }}" ]; then
+        echo "Error: HUGGINGFACE_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Run model inference"
+    run: |
+      # Prepare request payload
+      cat > hf_request.json << 'EOF'
+      {
+        "inputs": "${{ inputs.inputs_text }}",
+        "parameters": ${{ inputs.parameters_json }},
+        "options": {
+          "wait_for_model": ${{ inputs.wait_for_model }}
+        }
+      }
+      EOF
+      
+      # API endpoint
+      API_URL="https://api-inference.huggingface.co/models/${{ inputs.model_id }}"
+      
+      echo "Running inference on model: ${{ inputs.model_id }}"
+      echo "Task: ${{ inputs.task }}"
+      
+      # Record start time
+      START_TIME=$(date +%s.%N)
+      
+      # Make inference request
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.HUGGINGFACE_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -d @hf_request.json \
+        "$API_URL")
+      
+      # Record end time
+      END_TIME=$(date +%s.%N)
+      INFERENCE_TIME=$(echo "$END_TIME - $START_TIME" | bc)
+      
+      # Save response
+      echo "$RESPONSE" > hf_result.json
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo "Error: Hugging Face API request failed"
+        echo "$RESPONSE" | jq '.error'
+        exit 1
+      fi
+      
+      # Extract generated text based on task type
+      case "${{ inputs.task }}" in
+        "text-generation")
+          GENERATED_TEXT=$(jq -r '.[0].generated_text // ""' hf_result.json)
+          ;;
+        "summarization")
+          GENERATED_TEXT=$(jq -r '.[0].summary_text // ""' hf_result.json)
+          ;;
+        "translation")
+          GENERATED_TEXT=$(jq -r '.[0].translation_text // ""' hf_result.json)
+          ;;
+        *)
+          GENERATED_TEXT=$(jq -r '.[0] | to_entries[0].value // ""' hf_result.json)
+          ;;
+      esac
+      
+      echo "Inference completed in ${INFERENCE_TIME}s"
+      echo "result_json=hf_result.json" >> $GITHUB_OUTPUT
+      echo "generated_text<<EOF" >> $GITHUB_OUTPUT
+      echo "$GENERATED_TEXT" >> $GITHUB_OUTPUT
+      echo "EOF" >> $GITHUB_OUTPUT
+      echo "inference_time=${INFERENCE_TIME}" >> $GITHUB_OUTPUT
+      
+  - name: "Format results"
+    run: |
+      echo "## Hugging Face Inference Results" > hf_summary.md
+      echo "**Model:** ${{ inputs.model_id }}" >> hf_summary.md
+      echo "**Task:** ${{ inputs.task }}" >> hf_summary.md
+      echo "**Inference Time:** ${INFERENCE_TIME}s" >> hf_summary.md
+      echo "" >> hf_summary.md
+      echo "### Input" >> hf_summary.md
+      echo "\`\`\`" >> hf_summary.md
+      echo "${{ inputs.inputs_text }}" >> hf_summary.md
+      echo "\`\`\`" >> hf_summary.md
+      echo "" >> hf_summary.md
+      echo "### Output" >> hf_summary.md
+      echo "\`\`\`" >> hf_summary.md
+      echo "${GENERATED_TEXT}" >> hf_summary.md
+      echo "\`\`\`" >> hf_summary.md
+
+dependencies:
+  - name: "Hugging Face API Key"
+    type: "secret"
+    required: true
+    description: "Hugging Face API key"
+  - name: "bc"
+    type: "system"
+    required: true
+    description: "Basic calculator for time calculation"

@@ -1,0 +1,180 @@
+name: "GitHub Release Create"
+description: "Create GitHub release with assets"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["github", "release", "api", "external", "deployment"]
+
+inputs:
+  repository:
+    description: "Repository name (owner/repo format)"
+    required: true
+    type: "string"
+  tag_name:
+    description: "Tag name for the release"
+    required: true
+    type: "string"
+  release_name:
+    description: "Name of the release"
+    required: true
+    type: "string"
+  body:
+    description: "Release description (supports markdown)"
+    required: false
+    type: "string"
+    default: ""
+  draft:
+    description: "Create as draft"
+    required: false
+    type: "boolean"
+    default: false
+  prerelease:
+    description: "Mark as pre-release"
+    required: false
+    type: "boolean"
+    default: false
+  target_commitish:
+    description: "Target branch or commit SHA"
+    required: false
+    type: "string"
+    default: "main"
+  asset_paths:
+    description: "Comma-separated paths to files to upload as assets"
+    required: false
+    type: "string"
+    default: ""
+  generate_release_notes:
+    description: "Auto-generate release notes"
+    required: false
+    type: "boolean"
+    default: true
+
+outputs:
+  release_id:
+    description: "Created release ID"
+    type: "string"
+  release_url:
+    description: "URL of the release"
+    type: "string"
+  upload_url:
+    description: "URL for uploading assets"
+    type: "string"
+  assets_uploaded:
+    description: "Number of assets uploaded"
+    type: "integer"
+
+workflow:
+  - name: "Check GitHub token"
+    run: |
+      if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+        echo "Error: GITHUB_TOKEN not set"
+        exit 1
+      fi
+      
+  - name: "Create GitHub release"
+    run: |
+      # Prepare release payload
+      cat > release_payload.json << 'EOF'
+      {
+        "tag_name": "${{ inputs.tag_name }}",
+        "name": "${{ inputs.release_name }}",
+        "body": "${{ inputs.body }}",
+        "draft": ${{ inputs.draft }},
+        "prerelease": ${{ inputs.prerelease }},
+        "target_commitish": "${{ inputs.target_commitish }}",
+        "generate_release_notes": ${{ inputs.generate_release_notes }}
+      }
+      EOF
+      
+      # Create release
+      echo "Creating release: ${{ inputs.release_name }}"
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        -d @release_payload.json \
+        "https://api.github.com/repos/${{ inputs.repository }}/releases")
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.message' > /dev/null 2>&1; then
+        echo "Error: GitHub API request failed"
+        echo "$RESPONSE" | jq .
+        exit 1
+      fi
+      
+      # Extract release information
+      RELEASE_ID=$(echo "$RESPONSE" | jq -r '.id')
+      RELEASE_URL=$(echo "$RESPONSE" | jq -r '.html_url')
+      UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.upload_url' | sed 's/{?name,label}//')
+      
+      echo "Release created successfully"
+      echo "release_id=${RELEASE_ID}" >> $GITHUB_OUTPUT
+      echo "release_url=${RELEASE_URL}" >> $GITHUB_OUTPUT
+      echo "upload_url=${UPLOAD_URL}" >> $GITHUB_OUTPUT
+      echo "UPLOAD_URL=${UPLOAD_URL}" >> release_info.env
+      
+  - name: "Upload release assets"
+    if: inputs.asset_paths != ''
+    run: |
+      source release_info.env
+      
+      # Split asset paths
+      IFS=',' read -ra ASSETS <<< "${{ inputs.asset_paths }}"
+      ASSETS_UPLOADED=0
+      
+      # Upload each asset
+      for asset_path in "${ASSETS[@]}"; do
+        asset_path=$(echo "$asset_path" | xargs) # Trim whitespace
+        
+        if [ -f "$asset_path" ]; then
+          ASSET_NAME=$(basename "$asset_path")
+          CONTENT_TYPE=$(file -b --mime-type "$asset_path")
+          
+          echo "Uploading asset: $ASSET_NAME"
+          
+          UPLOAD_RESPONSE=$(curl -s -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: $CONTENT_TYPE" \
+            --data-binary "@$asset_path" \
+            "${UPLOAD_URL}?name=${ASSET_NAME}")
+          
+          # Check upload status
+          if echo "$UPLOAD_RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
+            echo "✓ Uploaded: $ASSET_NAME"
+            ASSETS_UPLOADED=$((ASSETS_UPLOADED + 1))
+          else
+            echo "✗ Failed to upload: $ASSET_NAME"
+            echo "$UPLOAD_RESPONSE" | jq .
+          fi
+        else
+          echo "Warning: Asset not found: $asset_path"
+        fi
+      done
+      
+      echo "assets_uploaded=${ASSETS_UPLOADED}" >> $GITHUB_OUTPUT
+      
+  - name: "Generate release summary"
+    run: |
+      echo "## GitHub Release Summary" > release_summary.md
+      echo "" >> release_summary.md
+      echo "### Release Information" >> release_summary.md
+      echo "- **Repository:** ${{ inputs.repository }}" >> release_summary.md
+      echo "- **Release Name:** ${{ inputs.release_name }}" >> release_summary.md
+      echo "- **Tag:** ${{ inputs.tag_name }}" >> release_summary.md
+      echo "- **Target:** ${{ inputs.target_commitish }}" >> release_summary.md
+      echo "- **Draft:** ${{ inputs.draft }}" >> release_summary.md
+      echo "- **Pre-release:** ${{ inputs.prerelease }}" >> release_summary.md
+      
+      if [ -n "${{ steps.upload-assets.outputs.assets_uploaded }}" ]; then
+        echo "- **Assets Uploaded:** ${{ steps.upload-assets.outputs.assets_uploaded }}" >> release_summary.md
+      fi
+      
+      echo "" >> release_summary.md
+      echo "### Links" >> release_summary.md
+      echo "- [View Release](${{ steps.create-release.outputs.release_url }})" >> release_summary.md
+
+dependencies:
+  - name: "GitHub Token"
+    type: "secret"
+    required: true
+    description: "GitHub token with repo scope"

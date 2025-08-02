@@ -1,0 +1,115 @@
+name: "GitHub Issue Create"
+description: "Create GitHub issue"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["github", "issue", "api", "external", "project"]
+
+inputs:
+  repository:
+    description: "Repository name (owner/repo format)"
+    required: true
+    type: "string"
+  title:
+    description: "Issue title"
+    required: true
+    type: "string"
+  body:
+    description: "Issue body content"
+    required: true
+    type: "string"
+  labels:
+    description: "Comma-separated labels"
+    required: false
+    type: "string"
+    default: ""
+  assignees:
+    description: "Comma-separated assignees"
+    required: false
+    type: "string"
+    default: ""
+  milestone:
+    description: "Milestone number"
+    required: false
+    type: "integer"
+    default: 0
+
+outputs:
+  issue_number:
+    description: "Created issue number"
+    type: "integer"
+  issue_url:
+    description: "URL of created issue"
+    type: "string"
+  issue_id:
+    description: "Issue ID"
+    type: "string"
+
+workflow:
+  - name: "Check GitHub token"
+    run: |
+      if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+        echo "Error: GITHUB_TOKEN not set"
+        exit 1
+      fi
+      
+  - name: "Create GitHub issue"
+    run: |
+      # Prepare issue payload
+      cat > issue_payload.json << 'EOF'
+      {
+        "title": "${{ inputs.title }}",
+        "body": "${{ inputs.body }}"
+      }
+      EOF
+      
+      # Add labels if provided
+      if [ -n "${{ inputs.labels }}" ]; then
+        LABELS_JSON=$(echo "${{ inputs.labels }}" | tr ',' '\n' | jq -R . | jq -s .)
+        jq --argjson labels "$LABELS_JSON" '. + {labels: $labels}' issue_payload.json > temp.json
+        mv temp.json issue_payload.json
+      fi
+      
+      # Add assignees if provided
+      if [ -n "${{ inputs.assignees }}" ]; then
+        ASSIGNEES_JSON=$(echo "${{ inputs.assignees }}" | tr ',' '\n' | jq -R . | jq -s .)
+        jq --argjson assignees "$ASSIGNEES_JSON" '. + {assignees: $assignees}' issue_payload.json > temp.json
+        mv temp.json issue_payload.json
+      fi
+      
+      # Add milestone if provided
+      if [ "${{ inputs.milestone }}" -gt 0 ]; then
+        jq '. + {milestone: ${{ inputs.milestone }}}' issue_payload.json > temp.json
+        mv temp.json issue_payload.json
+      fi
+      
+      # Create issue
+      echo "Creating GitHub issue in ${{ inputs.repository }}..."
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        -d @issue_payload.json \
+        "https://api.github.com/repos/${{ inputs.repository }}/issues")
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.message' > /dev/null 2>&1; then
+        echo "Error: GitHub API request failed"
+        echo "$RESPONSE" | jq .
+        exit 1
+      fi
+      
+      # Extract issue information
+      ISSUE_NUMBER=$(echo "$RESPONSE" | jq -r '.number')
+      ISSUE_URL=$(echo "$RESPONSE" | jq -r '.html_url')
+      ISSUE_ID=$(echo "$RESPONSE" | jq -r '.id')
+      
+      echo "Issue created successfully: #${ISSUE_NUMBER}"
+      echo "issue_number=${ISSUE_NUMBER}" >> $GITHUB_OUTPUT
+      echo "issue_url=${ISSUE_URL}" >> $GITHUB_OUTPUT
+      echo "issue_id=${ISSUE_ID}" >> $GITHUB_OUTPUT
+
+dependencies:
+  - name: "GitHub Token"
+    type: "secret"
+    required: true
+    description: "GitHub personal access token or GITHUB_TOKEN"

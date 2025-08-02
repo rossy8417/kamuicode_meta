@@ -1,0 +1,156 @@
+name: "OpenAI Summarize"
+description: "Summarize text using OpenAI GPT"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["openai", "gpt", "summarize", "api", "external", "text"]
+
+inputs:
+  text:
+    description: "Text to summarize"
+    required: true
+    type: "string"
+  summary_type:
+    description: "Type of summary (brief, detailed, bullet_points, key_insights)"
+    required: false
+    type: "string"
+    default: "brief"
+  max_length:
+    description: "Maximum length of summary in words"
+    required: false
+    type: "integer"
+    default: 150
+  language:
+    description: "Language for summary"
+    required: false
+    type: "string"
+    default: "English"
+  model:
+    description: "GPT model to use"
+    required: false
+    type: "string"
+    default: "gpt-3.5-turbo"
+
+outputs:
+  summary:
+    description: "Generated summary"
+    type: "string"
+  summary_file:
+    description: "Path to file containing summary"
+    type: "string"
+  word_count:
+    description: "Word count of summary"
+    type: "integer"
+
+workflow:
+  - name: "Check OpenAI credentials"
+    run: |
+      if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+        echo "Error: OPENAI_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Prepare summarization prompt"
+    run: |
+      # Create system message based on summary type
+      case "${{ inputs.summary_type }}" in
+        "brief")
+          SYSTEM_MSG="You are a professional summarizer. Create concise summaries that capture the main points."
+          INSTRUCTION="Summarize the following text in approximately ${{ inputs.max_length }} words:"
+          ;;
+        "detailed")
+          SYSTEM_MSG="You are a professional summarizer. Create comprehensive summaries that preserve important details."
+          INSTRUCTION="Create a detailed summary of the following text in approximately ${{ inputs.max_length }} words:"
+          ;;
+        "bullet_points")
+          SYSTEM_MSG="You are a professional summarizer. Create clear, structured summaries using bullet points."
+          INSTRUCTION="Summarize the following text as bullet points (aim for ${{ inputs.max_length }} words total):"
+          ;;
+        "key_insights")
+          SYSTEM_MSG="You are an expert analyst. Extract and explain key insights from texts."
+          INSTRUCTION="Extract the key insights from the following text (approximately ${{ inputs.max_length }} words):"
+          ;;
+      esac
+      
+      # Add language instruction if not English
+      if [ "${{ inputs.language }}" != "English" ]; then
+        INSTRUCTION="${INSTRUCTION} Please write the summary in ${{ inputs.language }}."
+      fi
+      
+      # Save prompts
+      echo "$SYSTEM_MSG" > system_message.txt
+      echo "$INSTRUCTION" > instruction.txt
+      
+  - name: "Call OpenAI API for summarization"
+    run: |
+      SYSTEM_MSG=$(cat system_message.txt)
+      INSTRUCTION=$(cat instruction.txt)
+      
+      # Prepare request
+      cat > openai_request.json << EOF
+      {
+        "model": "${{ inputs.model }}",
+        "messages": [
+          {
+            "role": "system",
+            "content": "${SYSTEM_MSG}"
+          },
+          {
+            "role": "user",
+            "content": "${INSTRUCTION}\n\n${{ inputs.text }}"
+          }
+        ],
+        "max_tokens": $((${{ inputs.max_length }} * 2)),
+        "temperature": 0.5
+      }
+      EOF
+      
+      # Call API
+      echo "Generating summary..."
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -d @openai_request.json \
+        https://api.openai.com/v1/chat/completions)
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo "Error: OpenAI API request failed"
+        echo "$RESPONSE" | jq '.error'
+        exit 1
+      fi
+      
+      # Extract summary
+      SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+      echo "$SUMMARY" > summary.txt
+      
+      # Count words
+      WORD_COUNT=$(echo "$SUMMARY" | wc -w)
+      
+      echo "Summary generated: ${WORD_COUNT} words"
+      echo "summary<<EOF" >> $GITHUB_OUTPUT
+      echo "$SUMMARY" >> $GITHUB_OUTPUT
+      echo "EOF" >> $GITHUB_OUTPUT
+      echo "summary_file=summary.txt" >> $GITHUB_OUTPUT
+      echo "word_count=${WORD_COUNT}" >> $GITHUB_OUTPUT
+      
+  - name: "Format summary output"
+    run: |
+      # Create formatted markdown file
+      echo "# Summary" > summary_formatted.md
+      echo "" >> summary_formatted.md
+      echo "**Type:** ${{ inputs.summary_type }}" >> summary_formatted.md
+      echo "**Word Count:** ${{ steps.call-openai.outputs.word_count }}" >> summary_formatted.md
+      echo "**Language:** ${{ inputs.language }}" >> summary_formatted.md
+      echo "" >> summary_formatted.md
+      echo "## Summary Content" >> summary_formatted.md
+      echo "" >> summary_formatted.md
+      cat summary.txt >> summary_formatted.md
+      
+      echo "Formatted summary saved to summary_formatted.md"
+
+dependencies:
+  - name: "OpenAI API Key"
+    type: "secret"
+    required: true
+    description: "OpenAI API key"

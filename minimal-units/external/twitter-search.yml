@@ -1,0 +1,153 @@
+name: "Twitter/X Search"
+description: "Search tweets on Twitter/X"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["twitter", "x", "search", "api", "external", "social"]
+
+inputs:
+  query:
+    description: "Search query (supports operators like from:, to:, #hashtag)"
+    required: true
+    type: "string"
+  max_results:
+    description: "Maximum number of results (10-100)"
+    required: false
+    type: "integer"
+    default: 10
+  result_type:
+    description: "Result type (recent, popular, mixed)"
+    required: false
+    type: "string"
+    default: "recent"
+  lang:
+    description: "Language filter (e.g., en, ja)"
+    required: false
+    type: "string"
+    default: ""
+  exclude_retweets:
+    description: "Exclude retweets"
+    required: false
+    type: "boolean"
+    default: false
+
+outputs:
+  tweets_json:
+    description: "Path to JSON file with search results"
+    type: "string"
+  tweet_count:
+    description: "Number of tweets found"
+    type: "integer"
+  tweets_summary:
+    description: "Path to summary markdown file"
+    type: "string"
+
+workflow:
+  - name: "Check Twitter credentials"
+    run: |
+      if [ -z "${{ secrets.TWITTER_BEARER_TOKEN }}" ]; then
+        echo "Error: TWITTER_BEARER_TOKEN not set"
+        exit 1
+      fi
+      
+  - name: "Build search query"
+    run: |
+      # Build query with filters
+      QUERY="${{ inputs.query }}"
+      
+      # Add language filter
+      if [ -n "${{ inputs.lang }}" ]; then
+        QUERY="${QUERY} lang:${{ inputs.lang }}"
+      fi
+      
+      # Exclude retweets if requested
+      if [ "${{ inputs.exclude_retweets }}" = "true" ]; then
+        QUERY="${QUERY} -is:retweet"
+      fi
+      
+      # URL encode the query
+      ENCODED_QUERY=$(echo "$QUERY" | jq -sRr @uri)
+      echo "ENCODED_QUERY=${ENCODED_QUERY}" >> search_params.env
+      
+  - name: "Search tweets"
+    run: |
+      source search_params.env
+      
+      # Build API URL for v2 search
+      API_URL="https://api.twitter.com/2/tweets/search/recent"
+      
+      # Build parameters
+      PARAMS="query=${ENCODED_QUERY}"
+      PARAMS="${PARAMS}&max_results=${{ inputs.max_results }}"
+      PARAMS="${PARAMS}&tweet.fields=created_at,author_id,public_metrics,lang,referenced_tweets"
+      PARAMS="${PARAMS}&expansions=author_id"
+      PARAMS="${PARAMS}&user.fields=name,username,verified"
+      
+      echo "Searching Twitter for: ${{ inputs.query }}"
+      
+      # Make API request
+      RESPONSE=$(curl -s -X GET \
+        -H "Authorization: Bearer ${{ secrets.TWITTER_BEARER_TOKEN }}" \
+        "${API_URL}?${PARAMS}")
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.errors' > /dev/null 2>&1; then
+        echo "Error: Twitter API request failed"
+        echo "$RESPONSE" | jq '.errors'
+        exit 1
+      fi
+      
+      # Save response
+      echo "$RESPONSE" > twitter_search.json
+      
+      # Extract metrics
+      TWEET_COUNT=$(echo "$RESPONSE" | jq '.meta.result_count // 0')
+      
+      echo "Found ${TWEET_COUNT} tweets"
+      echo "tweets_json=twitter_search.json" >> $GITHUB_OUTPUT
+      echo "tweet_count=${TWEET_COUNT}" >> $GITHUB_OUTPUT
+      
+  - name: "Generate tweets summary"
+    run: |
+      # Create summary markdown
+      echo "## Twitter Search Results" > tweets_summary.md
+      echo "**Query:** ${{ inputs.query }}" >> tweets_summary.md
+      echo "**Results:** ${{ steps.search-tweets.outputs.tweet_count }} tweets" >> tweets_summary.md
+      echo "" >> tweets_summary.md
+      
+      # Process tweets with user data
+      cat > process_tweets.py << 'EOF'
+      import json
+      
+      with open('twitter_search.json', 'r') as f:
+          data = json.load(f)
+      
+      tweets = data.get('data', [])
+      users = {u['id']: u for u in data.get('includes', {}).get('users', [])}
+      
+      with open('tweets_summary.md', 'a') as f:
+          for tweet in tweets:
+              author = users.get(tweet['author_id'], {})
+              username = author.get('username', 'unknown')
+              name = author.get('name', 'Unknown')
+              
+              f.write(f"### @{username} ({name})\n")
+              f.write(f"**Time:** {tweet['created_at']}\n")
+              f.write(f"**Text:** {tweet['text']}\n")
+              
+              metrics = tweet.get('public_metrics', {})
+              f.write(f"**Engagement:** ")
+              f.write(f"❤️ {metrics.get('like_count', 0)} ")
+              f.write(f"🔁 {metrics.get('retweet_count', 0)} ")
+              f.write(f"💬 {metrics.get('reply_count', 0)}\n")
+              f.write(f"\n---\n\n")
+      EOF
+      
+      python3 process_tweets.py
+      
+      echo "tweets_summary=tweets_summary.md" >> $GITHUB_OUTPUT
+
+dependencies:
+  - name: "Twitter Bearer Token"
+    type: "secret"
+    required: true
+    description: "Twitter API v2 Bearer token"

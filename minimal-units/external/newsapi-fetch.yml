@@ -1,0 +1,117 @@
+name: "NewsAPI Fetch Articles"
+description: "Fetch news articles from NewsAPI"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["news", "api", "fetch", "external", "data"]
+
+inputs:
+  query:
+    description: "Search query for news articles"
+    required: false
+    type: "string"
+    default: ""
+  category:
+    description: "News category (business, entertainment, general, health, science, sports, technology)"
+    required: false
+    type: "string"
+    default: "general"
+  country:
+    description: "Country code (us, jp, gb, etc.)"
+    required: false
+    type: "string"
+    default: "us"
+  language:
+    description: "Language code (en, ja, etc.)"
+    required: false
+    type: "string"
+    default: "en"
+  sort_by:
+    description: "Sort order (relevancy, popularity, publishedAt)"
+    required: false
+    type: "string"
+    default: "publishedAt"
+  page_size:
+    description: "Number of articles to fetch"
+    required: false
+    type: "integer"
+    default: 10
+
+outputs:
+  articles_json:
+    description: "Path to JSON file containing fetched articles"
+    type: "string"
+  article_count:
+    description: "Number of articles fetched"
+    type: "integer"
+  status:
+    description: "API request status"
+    type: "string"
+
+workflow:
+  - name: "Check NewsAPI credentials"
+    run: |
+      if [ -z "${{ secrets.NEWSAPI_KEY }}" ]; then
+        echo "Error: NEWSAPI_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Fetch news articles"
+    run: |
+      # Build API URL
+      API_URL="https://newsapi.org/v2/top-headlines"
+      
+      # Add query parameters
+      PARAMS="apiKey=${{ secrets.NEWSAPI_KEY }}"
+      PARAMS="${PARAMS}&pageSize=${{ inputs.page_size }}"
+      PARAMS="${PARAMS}&country=${{ inputs.country }}"
+      PARAMS="${PARAMS}&category=${{ inputs.category }}"
+      PARAMS="${PARAMS}&language=${{ inputs.language }}"
+      
+      if [ -n "${{ inputs.query }}" ]; then
+        PARAMS="${PARAMS}&q=${{ inputs.query }}"
+      fi
+      
+      # Fetch articles
+      echo "Fetching news articles..."
+      curl -s "${API_URL}?${PARAMS}" > newsapi_response.json
+      
+      # Check response
+      STATUS=$(jq -r '.status' newsapi_response.json)
+      if [ "$STATUS" != "ok" ]; then
+        echo "Error: NewsAPI request failed"
+        jq . newsapi_response.json
+        exit 1
+      fi
+      
+      # Extract articles
+      jq '.articles' newsapi_response.json > articles.json
+      ARTICLE_COUNT=$(jq 'length' articles.json)
+      
+      echo "Fetched ${ARTICLE_COUNT} articles"
+      echo "articles_json=articles.json" >> $GITHUB_OUTPUT
+      echo "article_count=${ARTICLE_COUNT}" >> $GITHUB_OUTPUT
+      echo "status=success" >> $GITHUB_OUTPUT
+      
+  - name: "Format articles summary"
+    run: |
+      # Create formatted summary
+      echo "## News Articles Summary" > articles_summary.md
+      echo "" >> articles_summary.md
+      
+      jq -r '.[] | "### \(.title)\n**Source:** \(.source.name)\n**Published:** \(.publishedAt)\n\n\(.description)\n\n[Read more](\(.url))\n\n---\n"' articles.json >> articles_summary.md
+      
+      echo "Summary saved to articles_summary.md"
+
+dependencies:
+  - name: "NewsAPI Key"
+    type: "secret"
+    required: true
+    description: "NewsAPI.org API key"
+  - name: "curl"
+    type: "system"
+    required: true
+    description: "HTTP client"
+  - name: "jq"
+    type: "system"
+    required: true
+    description: "JSON processor"

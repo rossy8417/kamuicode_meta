@@ -1,0 +1,146 @@
+name: "arXiv Paper Search"
+description: "Search scientific papers on arXiv"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["arxiv", "research", "papers", "api", "external", "science"]
+
+inputs:
+  query:
+    description: "Search query (supports boolean operators)"
+    required: true
+    type: "string"
+  max_results:
+    description: "Maximum number of results"
+    required: false
+    type: "integer"
+    default: 10
+  sort_by:
+    description: "Sort by (relevance, lastUpdatedDate, submittedDate)"
+    required: false
+    type: "string"
+    default: "relevance"
+  sort_order:
+    description: "Sort order (ascending, descending)"
+    required: false
+    type: "string"
+    default: "descending"
+  category:
+    description: "arXiv category filter (e.g., cs.AI, physics.quant-ph)"
+    required: false
+    type: "string"
+    default: ""
+
+outputs:
+  papers_json:
+    description: "Path to JSON file with paper metadata"
+    type: "string"
+  paper_count:
+    description: "Number of papers found"
+    type: "integer"
+  papers_summary:
+    description: "Path to markdown summary"
+    type: "string"
+
+workflow:
+  - name: "Search arXiv papers"
+    run: |
+      # Build search query
+      QUERY="${{ inputs.query }}"
+      if [ -n "${{ inputs.category }}" ]; then
+        QUERY="${QUERY}+AND+cat:${{ inputs.category }}"
+      fi
+      
+      # URL encode query
+      ENCODED_QUERY=$(echo "$QUERY" | sed 's/ /+/g')
+      
+      # Build API URL
+      API_URL="http://export.arxiv.org/api/query"
+      PARAMS="search_query=${ENCODED_QUERY}"
+      PARAMS="${PARAMS}&max_results=${{ inputs.max_results }}"
+      PARAMS="${PARAMS}&sortBy=${{ inputs.sort_by }}"
+      PARAMS="${PARAMS}&sortOrder=${{ inputs.sort_order }}"
+      
+      echo "Searching arXiv for: ${{ inputs.query }}"
+      
+      # Fetch results
+      curl -s "${API_URL}?${PARAMS}" > arxiv_raw.xml
+      
+  - name: "Parse XML results"
+    run: |
+      # Install xml2json if needed
+      pip install --quiet xmltodict
+      
+      # Convert XML to JSON
+      cat > parse_arxiv.py << 'EOF'
+      import xmltodict
+      import json
+      import re
+      
+      with open('arxiv_raw.xml', 'r') as f:
+          xml_data = f.read()
+      
+      # Parse XML
+      data = xmltodict.parse(xml_data)
+      
+      # Extract entries
+      entries = []
+      if 'feed' in data and 'entry' in data['feed']:
+          raw_entries = data['feed']['entry']
+          if not isinstance(raw_entries, list):
+              raw_entries = [raw_entries]
+          
+          for entry in raw_entries:
+              # Clean text fields
+              title = re.sub(r'\s+', ' ', entry.get('title', '')).strip()
+              summary = re.sub(r'\s+', ' ', entry.get('summary', '')).strip()
+              
+              # Extract authors
+              authors = []
+              if 'author' in entry:
+                  author_list = entry['author'] if isinstance(entry['author'], list) else [entry['author']]
+                  authors = [a.get('name', '') for a in author_list]
+              
+              # Extract arXiv ID from id field
+              arxiv_id = entry.get('id', '').split('/')[-1]
+              
+              entries.append({
+                  'arxiv_id': arxiv_id,
+                  'title': title,
+                  'authors': authors,
+                  'summary': summary,
+                  'published': entry.get('published', ''),
+                  'updated': entry.get('updated', ''),
+                  'pdf_url': f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+                  'abs_url': f"https://arxiv.org/abs/{arxiv_id}"
+              })
+      
+      # Save as JSON
+      with open('arxiv_papers.json', 'w') as f:
+          json.dump(entries, f, indent=2)
+      
+      print(f"paper_count={len(entries)}")
+      EOF
+      
+      python3 parse_arxiv.py >> $GITHUB_OUTPUT
+      
+  - name: "Generate papers summary"
+    run: |
+      # Create markdown summary
+      echo "## arXiv Search Results" > arxiv_summary.md
+      echo "Query: ${{ inputs.query }}" >> arxiv_summary.md
+      if [ -n "${{ inputs.category }}" ]; then
+        echo "Category: ${{ inputs.category }}" >> arxiv_summary.md
+      fi
+      echo "" >> arxiv_summary.md
+      
+      # Add paper summaries
+      jq -r '.[] | "### \(.title)\n**Authors:** \(.authors | join(", "))\n**arXiv ID:** \(.arxiv_id)\n**Published:** \(.published | split("T")[0])\n\n\(.summary | .[0:500])...\n\n[PDF](\(.pdf_url)) | [Abstract](\(.abs_url))\n\n---\n"' arxiv_papers.json >> arxiv_summary.md
+      
+      echo "papers_json=arxiv_papers.json" >> $GITHUB_OUTPUT
+      echo "papers_summary=arxiv_summary.md" >> $GITHUB_OUTPUT
+
+dependencies:
+  - name: "xmltodict"
+    type: "python-package"
+    required: true
+    description: "XML to dictionary converter"

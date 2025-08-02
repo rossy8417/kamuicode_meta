@@ -1,0 +1,128 @@
+name: "Discord Webhook Send"
+description: "Send message via Discord webhook"
+category: "external"
+estimated_time: "1 minute"
+tags: ["discord", "webhook", "notification", "api", "external"]
+
+inputs:
+  webhook_url:
+    description: "Discord webhook URL"
+    required: true
+    type: "string"
+  content:
+    description: "Message content"
+    required: false
+    type: "string"
+    default: ""
+  username:
+    description: "Override webhook username"
+    required: false
+    type: "string"
+    default: ""
+  avatar_url:
+    description: "Override webhook avatar URL"
+    required: false
+    type: "string"
+    default: ""
+  embed_title:
+    description: "Embed title"
+    required: false
+    type: "string"
+    default: ""
+  embed_description:
+    description: "Embed description"
+    required: false
+    type: "string"
+    default: ""
+  embed_color:
+    description: "Embed color (decimal)"
+    required: false
+    type: "integer"
+    default: 3447003
+  embed_image_url:
+    description: "Embed image URL"
+    required: false
+    type: "string"
+    default: ""
+
+outputs:
+  status:
+    description: "Send status"
+    type: "string"
+  timestamp:
+    description: "Message timestamp"
+    type: "string"
+
+workflow:
+  - name: "Prepare Discord webhook payload"
+    run: |
+      # Start with basic message
+      cat > discord_payload.json << 'EOF'
+      {
+        "content": "${{ inputs.content }}"
+      }
+      EOF
+      
+      # Add username if provided
+      if [ -n "${{ inputs.username }}" ]; then
+        jq '. + {"username": "${{ inputs.username }}"}' discord_payload.json > temp.json
+        mv temp.json discord_payload.json
+      fi
+      
+      # Add avatar if provided
+      if [ -n "${{ inputs.avatar_url }}" ]; then
+        jq '. + {"avatar_url": "${{ inputs.avatar_url }}"}' discord_payload.json > temp.json
+        mv temp.json discord_payload.json
+      fi
+      
+      # Add embed if any embed field is provided
+      if [ -n "${{ inputs.embed_title }}" ] || [ -n "${{ inputs.embed_description }}" ]; then
+        # Create embed object
+        cat > embed.json << 'EOF'
+      {
+        "title": "${{ inputs.embed_title }}",
+        "description": "${{ inputs.embed_description }}",
+        "color": ${{ inputs.embed_color }}
+      }
+      EOF
+        
+        # Add image to embed if provided
+        if [ -n "${{ inputs.embed_image_url }}" ]; then
+          jq '. + {"image": {"url": "${{ inputs.embed_image_url }}"}}' embed.json > temp.json
+          mv temp.json embed.json
+        fi
+        
+        # Add embed to payload
+        jq --slurpfile embed embed.json '. + {"embeds": $embed}' discord_payload.json > temp.json
+        mv temp.json discord_payload.json
+      fi
+      
+  - name: "Send Discord webhook"
+    run: |
+      echo "Sending message to Discord..."
+      
+      # Send webhook
+      RESPONSE_CODE=$(curl -s -o response.txt -w "%{http_code}" \
+        -H "Content-Type: application/json" \
+        -d @discord_payload.json \
+        "${{ inputs.webhook_url }}")
+      
+      # Check response
+      if [ "$RESPONSE_CODE" = "204" ]; then
+        echo "Message sent successfully"
+        echo "status=success" >> $GITHUB_OUTPUT
+      else
+        echo "Error: Failed to send message (HTTP $RESPONSE_CODE)"
+        cat response.txt
+        exit 1
+      fi
+      
+      # Record timestamp
+      TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+
+dependencies:
+  - name: "Discord Webhook URL"
+    type: "input"
+    required: true
+    description: "Discord webhook URL (can be stored in secrets)"

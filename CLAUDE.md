@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 → **`UNIFIED_DEPENDENCY_GUIDE.md`** (AI-optimized, single source)
 
 ### For minimal unit selection & catalog
-→ **`minimal-units/MINIMAL_UNITS_CATALOG.md`** (53 units, full paths)
+→ **`minimal-units/MINIMAL_UNITS_CATALOG.md`** (80 units, full paths)
 
 ### For technical implementation details
 → **`minimal-units/UNIT_INTERFACE_SPEC.md`** (YAML interface specs)
@@ -56,7 +56,7 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
 
 ### Minimal Unit Based Dual-Approach Meta Workflow System
 - **Claude Code SDK Integration**: Dynamic task decomposition using Claude Code SDK
-- **55 Minimal Units**: Complete catalog of reusable workflow components
+- **80 Minimal Units**: Complete catalog of reusable workflow components
 - **Dual Workflow Generation**:
   - **Original Approach**: Dynamic composition from minimal units
   - **Orchestrator Approach**: Following kamuicode-workflow patterns
@@ -68,12 +68,13 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
 - **Safe Deployment**: Generated workflows deployed with .disabled extension for review
 
 ### Core Components
-- **`minimal-units/`**: 55 reusable workflow units organized by category
+- **`minimal-units/`**: 80 reusable workflow units organized by category
   - 8 Image units (t2i-imagen3, image-analysis, banner-text, etc.)
   - 13 Video units (t2v-veo3, i2v-seedance, video-concat, etc.)
   - 10 Audio units (bgm-generate-mcp, t2s-google, bgm-overlay, etc.)
   - 9 Planning units (planning-ccsdk, web-search, data-analysis, etc.)
   - 7 Utility units (local-save, git-pr-create, sns-publish, etc.)
+  - 27 External API units (YouTube, OpenAI, Slack, Twitter, Google Sheets, GitHub, etc.)
   - And more...
 - **`.github/workflows/meta-workflow-executor-v9.yml`**: Dynamic meta workflow with enhanced features
 - **`meta/prompts/`**: Enhanced prompts for human-like task decomposition and dependency analysis
@@ -274,7 +275,9 @@ generated/               # Metadata and logs storage
 ### MCP Integration Rules
 **MCP Configuration**: See `docs/MCP_CONFIGURATION_GUIDE.md` for complete service list and setup instructions.
 
-**Key MCP Services** (from `.claude/mcp-kamuicode.json`) - 24 services total:
+**Key MCP Services** (from `.claude/mcp-kamuicode.json`) - 44+ services total:
+
+#### AI Generation Services (24 services):
 - **T2I**: `t2i-google-imagen3`, `t2i-fal-imagen4-ultra`, `t2i-fal-imagen4-fast`, `t2i-fal-flux-schnell`, `t2i-fal-rundiffusion-photo-flux`
 - **T2V**: `t2v-fal-veo3-fast`, `t2v-fal-wan-v2-2-a14b-t2v`
 - **I2V**: `i2v-fal-hailuo-02-pro`, `i2v-fal-bytedance-seedance-v1-lite`
@@ -287,8 +290,30 @@ generated/               # Metadata and logs storage
 - **R2V**: `r2v-fal-vidu-q1`
 - **Training**: `train-fal-flux-kontext-trainer`
 
+#### External API Services (20+ services):
+- **YouTube**: Video upload, info retrieval
+- **OpenAI**: GPT text generation, summarization, translation, image generation (gpt-image-1)
+- **Slack**: Messaging, file uploads
+- **Twitter/X**: Tweet posting, search
+- **Google Sheets**: Read/write operations
+- **GitHub**: Issues, releases, workflow dispatch, repository search
+- **Discord**: Webhook messaging
+- **Telegram**: Bot messaging
+- **Notion**: Page creation
+- **SendGrid**: Email sending
+- **ElevenLabs**: Advanced TTS
+- **NewsAPI**: News aggregation
+- **Weather**: OpenWeatherMap integration
+- **Finnhub**: Stock market data
+- **arXiv**: Scientific paper search
+- **Reddit**: Content search
+- **Hugging Face**: Model inference
+- **Anthropic**: Claude API
+- **Stripe**: Payment processing
+
 **IMPORTANT**: 
-- Do NOT reference non-existent MCP services (e.g., `web-search`, `rss-parser`, `generic kamuicode`). Use external API calls instead.
+- Do NOT reference non-existent MCP services. Use the exact service names listed above.
+- For external APIs, ensure API keys are set in GitHub Secrets or environment variables.
 - For GitHub Actions, set environment variables: `CLAUDE_CODE_CI_MODE=true` and `CLAUDE_CODE_AUTO_APPROVE_MCP=true`
 
 ### Code Patterns to Follow
@@ -448,7 +473,12 @@ The main workflow now uses:
 
 ### Required Secrets & Configuration
 - **`CLAUDE_CODE_OAUTH_TOKEN`**: Claude Code authentication token
-- **`.claude/mcp-kamuicode.json`**: MCP configuration (AI generation services only)
+- **`.claude/mcp-kamuicode.json`**: MCP configuration (AI generation services + External APIs)
+- **External API Keys**: Set in GitHub Secrets
+  - `YOUTUBE_API_KEY`, `OPENAI_API_KEY`, `SLACK_BOT_TOKEN`, `TWITTER_BEARER_TOKEN`
+  - `GOOGLE_SHEETS_CREDENTIALS`, `GITHUB_TOKEN`, `ELEVENLABS_API_KEY`
+  - `NEWSAPI_KEY`, `WEATHER_API_KEY`, `FINNHUB_API_KEY`
+  - And more as needed for each external service
 
 ### Execution Methods
 1. **Issue-driven**: Create issues using workflow-request.yml template

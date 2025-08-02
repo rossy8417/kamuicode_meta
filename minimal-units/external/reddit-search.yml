@@ -1,0 +1,119 @@
+name: "Reddit Search Posts"
+description: "Search Reddit posts and comments"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["reddit", "search", "api", "external", "social"]
+
+inputs:
+  query:
+    description: "Search query"
+    required: true
+    type: "string"
+  subreddit:
+    description: "Specific subreddit to search (optional)"
+    required: false
+    type: "string"
+    default: ""
+  sort:
+    description: "Sort order (relevance, hot, top, new, comments)"
+    required: false
+    type: "string"
+    default: "relevance"
+  time_filter:
+    description: "Time filter for top/controversial (hour, day, week, month, year, all)"
+    required: false
+    type: "string"
+    default: "all"
+  limit:
+    description: "Number of results to fetch"
+    required: false
+    type: "integer"
+    default: 25
+
+outputs:
+  results_json:
+    description: "Path to JSON file containing search results"
+    type: "string"
+  post_count:
+    description: "Number of posts found"
+    type: "integer"
+  top_post_url:
+    description: "URL of the top result"
+    type: "string"
+
+workflow:
+  - name: "Check Reddit credentials"
+    run: |
+      if [ -z "${{ secrets.REDDIT_CLIENT_ID }}" ] || [ -z "${{ secrets.REDDIT_CLIENT_SECRET }}" ]; then
+        echo "Error: Reddit API credentials not set"
+        exit 1
+      fi
+      
+  - name: "Get Reddit access token"
+    run: |
+      # Get OAuth token
+      TOKEN_RESPONSE=$(curl -s -X POST \
+        -u "${{ secrets.REDDIT_CLIENT_ID }}:${{ secrets.REDDIT_CLIENT_SECRET }}" \
+        -d "grant_type=client_credentials" \
+        -A "KamuiRossy/1.0" \
+        https://www.reddit.com/api/v1/access_token)
+      
+      ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token')
+      echo "ACCESS_TOKEN=${ACCESS_TOKEN}" >> reddit_auth.env
+      
+  - name: "Search Reddit"
+    run: |
+      source reddit_auth.env
+      
+      # Build search URL
+      if [ -n "${{ inputs.subreddit }}" ]; then
+        SEARCH_URL="https://oauth.reddit.com/r/${{ inputs.subreddit }}/search.json"
+      else
+        SEARCH_URL="https://oauth.reddit.com/search.json"
+      fi
+      
+      # Search parameters
+      PARAMS="q=${{ inputs.query }}&sort=${{ inputs.sort }}&limit=${{ inputs.limit }}&t=${{ inputs.time_filter }}"
+      
+      # Execute search
+      echo "Searching Reddit for: ${{ inputs.query }}"
+      
+      RESPONSE=$(curl -s -H "Authorization: bearer ${ACCESS_TOKEN}" \
+        -A "KamuiRossy/1.0" \
+        "${SEARCH_URL}?${PARAMS}")
+      
+      # Save results
+      echo "$RESPONSE" | jq '.data.children' > reddit_results.json
+      
+      # Extract metrics
+      POST_COUNT=$(jq 'length' reddit_results.json)
+      TOP_URL=$(jq -r '.[0].data.url // ""' reddit_results.json)
+      
+      echo "Found ${POST_COUNT} posts"
+      echo "results_json=reddit_results.json" >> $GITHUB_OUTPUT
+      echo "post_count=${POST_COUNT}" >> $GITHUB_OUTPUT
+      echo "top_post_url=${TOP_URL}" >> $GITHUB_OUTPUT
+      
+  - name: "Format results summary"
+    run: |
+      # Create formatted summary
+      echo "## Reddit Search Results" > reddit_summary.md
+      echo "Query: ${{ inputs.query }}" >> reddit_summary.md
+      echo "" >> reddit_summary.md
+      
+      jq -r '.[] | "### \(.data.title)\n**Score:** \(.data.score) | **Comments:** \(.data.num_comments)\n**Subreddit:** r/\(.data.subreddit)\n\n[Link](\(.data.url))\n\n---\n"' reddit_results.json >> reddit_summary.md
+      
+  - name: "Clean up"
+    if: always()
+    run: |
+      rm -f reddit_auth.env
+
+dependencies:
+  - name: "Reddit Client ID"
+    type: "secret"
+    required: true
+    description: "Reddit app client ID"
+  - name: "Reddit Client Secret"
+    type: "secret"
+    required: true
+    description: "Reddit app client secret"

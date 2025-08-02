@@ -1,0 +1,143 @@
+name: "Slack File Upload"
+description: "Upload file to Slack channel"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["slack", "file", "upload", "api", "external", "share"]
+
+inputs:
+  file_path:
+    description: "Path to file to upload"
+    required: true
+    type: "string"
+  channels:
+    description: "Comma-separated list of channel IDs"
+    required: true
+    type: "string"
+  filename:
+    description: "Filename to use in Slack"
+    required: false
+    type: "string"
+    default: ""
+  title:
+    description: "Title of the file"
+    required: false
+    type: "string"
+    default: ""
+  initial_comment:
+    description: "Message to post with the file"
+    required: false
+    type: "string"
+    default: ""
+  thread_ts:
+    description: "Thread timestamp to upload into"
+    required: false
+    type: "string"
+    default: ""
+
+outputs:
+  file_id:
+    description: "Slack file ID"
+    type: "string"
+  file_url:
+    description: "Private URL of the uploaded file"
+    type: "string"
+  permalink:
+    description: "Permalink to the file"
+    type: "string"
+  upload_status:
+    description: "Upload status"
+    type: "string"
+
+workflow:
+  - name: "Check Slack credentials"
+    run: |
+      if [ -z "${{ secrets.SLACK_BOT_TOKEN }}" ]; then
+        echo "Error: SLACK_BOT_TOKEN not set"
+        exit 1
+      fi
+      
+  - name: "Prepare file upload"
+    run: |
+      # Check if file exists
+      if [ ! -f "${{ inputs.file_path }}" ]; then
+        echo "Error: File not found: ${{ inputs.file_path }}"
+        exit 1
+      fi
+      
+      # Get file info
+      FILE_SIZE=$(stat -c%s "${{ inputs.file_path }}" 2>/dev/null || stat -f%z "${{ inputs.file_path }}")
+      FILE_NAME="${{ inputs.filename }}"
+      
+      if [ -z "$FILE_NAME" ]; then
+        FILE_NAME=$(basename "${{ inputs.file_path }}")
+      fi
+      
+      echo "Uploading file: $FILE_NAME (${FILE_SIZE} bytes)"
+      echo "FILE_NAME=${FILE_NAME}" >> file_info.env
+      
+  - name: "Upload file to Slack"
+    run: |
+      source file_info.env
+      
+      # Build form data
+      FORM_DATA=""
+      FORM_DATA="${FORM_DATA} -F channels=${{ inputs.channels }}"
+      FORM_DATA="${FORM_DATA} -F filename=${FILE_NAME}"
+      
+      if [ -n "${{ inputs.title }}" ]; then
+        FORM_DATA="${FORM_DATA} -F title=\"${{ inputs.title }}\""
+      fi
+      
+      if [ -n "${{ inputs.initial_comment }}" ]; then
+        FORM_DATA="${FORM_DATA} -F initial_comment=\"${{ inputs.initial_comment }}\""
+      fi
+      
+      if [ -n "${{ inputs.thread_ts }}" ]; then
+        FORM_DATA="${FORM_DATA} -F thread_ts=${{ inputs.thread_ts }}"
+      fi
+      
+      # Upload file
+      echo "Uploading to Slack..."
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+        ${FORM_DATA} \
+        -F "file=@${{ inputs.file_path }}" \
+        https://slack.com/api/files.upload)
+      
+      # Check response
+      if [ "$(echo "$RESPONSE" | jq -r '.ok')" != "true" ]; then
+        echo "Error: Slack file upload failed"
+        echo "$RESPONSE" | jq .
+        exit 1
+      fi
+      
+      # Extract file information
+      FILE_ID=$(echo "$RESPONSE" | jq -r '.file.id')
+      FILE_URL=$(echo "$RESPONSE" | jq -r '.file.url_private // ""')
+      PERMALINK=$(echo "$RESPONSE" | jq -r '.file.permalink // ""')
+      
+      echo "File uploaded successfully"
+      echo "file_id=${FILE_ID}" >> $GITHUB_OUTPUT
+      echo "file_url=${FILE_URL}" >> $GITHUB_OUTPUT
+      echo "permalink=${PERMALINK}" >> $GITHUB_OUTPUT
+      echo "upload_status=success" >> $GITHUB_OUTPUT
+      
+  - name: "Generate upload summary"
+    run: |
+      echo "## Slack File Upload Summary" > upload_summary.md
+      echo "" >> upload_summary.md
+      echo "### File Information" >> upload_summary.md
+      echo "- **File:** ${{ inputs.file_path }}" >> upload_summary.md
+      echo "- **Slack Filename:** ${FILE_NAME}" >> upload_summary.md
+      echo "- **File ID:** ${{ steps.upload-file.outputs.file_id }}" >> upload_summary.md
+      echo "- **Channels:** ${{ inputs.channels }}" >> upload_summary.md
+      echo "" >> upload_summary.md
+      echo "### Links" >> upload_summary.md
+      echo "- [View File](${{ steps.upload-file.outputs.permalink }})" >> upload_summary.md
+
+dependencies:
+  - name: "Slack Bot Token"
+    type: "secret"
+    required: true
+    description: "Slack Bot OAuth token with files:write scope"

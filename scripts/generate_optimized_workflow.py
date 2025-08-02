@@ -84,6 +84,62 @@ def create_logical_job_order(capabilities: List[str], orchestrator_analysis: Dic
             'path': 'minimal-units/postprod/video-concat.yml',
             'category': 'post_processing',
             'priority': 8
+        },
+        # External APIs
+        'youtube-upload': {
+            'path': 'minimal-units/external/youtube-upload.yml',
+            'category': 'external_api',
+            'priority': 9
+        },
+        'youtube-info': {
+            'path': 'minimal-units/external/youtube-video-info.yml',
+            'category': 'external_api',
+            'priority': 2
+        },
+        'newsapi': {
+            'path': 'minimal-units/external/newsapi-fetch.yml',
+            'category': 'external_api',
+            'priority': 1
+        },
+        'weather': {
+            'path': 'minimal-units/external/weather-fetch.yml',
+            'category': 'external_api',
+            'priority': 1
+        },
+        'openai-summarize': {
+            'path': 'minimal-units/external/openai-summarize.yml',
+            'category': 'external_api',
+            'priority': 4
+        },
+        'openai-translate': {
+            'path': 'minimal-units/external/openai-translate.yml',
+            'category': 'external_api',
+            'priority': 4
+        },
+        'openai-image': {
+            'path': 'minimal-units/external/openai-image-gen.yml',
+            'category': 'external_api',
+            'priority': 5
+        },
+        'slack-notify': {
+            'path': 'minimal-units/external/slack-notify.yml',
+            'category': 'external_api',
+            'priority': 9
+        },
+        'twitter-post': {
+            'path': 'minimal-units/external/twitter-post.yml',
+            'category': 'external_api',
+            'priority': 9
+        },
+        'google-sheets-read': {
+            'path': 'minimal-units/external/google-sheets-read.yml',
+            'category': 'external_api',
+            'priority': 1
+        },
+        'google-sheets-write': {
+            'path': 'minimal-units/external/google-sheets-write.yml',
+            'category': 'external_api',
+            'priority': 9
         }
     }
     
@@ -186,6 +242,38 @@ def determine_execution_pattern(jobs: List[Dict]) -> Dict:
             'jobs': categories['post_processing'],
             'parallel': False
         })
+    
+    # フェーズ5: 外部API（並列/順次混合）
+    if 'external_api' in categories:
+        api_jobs = categories['external_api']
+        
+        # 入力系API（並列実行可能）
+        input_apis = [j for j in api_jobs if j['capability'] in ['newsapi', 'weather', 'youtube-info', 'google-sheets-read']]
+        # 処理系API（順次実行）
+        process_apis = [j for j in api_jobs if j['capability'] in ['openai-summarize', 'openai-translate', 'openai-image']]
+        # 出力系API（並列実行可能）
+        output_apis = [j for j in api_jobs if j['capability'] in ['youtube-upload', 'slack-notify', 'twitter-post', 'google-sheets-write']]
+        
+        if input_apis:
+            phases.append({
+                'name': 'external_api_input',
+                'jobs': input_apis,
+                'parallel': True
+            })
+        
+        if process_apis:
+            phases.append({
+                'name': 'external_api_process',
+                'jobs': process_apis,
+                'parallel': False
+            })
+        
+        if output_apis:
+            phases.append({
+                'name': 'external_api_output',
+                'jobs': output_apis,
+                'parallel': True
+            })
     
     # 実行パターンを決定
     total_jobs = len(jobs)

@@ -1,0 +1,116 @@
+name: "Finnhub Stock Quote"
+description: "Get real-time stock quotes from Finnhub"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["finnhub", "stock", "market", "api", "external", "finance"]
+
+inputs:
+  symbol:
+    description: "Stock symbol (e.g., AAPL, MSFT)"
+    required: true
+    type: "string"
+  include_profile:
+    description: "Include company profile"
+    required: false
+    type: "boolean"
+    default: false
+  include_news:
+    description: "Include recent news"
+    required: false
+    type: "boolean"
+    default: false
+
+outputs:
+  quote_json:
+    description: "Path to JSON file with stock quote"
+    type: "string"
+  current_price:
+    description: "Current stock price"
+    type: "float"
+  price_change:
+    description: "Price change amount"
+    type: "float"
+  price_change_percent:
+    description: "Price change percentage"
+    type: "float"
+
+workflow:
+  - name: "Check Finnhub credentials"
+    run: |
+      if [ -z "${{ secrets.FINNHUB_API_KEY }}" ]; then
+        echo "Error: FINNHUB_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Get stock quote"
+    run: |
+      # Get real-time quote
+      echo "Fetching quote for ${{ inputs.symbol }}..."
+      
+      QUOTE_URL="https://finnhub.io/api/v1/quote"
+      PARAMS="symbol=${{ inputs.symbol }}&token=${{ secrets.FINNHUB_API_KEY }}"
+      
+      RESPONSE=$(curl -s "${QUOTE_URL}?${PARAMS}")
+      echo "$RESPONSE" > quote.json
+      
+      # Extract key metrics
+      CURRENT_PRICE=$(jq -r '.c // 0' quote.json)
+      PRICE_CHANGE=$(jq -r '.d // 0' quote.json)
+      PRICE_CHANGE_PERCENT=$(jq -r '.dp // 0' quote.json)
+      
+      echo "Current price: $${CURRENT_PRICE}"
+      echo "Change: $${PRICE_CHANGE} (${PRICE_CHANGE_PERCENT}%)"
+      
+      echo "current_price=${CURRENT_PRICE}" >> $GITHUB_OUTPUT
+      echo "price_change=${PRICE_CHANGE}" >> $GITHUB_OUTPUT
+      echo "price_change_percent=${PRICE_CHANGE_PERCENT}" >> $GITHUB_OUTPUT
+      
+  - name: "Get company profile"
+    if: inputs.include_profile == true
+    run: |
+      PROFILE_URL="https://finnhub.io/api/v1/stock/profile2"
+      PARAMS="symbol=${{ inputs.symbol }}&token=${{ secrets.FINNHUB_API_KEY }}"
+      
+      curl -s "${PROFILE_URL}?${PARAMS}" > profile.json
+      
+      # Merge with quote data
+      jq -s '.[0] + {profile: .[1]}' quote.json profile.json > combined.json
+      mv combined.json quote.json
+      
+  - name: "Get recent news"
+    if: inputs.include_news == true
+    run: |
+      # Get news from last 7 days
+      FROM_DATE=$(date -u -d "7 days ago" +"%Y-%m-%d")
+      TO_DATE=$(date -u +"%Y-%m-%d")
+      
+      NEWS_URL="https://finnhub.io/api/v1/company-news"
+      PARAMS="symbol=${{ inputs.symbol }}&from=${FROM_DATE}&to=${TO_DATE}&token=${{ secrets.FINNHUB_API_KEY }}"
+      
+      curl -s "${NEWS_URL}?${PARAMS}" | jq '.[0:5]' > news.json
+      
+      # Merge with existing data
+      jq --slurpfile news news.json '. + {news: $news[0]}' quote.json > combined.json
+      mv combined.json quote.json
+      
+  - name: "Generate report"
+    run: |
+      echo "## Stock Report: ${{ inputs.symbol }}" > stock_report.md
+      echo "" >> stock_report.md
+      echo "### Current Quote" >> stock_report.md
+      echo "- Price: \$${CURRENT_PRICE}" >> stock_report.md
+      echo "- Change: \$${PRICE_CHANGE} (${PRICE_CHANGE_PERCENT}%)" >> stock_report.md
+      echo "" >> stock_report.md
+      
+      if [ -f profile.json ]; then
+        echo "### Company Profile" >> stock_report.md
+        jq -r '"- Name: \(.name)\n- Industry: \(.finnhubIndustry)\n- Market Cap: \(.marketCapitalization)M\n"' profile.json >> stock_report.md
+      fi
+      
+      echo "quote_json=quote.json" >> $GITHUB_OUTPUT
+
+dependencies:
+  - name: "Finnhub API Key"
+    type: "secret"
+    required: true
+    description: "Finnhub API key"

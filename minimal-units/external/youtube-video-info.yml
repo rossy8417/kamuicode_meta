@@ -1,0 +1,141 @@
+name: "YouTube Video Info"
+description: "Get YouTube video information"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["youtube", "video", "info", "api", "external", "metadata"]
+
+inputs:
+  video_id:
+    description: "YouTube video ID or URL"
+    required: true
+    type: "string"
+  include_statistics:
+    description: "Include view count, likes, etc."
+    required: false
+    type: "boolean"
+    default: true
+  include_snippet:
+    description: "Include title, description, tags"
+    required: false
+    type: "boolean"
+    default: true
+
+outputs:
+  video_info_json:
+    description: "Path to JSON file with video information"
+    type: "string"
+  title:
+    description: "Video title"
+    type: "string"
+  view_count:
+    description: "Number of views"
+    type: "integer"
+  duration:
+    description: "Video duration in ISO 8601 format"
+    type: "string"
+  channel_name:
+    description: "Channel name"
+    type: "string"
+
+workflow:
+  - name: "Check YouTube API credentials"
+    run: |
+      if [ -z "${{ secrets.YOUTUBE_API_KEY }}" ]; then
+        echo "Error: YOUTUBE_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Extract video ID"
+    run: |
+      VIDEO_INPUT="${{ inputs.video_id }}"
+      
+      # Extract ID from URL if needed
+      if echo "$VIDEO_INPUT" | grep -q "youtube.com/watch"; then
+        VIDEO_ID=$(echo "$VIDEO_INPUT" | grep -oP 'v=\K[^&]+')
+      elif echo "$VIDEO_INPUT" | grep -q "youtu.be/"; then
+        VIDEO_ID=$(echo "$VIDEO_INPUT" | grep -oP 'youtu.be/\K[^?]+')
+      else
+        VIDEO_ID="$VIDEO_INPUT"
+      fi
+      
+      echo "VIDEO_ID=${VIDEO_ID}" >> video_id.env
+      
+  - name: "Get video information"
+    run: |
+      source video_id.env
+      
+      # Build parts parameter
+      PARTS=""
+      if [ "${{ inputs.include_snippet }}" = "true" ]; then
+        PARTS="snippet"
+      fi
+      if [ "${{ inputs.include_statistics }}" = "true" ]; then
+        if [ -n "$PARTS" ]; then
+          PARTS="${PARTS},statistics"
+        else
+          PARTS="statistics"
+        fi
+      fi
+      PARTS="${PARTS},contentDetails"
+      
+      # API request
+      API_URL="https://www.googleapis.com/youtube/v3/videos"
+      PARAMS="id=${VIDEO_ID}&part=${PARTS}&key=${{ secrets.YOUTUBE_API_KEY }}"
+      
+      echo "Fetching video info for ID: ${VIDEO_ID}"
+      
+      RESPONSE=$(curl -s "${API_URL}?${PARAMS}")
+      echo "$RESPONSE" > video_info.json
+      
+      # Check if video found
+      ITEM_COUNT=$(jq '.items | length' video_info.json)
+      if [ "$ITEM_COUNT" -eq 0 ]; then
+        echo "Error: Video not found"
+        exit 1
+      fi
+      
+      # Extract key information
+      TITLE=$(jq -r '.items[0].snippet.title // "N/A"' video_info.json)
+      VIEW_COUNT=$(jq -r '.items[0].statistics.viewCount // 0' video_info.json)
+      DURATION=$(jq -r '.items[0].contentDetails.duration // "PT0S"' video_info.json)
+      CHANNEL_NAME=$(jq -r '.items[0].snippet.channelTitle // "N/A"' video_info.json)
+      
+      echo "Title: ${TITLE}"
+      echo "Views: ${VIEW_COUNT}"
+      echo "Duration: ${DURATION}"
+      
+      echo "video_info_json=video_info.json" >> $GITHUB_OUTPUT
+      echo "title=${TITLE}" >> $GITHUB_OUTPUT
+      echo "view_count=${VIEW_COUNT}" >> $GITHUB_OUTPUT
+      echo "duration=${DURATION}" >> $GITHUB_OUTPUT
+      echo "channel_name=${CHANNEL_NAME}" >> $GITHUB_OUTPUT
+      
+  - name: "Generate summary report"
+    run: |
+      # Parse duration to readable format
+      DURATION="${{ steps.get-video-info.outputs.duration }}"
+      
+      echo "## YouTube Video Information" > video_summary.md
+      echo "" >> video_summary.md
+      echo "### Basic Info" >> video_summary.md
+      echo "- **Title:** ${{ steps.get-video-info.outputs.title }}" >> video_summary.md
+      echo "- **Channel:** ${{ steps.get-video-info.outputs.channel_name }}" >> video_summary.md
+      echo "- **Duration:** ${DURATION}" >> video_summary.md
+      echo "" >> video_summary.md
+      
+      if [ "${{ inputs.include_statistics }}" = "true" ]; then
+        echo "### Statistics" >> video_summary.md
+        jq -r '.items[0].statistics | "- **Views:** \(.viewCount // 0)\n- **Likes:** \(.likeCount // 0)\n- **Comments:** \(.commentCount // 0)"' video_info.json >> video_summary.md
+      fi
+      
+      if [ "${{ inputs.include_snippet }}" = "true" ]; then
+        echo "" >> video_summary.md
+        echo "### Description" >> video_summary.md
+        jq -r '.items[0].snippet.description | .[0:500]' video_info.json >> video_summary.md
+      fi
+
+dependencies:
+  - name: "YouTube API Key"
+    type: "secret"
+    required: true
+    description: "YouTube Data API v3 key"

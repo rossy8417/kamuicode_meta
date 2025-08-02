@@ -107,6 +107,24 @@ class OrchestratorAnalyzer:
         if any(word in request.lower() for word in ['編集', 'edit', '結合']):
             keywords.append('editing')
         
+        # 外部サービス
+        if any(word in request.lower() for word in ['youtube', 'ユーチューブ']):
+            keywords.append('youtube')
+        if any(word in request.lower() for word in ['twitter', 'x', 'ツイッター', 'ツイート']):
+            keywords.append('twitter')
+        if any(word in request.lower() for word in ['slack', 'スラック']):
+            keywords.append('slack')
+        if any(word in request.lower() for word in ['メール', 'email', 'mail']):
+            keywords.append('email')
+        if any(word in request.lower() for word in ['翻訳', 'translate', 'translation']):
+            keywords.append('translation')
+        if any(word in request.lower() for word in ['要約', 'summarize', 'summary']):
+            keywords.append('summary')
+        if any(word in request.lower() for word in ['天気', 'weather', '気象']):
+            keywords.append('weather')
+        if any(word in request.lower() for word in ['株', 'stock', '株価', 'market']):
+            keywords.append('stock')
+        
         return list(set(keywords))
     
     def calculate_relevance(self, orch_name: str, orch_data: Dict, keywords: List[str], request: str) -> float:

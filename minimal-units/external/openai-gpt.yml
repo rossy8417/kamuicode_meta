@@ -1,0 +1,139 @@
+name: "OpenAI GPT Text Generation"
+description: "Generate text using OpenAI GPT API"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["openai", "gpt", "ai", "api", "external", "text"]
+
+inputs:
+  prompt:
+    description: "Text prompt for generation"
+    required: true
+    type: "string"
+  system_message:
+    description: "System message to set context"
+    required: false
+    type: "string"
+    default: "You are a helpful assistant."
+  model:
+    description: "GPT model to use"
+    required: false
+    type: "string"
+    default: "gpt-3.5-turbo"
+  max_tokens:
+    description: "Maximum tokens to generate"
+    required: false
+    type: "integer"
+    default: 1000
+  temperature:
+    description: "Sampling temperature (0.0-2.0)"
+    required: false
+    type: "float"
+    default: 0.7
+  response_format:
+    description: "Response format (text, json_object)"
+    required: false
+    type: "string"
+    default: "text"
+
+outputs:
+  generated_text:
+    description: "Generated text content"
+    type: "string"
+  output_file:
+    description: "Path to file containing generated text"
+    type: "string"
+  tokens_used:
+    description: "Number of tokens used"
+    type: "integer"
+  model_used:
+    description: "Model that was used"
+    type: "string"
+
+workflow:
+  - name: "Check OpenAI credentials"
+    run: |
+      if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+        echo "Error: OPENAI_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Call OpenAI GPT API"
+    run: |
+      # Prepare messages array
+      cat > openai_request.json << 'EOF'
+      {
+        "model": "${{ inputs.model }}",
+        "messages": [
+          {
+            "role": "system",
+            "content": "${{ inputs.system_message }}"
+          },
+          {
+            "role": "user",
+            "content": "${{ inputs.prompt }}"
+          }
+        ],
+        "max_tokens": ${{ inputs.max_tokens }},
+        "temperature": ${{ inputs.temperature }}
+      }
+      EOF
+      
+      # Add response format if JSON
+      if [ "${{ inputs.response_format }}" = "json_object" ]; then
+        jq '. + {"response_format": {"type": "json_object"}}' openai_request.json > temp.json
+        mv temp.json openai_request.json
+      fi
+      
+      # Call OpenAI API
+      echo "Calling OpenAI GPT API..."
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -d @openai_request.json \
+        https://api.openai.com/v1/chat/completions)
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo "Error: OpenAI API request failed"
+        echo "$RESPONSE" | jq '.error'
+        exit 1
+      fi
+      
+      # Extract generated text
+      GENERATED_TEXT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+      echo "$GENERATED_TEXT" > generated_output.txt
+      
+      # Extract usage info
+      TOKENS_USED=$(echo "$RESPONSE" | jq -r '.usage.total_tokens')
+      MODEL_USED=$(echo "$RESPONSE" | jq -r '.model')
+      
+      echo "Text generated successfully"
+      echo "generated_text<<EOF" >> $GITHUB_OUTPUT
+      echo "$GENERATED_TEXT" >> $GITHUB_OUTPUT
+      echo "EOF" >> $GITHUB_OUTPUT
+      echo "output_file=generated_output.txt" >> $GITHUB_OUTPUT
+      echo "tokens_used=${TOKENS_USED}" >> $GITHUB_OUTPUT
+      echo "model_used=${MODEL_USED}" >> $GITHUB_OUTPUT
+      
+  - name: "Format output if JSON"
+    if: inputs.response_format == 'json_object'
+    run: |
+      # Pretty print JSON output
+      jq . generated_output.txt > formatted_output.json
+      mv formatted_output.json generated_output.txt
+      echo "JSON output formatted"
+
+dependencies:
+  - name: "OpenAI API Key"
+    type: "secret"
+    required: true
+    description: "OpenAI API key"
+  - name: "curl"
+    type: "system"
+    required: true
+    description: "HTTP client"
+  - name: "jq"
+    type: "system"
+    required: true
+    description: "JSON processor"

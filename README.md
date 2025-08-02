@@ -6,7 +6,7 @@
 
 このシステムは、ユーザーのリクエストに基づいて完全なワークフローを自動生成するメタワークフロージェネレーターです。**ミニマルユニットベース動的構築**と**段階的デプロイシステム**により、高品質で実行可能なGitHub Actionsワークフローを効率的に生成します。
 
-## 🏗️ アーキテクチャ v9.0
+## 🏗️ アーキテクチャ v10.0
 
 ### **ミニマルユニットベース・デュアルアプローチシステム**
 - **Claude Code SDK中心**: ユーザー要求を分析し、タスクを動的に分解
@@ -22,9 +22,9 @@
 - **品質検証**: YAML構文、GitHub Actions構造、MCP参照、依存関係チェック
 
 ### **核心コンポーネント**
-- **`minimal-units/`**: 55個の再利用可能なワークフロー部品（画像、動画、音声、企画等）
+- **`minimal-units/`**: 80個の再利用可能なワークフロー部品（画像、動画、音声、企画、外部API等）
 - **`kamuicode-workflow/`**: 参考となるオーケストレーター・モジュールパターン
-- **`.github/workflows/meta-workflow-executor-v9.yml`**: Claude Code SDKベースの動的メタワークフロー
+- **`.github/workflows/meta-workflow-executor-v10.yml`**: Claude Code SDKベースの動的メタワークフロー
 - **`.github/workflows/auto-fix-deployment.yml`**: 自動デプロイ・エラー回復システム
 - **`.github/workflows/continuous-system-monitor.yml`**: システム健全性監視
 - **`meta/prompts/`**: タスク分解、ユニット選択、ワークフロー生成用プロンプト
@@ -34,7 +34,7 @@
 ```
 📦 Kamui Rossy
 ├── 🤖 .github/workflows/
-│   ├── meta-workflow-executor-v9.yml          # 動的メタワークフロー v9.0
+│   ├── meta-workflow-executor-v10.yml         # 動的メタワークフロー v10.0
 │   ├── auto-fix-deployment.yml                # 自動修復システム
 │   ├── continuous-system-monitor.yml          # 連続監視システム
 │   └── generated/                             # 生成ワークフロー配置

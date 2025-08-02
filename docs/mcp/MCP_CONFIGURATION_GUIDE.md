@@ -22,9 +22,11 @@ This guide documents how to configure MCP (Model Control Protocol) services for 
 }
 ```
 
-## Available MCP Service Types (24 Services Total)
+## Available MCP Service Types (44+ Services Total)
 
-### Text-to-Image (T2I) Services
+### AI Generation Services (24 Services)
+
+#### Text-to-Image (T2I) Services
 Services that generate images from text descriptions:
 - `t2i-google-imagen3`: Google's image generation model
 - `t2i-fal-imagen4-ultra`: High-quality image generation ⭐
@@ -81,6 +83,37 @@ Services for model training:
 Services that generate videos from reference materials:
 - `r2v-fal-vidu-q1`: Reference-based video generation ⭐
 
+### External API Services (20+ Services)
+
+#### Social Media & Communication Services
+External services for social media and communication:
+- `external-openai-gpt`: OpenAI GPT-4/GPT-3.5 API for text generation and analysis
+- `external-openai-image`: OpenAI Image Generation (gpt-image-1) API
+- `external-openai-tts`: OpenAI Text-to-Speech API
+- `external-elevenlabs-tts`: ElevenLabs text-to-speech API
+- `external-youtube-api`: YouTube Data API v3 for video management and statistics
+- `external-twitter-api`: Twitter/X API v2 for social media interaction
+- `external-slack-api`: Slack Web API for team communication
+- `external-discord-webhook`: Discord webhook integration
+- `external-telegram-api`: Telegram Bot API for messaging
+- `external-sendgrid-api`: SendGrid email delivery service
+
+#### Data & Analytics Services
+External services for data processing and analytics:
+- `external-newsapi`: NewsAPI for global news aggregation
+- `external-openweathermap`: OpenWeatherMap API for weather data
+- `external-google-sheets`: Google Sheets API for spreadsheet operations
+- `external-finnhub-api`: Finnhub stock market data API
+- `external-arxiv-api`: arXiv API for scientific paper search
+
+#### Development & Productivity Services
+External services for development and productivity:
+- `external-github-api`: GitHub API for repository and issue management
+- `external-notion-api`: Notion API for knowledge management
+- `external-reddit-api`: Reddit API for community content
+- `external-huggingface-api`: Hugging Face Inference API for ML models
+- `external-translate-api`: Translation API services
+
 ## MCP Configuration File Setup
 
 The MCP configuration should be stored in `.claude/mcp-kamuicode.json` in your repository. This file contains the service definitions and endpoints for all available MCP services.
@@ -93,6 +126,15 @@ The MCP configuration should be stored in `.claude/mcp-kamuicode.json` in your r
       "type": "http",
       "url": "service-endpoint-url",
       "description": "Service description"
+    },
+    // For external APIs with authentication:
+    "external-api-name": {
+      "type": "http",
+      "url": "https://api.example.com/endpoint",
+      "description": "External API service description",
+      "env": {
+        "API_KEY": "{{API_KEY_ENV_VAR}}"
+      }
     },
     // ... more services
   }
@@ -141,6 +183,11 @@ jobs:
         env:
           CLAUDE_CODE_CI_MODE: "true"
           CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+          # External API keys (if using external services)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          # ... other API keys as needed
         with:
           prompt: |
             Use t2i-google-imagen3 to generate an image.
@@ -182,6 +229,8 @@ jobs:
 2. **URLs**: Cloud Run endpoints may change - always verify with latest configuration
 3. **Permissions**: In CI/CD, MCP permissions need special handling
 4. **CLAUDE.md Reference**: This configuration should be referenced in CLAUDE.md for system consistency
+5. **External APIs**: Require environment variables for API keys (use GitHub Secrets)
+6. **Environment Variables**: Use {{VARIABLE_NAME}} placeholder format in JSON configuration
 
 ## Real Example from Video Production Workflow
 
@@ -252,8 +301,50 @@ jobs:
    - JSON: `"t2i-google-imagen3": { ... }`
    - Workflow: `allowed_tools: "mcp__t2i-google-imagen3__*"`
 
+## External API Configuration
+
+### Required GitHub Secrets
+When using external APIs, add these secrets to your repository:
+- `OPENAI_API_KEY`: OpenAI API key for GPT, image generation, TTS
+- `ELEVENLABS_API_KEY`: ElevenLabs API key for voice synthesis
+- `YOUTUBE_API_KEY`: YouTube Data API v3 key
+- `TWITTER_API_KEY`: Twitter/X API v2 bearer token
+- `SLACK_BOT_TOKEN`: Slack bot user OAuth token
+- `DISCORD_WEBHOOK_URL`: Discord webhook URL
+- `TELEGRAM_BOT_TOKEN`: Telegram bot token
+- `SENDGRID_API_KEY`: SendGrid API key
+- `NEWSAPI_KEY`: NewsAPI.org API key
+- `OPENWEATHERMAP_API_KEY`: OpenWeatherMap API key
+- `GOOGLE_SHEETS_CREDENTIALS`: Google service account JSON (base64 encoded)
+- `FINNHUB_API_KEY`: Finnhub stock API key
+- `GITHUB_TOKEN`: GitHub personal access token (if different from default)
+- `NOTION_API_KEY`: Notion integration token
+- `REDDIT_CLIENT_ID`: Reddit app client ID
+- `REDDIT_CLIENT_SECRET`: Reddit app client secret
+- `HUGGINGFACE_API_KEY`: Hugging Face API token
+
+### Using External APIs in Workflows
+```yaml
+- name: Use External APIs
+  uses: anthropics/claude-code-base-action@beta
+  env:
+    CLAUDE_CODE_CI_MODE: "true"
+    CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+    # Pass through required API keys
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+  with:
+    prompt: |
+      1. Use external-newsapi to fetch latest AI news
+      2. Use external-openai-gpt to summarize the news
+      3. Save results to generated/news-summary.json
+    mcp_config: ".claude/mcp-kamuicode.json"
+    allowed_tools: "View,mcp__external-newsapi__*,mcp__external-openai-gpt__*,Bash,Write"
+```
+
 ## Maintenance
 
 - **Regular Updates**: Check for new services monthly
 - **Endpoint Verification**: Test endpoints when workflows fail
 - **Documentation**: Update this guide when adding new services
+- **API Key Rotation**: Regularly rotate external API keys for security

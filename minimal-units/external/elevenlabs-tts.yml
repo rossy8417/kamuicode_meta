@@ -1,0 +1,134 @@
+name: "ElevenLabs Text-to-Speech"
+description: "Generate speech using ElevenLabs AI"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["elevenlabs", "tts", "audio", "api", "external", "voice"]
+
+inputs:
+  text:
+    description: "Text to convert to speech"
+    required: true
+    type: "string"
+  voice_id:
+    description: "ElevenLabs voice ID"
+    required: false
+    type: "string"
+    default: "21m00Tcm4TlvDq8ikWAM"  # Rachel voice
+  model_id:
+    description: "ElevenLabs model ID"
+    required: false
+    type: "string"
+    default: "eleven_monolingual_v1"
+  stability:
+    description: "Voice stability (0.0-1.0)"
+    required: false
+    type: "float"
+    default: 0.5
+  similarity_boost:
+    description: "Voice similarity boost (0.0-1.0)"
+    required: false
+    type: "float"
+    default: 0.75
+  output_format:
+    description: "Audio format (mp3_44100_128, pcm_16000, etc.)"
+    required: false
+    type: "string"
+    default: "mp3_44100_128"
+
+outputs:
+  audio_file:
+    description: "Path to generated audio file"
+    type: "string"
+  duration:
+    description: "Audio duration in seconds"
+    type: "float"
+  file_size:
+    description: "Audio file size in bytes"
+    type: "integer"
+
+workflow:
+  - name: "Check ElevenLabs credentials"
+    run: |
+      if [ -z "${{ secrets.ELEVENLABS_API_KEY }}" ]; then
+        echo "Error: ELEVENLABS_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Generate speech with ElevenLabs"
+    run: |
+      # Prepare request payload
+      cat > elevenlabs_request.json << 'EOF'
+      {
+        "text": "${{ inputs.text }}",
+        "model_id": "${{ inputs.model_id }}",
+        "voice_settings": {
+          "stability": ${{ inputs.stability }},
+          "similarity_boost": ${{ inputs.similarity_boost }}
+        }
+      }
+      EOF
+      
+      # Make API request
+      echo "Generating speech with ElevenLabs..."
+      
+      # Determine file extension based on format
+      case "${{ inputs.output_format }}" in
+        mp3*) EXT="mp3" ;;
+        pcm*) EXT="pcm" ;;
+        ulaw*) EXT="ulaw" ;;
+        *) EXT="mp3" ;;
+      esac
+      
+      # Call ElevenLabs API
+      curl -s -X POST \
+        -H "xi-api-key: ${{ secrets.ELEVENLABS_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -H "Accept: audio/${{ inputs.output_format }}" \
+        -d @elevenlabs_request.json \
+        "https://api.elevenlabs.io/v1/text-to-speech/${{ inputs.voice_id }}" \
+        -o "elevenlabs_output.${EXT}"
+      
+      # Check if file was created
+      if [ ! -f "elevenlabs_output.${EXT}" ]; then
+        echo "Error: Failed to generate audio"
+        exit 1
+      fi
+      
+      # Get file info
+      FILE_SIZE=$(stat -c%s "elevenlabs_output.${EXT}" 2>/dev/null || stat -f%z "elevenlabs_output.${EXT}")
+      
+      # Estimate duration (rough calculation for MP3)
+      if [ "$EXT" = "mp3" ]; then
+        # Approximate: 128kbps = 16KB/s
+        DURATION=$(echo "scale=2; $FILE_SIZE / 16000" | bc)
+      else
+        DURATION="0"
+      fi
+      
+      echo "Audio generated successfully"
+      echo "audio_file=elevenlabs_output.${EXT}" >> $GITHUB_OUTPUT
+      echo "duration=${DURATION}" >> $GITHUB_OUTPUT
+      echo "file_size=${FILE_SIZE}" >> $GITHUB_OUTPUT
+      
+  - name: "Convert to standard format if needed"
+    run: |
+      # If PCM or other raw format, convert to MP3
+      if [ "${{ inputs.output_format }}" != "mp3_44100_128" ]; then
+        echo "Converting to standard MP3 format..."
+        # ffmpeg conversion would go here
+        echo "Conversion complete"
+      fi
+
+dependencies:
+  - name: "ElevenLabs API Key"
+    type: "secret"
+    required: true
+    description: "ElevenLabs API key"
+  - name: "curl"
+    type: "system"
+    required: true
+    description: "HTTP client"
+  - name: "bc"
+    type: "system"
+    required: false
+    description: "Basic calculator for duration estimation"

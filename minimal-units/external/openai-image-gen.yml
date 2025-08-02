@@ -1,0 +1,205 @@
+name: "OpenAI Image Generation (gpt-image-1)"
+description: "Generate images using OpenAI gpt-image-1 API"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["openai", "gpt-image-1", "image", "generation", "api", "external", "ai"]
+
+inputs:
+  prompt:
+    description: "Text description of the image to generate"
+    required: true
+    type: "string"
+  size:
+    description: "Image size (1024x1024, 1024x1536, 1536x1024)"
+    required: false
+    type: "string"
+    default: "1024x1024"
+  quality:
+    description: "Image quality (low, medium, high)"
+    required: false
+    type: "string"
+    default: "medium"
+  n:
+    description: "Number of images to generate (1-10)"
+    required: false
+    type: "integer"
+    default: 1
+  background:
+    description: "Background type (transparent, opaque, auto)"
+    required: false
+    type: "string"
+    default: "auto"
+  output_format:
+    description: "Image file format (png, jpeg, webp)"
+    required: false
+    type: "string"
+    default: "png"
+  response_format:
+    description: "Response format (url, b64_json)"
+    required: false
+    type: "string"
+    default: "url"
+
+outputs:
+  image_urls:
+    description: "URLs of generated images (if response_format is url)"
+    type: "array"
+  image_files:
+    description: "Paths to downloaded image files"
+    type: "array"
+  generation_time:
+    description: "Time taken to generate images"
+    type: "float"
+  images_count:
+    description: "Number of images generated"
+    type: "integer"
+
+workflow:
+  - name: "Check OpenAI API credentials"
+    run: |
+      if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+        echo "Error: OPENAI_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Generate images with gpt-image-1"
+    run: |
+      # Prepare request payload
+      cat > image_request.json << 'EOF'
+      {
+        "model": "openai/gpt-image-1",
+        "prompt": "${{ inputs.prompt }}",
+        "n": ${{ inputs.n }},
+        "size": "${{ inputs.size }}",
+        "quality": "${{ inputs.quality }}",
+        "background": "${{ inputs.background }}",
+        "output_format": "${{ inputs.output_format }}",
+        "response_format": "${{ inputs.response_format }}"
+      }
+      EOF
+      
+      # Record start time
+      START_TIME=$(date +%s.%N)
+      
+      # Call gpt-image-1 API
+      echo "Generating ${{ inputs.n }} image(s) with gpt-image-1..."
+      echo "Prompt: ${{ inputs.prompt }}"
+      echo "Size: ${{ inputs.size }}, Quality: ${{ inputs.quality }}"
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -d @image_request.json \
+        https://api.aimlapi.com/v1/images/generations)
+      
+      # Record end time
+      END_TIME=$(date +%s.%N)
+      GENERATION_TIME=$(echo "$END_TIME - $START_TIME" | bc)
+      
+      # Save response
+      echo "$RESPONSE" > image_response.json
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo "Error: gpt-image-1 API request failed"
+        echo "$RESPONSE" | jq '.error'
+        exit 1
+      fi
+      
+      # Extract image data
+      if [ "${{ inputs.response_format }}" = "url" ]; then
+        # Extract URLs
+        jq -r '.data[].url' image_response.json > image_urls.txt
+        IMAGE_URLS=$(cat image_urls.txt | jq -R . | jq -s .)
+        echo "image_urls=$IMAGE_URLS" >> $GITHUB_OUTPUT
+      else
+        # Handle base64 images
+        echo "Base64 images received"
+      fi
+      
+      IMAGES_COUNT=$(jq '.data | length' image_response.json)
+      
+      echo "Generated ${IMAGES_COUNT} images in ${GENERATION_TIME}s"
+      echo "generation_time=${GENERATION_TIME}" >> $GITHUB_OUTPUT
+      echo "images_count=${IMAGES_COUNT}" >> $GITHUB_OUTPUT
+      
+  - name: "Download generated images"
+    if: inputs.response_format == 'url'
+    run: |
+      # Create output directory
+      mkdir -p generated_images
+      
+      # Download each image
+      IMAGE_FILES="[]"
+      INDEX=0
+      
+      while IFS= read -r url; do
+        if [ -n "$url" ]; then
+          # Generate filename
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          FILENAME="generated_images/gpt_image_${TIMESTAMP}_${INDEX}.${{ inputs.output_format }}"
+          
+          # Download image
+          echo "Downloading image ${INDEX}..."
+          curl -s -o "$FILENAME" "$url"
+          
+          # Add to file list
+          IMAGE_FILES=$(echo "$IMAGE_FILES" | jq ". + [\"$FILENAME\"]")
+          INDEX=$((INDEX + 1))
+        fi
+      done < image_urls.txt
+      
+      echo "image_files=$IMAGE_FILES" >> $GITHUB_OUTPUT
+      echo "Downloaded ${INDEX} images to generated_images/"
+      
+  - name: "Handle base64 images"
+    if: inputs.response_format == 'b64_json'
+    run: |
+      # Create output directory
+      mkdir -p generated_images
+      
+      # Save base64 images as files
+      IMAGE_FILES="[]"
+      
+      jq -r '.data[].b64_json' image_response.json | nl -v 0 | while read INDEX B64_DATA; do
+        # Generate filename
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        FILENAME="generated_images/gpt_image_${TIMESTAMP}_${INDEX}.${{ inputs.output_format }}"
+        
+        # Decode and save
+        echo "$B64_DATA" | base64 -d > "$FILENAME"
+        
+        # Add to file list
+        IMAGE_FILES=$(echo "$IMAGE_FILES" | jq ". + [\"$FILENAME\"]")
+      done
+      
+      echo "image_files=$IMAGE_FILES" >> $GITHUB_OUTPUT
+      
+  - name: "Generate summary report"
+    run: |
+      echo "## gpt-image-1 Generation Report" > generation_report.md
+      echo "" >> generation_report.md
+      echo "### Generation Details" >> generation_report.md
+      echo "- **Prompt:** ${{ inputs.prompt }}" >> generation_report.md
+      echo "- **Images Generated:** ${{ steps.generate-images.outputs.images_count }}" >> generation_report.md
+      echo "- **Size:** ${{ inputs.size }}" >> generation_report.md
+      echo "- **Quality:** ${{ inputs.quality }}" >> generation_report.md
+      echo "- **Generation Time:** ${{ steps.generate-images.outputs.generation_time }}s" >> generation_report.md
+      echo "" >> generation_report.md
+      
+      if [ "${{ inputs.response_format }}" = "url" ]; then
+        echo "### Generated Images" >> generation_report.md
+        jq -r '.[]' image_urls.txt | nl -v 1 | while read NUM URL; do
+          echo "${NUM}. [Image ${NUM}](${URL})" >> generation_report.md
+        done
+      fi
+
+dependencies:
+  - name: "OpenAI API Key"
+    type: "secret"
+    required: true
+    description: "OpenAI API key for gpt-image-1"
+  - name: "bc"
+    type: "system"
+    required: true
+    description: "Basic calculator for time calculation"

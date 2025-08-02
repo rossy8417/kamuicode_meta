@@ -1,0 +1,114 @@
+name: "Slack Notification"
+description: "Send notification to Slack channel"
+category: "external"
+estimated_time: "1 minute"
+tags: ["slack", "notification", "api", "external", "messaging"]
+
+inputs:
+  channel:
+    description: "Slack channel ID or name"
+    required: true
+    type: "string"
+  message:
+    description: "Message text"
+    required: true
+    type: "string"
+  thread_ts:
+    description: "Thread timestamp for replies"
+    required: false
+    type: "string"
+    default: ""
+  attachments:
+    description: "JSON string of Slack attachments"
+    required: false
+    type: "string"
+    default: "[]"
+  mention_users:
+    description: "User IDs to mention (comma-separated)"
+    required: false
+    type: "string"
+    default: ""
+
+outputs:
+  message_ts:
+    description: "Timestamp of posted message"
+    type: "string"
+  status:
+    description: "Post status"
+    type: "string"
+  channel_id:
+    description: "Channel ID where message was posted"
+    type: "string"
+
+workflow:
+  - name: "Check Slack credentials"
+    run: |
+      if [ -z "${{ secrets.SLACK_BOT_TOKEN }}" ]; then
+        echo "Error: SLACK_BOT_TOKEN not set"
+        exit 1
+      fi
+      
+  - name: "Send Slack message"
+    run: |
+      # Prepare message with mentions
+      MESSAGE="${{ inputs.message }}"
+      if [ -n "${{ inputs.mention_users }}" ]; then
+        # Add user mentions
+        for user in $(echo "${{ inputs.mention_users }}" | tr ',' ' '); do
+          MESSAGE="<@${user}> ${MESSAGE}"
+        done
+      fi
+      
+      # Build request payload
+      cat > slack_payload.json << 'EOF'
+      {
+        "channel": "${{ inputs.channel }}",
+        "text": "${MESSAGE}",
+        "attachments": ${{ inputs.attachments }}
+      }
+      EOF
+      
+      # Add thread_ts if provided
+      if [ -n "${{ inputs.thread_ts }}" ]; then
+        jq '. + {"thread_ts": "${{ inputs.thread_ts }}"}' slack_payload.json > temp.json
+        mv temp.json slack_payload.json
+      fi
+      
+      # Send message via Slack API
+      echo "Sending message to Slack channel: ${{ inputs.channel }}"
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+        -H "Content-Type: application/json" \
+        -d @slack_payload.json \
+        https://slack.com/api/chat.postMessage)
+      
+      # Check response
+      if [ "$(echo "$RESPONSE" | jq -r '.ok')" != "true" ]; then
+        echo "Error: Slack API request failed"
+        echo "$RESPONSE" | jq .
+        exit 1
+      fi
+      
+      # Extract response data
+      MESSAGE_TS=$(echo "$RESPONSE" | jq -r '.ts')
+      CHANNEL_ID=$(echo "$RESPONSE" | jq -r '.channel')
+      
+      echo "Message posted successfully"
+      echo "message_ts=${MESSAGE_TS}" >> $GITHUB_OUTPUT
+      echo "channel_id=${CHANNEL_ID}" >> $GITHUB_OUTPUT
+      echo "status=success" >> $GITHUB_OUTPUT
+
+dependencies:
+  - name: "Slack Bot Token"
+    type: "secret"
+    required: true
+    description: "Slack Bot OAuth token"
+  - name: "curl"
+    type: "system"
+    required: true
+    description: "HTTP client"
+  - name: "jq"
+    type: "system"
+    required: true
+    description: "JSON processor"

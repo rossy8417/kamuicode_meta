@@ -1,0 +1,161 @@
+name: "Google Sheets Read"
+description: "Read data from Google Sheets"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["google", "sheets", "read", "api", "external", "data"]
+
+inputs:
+  spreadsheet_id:
+    description: "Google Sheets spreadsheet ID"
+    required: true
+    type: "string"
+  range:
+    description: "Sheet range to read (e.g., Sheet1!A1:C10)"
+    required: true
+    type: "string"
+  value_render_option:
+    description: "How values should be rendered (FORMATTED_VALUE, UNFORMATTED_VALUE, FORMULA)"
+    required: false
+    type: "string"
+    default: "FORMATTED_VALUE"
+  major_dimension:
+    description: "Major dimension (ROWS, COLUMNS)"
+    required: false
+    type: "string"
+    default: "ROWS"
+
+outputs:
+  data_json:
+    description: "Path to JSON file containing sheet data"
+    type: "string"
+  row_count:
+    description: "Number of rows read"
+    type: "integer"
+  column_count:
+    description: "Number of columns read"
+    type: "integer"
+  data_csv:
+    description: "Path to CSV file containing sheet data"
+    type: "string"
+
+workflow:
+  - name: "Check Google Sheets credentials"
+    run: |
+      if [ -z "${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}" ]; then
+        echo "Error: GOOGLE_SHEETS_CREDENTIALS not set"
+        exit 1
+      fi
+      
+  - name: "Authenticate and read data"
+    run: |
+      # Save credentials
+      echo '${{ secrets.GOOGLE_SHEETS_CREDENTIALS }}' > google_credentials.json
+      
+      # Install Google client library if needed
+      pip install --quiet google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client pandas
+      
+      # Read data from sheets
+      cat > sheets_reader.py << 'EOF'
+      import json
+      import sys
+      import csv
+      from google.oauth2 import service_account
+      from googleapiclient.discovery import build
+      import pandas as pd
+      
+      # Load credentials
+      creds = service_account.Credentials.from_service_account_file(
+          'google_credentials.json',
+          scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
+      )
+      
+      # Build service
+      service = build('sheets', 'v4', credentials=creds)
+      
+      # Read data
+      try:
+          result = service.spreadsheets().values().get(
+              spreadsheetId='${{ inputs.spreadsheet_id }}',
+              range='${{ inputs.range }}',
+              valueRenderOption='${{ inputs.value_render_option }}',
+              majorDimension='${{ inputs.major_dimension }}'
+          ).execute()
+          
+          values = result.get('values', [])
+          
+          if not values:
+              print("No data found.")
+              sys.exit(1)
+          
+          # Save as JSON
+          with open('sheet_data.json', 'w') as f:
+              json.dump(values, f, indent=2)
+          
+          # Convert to CSV
+          if values:
+              # Handle varying row lengths
+              max_cols = max(len(row) for row in values)
+              normalized_data = []
+              for row in values:
+                  normalized_row = row + [''] * (max_cols - len(row))
+                  normalized_data.append(normalized_row)
+              
+              with open('sheet_data.csv', 'w', newline='', encoding='utf-8') as f:
+                  writer = csv.writer(f)
+                  writer.writerows(normalized_data)
+          
+          # Output metrics
+          row_count = len(values)
+          column_count = max_cols if values else 0
+          
+          print(f"row_count={row_count}")
+          print(f"column_count={column_count}")
+          
+      except Exception as e:
+          print(f"Error: {str(e)}", file=sys.stderr)
+          sys.exit(1)
+      EOF
+      
+      python3 sheets_reader.py >> $GITHUB_OUTPUT
+      
+      echo "data_json=sheet_data.json" >> $GITHUB_OUTPUT
+      echo "data_csv=sheet_data.csv" >> $GITHUB_OUTPUT
+      
+  - name: "Generate data summary"
+    run: |
+      # Create summary
+      echo "## Google Sheets Data Summary" > data_summary.md
+      echo "" >> data_summary.md
+      echo "### Source Information" >> data_summary.md
+      echo "- **Spreadsheet ID:** ${{ inputs.spreadsheet_id }}" >> data_summary.md
+      echo "- **Range:** ${{ inputs.range }}" >> data_summary.md
+      echo "- **Rows:** ${{ steps.read-data.outputs.row_count }}" >> data_summary.md
+      echo "- **Columns:** ${{ steps.read-data.outputs.column_count }}" >> data_summary.md
+      echo "" >> data_summary.md
+      
+      # Show first few rows
+      echo "### Data Preview (First 5 rows)" >> data_summary.md
+      echo "\`\`\`" >> data_summary.md
+      head -n 5 sheet_data.csv >> data_summary.md
+      echo "\`\`\`" >> data_summary.md
+      
+      echo "Data read successfully from Google Sheets"
+      
+  - name: "Clean up credentials"
+    if: always()
+    run: |
+      rm -f google_credentials.json
+
+dependencies:
+  - name: "Google Sheets Credentials"
+    type: "secret"
+    required: true
+    description: "Google service account credentials JSON"
+  - name: "google-api-python-client"
+    type: "python-package"
+    required: true
+    description: "Google API Python client"
+  - name: "pandas"
+    type: "python-package"
+    required: true
+    description: "Data manipulation library"

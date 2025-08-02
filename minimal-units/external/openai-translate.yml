@@ -1,0 +1,184 @@
+name: "OpenAI Translate"
+description: "Translate text using OpenAI GPT"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["openai", "gpt", "translate", "api", "external", "language"]
+
+inputs:
+  text:
+    description: "Text to translate"
+    required: true
+    type: "string"
+  target_language:
+    description: "Target language for translation"
+    required: true
+    type: "string"
+  source_language:
+    description: "Source language (auto-detect if not specified)"
+    required: false
+    type: "string"
+    default: "auto"
+  model:
+    description: "GPT model to use"
+    required: false
+    type: "string"
+    default: "gpt-3.5-turbo"
+  preserve_formatting:
+    description: "Preserve original formatting"
+    required: false
+    type: "boolean"
+    default: true
+  context:
+    description: "Additional context for translation"
+    required: false
+    type: "string"
+    default: ""
+
+outputs:
+  translated_text:
+    description: "Translated text"
+    type: "string"
+  translation_file:
+    description: "Path to file containing translation"
+    type: "string"
+  detected_language:
+    description: "Detected source language"
+    type: "string"
+  confidence_notes:
+    description: "Translation confidence notes"
+    type: "string"
+
+workflow:
+  - name: "Check OpenAI credentials"
+    run: |
+      if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+        echo "Error: OPENAI_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Prepare translation prompt"
+    run: |
+      # Create system message
+      SYSTEM_MSG="You are a professional translator with expertise in multiple languages."
+      
+      # Build translation instruction
+      if [ "${{ inputs.source_language }}" = "auto" ]; then
+        INSTRUCTION="Translate the following text to ${{ inputs.target_language }}. First detect the source language, then provide the translation."
+      else
+        INSTRUCTION="Translate the following text from ${{ inputs.source_language }} to ${{ inputs.target_language }}."
+      fi
+      
+      # Add formatting instruction
+      if [ "${{ inputs.preserve_formatting }}" = "true" ]; then
+        INSTRUCTION="${INSTRUCTION} Preserve the original formatting, including line breaks, paragraphs, and any markdown or special formatting."
+      fi
+      
+      # Add context if provided
+      if [ -n "${{ inputs.context }}" ]; then
+        INSTRUCTION="${INSTRUCTION} Context: ${{ inputs.context }}"
+      fi
+      
+      # Add response format instruction
+      INSTRUCTION="${INSTRUCTION} Respond in JSON format with fields: 'translation', 'source_language', 'confidence_notes'."
+      
+      echo "$SYSTEM_MSG" > system_message.txt
+      echo "$INSTRUCTION" > instruction.txt
+      
+  - name: "Call OpenAI API for translation"
+    run: |
+      SYSTEM_MSG=$(cat system_message.txt)
+      INSTRUCTION=$(cat instruction.txt)
+      
+      # Prepare request
+      cat > translation_request.json << EOF
+      {
+        "model": "${{ inputs.model }}",
+        "messages": [
+          {
+            "role": "system",
+            "content": "${SYSTEM_MSG}"
+          },
+          {
+            "role": "user",
+            "content": "${INSTRUCTION}\n\nText to translate:\n${{ inputs.text }}"
+          }
+        ],
+        "temperature": 0.3,
+        "response_format": { "type": "json_object" }
+      }
+      EOF
+      
+      # Call API
+      echo "Translating to ${{ inputs.target_language }}..."
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -d @translation_request.json \
+        https://api.openai.com/v1/chat/completions)
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo "Error: OpenAI API request failed"
+        echo "$RESPONSE" | jq '.error'
+        exit 1
+      fi
+      
+      # Extract translation data
+      TRANSLATION_JSON=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+      echo "$TRANSLATION_JSON" > translation_result.json
+      
+      # Parse results
+      TRANSLATED_TEXT=$(echo "$TRANSLATION_JSON" | jq -r '.translation // ""')
+      DETECTED_LANG=$(echo "$TRANSLATION_JSON" | jq -r '.source_language // "unknown"')
+      CONFIDENCE_NOTES=$(echo "$TRANSLATION_JSON" | jq -r '.confidence_notes // ""')
+      
+      # Save translation
+      echo "$TRANSLATED_TEXT" > translated_text.txt
+      
+      echo "Translation completed"
+      echo "translated_text<<EOF" >> $GITHUB_OUTPUT
+      echo "$TRANSLATED_TEXT" >> $GITHUB_OUTPUT
+      echo "EOF" >> $GITHUB_OUTPUT
+      echo "translation_file=translated_text.txt" >> $GITHUB_OUTPUT
+      echo "detected_language=${DETECTED_LANG}" >> $GITHUB_OUTPUT
+      echo "confidence_notes=${CONFIDENCE_NOTES}" >> $GITHUB_OUTPUT
+      
+  - name: "Generate translation report"
+    run: |
+      echo "# Translation Report" > translation_report.md
+      echo "" >> translation_report.md
+      echo "## Translation Details" >> translation_report.md
+      echo "- **Target Language:** ${{ inputs.target_language }}" >> translation_report.md
+      echo "- **Source Language:** ${{ steps.translate.outputs.detected_language }}" >> translation_report.md
+      echo "- **Model:** ${{ inputs.model }}" >> translation_report.md
+      echo "" >> translation_report.md
+      
+      if [ -n "${{ steps.translate.outputs.confidence_notes }}" ]; then
+        echo "## Translation Notes" >> translation_report.md
+        echo "${{ steps.translate.outputs.confidence_notes }}" >> translation_report.md
+        echo "" >> translation_report.md
+      fi
+      
+      echo "## Original Text" >> translation_report.md
+      echo "\`\`\`" >> translation_report.md
+      echo "${{ inputs.text }}" | head -n 10 >> translation_report.md
+      if [ $(echo "${{ inputs.text }}" | wc -l) -gt 10 ]; then
+        echo "..." >> translation_report.md
+      fi
+      echo "\`\`\`" >> translation_report.md
+      echo "" >> translation_report.md
+      
+      echo "## Translated Text" >> translation_report.md
+      echo "\`\`\`" >> translation_report.md
+      cat translated_text.txt | head -n 10 >> translation_report.md
+      if [ $(cat translated_text.txt | wc -l) -gt 10 ]; then
+        echo "..." >> translation_report.md
+      fi
+      echo "\`\`\`" >> translation_report.md
+
+dependencies:
+  - name: "OpenAI API Key"
+    type: "secret"
+    required: true
+    description: "OpenAI API key"

@@ -1,0 +1,190 @@
+name: "SendGrid Send Email"
+description: "Send email using SendGrid API"
+category: "external"
+estimated_time: "1 minute"
+tags: ["sendgrid", "email", "send", "api", "external", "notification"]
+
+inputs:
+  to_email:
+    description: "Recipient email address"
+    required: true
+    type: "string"
+  from_email:
+    description: "Sender email address"
+    required: true
+    type: "string"
+  subject:
+    description: "Email subject"
+    required: true
+    type: "string"
+  content:
+    description: "Email content (plain text or HTML)"
+    required: true
+    type: "string"
+  content_type:
+    description: "Content type (text/plain or text/html)"
+    required: false
+    type: "string"
+    default: "text/plain"
+  from_name:
+    description: "Sender name"
+    required: false
+    type: "string"
+    default: ""
+  to_name:
+    description: "Recipient name"
+    required: false
+    type: "string"
+    default: ""
+  cc_emails:
+    description: "CC email addresses (comma-separated)"
+    required: false
+    type: "string"
+    default: ""
+  bcc_emails:
+    description: "BCC email addresses (comma-separated)"
+    required: false
+    type: "string"
+    default: ""
+  reply_to:
+    description: "Reply-to email address"
+    required: false
+    type: "string"
+    default: ""
+
+outputs:
+  message_id:
+    description: "SendGrid message ID"
+    type: "string"
+  status_code:
+    description: "API response status code"
+    type: "integer"
+  send_status:
+    description: "Email send status"
+    type: "string"
+
+workflow:
+  - name: "Check SendGrid credentials"
+    run: |
+      if [ -z "${{ secrets.SENDGRID_API_KEY }}" ]; then
+        echo "Error: SENDGRID_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Prepare email payload"
+    run: |
+      # Build personalizations
+      cat > personalizations.json << 'EOF'
+      {
+        "to": [
+          {
+            "email": "${{ inputs.to_email }}"
+          }
+        ]
+      }
+      EOF
+      
+      # Add recipient name if provided
+      if [ -n "${{ inputs.to_name }}" ]; then
+        jq '.to[0] += {"name": "${{ inputs.to_name }}"}' personalizations.json > temp.json
+        mv temp.json personalizations.json
+      fi
+      
+      # Add CC if provided
+      if [ -n "${{ inputs.cc_emails }}" ]; then
+        CC_ARRAY=$(echo "${{ inputs.cc_emails }}" | tr ',' '\n' | jq -R . | jq -s 'map({email: .})')
+        jq --argjson cc "$CC_ARRAY" '. + {"cc": $cc}' personalizations.json > temp.json
+        mv temp.json personalizations.json
+      fi
+      
+      # Add BCC if provided
+      if [ -n "${{ inputs.bcc_emails }}" ]; then
+        BCC_ARRAY=$(echo "${{ inputs.bcc_emails }}" | tr ',' '\n' | jq -R . | jq -s 'map({email: .})')
+        jq --argjson bcc "$BCC_ARRAY" '. + {"bcc": $bcc}' personalizations.json > temp.json
+        mv temp.json personalizations.json
+      fi
+      
+      # Build email payload
+      cat > email_payload.json << EOF
+      {
+        "personalizations": [$(cat personalizations.json)],
+        "from": {
+          "email": "${{ inputs.from_email }}"
+        },
+        "subject": "${{ inputs.subject }}",
+        "content": [
+          {
+            "type": "${{ inputs.content_type }}",
+            "value": "${{ inputs.content }}"
+          }
+        ]
+      }
+      EOF
+      
+      # Add sender name if provided
+      if [ -n "${{ inputs.from_name }}" ]; then
+        jq '.from += {"name": "${{ inputs.from_name }}"}' email_payload.json > temp.json
+        mv temp.json email_payload.json
+      fi
+      
+      # Add reply-to if provided
+      if [ -n "${{ inputs.reply_to }}" ]; then
+        jq '. + {"reply_to": {"email": "${{ inputs.reply_to }}"}}' email_payload.json > temp.json
+        mv temp.json email_payload.json
+      fi
+      
+  - name: "Send email via SendGrid"
+    run: |
+      echo "Sending email to ${{ inputs.to_email }}..."
+      
+      # Send email
+      RESPONSE_CODE=$(curl -s -o response.txt -w "%{http_code}" -X POST \
+        -H "Authorization: Bearer ${{ secrets.SENDGRID_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -d @email_payload.json \
+        https://api.sendgrid.com/v3/mail/send)
+      
+      # Check response
+      if [ "$RESPONSE_CODE" = "202" ]; then
+        echo "Email sent successfully"
+        
+        # Extract message ID from headers if available
+        MESSAGE_ID=$(grep -i "x-message-id:" response.txt | cut -d' ' -f2 | tr -d '\r' || echo "")
+        
+        echo "status_code=${RESPONSE_CODE}" >> $GITHUB_OUTPUT
+        echo "message_id=${MESSAGE_ID}" >> $GITHUB_OUTPUT
+        echo "send_status=success" >> $GITHUB_OUTPUT
+      else
+        echo "Error: Failed to send email (HTTP $RESPONSE_CODE)"
+        cat response.txt
+        exit 1
+      fi
+      
+  - name: "Generate send summary"
+    run: |
+      echo "## SendGrid Email Summary" > email_summary.md
+      echo "" >> email_summary.md
+      echo "### Email Details" >> email_summary.md
+      echo "- **To:** ${{ inputs.to_email }}" >> email_summary.md
+      echo "- **From:** ${{ inputs.from_email }}" >> email_summary.md
+      echo "- **Subject:** ${{ inputs.subject }}" >> email_summary.md
+      echo "- **Content Type:** ${{ inputs.content_type }}" >> email_summary.md
+      echo "- **Status:** ${{ steps.send-email.outputs.send_status }}" >> email_summary.md
+      
+      if [ -n "${{ steps.send-email.outputs.message_id }}" ]; then
+        echo "- **Message ID:** ${{ steps.send-email.outputs.message_id }}" >> email_summary.md
+      fi
+      
+      if [ -n "${{ inputs.cc_emails }}" ]; then
+        echo "- **CC:** ${{ inputs.cc_emails }}" >> email_summary.md
+      fi
+      
+      if [ -n "${{ inputs.bcc_emails }}" ]; then
+        echo "- **BCC:** ${{ inputs.bcc_emails }}" >> email_summary.md
+      fi
+
+dependencies:
+  - name: "SendGrid API Key"
+    type: "secret"
+    required: true
+    description: "SendGrid API key"
