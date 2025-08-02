@@ -523,6 +523,14 @@ jobs:
             echo "✅ Workflow deployed successfully"
             echo "📁 Deployed to: $DEPLOYMENT_PATH"
             echo "⚠️  Note: Workflow is deployed with .disabled extension for safety"
+            
+            # Display generated workflow content
+            echo ""
+            echo "📄 Generated Workflow Content:"
+            echo "================================"
+            head -50 "$DEPLOYMENT_PATH"
+            echo "================================"
+            echo "(Showing first 50 lines)"
             echo ""
             echo "To activate the workflow:"
             echo "  1. Review the generated workflow"
@@ -535,7 +543,7 @@ jobs:
             git add "$DEPLOYMENT_PATH"
             git commit -m "🤖 Generated workflow for Issue #${{ inputs.issue_number }} - Meta Workflow v10 with dynamic capability detection" || echo "No changes to commit"
             
-            git push || echo "Push failed - may need permissions"
+            git push origin main || echo "Push failed - may need permissions"
             
             echo "deployment_status=success" >> $GITHUB_OUTPUT
             echo "deployed_path=$DEPLOYMENT_PATH" >> $GITHUB_OUTPUT
