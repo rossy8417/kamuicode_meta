@@ -73,9 +73,7 @@ jobs:
           echo "📊 Analyzing request type from issue content..."
           
           # Save issue body to a file to avoid shell interpretation issues
-          cat << 'ISSUE_CONTENT_EOF' > /tmp/issue_body.txt
-          ${{ steps.extract.outputs.issue_body }}
-          ISSUE_CONTENT_EOF
+          echo '${{ steps.extract.outputs.issue_body }}' > /tmp/issue_body.txt
           
           REQUEST_TYPE="unknown"
           
@@ -125,9 +123,7 @@ jobs:
           mkdir -p projects/current-session/{logs,metadata,scripts}
           
           # Save issue body to file
-          cat << 'ISSUE_BODY_EOF' > /tmp/issue_body_safe.txt
-          ${{ needs.validate-trigger.outputs.issue_body }}
-          ISSUE_BODY_EOF
+          echo '${{ needs.validate-trigger.outputs.issue_body }}' > /tmp/issue_body_safe.txt
           
           # Issue details
           ISSUE_TITLE="${{ needs.validate-trigger.outputs.issue_title }}"
@@ -218,14 +214,12 @@ jobs:
             echo "🤖 Claude CLI is available, attempting intelligent task decomposition..."
             
             # Create Claude prompt
-            cat > /tmp/claude_prompt.txt << 'CLAUDE_PROMPT_EOF'
-あなたはMeta Workflow Generatorのタスク分解エージェントです。
-以下のイシューから必要なタスクを分解し、適切なミニマルユニットを選択してください。
-
-イシュー情報:
-CLAUDE_PROMPT_EOF
-            echo "タイトル: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
-            echo "内容:" >> /tmp/claude_prompt.txt
+            echo "You are the Meta Workflow Generator task decomposition agent." > /tmp/claude_prompt.txt
+            echo "Please decompose tasks from the following issue and select appropriate minimal units." >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
+            echo "Issue Information:" >> /tmp/claude_prompt.txt
+            echo "Title: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
+            echo "Content:" >> /tmp/claude_prompt.txt
             cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
             
             # Try Claude
@@ -258,16 +252,15 @@ CLAUDE_PROMPT_EOF
             cd ../../..
           else
             # Fallback: create workflow JSON directly
-            cat > projects/current-session/metadata/dynamic_workflow.json << EOF
-          {
-            "metadata": {
-              "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-              "complexity": "$COMPLEXITY",
-              "total_units": $(echo "$CAPABILITIES" | tr ',' '\n' | wc -l),
-              "capabilities_detected": [$(echo "$CAPABILITIES" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/' || echo '')]
-            },
-            "minimal_units": [
-          EOF
+            echo '{' > projects/current-session/metadata/dynamic_workflow.json
+            echo '  "metadata": {' >> projects/current-session/metadata/dynamic_workflow.json
+            echo "    \"generated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> projects/current-session/metadata/dynamic_workflow.json
+            echo "    \"complexity\": \"$COMPLEXITY\"," >> projects/current-session/metadata/dynamic_workflow.json
+            echo "    \"total_units\": $(echo \"$CAPABILITIES\" | tr ',' '\n' | wc -l)," >> projects/current-session/metadata/dynamic_workflow.json
+            CAPS_JSON=$(echo "$CAPABILITIES" | sed 's/,/","/g' | sed 's/^/"/' | sed 's/$/"/' || echo '')
+            echo "    \"capabilities_detected\": [$CAPS_JSON]" >> projects/current-session/metadata/dynamic_workflow.json
+            echo '  },' >> projects/current-session/metadata/dynamic_workflow.json
+            echo '  "minimal_units": [' >> projects/current-session/metadata/dynamic_workflow.json
             
             # Add units based on capabilities
             FIRST=true
@@ -304,20 +297,18 @@ CLAUDE_PROMPT_EOF
                   ;;
               esac
               
-              cat >> projects/current-session/metadata/dynamic_workflow.json << EOF
-              {
-                "capability": "$cap",
-                "unit_path": "$UNIT_PATH",
-                "estimated_time": "3-5 minutes"
-              }
-          EOF
+              echo '    {' >> projects/current-session/metadata/dynamic_workflow.json
+              echo "      \"capability\": \"$cap\"," >> projects/current-session/metadata/dynamic_workflow.json
+              echo "      \"unit_path\": \"$UNIT_PATH\"," >> projects/current-session/metadata/dynamic_workflow.json
+              echo '      "estimated_time": "3-5 minutes"' >> projects/current-session/metadata/dynamic_workflow.json
+              echo -n '    }' >> projects/current-session/metadata/dynamic_workflow.json
             done
             
-            cat >> projects/current-session/metadata/dynamic_workflow.json << EOF
-            ],
-            "execution_pattern": "$( [ "$COMPLEXITY" = "simple" ] && echo "sequential" || echo "mixed_parallel" )"
-          }
-          EOF
+            echo '' >> projects/current-session/metadata/dynamic_workflow.json
+            echo '  ],' >> projects/current-session/metadata/dynamic_workflow.json
+            EXEC_PATTERN=$( [ "$COMPLEXITY" = "simple" ] && echo "sequential" || echo "mixed_parallel" )
+            echo "  \"execution_pattern\": \"$EXEC_PATTERN\"" >> projects/current-session/metadata/dynamic_workflow.json
+            echo '}' >> projects/current-session/metadata/dynamic_workflow.json
           fi
           
           # Validate and output results
@@ -375,51 +366,47 @@ CLAUDE_PROMPT_EOF
           WORKFLOW_FILE="projects/current-session/generated-workflows/dynamic-workflow-${{ inputs.issue_number }}.yml"
           
           # Create workflow header
-          cat > "$WORKFLOW_FILE" << 'EOF'
-name: "🎯 Dynamic Workflow - Issue #${{ github.event.inputs.issue_number }}"
-run-name: "📊 Dynamic | ${{ github.actor }} | Issue #${{ github.event.inputs.issue_number }}"
-
-on:
-  workflow_dispatch:
-    inputs:
-      issue_number:
-        description: "Source issue number"
-        required: true
-        default: "${{ github.event.inputs.issue_number }}"
-
-permissions:
-  contents: write
-  actions: write
-  issues: write
-
-env:
-  CLAUDE_CODE_CI_MODE: true
-  CLAUDE_CODE_AUTO_APPROVE_MCP: true
-  PROJECT_BASE: "projects/issue-${{ github.event.inputs.issue_number }}"
-
-jobs:
-EOF
+          echo 'name: "🎯 Dynamic Workflow - Issue #${{ github.event.inputs.issue_number }}"' > "$WORKFLOW_FILE"
+          echo 'run-name: "📊 Dynamic | ${{ github.actor }} | Issue #${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'on:' >> "$WORKFLOW_FILE"
+          echo '  workflow_dispatch:' >> "$WORKFLOW_FILE"
+          echo '    inputs:' >> "$WORKFLOW_FILE"
+          echo '      issue_number:' >> "$WORKFLOW_FILE"
+          echo '        description: "Source issue number"' >> "$WORKFLOW_FILE"
+          echo '        required: true' >> "$WORKFLOW_FILE"
+          echo '        default: "${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'permissions:' >> "$WORKFLOW_FILE"
+          echo '  contents: write' >> "$WORKFLOW_FILE"
+          echo '  actions: write' >> "$WORKFLOW_FILE"
+          echo '  issues: write' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'env:' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_CI_MODE: true' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_AUTO_APPROVE_MCP: true' >> "$WORKFLOW_FILE"
+          echo '  PROJECT_BASE: "projects/issue-${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'jobs:' >> "$WORKFLOW_FILE"
           
           # Add initialization job
-          cat >> "$WORKFLOW_FILE" << 'EOF'
-  initialize:
-    name: "🚀 Initialize Workflow"
-    runs-on: ubuntu-latest
-    outputs:
-      project_dir: ${{ steps.setup.outputs.project_dir }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: Setup Project Directory
-        id: setup
-        run: |
-          PROJECT_DIR="${{ env.PROJECT_BASE }}"
-          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final}
-          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
-          echo "✅ Project directory initialized: $PROJECT_DIR"
-
-EOF
+          echo '  initialize:' >> "$WORKFLOW_FILE"
+          echo '    name: "🚀 Initialize Workflow"' >> "$WORKFLOW_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
+          echo '    outputs:' >> "$WORKFLOW_FILE"
+          echo '      project_dir: ${{ steps.setup.outputs.project_dir }}' >> "$WORKFLOW_FILE"
+          echo '    steps:' >> "$WORKFLOW_FILE"
+          echo '      - name: Checkout Repository' >> "$WORKFLOW_FILE"
+          echo '        uses: actions/checkout@v4' >> "$WORKFLOW_FILE"
+          echo '        ' >> "$WORKFLOW_FILE"
+          echo '      - name: Setup Project Directory' >> "$WORKFLOW_FILE"
+          echo '        id: setup' >> "$WORKFLOW_FILE"
+          echo '        run: |' >> "$WORKFLOW_FILE"
+          echo '          PROJECT_DIR="${{ env.PROJECT_BASE }}"' >> "$WORKFLOW_FILE"
+          echo '          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final}' >> "$WORKFLOW_FILE"
+          echo '          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT' >> "$WORKFLOW_FILE"
+          echo '          echo "✅ Project directory initialized: $PROJECT_DIR"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
           
           # Add jobs for each minimal unit
           JOB_NUMBER=1
@@ -433,29 +420,27 @@ EOF
             # Generate safe job name
             JOB_NAME="job_${JOB_NUMBER}_$(echo "$CAPABILITY" | tr '-' '_')"
             
-            cat >> "$WORKFLOW_FILE" << EOF
-  $JOB_NAME:
-    name: "📦 Execute: $CAPABILITY"
-    runs-on: ubuntu-latest
-    needs: $PREVIOUS_JOB
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: Execute $CAPABILITY
-        run: |
-          echo "🔧 Executing minimal unit: $CAPABILITY"
-          echo "📂 Unit path: $UNIT_PATH"
-          
-          # Here you would include the actual minimal unit
-          # For now, we'll simulate execution
-          echo "✅ $CAPABILITY completed successfully"
-          
-          # Save output
-          mkdir -p \${{ env.PROJECT_BASE }}/outputs
-          echo "Output from $CAPABILITY" > \${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt
-
-EOF
+            echo "  $JOB_NAME:" >> "$WORKFLOW_FILE"
+            echo "    name: \"📦 Execute: $CAPABILITY\"" >> "$WORKFLOW_FILE"
+            echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+            echo "    needs: $PREVIOUS_JOB" >> "$WORKFLOW_FILE"
+            echo "    steps:" >> "$WORKFLOW_FILE"
+            echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
+            echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
+            echo "        " >> "$WORKFLOW_FILE"
+            echo "      - name: Execute $CAPABILITY" >> "$WORKFLOW_FILE"
+            echo "        run: |" >> "$WORKFLOW_FILE"
+            echo "          echo \"🔧 Executing minimal unit: $CAPABILITY\"" >> "$WORKFLOW_FILE"
+            echo "          echo \"📂 Unit path: $UNIT_PATH\"" >> "$WORKFLOW_FILE"
+            echo "          " >> "$WORKFLOW_FILE"
+            echo "          # Here you would include the actual minimal unit" >> "$WORKFLOW_FILE"
+            echo "          # For now, we'll simulate execution" >> "$WORKFLOW_FILE"
+            echo "          echo \"✅ $CAPABILITY completed successfully\"" >> "$WORKFLOW_FILE"
+            echo "          " >> "$WORKFLOW_FILE"
+            echo "          # Save output" >> "$WORKFLOW_FILE"
+            echo "          mkdir -p \\\${{ env.PROJECT_BASE }}/outputs" >> "$WORKFLOW_FILE"
+            echo "          echo \"Output from $CAPABILITY\" > \\\${{ env.PROJECT_BASE }}/outputs/${JOB_NUMBER}_$CAPABILITY.txt" >> "$WORKFLOW_FILE"
+            echo "" >> "$WORKFLOW_FILE"
             
             # Update for next iteration
             if [ "$EXECUTION_PATTERN" = "mixed_parallel" ] && [ $((JOB_NUMBER % 3)) -eq 0 ]; then
@@ -469,26 +454,24 @@ EOF
           done
           
           # Add finalization job
-          cat >> "$WORKFLOW_FILE" << 'EOF'
-  finalize:
-    name: "🎉 Finalize Workflow"
-    runs-on: ubuntu-latest
-    needs: [initialize]
-    if: always()
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: Generate Summary
-        run: |
-          echo "## 📊 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Project**: ${{ env.PROJECT_BASE }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Dynamic workflow execution completed!" >> $GITHUB_STEP_SUMMARY
-EOF
+          echo '  finalize:' >> "$WORKFLOW_FILE"
+          echo '    name: "🎉 Finalize Workflow"' >> "$WORKFLOW_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
+          echo '    needs: [initialize]' >> "$WORKFLOW_FILE"
+          echo '    if: always()' >> "$WORKFLOW_FILE"
+          echo '    steps:' >> "$WORKFLOW_FILE"
+          echo '      - name: Checkout Repository' >> "$WORKFLOW_FILE"
+          echo '        uses: actions/checkout@v4' >> "$WORKFLOW_FILE"
+          echo '        ' >> "$WORKFLOW_FILE"
+          echo '      - name: Generate Summary' >> "$WORKFLOW_FILE"
+          echo '        run: |' >> "$WORKFLOW_FILE"
+          echo '          echo "## 📊 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "- **Project**: ${{ env.PROJECT_BASE }}" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "✅ Dynamic workflow execution completed!" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
           
           # Output workflow information
           WORKFLOW_PATH="$WORKFLOW_FILE"
@@ -550,19 +533,17 @@ EOF
             echo "deployed_path=$DEPLOYMENT_PATH" >> $GITHUB_OUTPUT
             
             # Create deployment summary
-            cat >> $GITHUB_STEP_SUMMARY << EOF
-## 🚀 Workflow Deployment Summary
-
-- **Status**: ✅ Success
-- **Issue**: #${{ inputs.issue_number }}
-- **Deployed Path**: \`$DEPLOYMENT_PATH\`
-- **Activation**: Remove \`.disabled\` extension to activate
-
-### Generated Workflow Details:
-- **Units**: ${{ needs.ultra-task-decomposition.outputs.task_count }}
-- **Pattern**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}
-
-EOF
+            echo "## 🚀 Workflow Deployment Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+            echo "- **Issue**: #${{ inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Deployed Path**: \`$DEPLOYMENT_PATH\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Activation**: Remove \`.disabled\` extension to activate" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Generated Workflow Details:" >> $GITHUB_STEP_SUMMARY
+            echo "- **Units**: ${{ needs.ultra-task-decomposition.outputs.task_count }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Pattern**: ${{ needs.ultra-task-decomposition.outputs.execution_phases }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Deployment failed"
             echo "deployment_status=failed" >> $GITHUB_OUTPUT
