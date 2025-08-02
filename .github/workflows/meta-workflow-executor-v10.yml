@@ -153,19 +153,37 @@ jobs:
             CAPABILITIES="${CAPABILITIES}video-generation,"
             echo "  ✓ Video generation detected"
             
-            # ニュース動画の場合は追加機能を自動検出
-            if grep -qi "ニュース\|news" /tmp/issue_body_safe.txt; then
-              echo "  ✓ News video pattern detected - adding related capabilities"
-              # 画像生成（複数シーン用）
+            # コンテキストベースの追加機能検出
+            echo "  🔍 Analyzing context for additional capabilities..."
+            
+            # ナレーション・音声が必要な場合
+            if grep -qi "ナレーション\|narration\|話\|speak\|音声付\|解説" /tmp/issue_body_safe.txt; then
+              echo "  ✓ Narration context detected"
+              CAPABILITIES="${CAPABILITIES}lipsync,"
+              CAPABILITIES="${CAPABILITIES}subtitle-overlay,"
+            fi
+            
+            # 複数シーン・ストーリー性がある場合
+            if grep -qi "シーン\|scene\|ストーリー\|story\|流れ\|sequence\|複数" /tmp/issue_body_safe.txt; then
+              echo "  ✓ Multi-scene context detected"
               if [[ "$CAPABILITIES" != *"image-generation"* ]]; then
                 CAPABILITIES="${CAPABILITIES}image-generation,"
               fi
-              # リップシンク
-              CAPABILITIES="${CAPABILITIES}lipsync,"
-              # 字幕オーバーレイ
-              CAPABILITIES="${CAPABILITIES}subtitle-overlay,"
-              # シーンベース構成
               CAPABILITIES="${CAPABILITIES}scene-composition,"
+            fi
+            
+            # 教育・説明コンテンツの場合
+            if grep -qi "説明\|解説\|教育\|tutorial\|explain\|educational\|学習" /tmp/issue_body_safe.txt; then
+              echo "  ✓ Educational content detected"
+              CAPABILITIES="${CAPABILITIES}subtitle-overlay,"
+              CAPABILITIES="${CAPABILITIES}diagram-generation,"
+            fi
+            
+            # プロフェッショナル・商用コンテンツの場合
+            if grep -qi "プロ\|professional\|商用\|commercial\|広告\|advertisement\|マーケティング" /tmp/issue_body_safe.txt; then
+              echo "  ✓ Professional content detected"
+              CAPABILITIES="${CAPABILITIES}quality-enhancement,"
+              CAPABILITIES="${CAPABILITIES}branding-overlay,"
             fi
           fi
           
@@ -243,7 +261,8 @@ jobs:
           export USER_REQUEST="$ISSUE_TITLE $(</tmp/issue_body_safe.txt)"
           export CAPABILITIES="$CAPABILITIES"
           
-          if [ -f projects/current-session/scripts/orchestrator_analyzer.py ]; then
+          if [ -f scripts/orchestrator_analyzer.py ]; then
+            cp scripts/orchestrator_analyzer.py projects/current-session/scripts/
             cd projects/current-session/scripts
             python3 orchestrator_analyzer.py || echo "⚠️ Orchestrator analysis failed, using default logic"
             cd ../../..
@@ -256,6 +275,27 @@ jobs:
               # Extract execution pattern and job count
               EXECUTION_PATTERN=$(echo "$ORCHESTRATOR_ANALYSIS" | python3 -c "import json, sys; print(json.load(sys.stdin).get('execution_pattern', 'sequential'))")
               echo "📊 Recommended execution pattern: $EXECUTION_PATTERN"
+              
+              # Extract additional capabilities from orchestrator patterns
+              ORCH_CAPS=$(echo "$ORCHESTRATOR_ANALYSIS" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+caps = set()
+for orch in data.get('analysis', {}).get('orchestrators', []):
+    for job in orch.get('data', {}).get('jobs', []):
+        job_name = job.get('name', '').lower()
+        if 'image' in job_name: caps.add('image-generation')
+        if 'lipsync' in job_name: caps.add('lipsync')
+        if 'subtitle' in job_name: caps.add('subtitle-overlay')
+        if 'planning' in job_name and 'planning' not in '$CAPABILITIES': caps.add('planning')
+        if 'audio' in job_name and 'audio' not in '$CAPABILITIES': caps.add('audio-generation')
+print(','.join(caps))
+" 2>/dev/null || echo '')
+              
+              if [ -n "$ORCH_CAPS" ]; then
+                echo "  📚 Additional capabilities from orchestrator patterns: $ORCH_CAPS"
+                CAPABILITIES="${CAPABILITIES}${ORCH_CAPS},"
+              fi
             fi
           else
             echo "⚠️ Orchestrator analyzer not found, using keyword-based detection"
@@ -278,18 +318,27 @@ jobs:
               cat projects/current-session/metadata/orchestrator_analysis.json >> /tmp/claude_prompt.txt
             fi
             echo "" >> /tmp/claude_prompt.txt
+            echo "CAPABILITY DETECTION:" >> /tmp/claude_prompt.txt
+            echo "Beyond the basic keywords detected ($CAPABILITIES), analyze the user's intent and add necessary capabilities:" >> /tmp/claude_prompt.txt
+            echo "- For storytelling content: add scene-composition, multiple image-generation" >> /tmp/claude_prompt.txt
+            echo "- For educational content: add diagram-generation, subtitle-overlay" >> /tmp/claude_prompt.txt
+            echo "- For news/documentary: add research, fact-checking, narration" >> /tmp/claude_prompt.txt
+            echo "- For marketing: add branding, call-to-action, analytics" >> /tmp/claude_prompt.txt
+            echo "- For entertainment: add special-effects, music-sync, transitions" >> /tmp/claude_prompt.txt
+            echo "" >> /tmp/claude_prompt.txt
             echo "DECOMPOSITION PROCESS:" >> /tmp/claude_prompt.txt
             echo "1. Task-level decomposition (タスク分解)" >> /tmp/claude_prompt.txt
-            echo "   - news-planning → content-planning, narration-creation, scene-planning" >> /tmp/claude_prompt.txt
+            echo "   - Break down the main request into logical tasks" >> /tmp/claude_prompt.txt
+            echo "   - Consider the content type and purpose" >> /tmp/claude_prompt.txt
             echo "" >> /tmp/claude_prompt.txt
             echo "2. Work-based detailed decomposition (作業ベース詳細分解)" >> /tmp/claude_prompt.txt
-            echo "   - scene-planning → scene1-intro, scene2-main, scene3-conclusion" >> /tmp/claude_prompt.txt
-            echo "   - Each scene needs: image generation, narration, timing" >> /tmp/claude_prompt.txt
+            echo "   - Break each task into concrete work items" >> /tmp/claude_prompt.txt
+            echo "   - Define dependencies and sequences" >> /tmp/claude_prompt.txt
             echo "" >> /tmp/claude_prompt.txt
             echo "3. Strategic workflow construction (戦略的ワークフロー構築)" >> /tmp/claude_prompt.txt
             echo "   - Identify parallel execution opportunities" >> /tmp/claude_prompt.txt
-            echo "   - For images: ensure consistency with shared style/seed" >> /tmp/claude_prompt.txt
-            echo "   - For narration: align with scene timing" >> /tmp/claude_prompt.txt
+            echo "   - Ensure consistency across parallel tasks" >> /tmp/claude_prompt.txt
+            echo "   - Optimize resource usage"
             echo "" >> /tmp/claude_prompt.txt
             echo "IMPORTANT CONSIDERATIONS:" >> /tmp/claude_prompt.txt
             echo "- Image consistency: Use same character descriptions, style, seed across scenes" >> /tmp/claude_prompt.txt
