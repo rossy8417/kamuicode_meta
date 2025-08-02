@@ -1,0 +1,121 @@
+name: web-search-claude
+description: Claude Code WebSearchを使用したWeb検索の最小単位ユニット
+
+on:
+  workflow_call:
+    inputs:
+      search_query:
+        description: '検索クエリ'
+        required: true
+        type: string
+      output_dir:
+        description: '出力ディレクトリパス'
+        required: true
+        type: string
+      max_results:
+        description: '最大検索結果数'
+        required: false
+        type: string
+        default: '10'
+      search_language:
+        description: '検索言語（japanese, english等）'
+        required: false
+        type: string
+        default: 'japanese'
+      output_format:
+        description: '出力形式（summary, detailed, sources_only）'
+        required: false
+        type: string
+        default: 'summary'
+    outputs:
+      search_completed:
+        description: '検索完了ステータス'
+        value: ${{ jobs.search.outputs.completed }}
+      summary_path:
+        description: 'サマリーファイルのパス'
+        value: ${{ jobs.search.outputs.summary_path }}
+      sources_path:
+        description: 'ソースファイルのパス'
+        value: ${{ jobs.search.outputs.sources_path }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
+        required: true
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    outputs:
+      completed: ${{ steps.execute.outputs.completed }}
+      summary_path: ${{ steps.execute.outputs.summary_path }}
+      sources_path: ${{ steps.execute.outputs.sources_path }}
+    
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Create output directory
+        run: mkdir -p ${{ inputs.output_dir }}
+      
+      - name: Execute Web Search
+        id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # プロンプトの構築
+          case "${{ inputs.output_format }}" in
+            "detailed")
+              FORMAT_INSTRUCTION="詳細な情報を含めて、各ソースからの重要な引用も含めてください。"
+              ;;
+            "sources_only")
+              FORMAT_INSTRUCTION="URLとタイトルのリストのみを提供してください。"
+              ;;
+            *)
+              FORMAT_INSTRUCTION="主要なポイントを要約して提供してください。"
+              ;;
+          esac
+          
+          PROMPT="以下のクエリでWeb検索を実行してください：
+          
+          **検索クエリ**: ${{ inputs.search_query }}
+          **最大結果数**: ${{ inputs.max_results }}
+          **言語**: ${{ inputs.search_language }}
+          
+          タスク：
+          1. WebSearchツールを使用して最新の情報を検索
+          2. $FORMAT_INSTRUCTION
+          3. 検索結果を以下のファイルに保存：
+             - ${{ inputs.output_dir }}/search-summary.md（検索結果のまとめ）
+             - ${{ inputs.output_dir }}/sources.txt（参照したURLのリスト）
+             - ${{ inputs.output_dir }}/raw-results.json（生の検索結果、可能な場合）
+          
+          注意事項：
+          - 信頼できるソースを優先してください
+          - 最新の情報を重視してください
+          - 検索言語に応じて適切な結果を選択してください"
+          
+          # Claude Code CLIの実行
+          npx @anthropic-ai/claude-code \
+            -p "$PROMPT" \
+            --allowedTools "WebSearch,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 出力の確認
+          if [ -f "${{ inputs.output_dir }}/search-summary.md" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "summary_path=${{ inputs.output_dir }}/search-summary.md" >> $GITHUB_OUTPUT
+            echo "sources_path=${{ inputs.output_dir }}/sources.txt" >> $GITHUB_OUTPUT
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Web search failed - no summary file found"
+            exit 1
+          fi

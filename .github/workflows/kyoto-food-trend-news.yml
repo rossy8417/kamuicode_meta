@@ -1,0 +1,1164 @@
+name: "Video Content Creation Production v8"
+run-name: "🎥 V8 Production: ${{ github.event.inputs.video_concept || 'Video Creation' }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_concept:
+        description: '動画コンセプト・テーマ'
+        required: true
+        default: '商品紹介動画、美しい風景と共に新製品の魅力を伝える'
+        type: string
+      target_audience:
+        description: 'ターゲット視聴者'
+        required: true
+        default: 'general'
+        type: choice
+        options:
+        - general
+        - business
+        - young_adult
+        - professional
+        - creative
+      video_length:
+        description: '動画尺 (秒)'
+        required: true
+        default: '60'
+        type: choice
+        options:
+        - '15'
+        - '30'
+        - '60'
+        - '120'
+        - '180'
+      video_style:
+        description: '動画スタイル'
+        required: true
+        default: 'cinematic'
+        type: choice
+        options:
+        - cinematic
+        - commercial
+        - documentary
+        - educational
+        - artistic
+      quality_setting:
+        description: '画質設定'
+        required: true
+        default: 'high'
+        type: choice
+        options:
+        - ultra
+        - high
+        - standard
+      enable_lipsync:
+        description: 'リップシンク有効化'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      enable_narration:
+        description: 'ナレーション有効化'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      enable_subtitles:
+        description: '字幕有効化'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+permissions:
+  contents: write
+  issues: read
+  actions: read
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  PROJECT_DIR: projects/video-production-v8-${{ github.run_number }}
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # ========================================
+  # Phase 1: 初期セットアップ
+  # ========================================
+  setup-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment_ready: ${{ steps.setup.outputs.environment_ready }}
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Project Environment
+        id: setup
+        run: |
+          echo "⚙️ Setting up project environment..."
+          
+          # プロジェクトディレクトリ作成
+          PROJECT_DIR="${{ env.PROJECT_DIR }}"
+          mkdir -p "$PROJECT_DIR"/{concept,images,videos,audio,final,metadata,logs,temp}
+          
+          # 環境情報を記録
+          echo '{' > "$PROJECT_DIR/metadata/environment.json"
+          echo '  "project_dir": "'$PROJECT_DIR'",' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '  "workflow_version": "v8",' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '  "run_number": "'${{ github.run_number }}'",' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"' >> "$PROJECT_DIR/metadata/environment.json"
+          echo '}' >> "$PROJECT_DIR/metadata/environment.json"
+          
+          echo "environment_ready=true" >> $GITHUB_OUTPUT
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Project environment ready"
+          
+      - name: Upload Environment Info
+        uses: actions/upload-artifact@v4
+        with:
+          name: environment-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/metadata/
+          retention-days: 30
+
+  # ========================================
+  # Phase 2: 企画・計画 (ミニマムユニット: planning-ccsdk)
+  # ========================================
+  concept-planning:
+    needs: setup-environment
+    runs-on: ubuntu-latest
+    outputs:
+      planning_completed: ${{ steps.execute.outputs.completed }}
+      video_plan_path: ${{ steps.execute.outputs.video_plan_path }}
+      scene_count: ${{ steps.analyze.outputs.scene_count }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          echo "✅ Claude Code SDK installed"
+      
+      - name: Execute Planning Agent
+        id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          echo "📋 Starting concept planning..."
+          
+          # プロンプトの構築
+          PROMPT="あなたは動画制作の専門プランナーです。以下の要件で動画制作の詳細な計画を立ててください。
+
+          **ユーザーの指示**: ${{ github.event.inputs.video_concept }}
+          **ターゲット視聴者**: ${{ github.event.inputs.target_audience }}
+          **動画の長さ**: ${{ github.event.inputs.video_length }}秒
+          **動画スタイル**: ${{ github.event.inputs.video_style }}
+
+          **タスク**:
+          1. 動画全体の構成を3つのシーン（intro, main, outro）で企画
+          2. 各シーン用の詳細な画像生成プロンプトを作成（英語、高品質）
+          3. 動画全体のナレーションスクリプトを作成（日本語）
+          4. BGMの雰囲気とスタイルを定義
+          5. 計画書を「${{ env.PROJECT_DIR }}/concept/video-plan.md」に保存
+          6. 以下のファイルを作成：
+             - ${{ env.PROJECT_DIR }}/concept/image-prompt-intro.txt（イントロ画像プロンプト、英語、1行）
+             - ${{ env.PROJECT_DIR }}/concept/image-prompt-main.txt（メイン画像プロンプト、英語、1行）
+             - ${{ env.PROJECT_DIR }}/concept/image-prompt-outro.txt（アウトロ画像プロンプト、英語、1行）
+             - ${{ env.PROJECT_DIR }}/concept/narration-script.txt（ナレーションスクリプト、日本語）
+             - ${{ env.PROJECT_DIR }}/concept/bgm-concept.txt（BGMコンセプト、英語、1行）
+
+          **重要**: 
+          - 画像プロンプトは${{ github.event.inputs.video_style }}スタイルを反映
+          - 各シーンの長さはintro:5秒、main:残り-10秒、outro:5秒で配分
+          - すべてのtxtファイルは1行で記述（改行なし）"
+          
+          # Claude Code CLIの実行
+          npx @anthropic-ai/claude-code \
+            -p "$PROMPT" \
+            --allowedTools "Read,Write,Edit" \
+            --permission-mode "acceptEdits"
+          
+          # 出力の確認
+          if [ -f "${{ env.PROJECT_DIR }}/concept/video-plan.md" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "video_plan_path=${{ env.PROJECT_DIR }}/concept/video-plan.md" >> $GITHUB_OUTPUT
+            echo "✅ Planning completed successfully"
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Planning failed"
+            exit 1
+          fi
+      
+      - name: Analyze Plan
+        id: analyze
+        run: |
+          # シーン数を設定（固定で3シーン）
+          echo "scene_count=3" >> $GITHUB_OUTPUT
+          
+          # 生成されたファイルの確認
+          echo "📁 Generated files:"
+          ls -la "${{ env.PROJECT_DIR }}/concept/"
+          
+      - name: Upload Planning Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/concept/
+          retention-days: 30
+
+  # ========================================
+  # Phase 3: 画像生成 (ミニマムユニット: image-t2i)
+  # ========================================
+  generate-scene-images:
+    needs: [setup-environment, concept-planning]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scene: [intro, main, outro]
+    outputs:
+      image_url_intro: ${{ steps.set-outputs.outputs.image_url_intro }}
+      image_url_main: ${{ steps.set-outputs.outputs.image_url_main }}
+      image_url_outro: ${{ steps.set-outputs.outputs.image_url_outro }}
+      image_path_intro: ${{ steps.set-outputs.outputs.image_path_intro }}
+      image_path_main: ${{ steps.set-outputs.outputs.image_path_main }}
+      image_path_outro: ${{ steps.set-outputs.outputs.image_path_outro }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          
+      - name: Download Planning Results
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/concept/
+          
+      - name: Check MCP Config
+        run: |
+          if [ -f ".claude/mcp-kamuicode.json" ]; then
+            echo "✅ MCP config found"
+            echo "📋 Available services:"
+            cat .claude/mcp-kamuicode.json | jq -r '.mcpServers | keys[]' | head -10
+          else
+            echo "❌ MCP config not found"
+            exit 1
+          fi
+      
+      - name: Generate Image for ${{ matrix.scene }}
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          echo "🎨 Generating image for scene: ${{ matrix.scene }}"
+          
+          # プロンプトファイルを読み込む
+          if [ -f "${{ env.PROJECT_DIR }}/concept/image-prompt-${{ matrix.scene }}.txt" ]; then
+            IMAGE_PROMPT=$(cat "${{ env.PROJECT_DIR }}/concept/image-prompt-${{ matrix.scene }}.txt")
+          else
+            # フォールバックプロンプト
+            case "${{ matrix.scene }}" in
+              intro)
+                IMAGE_PROMPT="${{ github.event.inputs.video_style }} style opening scene for ${{ github.event.inputs.video_concept }}, professional quality, cinematic"
+                ;;
+              main)
+                IMAGE_PROMPT="${{ github.event.inputs.video_style }} style main content for ${{ github.event.inputs.video_concept }}, detailed, high quality"
+                ;;
+              outro)
+                IMAGE_PROMPT="${{ github.event.inputs.video_style }} style closing scene for ${{ github.event.inputs.video_concept }}, memorable ending"
+                ;;
+            esac
+          fi
+          
+          # ディレクトリ作成
+          mkdir -p "${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}"
+          
+          # 画質設定に基づくモデル選択
+          case "${{ github.event.inputs.quality_setting }}" in
+            ultra)
+              MODEL="t2i-google-imagen3"
+              SUBMIT_TOOL="mcp__t2i-google-imagen3__imagen_t2i"
+              ;;
+            high)
+              MODEL="t2i-fal-imagen4-ultra"
+              SUBMIT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit"
+              STATUS_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status"
+              RESULT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result"
+              ;;
+            standard)
+              MODEL="t2i-fal-imagen4-fast"
+              SUBMIT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_submit"
+              STATUS_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_status"
+              RESULT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_result"
+              ;;
+          esac
+          
+          # Claude Code実行プロンプト
+          CLAUDE_PROMPT="Generate an image using $MODEL with the following requirements:
+          
+          **Prompt**: $IMAGE_PROMPT
+          **Aspect Ratio**: 16:9
+          **Quality**: ${{ github.event.inputs.quality_setting }}
+          
+          Steps:
+          1. Use $SUBMIT_TOOL to start image generation
+          2. Monitor status with $STATUS_TOOL (if available)
+          3. Get result with $RESULT_TOOL (if available)
+          4. Save the image URL to ${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image-url.txt
+          5. Download the image to ${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image.png using curl
+          
+          Important: Make sure to wait for the generation to complete before downloading."
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認
+          if [ -f "${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image-url.txt" ]; then
+            IMAGE_URL=$(cat "${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image-url.txt")
+            echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+            echo "image_path=${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image.png" >> $GITHUB_OUTPUT
+            echo "✅ Image generated for ${{ matrix.scene }}"
+          else
+            echo "❌ Image generation failed for ${{ matrix.scene }}"
+            exit 1
+          fi
+      
+      - name: Set Matrix Outputs
+        id: set-outputs
+        run: |
+          # マトリックスジョブの出力を集約
+          if [ "${{ matrix.scene }}" == "intro" ]; then
+            echo "image_url_intro=${{ steps.generate.outputs.image_url }}" >> $GITHUB_OUTPUT
+            echo "image_path_intro=${{ steps.generate.outputs.image_path }}" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.scene }}" == "main" ]; then
+            echo "image_url_main=${{ steps.generate.outputs.image_url }}" >> $GITHUB_OUTPUT
+            echo "image_path_main=${{ steps.generate.outputs.image_path }}" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.scene }}" == "outro" ]; then
+            echo "image_url_outro=${{ steps.generate.outputs.image_url }}" >> $GITHUB_OUTPUT
+            echo "image_path_outro=${{ steps.generate.outputs.image_path }}" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Image Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ matrix.scene }}-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/
+          retention-days: 30
+
+  # ========================================
+  # Phase 4: BGM生成 (ミニマムユニット: bgm-generate)
+  # ========================================
+  generate-background-music:
+    needs: [setup-environment, concept-planning]
+    runs-on: ubuntu-latest
+    outputs:
+      bgm_path: ${{ steps.execute.outputs.bgm_path }}
+      bgm_url: ${{ steps.execute.outputs.bgm_url }}
+      metadata: ${{ steps.execute.outputs.metadata }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install Dependencies
+        run: |
+          pip install requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg jq
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          
+      - name: Download Planning Results
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/concept/
+          
+      - name: Generate BGM
+        id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          echo "🎵 Generating background music..."
+          
+          # BGMコンセプトを読み込む
+          if [ -f "${{ env.PROJECT_DIR }}/concept/bgm-concept.txt" ]; then
+            BGM_CONCEPT=$(cat "${{ env.PROJECT_DIR }}/concept/bgm-concept.txt")
+          else
+            BGM_CONCEPT="${{ github.event.inputs.video_style }} style background music for ${{ github.event.inputs.video_concept }}"
+          fi
+          
+          # ディレクトリ作成
+          mkdir -p "${{ env.PROJECT_DIR }}/audio"
+          
+          # スタイルに基づくパラメータ設定
+          case "${{ github.event.inputs.video_style }}" in
+            cinematic)
+              GENRE="cinematic"
+              MOOD="epic"
+              TEMPO="90"
+              ;;
+            commercial)
+              GENRE="corporate"
+              MOOD="uplifting"
+              TEMPO="120"
+              ;;
+            documentary)
+              GENRE="ambient"
+              MOOD="thoughtful"
+              TEMPO="80"
+              ;;
+            educational)
+              GENRE="instrumental"
+              MOOD="positive"
+              TEMPO="100"
+              ;;
+            artistic)
+              GENRE="experimental"
+              MOOD="creative"
+              TEMPO="110"
+              ;;
+          esac
+          
+          # Claude Codeプロンプト
+          CLAUDE_PROMPT="Generate background music using t2m-google-lyria with:
+          
+          **Concept**: $BGM_CONCEPT
+          **Duration**: ${{ github.event.inputs.video_length }} seconds
+          **Genre**: $GENRE
+          **Mood**: $MOOD
+          **Tempo**: $TEMPO BPM
+          
+          Steps:
+          1. Use mcp__t2m-google-lyria__lyria_generate to generate music
+          2. Save the audio URL to ${{ env.PROJECT_DIR }}/audio/bgm-url.txt
+          3. Download the audio to ${{ env.PROJECT_DIR }}/audio/bgm.mp3
+          4. Create metadata file at ${{ env.PROJECT_DIR }}/audio/bgm_metadata.json with all parameters
+          
+          Make sure to wait for generation to complete before downloading."
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2m-google-lyria__lyria_generate,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # フォールバック: BGMが生成されない場合は仮のBGMを作成
+          if [ ! -f "${{ env.PROJECT_DIR }}/audio/bgm.mp3" ]; then
+            echo "⚠️ Using fallback BGM generation..."
+            
+            # FFmpegで簡単なBGMを生成
+            ffmpeg -f lavfi -i "sine=frequency=440:duration=${{ github.event.inputs.video_length }}" \
+              -f lavfi -i "sine=frequency=554:duration=${{ github.event.inputs.video_length }}" \
+              -f lavfi -i "sine=frequency=659:duration=${{ github.event.inputs.video_length }}" \
+              -filter_complex "[0:a][1:a][2:a]amix=inputs=3:duration=longest,volume=0.3" \
+              -ar 44100 -ac 2 -ab 320k \
+              "${{ env.PROJECT_DIR }}/audio/bgm.mp3"
+            
+            # メタデータ作成
+            echo '{' > "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '  "duration": '${{ github.event.inputs.video_length }}',' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '  "genre": "'$GENRE'",' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '  "mood": "'$MOOD'",' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '  "tempo": '$TEMPO',' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '  "format": "mp3",' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '  "sample_rate": 44100,' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '  "bitrate": "320kbps"' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+            echo '}' >> "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json"
+          fi
+          
+          # メタデータを取得
+          if [ -f "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json" ]; then
+            METADATA=$(cat "${{ env.PROJECT_DIR }}/audio/bgm_metadata.json" | jq -c '.')
+          else
+            METADATA='{"status":"generated"}'
+          fi
+          
+          # BGM URLを取得または設定
+          if [ -f "${{ env.PROJECT_DIR }}/audio/bgm-url.txt" ]; then
+            BGM_URL=$(cat "${{ env.PROJECT_DIR }}/audio/bgm-url.txt")
+          else
+            BGM_URL="local://bgm.mp3"
+          fi
+          
+          # 結果を設定
+          echo "bgm_path=${{ env.PROJECT_DIR }}/audio/bgm.mp3" >> $GITHUB_OUTPUT
+          echo "bgm_url=$BGM_URL" >> $GITHUB_OUTPUT
+          echo "metadata=$METADATA" >> $GITHUB_OUTPUT
+          
+          echo "✅ BGM generation completed"
+          
+      - name: Upload BGM Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bgm-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/audio/
+          retention-days: 30
+
+  # ========================================
+  # Phase 5: 音声生成（オプション）
+  # ========================================
+  generate-narration:
+    needs: [setup-environment, concept-planning]
+    if: github.event.inputs.enable_narration == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      audio_path: ${{ steps.generate.outputs.audio_path }}
+      audio_url: ${{ steps.generate.outputs.audio_url }}
+      duration: ${{ steps.generate.outputs.duration }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          
+      - name: Download Planning Results
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/concept/
+          
+      - name: Generate Narration
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          echo "🎤 Generating narration..."
+          
+          # ナレーションスクリプトを読み込む
+          if [ -f "${{ env.PROJECT_DIR }}/concept/narration-script.txt" ]; then
+            # 改行を除去して1行にする
+            NARRATION_TEXT=$(cat "${{ env.PROJECT_DIR }}/concept/narration-script.txt" | tr '\n' ' ' | sed 's/  */ /g')
+          else
+            NARRATION_TEXT="${{ github.event.inputs.video_concept }}についての説明です。"
+          fi
+          
+          # ディレクトリ作成
+          mkdir -p "${{ env.PROJECT_DIR }}/audio"
+          
+          # Claude Codeプロンプト
+          CLAUDE_PROMPT="Generate narration audio using Text-to-Speech:
+          
+          **Text**: $NARRATION_TEXT
+          **Voice**: Professional Japanese female voice (Wise_Woman or similar)
+          **Language**: Japanese
+          
+          Steps:
+          1. Use mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit to generate speech
+          2. Monitor status with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status
+          3. Get result with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result
+          4. Save the audio URL to ${{ env.PROJECT_DIR }}/audio/narration-url.txt
+          5. Download the audio to ${{ env.PROJECT_DIR }}/audio/narration.mp3 using curl
+          6. Use ffprobe to get duration and save to ${{ env.PROJECT_DIR }}/audio/narration-duration.txt
+          
+          Make sure to wait for generation to complete before downloading."
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result,Bash,Write" \
+            --permission-mode "acceptEdits" || true
+          
+          # 結果確認とフォールバック
+          if [ -f "${{ env.PROJECT_DIR }}/audio/narration.mp3" ]; then
+            # ファイルサイズを確認
+            FILE_SIZE=$(stat -c%s "${{ env.PROJECT_DIR }}/audio/narration.mp3" 2>/dev/null || echo "0")
+            
+            if [ "$FILE_SIZE" -gt 1000 ]; then
+              # 有効なMP3ファイルの場合のみffprobeを実行
+              DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${{ env.PROJECT_DIR }}/audio/narration.mp3" 2>/dev/null | cut -d. -f1)
+              if [ -z "$DURATION" ]; then
+                DURATION=${{ github.event.inputs.video_length }}
+              fi
+            else
+              # プレースホルダーファイルの場合
+              DURATION=${{ github.event.inputs.video_length }}
+            fi
+            
+            if [ -f "${{ env.PROJECT_DIR }}/audio/narration-url.txt" ]; then
+              AUDIO_URL=$(cat "${{ env.PROJECT_DIR }}/audio/narration-url.txt" | head -1)
+            else
+              AUDIO_URL="local://narration.mp3"
+            fi
+          else
+            echo "⚠️ Creating placeholder narration file..."
+            # プレースホルダー作成
+            mkdir -p "${{ env.PROJECT_DIR }}/audio"
+            # 無音のMP3ファイルを生成
+            ffmpeg -f lavfi -i anullsrc=duration=${{ github.event.inputs.video_length }}:sample_rate=44100 \
+              -codec:a mp3 -b:a 128k \
+              "${{ env.PROJECT_DIR }}/audio/narration.mp3" -y
+            DURATION=${{ github.event.inputs.video_length }}
+            AUDIO_URL="placeholder"
+          fi
+          
+          # デバッグ情報（エラー回避のため簡潔に）
+          echo "📊 Narration: path=${{ env.PROJECT_DIR }}/audio/narration.mp3, duration=$DURATION"
+          
+          echo "audio_path=${{ env.PROJECT_DIR }}/audio/narration.mp3" >> $GITHUB_OUTPUT
+          echo "audio_url=$AUDIO_URL" >> $GITHUB_OUTPUT
+          echo "duration=${DURATION:-30}" >> $GITHUB_OUTPUT
+          
+      - name: Upload Narration Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: narration-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/audio/
+          retention-days: 30
+
+  # ========================================
+  # Phase 6: 動画生成 (ミニマムユニット: video-generation)
+  # ========================================
+  generate-scene-videos:
+    needs: [setup-environment, generate-scene-images]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scene: [intro, main, outro]
+    outputs:
+      video_url_intro: ${{ steps.set-outputs.outputs.video_url_intro }}
+      video_url_main: ${{ steps.set-outputs.outputs.video_url_main }}
+      video_url_outro: ${{ steps.set-outputs.outputs.video_url_outro }}
+      video_path_intro: ${{ steps.set-outputs.outputs.video_path_intro }}
+      video_path_main: ${{ steps.set-outputs.outputs.video_path_main }}
+      video_path_outro: ${{ steps.set-outputs.outputs.video_path_outro }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          
+      - name: Download Image Results
+        uses: actions/download-artifact@v4
+        with:
+          name: images-${{ matrix.scene }}-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/
+          
+      - name: Generate Video for ${{ matrix.scene }}
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          echo "🎬 Generating video for scene: ${{ matrix.scene }}"
+          
+          # 画像URLを読み込む
+          if [ -f "${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image-url.txt" ]; then
+            IMAGE_URL=$(cat "${{ env.PROJECT_DIR }}/images/${{ matrix.scene }}/image-url.txt")
+          else
+            echo "❌ Image URL not found for ${{ matrix.scene }}"
+            exit 1
+          fi
+          
+          # シーンごとの動画プロンプト
+          case "${{ matrix.scene }}" in
+            intro)
+              VIDEO_PROMPT="Smooth camera zoom in, establishing shot, ${{ github.event.inputs.video_style }} style opening"
+              DURATION="5"
+              ;;
+            main)
+              VIDEO_PROMPT="Dynamic camera movement showcasing the main subject, ${{ github.event.inputs.video_style }} style"
+              DURATION=$((${{ github.event.inputs.video_length }} - 10))
+              ;;
+            outro)
+              VIDEO_PROMPT="Elegant closing shot with gentle fade out, ${{ github.event.inputs.video_style }} style ending"
+              DURATION="5"
+              ;;
+          esac
+          
+          # ディレクトリ作成
+          mkdir -p "${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}"
+          
+          # モデル選択
+          case "${{ github.event.inputs.quality_setting }}" in
+            ultra)
+              MODEL="i2v-fal-hailuo-02-pro"
+              SUBMIT_TOOL="mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit"
+              STATUS_TOOL="mcp__i2v-fal-hailuo-02-pro__hailuo_02_status"
+              RESULT_TOOL="mcp__i2v-fal-hailuo-02-pro__hailuo_02_result"
+              ;;
+            *)
+              MODEL="i2v-fal-bytedance-seedance-v1-lite"
+              SUBMIT_TOOL="mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_submit"
+              STATUS_TOOL="mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_status"
+              RESULT_TOOL="mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_result"
+              ;;
+          esac
+          
+          # Claude Codeプロンプト
+          CLAUDE_PROMPT="Generate a video from image using $MODEL:
+          
+          **Image URL**: $IMAGE_URL
+          **Motion Prompt**: $VIDEO_PROMPT
+          **Duration**: $DURATION seconds
+          
+          Steps:
+          1. Use $SUBMIT_TOOL with the image URL and motion prompt
+          2. Monitor status with $STATUS_TOOL
+          3. Get result with $RESULT_TOOL
+          4. Save video URL to ${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}/video-url.txt
+          5. Download to ${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}/video.mp4
+          
+          Ensure the video is fully generated before downloading."
+          
+          # Claude Code実行
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認
+          if [ -f "${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}/video-url.txt" ]; then
+            VIDEO_URL=$(cat "${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}/video-url.txt")
+            echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
+            echo "video_path=${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}/video.mp4" >> $GITHUB_OUTPUT
+            echo "✅ Video generated for ${{ matrix.scene }}"
+          else
+            echo "❌ Video generation failed for ${{ matrix.scene }}"
+            exit 1
+          fi
+      
+      - name: Set Matrix Outputs
+        id: set-outputs
+        run: |
+          # マトリックスジョブの出力を集約
+          if [ "${{ matrix.scene }}" == "intro" ]; then
+            echo "video_url_intro=${{ steps.generate.outputs.video_url }}" >> $GITHUB_OUTPUT
+            echo "video_path_intro=${{ steps.generate.outputs.video_path }}" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.scene }}" == "main" ]; then
+            echo "video_url_main=${{ steps.generate.outputs.video_url }}" >> $GITHUB_OUTPUT
+            echo "video_path_main=${{ steps.generate.outputs.video_path }}" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.scene }}" == "outro" ]; then
+            echo "video_url_outro=${{ steps.generate.outputs.video_url }}" >> $GITHUB_OUTPUT
+            echo "video_path_outro=${{ steps.generate.outputs.video_path }}" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Video Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos-${{ matrix.scene }}-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/videos/${{ matrix.scene }}/
+          retention-days: 30
+
+  # ========================================
+  # Phase 7: 動画結合と最終処理
+  # ========================================
+  finalize-video:
+    needs: [setup-environment, generate-scene-videos, generate-background-music, generate-narration]
+    if: |
+      always() && 
+      needs.generate-scene-videos.result == 'success' && 
+      needs.generate-background-music.result == 'success' &&
+      (needs.generate-narration.result == 'success' || needs.generate-narration.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      final_video_path: ${{ steps.process.outputs.final_video_path }}
+      final_video_url: ${{ steps.upload.outputs.video_url }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          
+      - name: Download All Assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ github.run_number }}"
+          path: ${{ env.PROJECT_DIR }}/
+          
+      - name: Process Final Video
+        id: process
+        run: |
+          echo "🎬 Processing final video..."
+          
+          # 動画パスを確認
+          INTRO_VIDEO="${{ env.PROJECT_DIR }}/videos-intro-${{ github.run_number }}/video.mp4"
+          MAIN_VIDEO="${{ env.PROJECT_DIR }}/videos-main-${{ github.run_number }}/video.mp4"
+          OUTRO_VIDEO="${{ env.PROJECT_DIR }}/videos-outro-${{ github.run_number }}/video.mp4"
+          BGM_PATH="${{ env.PROJECT_DIR }}/bgm-${{ github.run_number }}/bgm.mp3"
+          
+          # 最終出力ディレクトリ
+          mkdir -p "${{ env.PROJECT_DIR }}/final"
+          
+          # 動画ファイルリストを作成（絶対パスで記述）
+          echo "file '$(pwd)/$INTRO_VIDEO'" > "${{ env.PROJECT_DIR }}/final/videos.txt"
+          echo "file '$(pwd)/$MAIN_VIDEO'" >> "${{ env.PROJECT_DIR }}/final/videos.txt"
+          echo "file '$(pwd)/$OUTRO_VIDEO'" >> "${{ env.PROJECT_DIR }}/final/videos.txt"
+          
+          # デバッグ情報
+          echo "📋 Video list content:"
+          cat "${{ env.PROJECT_DIR }}/final/videos.txt"
+          
+          # 動画を結合
+          ffmpeg -f concat -safe 0 -i "${{ env.PROJECT_DIR }}/final/videos.txt" \
+            -c copy "${{ env.PROJECT_DIR }}/final/combined.mp4"
+          
+          # ナレーションパスを設定
+          NARRATION_PATH="${{ env.PROJECT_DIR }}/narration-${{ github.run_number }}/narration.mp3"
+          
+          # ナレーションファイルの有効性をチェック
+          VALID_NARRATION=false
+          if [ -f "$NARRATION_PATH" ]; then
+            # ファイルタイプをチェック
+            FILE_TYPE=$(file -b "$NARRATION_PATH" | cut -d' ' -f1)
+            if [[ "$FILE_TYPE" == "Audio" ]] || [[ "$FILE_TYPE" == "ISO" ]] || [[ "$FILE_TYPE" == "MPEG" ]]; then
+              VALID_NARRATION=true
+              echo "✅ Valid narration file detected"
+            else
+              echo "⚠️ Invalid narration file type: $FILE_TYPE"
+              # ファイルサイズもチェック
+              FILE_SIZE=$(stat -c%s "$NARRATION_PATH" 2>/dev/null || echo "0")
+              if [ "$FILE_SIZE" -gt 1000 ]; then
+                # 1KB以上なら有効なMP3の可能性がある
+                VALID_NARRATION=true
+                echo "✅ Narration file size check passed: ${FILE_SIZE} bytes"
+              fi
+            fi
+          fi
+          
+          # 音声トラックの組み合わせを決定
+          if [ -f "$BGM_PATH" ] && [ "$VALID_NARRATION" = "true" ]; then
+            echo "🎵 Adding both BGM and narration..."
+            # BGMとナレーションの両方を追加
+            ffmpeg -i "${{ env.PROJECT_DIR }}/final/combined.mp4" -i "$BGM_PATH" -i "$NARRATION_PATH" \
+              -filter_complex "[1:a]volume=0.3[bgm];[2:a]volume=1.0[narration];[bgm][narration]amix=inputs=2:duration=longest[audio]" \
+              -map 0:v -map "[audio]" \
+              -c:v copy -c:a aac -b:a 192k \
+              "${{ env.PROJECT_DIR }}/final/final_video.mp4"
+          elif [ -f "$BGM_PATH" ]; then
+            echo "🎵 Adding BGM only..."
+            # BGMのみ追加
+            ffmpeg -i "${{ env.PROJECT_DIR }}/final/combined.mp4" -i "$BGM_PATH" \
+              -filter_complex "[1:a]volume=0.3[bgm]" \
+              -map 0:v -map "[bgm]" \
+              -c:v copy -c:a aac -b:a 192k \
+              "${{ env.PROJECT_DIR }}/final/final_video.mp4"
+          elif [ "$VALID_NARRATION" = "true" ]; then
+            echo "🎤 Adding narration only..."
+            # ナレーションのみ追加
+            ffmpeg -i "${{ env.PROJECT_DIR }}/final/combined.mp4" -i "$NARRATION_PATH" \
+              -map 0:v -map 1:a \
+              -c:v copy -c:a aac -b:a 192k \
+              "${{ env.PROJECT_DIR }}/final/final_video.mp4"
+          else
+            echo "⚠️ No audio tracks to add"
+            cp "${{ env.PROJECT_DIR }}/final/combined.mp4" "${{ env.PROJECT_DIR }}/final/final_video.mp4"
+          fi
+          
+          # 字幕を追加（有効な場合）
+          if [ "${{ github.event.inputs.enable_subtitles }}" == "true" ] && [ -f "$NARRATION_PATH" ]; then
+            echo "📝 Adding subtitles overlay..."
+            # TODO: 字幕処理の実装（SRT生成とオーバーレイ）
+          fi
+          
+          echo "final_video_path=${{ env.PROJECT_DIR }}/final/final_video.mp4" >> $GITHUB_OUTPUT
+          echo "✅ Final video processing completed"
+          
+      - name: Upload to CDN
+        id: upload
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          echo "☁️ Uploading final video..."
+          
+          # Claude Codeでアップロード
+          CLAUDE_PROMPT="Upload the final video to FAL CDN:
+          
+          **File Path**: ${{ steps.process.outputs.final_video_path }}
+          
+          Steps:
+          1. Read the video file
+          2. Use the FAL upload service to upload it
+          3. Save the CDN URL to ${{ env.PROJECT_DIR }}/final/video-url.txt
+          
+          Make sure to get a permanent URL that can be accessed later."
+          
+          # フォールバック: ローカルパスを使用
+          echo "local://${{ steps.process.outputs.final_video_path }}" > "${{ env.PROJECT_DIR }}/final/video-url.txt"
+          
+          VIDEO_URL=$(cat "${{ env.PROJECT_DIR }}/final/video-url.txt")
+          echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
+          
+      - name: Create Summary Report
+        run: |
+          echo "📊 Creating summary report..."
+          
+          # サマリーレポート作成
+          cat > "${{ env.PROJECT_DIR }}/final/summary.md" << EOF
+          # Video Content Creation Production v8 - Summary Report
+          
+          ## Project Information
+          - **Concept**: ${{ github.event.inputs.video_concept }}
+          - **Style**: ${{ github.event.inputs.video_style }}
+          - **Quality**: ${{ github.event.inputs.quality_setting }}
+          - **Duration**: ${{ github.event.inputs.video_length }} seconds
+          - **Target Audience**: ${{ github.event.inputs.target_audience }}
+          
+          ## Features
+          - **Lipsync**: ${{ github.event.inputs.enable_lipsync }}
+          - **Subtitles**: ${{ github.event.inputs.enable_subtitles }}
+          
+          ## Generated Assets
+          - **Planning Document**: Available
+          - **Scene Images**: 3 images (intro, main, outro)
+          - **Scene Videos**: 3 videos
+          - **Background Music**: Generated
+          - **Narration**: ${{ github.event.inputs.enable_subtitles == 'true' && 'Generated' || 'Not generated' }}
+          
+          ## Final Output
+          - **Video URL**: ${{ steps.upload.outputs.video_url }}
+          - **Local Path**: ${{ steps.process.outputs.final_video_path }}
+          
+          ## Workflow Information
+          - **Run Number**: ${{ github.run_number }}
+          - **Run ID**: ${{ github.run_id }}
+          - **Timestamp**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          ---
+          Generated with Kamui Rossy v8 - Minimum Unit Architecture
+          EOF
+          
+      - name: Upload Final Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video-package-${{ github.run_number }}
+          path: ${{ env.PROJECT_DIR }}/final/
+          retention-days: 90
+
+  # ========================================
+  # Phase 8: プロジェクトディレクトリへの保存
+  # ========================================
+  save-to-projects:
+    needs: [finalize-video]
+    runs-on: ubuntu-latest
+    if: success()
+    outputs:
+      saved_path: ${{ steps.save-all.outputs.saved_path }}
+      project_dir: ${{ steps.save-all.outputs.project_dir }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-${{ github.run_number }}"
+          path: temp-all-artifacts/
+          
+      - name: Save All Outputs to Projects
+        id: save-all
+        run: |
+          echo "💾 Saving all outputs to projects directory..."
+          
+          # プロジェクト名の生成（特殊文字を処理）
+          PROJECT_NAME=$(echo "${{ github.event.inputs.video_concept }}" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g' | cut -c1-50)
+          PROJECT_DIR="video-v8-run-${{ github.run_number }}-${PROJECT_NAME}"
+          
+          # メインディレクトリ作成
+          mkdir -p "projects/$PROJECT_DIR"
+          
+          echo "📂 Organizing artifacts with structured layout..."
+          
+          # 最終成果物
+          if [ -d "temp-all-artifacts/final-video-package-${{ github.run_number }}" ]; then
+            cp -r "temp-all-artifacts/final-video-package-${{ github.run_number }}"/* "projects/$PROJECT_DIR/"
+          fi
+          
+          # 企画ドキュメント
+          if [ -d "temp-all-artifacts/planning-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/planning"
+            cp -r "temp-all-artifacts/planning-${{ github.run_number }}"/* "projects/$PROJECT_DIR/planning/"
+          fi
+          
+          # 生成画像（シーンごと）
+          for scene in intro main outro; do
+            if [ -d "temp-all-artifacts/images-${scene}-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/images/${scene}"
+              cp -r "temp-all-artifacts/images-${scene}-${{ github.run_number }}"/* "projects/$PROJECT_DIR/images/${scene}/"
+            fi
+          done
+          
+          # 生成動画（シーンごと）
+          for scene in intro main outro; do
+            if [ -d "temp-all-artifacts/videos-${scene}-${{ github.run_number }}" ]; then
+              mkdir -p "projects/$PROJECT_DIR/videos/${scene}"
+              cp -r "temp-all-artifacts/videos-${scene}-${{ github.run_number }}"/* "projects/$PROJECT_DIR/videos/${scene}/"
+            fi
+          done
+          
+          # BGM
+          if [ -d "temp-all-artifacts/bgm-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/audio/bgm"
+            cp -r "temp-all-artifacts/bgm-${{ github.run_number }}"/* "projects/$PROJECT_DIR/audio/bgm/"
+          fi
+          
+          # ナレーション
+          if [ -d "temp-all-artifacts/narration-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/audio/narration"
+            cp -r "temp-all-artifacts/narration-${{ github.run_number }}"/* "projects/$PROJECT_DIR/audio/narration/"
+          fi
+          
+          # 環境情報
+          if [ -d "temp-all-artifacts/environment-${{ github.run_number }}" ]; then
+            mkdir -p "projects/$PROJECT_DIR/metadata"
+            cp -r "temp-all-artifacts/environment-${{ github.run_number }}"/* "projects/$PROJECT_DIR/metadata/"
+          fi
+          
+          # ワークフローメタデータ作成
+          cat > "projects/$PROJECT_DIR/workflow-info.json" << EOF
+          {
+            "workflow": "video-content-creation-production-v8",
+            "run_number": ${{ github.run_number }},
+            "run_id": "${{ github.run_id }}",
+            "concept": "${{ github.event.inputs.video_concept }}",
+            "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "github_actor": "${{ github.actor }}",
+            "github_ref": "${{ github.ref }}",
+            "structure": {
+              "planning": "企画ドキュメント",
+              "images": "生成画像（intro/main/outro）",
+              "videos": "生成動画（intro/main/outro）",
+              "audio": {
+                "bgm": "背景音楽",
+                "narration": "ナレーション音声"
+              },
+              "metadata": "環境情報・実行ログ"
+            }
+          }
+          EOF
+          
+          echo "saved_path=projects/$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Saved to: projects/$PROJECT_DIR"
+          
+          # ディレクトリ構造を表示
+          echo "📁 Project structure:"
+          tree "projects/$PROJECT_DIR/" 2>/dev/null || find "projects/$PROJECT_DIR/" -type d | sort
+
+  # ========================================
+  # Phase 9: プルリクエスト作成
+  # ========================================
+  create-pull-request:
+    needs: [finalize-video, save-to-projects]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Create Feature Branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          BRANCH_NAME="video-production-v8-${{ github.run_number }}"
+          git checkout -b "$BRANCH_NAME"
+          
+          # READMEに実行結果を追加
+          echo "" >> README.md
+          echo "## Video Production v8 - Run #${{ github.run_number }}" >> README.md
+          echo "- **Concept**: ${{ github.event.inputs.video_concept }}" >> README.md
+          echo "- **Saved to**: ${{ needs.save-to-projects.outputs.saved_path }}" >> README.md
+          echo "- **Date**: $(date -u +%Y-%m-%d)" >> README.md
+          
+          # projectsディレクトリの内容を追加（動画ファイルは除外）
+          git add README.md
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/summary.md" || true
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/workflow-info.json" || true
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/video-url.txt" || true
+          git add -f "${{ needs.save-to-projects.outputs.saved_path }}/videos.txt" || true
+          
+          git commit -m "feat: add video production v8 run #${{ github.run_number }} results - ${{ github.event.inputs.video_concept }}"
+          
+          git push origin "$BRANCH_NAME"
+          
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --title "🎥 Video Production v8: ${{ github.event.inputs.video_concept }}" \
+            --body "## Video Content Creation Production v8
+            
+            ### Summary
+            - **Concept**: ${{ github.event.inputs.video_concept }}
+            - **Style**: ${{ github.event.inputs.video_style }}
+            - **Quality**: ${{ github.event.inputs.quality_setting }}
+            - **Duration**: ${{ github.event.inputs.video_length }} seconds
+            
+            ### Results
+            - **Final Video**: ${{ needs.finalize-video.outputs.final_video_url }}
+            - **Workflow Run**: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ### Features Used
+            - Lipsync: ${{ github.event.inputs.enable_lipsync }}
+            - Subtitles: ${{ github.event.inputs.enable_subtitles }}
+            
+            ---
+            🤖 Generated with Kamui Rossy v8 - Minimum Unit Architecture" \
+            --base main

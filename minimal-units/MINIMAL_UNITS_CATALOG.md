@@ -2,7 +2,7 @@
 
 Comprehensive catalog of minimal units. The meta-workflow system references this catalog to dynamically construct workflows.
 
-**Total Units: 80**
+**Total Units: 81**
 
 ## Categories and Units
 
@@ -42,11 +42,12 @@ Comprehensive catalog of minimal units. The meta-workflow system references this
 #### 🎭 3D Generation (1 unit)
 - **i2i3d-hunyuan**: Image-to-3D with Hunyuan (minimal-units/media/3d/i2i3d-hunyuan.yml)
 
-### 📋 Planning & Analysis (6 units)
+### 📋 Planning & Analysis (7 units)
 - **planning-ccsdk**: Planning with Claude Code SDK (minimal-units/planning/planning-ccsdk.yml)
 - **banner-planning**: Banner planning (minimal-units/planning/banner-planning.yml)
 - **news-planning**: News planning (minimal-units/planning/news-planning.yml)
-- **web-search**: Information gathering via web search (minimal-units/planning/web-search.yml)
+- **web-search-claude**: ✅ Web search using Claude Code WebSearch tool (minimal-units/planning/web-search-claude.yml)
+- **web-search-gemini**: Web search using Gemini API (minimal-units/planning/web-search-gemini.yml)
 - **data-analysis**: Data analysis (minimal-units/planning/data-analysis.yml)
 - **data-visualization**: Data visualization (minimal-units/planning/data-visualization.yml)
 
