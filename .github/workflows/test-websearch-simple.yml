@@ -1,0 +1,36 @@
+name: "Test WebSearch Simple"
+run-name: "🔍 Simple WebSearch Test"
+
+on:
+  workflow_dispatch:
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  test:
+    name: "Test WebSearch"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      
+      - name: Test WebSearch
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "Testing WebSearch with Claude Code CLI..."
+          
+          # シンプルなWebSearch実行
+          npx @anthropic-ai/claude-code \
+            -p "京都の食べ物トレンドについてWebSearchツールで検索して、結果を表示してください。" \
+            --allowedTools "WebSearch" \
+            --permission-mode "acceptEdits"
+          
+          echo "WebSearch test completed"
