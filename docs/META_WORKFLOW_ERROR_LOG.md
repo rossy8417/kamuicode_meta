@@ -155,5 +155,24 @@ EOF
    echo "::debug::Variable value: $VARIABLE"
    ```
 
+### 5. 存在しないnpmパッケージの参照
+
+**問題**:
+```yaml
+- name: Install Claude Code
+  run: |
+    npm install -g @anthropic/claude-code
+```
+
+**原因**:
+- Claude Code SDKは実際には存在しないパッケージ
+- ハードコードされた古い実装の残骸
+
+**修正方法**:
+- 該当ステップを完全に削除
+- 実際のタスク分解は純粋なシェルスクリプトとPythonで実装
+
+**教訓**: 外部依存関係を追加する前に、パッケージの存在を確認
+
 ---
 最終更新: 2025-08-02
