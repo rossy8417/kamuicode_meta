@@ -147,39 +147,41 @@ jobs:
           echo "🧠 Using Claude Code SDK for intelligent task decomposition..."
           
           # Create prompt for Claude Code SDK
-          cat > /tmp/claude_prompt.txt << 'CLAUDE_PROMPT_EOF'
-あなたはMeta Workflow Generatorのタスク分解エージェントです。
-以下のイシューから必要なタスクを分解し、適切なミニマルユニットを選択してください。
-
-イシュー情報:
-タイトル: ${{ needs.validate-trigger.outputs.issue_title }}
-内容:
-$(cat /tmp/issue_body_safe.txt)
-
-利用可能なミニマルユニット:
-- web-search: Web検索とトレンド情報収集
-- news-planning: ニュース企画と構成作成
-- image-generation: 画像生成（サムネイル、ビジュアル素材）
-- video-generation: 動画生成（メインコンテンツ）
-- audio-generation: BGM生成
-- text-to-speech: ナレーション音声生成
-- video-editing: 動画編集と素材統合
-- data-analysis: データ分析と可視化
-
-以下の形式でJSONを出力してください:
-{
-  "complexity": "simple|medium|complex",
-  "duration": "推定時間",
-  "capabilities": ["必要な能力のリスト"],
-  "task_sequence": [
-    {
-      "phase": 1,
-      "tasks": ["並列実行可能なタスク"],
-      "reason": "なぜこのフェーズで実行するか"
-    }
-  ]
-}
-CLAUDE_PROMPT_EOF
+          ISSUE_TITLE="${{ needs.validate-trigger.outputs.issue_title }}"
+          
+          # Create base prompt
+          echo "Creating Claude prompt..."
+          echo "あなたはMeta Workflow Generatorのタスク分解エージェントです。" > /tmp/claude_prompt.txt
+          echo "以下のイシューから必要なタスクを分解し、適切なミニマルユニットを選択してください。" >> /tmp/claude_prompt.txt
+          echo "" >> /tmp/claude_prompt.txt
+          echo "イシュー情報:" >> /tmp/claude_prompt.txt
+          echo "タイトル: $ISSUE_TITLE" >> /tmp/claude_prompt.txt
+          echo "内容:" >> /tmp/claude_prompt.txt
+          cat /tmp/issue_body_safe.txt >> /tmp/claude_prompt.txt
+          echo "" >> /tmp/claude_prompt.txt
+          echo "利用可能なミニマルユニット:" >> /tmp/claude_prompt.txt
+          echo "- web-search: Web検索とトレンド情報収集" >> /tmp/claude_prompt.txt
+          echo "- news-planning: ニュース企画と構成作成" >> /tmp/claude_prompt.txt
+          echo "- image-generation: 画像生成（サムネイル、ビジュアル素材）" >> /tmp/claude_prompt.txt
+          echo "- video-generation: 動画生成（メインコンテンツ）" >> /tmp/claude_prompt.txt
+          echo "- audio-generation: BGM生成" >> /tmp/claude_prompt.txt
+          echo "- text-to-speech: ナレーション音声生成" >> /tmp/claude_prompt.txt
+          echo "- video-editing: 動画編集と素材統合" >> /tmp/claude_prompt.txt
+          echo "- data-analysis: データ分析と可視化" >> /tmp/claude_prompt.txt
+          echo "" >> /tmp/claude_prompt.txt
+          echo "以下の形式でJSONを出力してください:" >> /tmp/claude_prompt.txt
+          echo '{' >> /tmp/claude_prompt.txt
+          echo '  "complexity": "simple|medium|complex",' >> /tmp/claude_prompt.txt
+          echo '  "duration": "推定時間",' >> /tmp/claude_prompt.txt
+          echo '  "capabilities": ["必要な能力のリスト"],' >> /tmp/claude_prompt.txt
+          echo '  "task_sequence": [' >> /tmp/claude_prompt.txt
+          echo '    {' >> /tmp/claude_prompt.txt
+          echo '      "phase": 1,' >> /tmp/claude_prompt.txt
+          echo '      "tasks": ["並列実行可能なタスク"],' >> /tmp/claude_prompt.txt
+          echo '      "reason": "なぜこのフェーズで実行するか"' >> /tmp/claude_prompt.txt
+          echo '    }' >> /tmp/claude_prompt.txt
+          echo '  ]' >> /tmp/claude_prompt.txt
+          echo '}' >> /tmp/claude_prompt.txt
 
           # Execute Claude Code SDK
           CLAUDE_RESPONSE=$(claude -p "$(cat /tmp/claude_prompt.txt)" --output-format json 2>/dev/null || echo '{}')
@@ -227,10 +229,11 @@ CLAUDE_PROMPT_EOF
           fi
           
           # Generate dynamic task decomposition
+          ISSUE_NUMBER="${{ needs.validate-trigger.outputs.issue_number }}"
           cat > ../metadata/task_decomposition.json << TASK_EOF
           {
             "meta_analysis": {
-              "source_issue": "#${{ needs.validate-trigger.outputs.issue_number }}",
+              "source_issue": "#$ISSUE_NUMBER",
               "issue_title": "$ISSUE_TITLE",
               "request_type": "$REQUEST_TYPE",
               "complexity_level": "$COMPLEXITY",
