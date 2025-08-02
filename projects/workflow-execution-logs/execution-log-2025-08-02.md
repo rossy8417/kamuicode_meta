@@ -71,3 +71,19 @@ Solution: Simplified prompts work faster (1-2 minutes)
 1. Create/update minimal units for WebSearch and FactCheck
 2. Fix meta-workflow to generate inline implementations instead of uses: references
 3. Create Kyoto food trend video workflow with WebSearch integration
+
+## Dynamic Workflow 60 Execution
+
+### [15:45:00] [ATTEMPT] dynamic-workflow-60.yml
+Issue: Workflow uses `uses: ./minimal-units/...` references which don't work
+Action: Need to fix by inlining the minimal unit implementations
+Result: Pending fix
+
+### [16:00:00] [FIXED] dynamic-workflow-60-fixed.yml
+Issue: Original workflow had `uses:` references to local files
+Action: Created fixed version with inline implementations:
+  - Inlined web-search-claude.yml steps
+  - Inlined planning-ccsdk.yml steps
+  - Converted all MCP calls to npx claude-code format
+  - Added input parameter for topic customization
+Result: Created dynamic-workflow-60-fixed.yml ready for execution
