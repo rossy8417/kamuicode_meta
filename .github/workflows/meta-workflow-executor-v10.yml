@@ -641,7 +641,7 @@ jobs:
         run: |
           echo "✅ Validating generated workflow..."
           
-          WORKFLOW_FILE=$(find generated-workflows -name "*.yml" | head -1)
+          WORKFLOW_FILE=$(find generated-workflows -name '*.yml' | head -1)
           
           # Check YAML syntax
           python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null
@@ -654,7 +654,7 @@ jobs:
           fi
           
           # Check for long expressions
-          LONG_LINES=$(grep -n ".*\${{.*}}.*" "$WORKFLOW_FILE" | awk 'length($0) > 500' | wc -l)
+          LONG_LINES=$(grep -n '\${{.*}}' "$WORKFLOW_FILE" | awk 'length($0) > 500' | wc -l)
           if [ "$LONG_LINES" -gt 0 ]; then
             echo "⚠️ Found $LONG_LINES long expression lines"
             echo "needs_optimization=true" >> $GITHUB_OUTPUT
@@ -778,7 +778,7 @@ jobs:
           echo 'if __name__ == "__main__":' >> optimize_workflow.py
           echo '    optimize_workflow(sys.argv[1])' >> optimize_workflow.py
           
-          WORKFLOW_FILE=$(find generated-workflows -name "*.yml" | head -1)
+          WORKFLOW_FILE=$(find generated-workflows -name '*.yml' | head -1)
           python3 optimize_workflow.py "$WORKFLOW_FILE"
           
           if [ -f "${WORKFLOW_FILE}.optimized" ]; then
@@ -826,7 +826,7 @@ jobs:
         run: |
           echo "📦 Deploying workflow..."
           
-          WORKFLOW_FILE=$(find generated-workflows -name "*.yml" | head -1)
+          WORKFLOW_FILE=$(find generated-workflows -name '*.yml' | head -1)
           DEPLOYMENT_NAME="issue-${{ inputs.issue_number }}-$(date +%Y%m%d-%H%M%S).yml.disabled"
           DEPLOYMENT_PATH=".github/workflows/generated/$DEPLOYMENT_NAME"
           
@@ -929,10 +929,10 @@ jobs:
           echo "- **最適化**: ${{ needs.workflow-validation.outputs.optimization_needed }}" >> $GITHUB_STEP_SUMMARY
           
           # Show job structure
-          if [ -f "artifacts/generated-workflow/"*.yml ]; then
+          if [ -d "artifacts/generated-workflow" ] && [ -n "$(ls -A artifacts/generated-workflow/*.yml 2>/dev/null)" ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 📋 生成されたジョブ構造" >> $GITHUB_STEP_SUMMARY
-            WORKFLOW_FILE=$(find artifacts/generated-workflow -name "*.yml" | head -1)
+            WORKFLOW_FILE=$(find artifacts/generated-workflow -name '*.yml' | head -1)
             # Extract job names
             grep -E "^  [a-zA-Z_-]+:" "$WORKFLOW_FILE" | grep -v "^  workflow_dispatch:" | sed 's/://g' | while read job; do
               echo "- $job" >> $GITHUB_STEP_SUMMARY
