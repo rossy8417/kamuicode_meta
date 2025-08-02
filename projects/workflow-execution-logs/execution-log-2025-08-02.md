@@ -92,3 +92,20 @@ Result: Created dynamic-workflow-60-fixed.yml ready for execution
 Issue: Running fixed workflow to create Kyoto food trend video
 Action: Started workflow with topic="京都の食べ物トレンド"
 Result: Workflow in progress - Run ID: 16695260820
+
+### [16:57:18] [FAILED] dynamic-workflow-60.yml
+Issue: Workflow failed in image generation step
+Error: 
+  1. File paths using absolute paths instead of needs.setup.outputs.project_dir
+  2. MCP tool name incorrect (should be without mcp__ prefix in Claude Code)
+  3. Output directory not properly referenced
+Action: Need to fix path references and MCP tool names
+Result: Failed after 5m7s
+
+### [17:05:00] [FIXED] dynamic-workflow-60-v2.yml
+Issue: Previous version had absolute path issues
+Action: Created v2 with fixes:
+  - All absolute paths changed to use ${{ needs.setup.outputs.project_dir }}
+  - Added Checkout Repository to all jobs for file access
+  - Kept MCP tool names with mcp__ prefix (seems required)
+Result: Created dynamic-workflow-60-v2.yml ready for testing
