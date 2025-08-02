@@ -529,6 +529,14 @@ jobs:
             echo "  2. Remove the .disabled extension"
             echo "  3. Commit and push the changes"
             
+            # Commit the generated workflow
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add "$DEPLOYMENT_PATH"
+            git commit -m "🤖 Generated workflow for Issue #${{ inputs.issue_number }} - Meta Workflow v10 with dynamic capability detection" || echo "No changes to commit"
+            
+            git push || echo "Push failed - may need permissions"
+            
             echo "deployment_status=success" >> $GITHUB_OUTPUT
             echo "deployed_path=$DEPLOYMENT_PATH" >> $GITHUB_OUTPUT
             
