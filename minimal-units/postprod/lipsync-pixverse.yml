@@ -1,5 +1,8 @@
+# ⚠️ 重要：これは参照テンプレートです。実際のワークフローではインライン実装してください
+# 詳細は /minimal-units/USAGE_GUIDELINES.md を参照
+
 name: lipsync-pixverse
-description: Pixverseリップシンク生成の最小単位ユニット
+description: Pixverseリップシンク生成の最小単位ユニット（MCP統合版）
 
 on:
   workflow_call:
@@ -29,8 +32,8 @@ on:
         description: 'ローカル保存されたリップシンク動画パス'
         value: ${{ jobs.generate.outputs.video_path }}
     secrets:
-      anthropic_api_key:
-        description: 'Anthropic API Key'
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
         required: true
 
 jobs:
@@ -46,13 +49,17 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code SDK
-        run: npm install @anthropic-ai/claude-code
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
       
       - name: Generate Lipsync Video
         id: execute
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           # ディレクトリ作成
           mkdir -p "${{ inputs.output_dir }}"
@@ -86,18 +93,40 @@ jobs:
           
           # Claude Code実行
           npx @anthropic-ai/claude-code \
-            --mcp-config=".claude/mcp-kamuicode.json" \
+            -p "$PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "$SUBMIT_TOOL,$STATUS_TOOL,$RESULT_TOOL,Bash,Write" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$PROMPT"
+            --permission-mode "acceptEdits"
           
-          # 結果確認
-          if [ -f "${{ inputs.output_dir }}/lipsync-url.txt" ] && [ -f "${{ inputs.output_dir }}/lipsync.mp4" ]; then
-            VIDEO_URL=$(cat "${{ inputs.output_dir }}/lipsync-url.txt")
+          # 結果確認とファイル名の柔軟な処理
+          cd "${{ inputs.output_dir }}"
+          
+          # lipsync.mp4が存在しない場合の自動修正
+          if [ ! -f "lipsync.mp4" ]; then
+            for file in *.mp4; do
+              if [ -f "$file" ] && [ "$file" != "lipsync.mp4" ]; then
+                mv "$file" "lipsync.mp4"
+                echo "✅ Renamed $file to lipsync.mp4"
+                break
+              fi
+            done
+          fi
+          
+          # URLファイルを確認
+          if [ -f "lipsync-url.txt" ]; then
+            VIDEO_URL=$(cat lipsync-url.txt)
+          else
+            VIDEO_URL="generated-lipsync-url"
+          fi
+          
+          # 最終確認
+          if [ -f "lipsync.mp4" ]; then
             echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
             echo "video_path=${{ inputs.output_dir }}/lipsync.mp4" >> $GITHUB_OUTPUT
+            echo "✅ Lipsync generation completed successfully"
           else
-            echo "❌ Lipsync generation failed"
+            echo "❌ Lipsync generation failed - no video file found"
+            echo "Current directory contents:"
+            ls -la
             exit 1
           fi

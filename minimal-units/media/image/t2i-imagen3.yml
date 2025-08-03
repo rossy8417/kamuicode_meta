@@ -1,5 +1,8 @@
+# ⚠️ 重要：これは参照テンプレートです。実際のワークフローではインライン実装してください
+# 詳細は /minimal-units/USAGE_GUIDELINES.md を参照
+
 name: t2i-imagen3
-description: Google Imagen3テキストから画像生成の最小単位ユニット
+description: Google Imagen3テキストから画像生成の最小単位ユニット（MCP統合版）
 
 on:
   workflow_call:
@@ -39,84 +42,91 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     outputs:
-      image_path: ${{ steps.execute.outputs.image_path }}
-      image_url: ${{ steps.execute.outputs.image_url }}
+      image_path: ${{ steps.generate.outputs.image_path }}
+      image_url: ${{ steps.generate.outputs.image_url }}
     
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+      - name: Checkout Repository
+        uses: actions/checkout@v4
       
-      - name: Generate Image with Imagen3
-        id: execute
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Generate Image
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           # ディレクトリ作成
           mkdir -p "${{ inputs.output_dir }}"
           
-          # MCP経由でImagen3を呼び出す（シミュレーション）
-          python3 -c "
-import json
-import os
-from datetime import datetime
-
-# Imagen3パラメータ
-params = {
-    'prompt': '''${{ inputs.prompt }}''',
-    'negative_prompt': '''${{ inputs.negative_prompt }}''',
-    'aspect_ratio': '${{ inputs.aspect_ratio }}',
-    'style_preset': '${{ inputs.style_preset }}'
-}
-
-# アスペクト比から解像度を決定
-aspect_map = {
-    '1:1': (1024, 1024),
-    '16:9': (1344, 768),
-    '9:16': (768, 1344),
-    '4:3': (1024, 768),
-    '3:4': (768, 1024)
-}
-width, height = aspect_map.get(params['aspect_ratio'], (1024, 1024))
-
-# APIレスポンスをシミュレート
-# 実際はMCP t2i-google-imagen3経由で実行
-response = {
-    'status': 'completed',
-    'image_url': 'https://imagen.google.com/generated/imagen3_result.png',
-    'processing_time': 8.5,
-    'metadata': {
-        'model': 'imagen-3',
-        'resolution': f'{width}x{height}',
-        'style': params['style_preset'],
-        'timestamp': datetime.now().isoformat()
-    }
-}
-
-# 結果を保存
-with open('${{ inputs.output_dir }}/imagen3_result.json', 'w') as f:
-    json.dump(response, f, indent=2)
-
-# 仮の画像を生成（テスト用）
-from PIL import Image
-import numpy as np
-
-# グラデーション画像を作成
-img_array = np.zeros((height, width, 3), dtype=np.uint8)
-for i in range(height):
-    for j in range(width):
-        img_array[i, j] = [
-            int(255 * (i / height)),
-            int(255 * (j / width)),
-            128
-        ]
-
-img = Image.fromarray(img_array)
-img.save('${{ inputs.output_dir }}/image.png')
-
-print(f'Image generated: {width}x{height}')
-print(f'Style: {params[\"style_preset\"]}')
-"
+          # Claude Code CLIでMCP経由で画像生成
+          CLAUDE_PROMPT="Generate an image using t2i-google-imagen3 with the following requirements:
           
-          # 結果を設定
-          echo "image_path=${{ inputs.output_dir }}/image.png" >> $GITHUB_OUTPUT
-          echo "image_url=https://imagen.google.com/generated/imagen3_result.png" >> $GITHUB_OUTPUT
+          **Prompt**: ${{ inputs.prompt }}
+          **Aspect Ratio**: ${{ inputs.aspect_ratio }}
+          **Number of Images**: 1
+          **Auto Download**: true
+          **Output Directory**: ${{ inputs.output_dir }}
+          
+          Steps:
+          1. Use mcp__t2i-google-imagen3__imagen_t2i to generate the image
+          2. The tool will automatically download the image to the output directory
+          3. List the downloaded files and save the first image path to image-path.txt
+          4. Save the image URL to image-url.txt
+          
+          Important: Make sure to pass auto_download=true and output_directory parameters to the MCP tool."
+          
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認とファイル名の柔軟な処理
+          cd "${{ inputs.output_dir }}"
+          
+          # 画像ファイルを探す（PNGまたはJPG）
+          IMAGE_FILE=""
+          for ext in png jpg jpeg; do
+            for file in *.$ext; do
+              if [ -f "$file" ]; then
+                IMAGE_FILE="$file"
+                break 2
+              fi
+            done
+          done
+          
+          # image.pngとして統一
+          if [ -n "$IMAGE_FILE" ] && [ "$IMAGE_FILE" != "image.png" ]; then
+            mv "$IMAGE_FILE" "image.png"
+            echo "✅ Renamed $IMAGE_FILE to image.png"
+          fi
+          
+          # URLファイルを確認
+          if [ -f "image-url.txt" ]; then
+            IMAGE_URL=$(cat image-url.txt)
+          else
+            IMAGE_URL="generated-image-url"
+          fi
+          
+          # 最終確認
+          if [ -f "image.png" ]; then
+            echo "image_path=${{ inputs.output_dir }}/image.png" >> $GITHUB_OUTPUT
+            echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+            echo "✅ Image generation completed successfully"
+          else
+            echo "❌ Image generation failed - no image file found"
+            echo "Current directory contents:"
+            ls -la
+            exit 1
+          fi

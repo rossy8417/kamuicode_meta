@@ -1,5 +1,8 @@
+# ⚠️ 重要：これは参照テンプレートです。実際のワークフローではインライン実装してください
+# 詳細は /minimal-units/USAGE_GUIDELINES.md を参照
+
 name: t2v-veo3
-description: FAL Veo3テキストから動画生成の最小単位ユニット
+description: FAL Veo3テキストから動画生成の最小単位ユニット（MCP統合版）
 
 on:
   workflow_call:
@@ -34,6 +37,10 @@ on:
       video_url:
         description: '動画URL'
         value: ${{ jobs.generate.outputs.video_url }}
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth Token'
+        required: true
 
 jobs:
   generate:
@@ -43,76 +50,80 @@ jobs:
       video_url: ${{ steps.execute.outputs.video_url }}
     
     steps:
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: '3.10'
+          node-version: '20'
       
-      - name: Install dependencies
+      - name: Install Claude Code
         run: |
-          pip install requests
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          npm init -y
+          npm install @anthropic-ai/claude-code
       
       - name: Generate Video with Veo3
         id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
         run: |
           # ディレクトリ作成
           mkdir -p "${{ inputs.output_dir }}"
           
-          # MCP経由でVeo3を呼び出す（シミュレーション）
-          python3 -c "
-import json
-import os
-from datetime import datetime
-
-# Veo3パラメータ
-params = {
-    'prompt': '''${{ inputs.prompt }}''',
-    'duration': int('${{ inputs.duration }}'),
-    'aspect_ratio': '${{ inputs.aspect_ratio }}',
-    'quality': '${{ inputs.quality }}'
-}
-
-# アスペクト比から解像度を決定
-aspect_map = {
-    '16:9': (1280, 720),
-    '9:16': (720, 1280),
-    '1:1': (1024, 1024),
-    '4:3': (1024, 768)
-}
-width, height = aspect_map.get(params['aspect_ratio'], (1280, 720))
-
-# APIレスポンスをシミュレート
-# 実際はMCP t2v-fal-veo3-fast経由で実行
-response = {
-    'status': 'completed',
-    'video_url': 'https://v3.fal.media/files/user/veo3_output.mp4',
-    'processing_time': 45.2,
-    'metadata': {
-        'model': 'veo3-fast',
-        'resolution': f'{width}x{height}',
-        'duration': params['duration'],
-        'fps': 30,
-        'quality': params['quality'],
-        'timestamp': datetime.now().isoformat()
-    }
-}
-
-# 結果を保存
-with open('${{ inputs.output_dir }}/veo3_result.json', 'w') as f:
-    json.dump(response, f, indent=2)
-
-print(f'Veo3 video generation completed')
-print(f'Resolution: {width}x{height}')
-print(f'Duration: {params[\"duration\"]}s')
-"
+          # Claude Code CLIでMCP経由で動画生成
+          CLAUDE_PROMPT="Generate a video using t2v-fal-veo3-fast with the following requirements:
           
-          # 仮の動画を生成（テスト用）
-          ffmpeg -f lavfi -i "testsrc=duration=${{ inputs.duration }}:size=1280x720:rate=30" \
-            -c:v libx264 -preset fast -crf 23 \
-            "${{ inputs.output_dir }}/video.mp4"
+          **Prompt**: ${{ inputs.prompt }}
+          **Duration**: ${{ inputs.duration }}s
+          **Aspect Ratio**: ${{ inputs.aspect_ratio }}
+          **Auto Open**: false
+          **Output Directory**: ${{ inputs.output_dir }}
           
-          # 結果を設定
-          echo "video_path=${{ inputs.output_dir }}/video.mp4" >> $GITHUB_OUTPUT
-          echo "video_url=https://v3.fal.media/files/user/veo3_output.mp4" >> $GITHUB_OUTPUT
+          Steps:
+          1. Use mcp__t2v-fal-veo3-fast__veo3_fast_submit to submit the video generation request
+          2. Save the request_id to a file
+          3. Use mcp__t2v-fal-veo3-fast__veo3_fast_status to check the status (may take 30-60 seconds)
+          4. When completed, use mcp__t2v-fal-veo3-fast__veo3_fast_result to download the video
+          5. List the downloaded files and rename the first .mp4 file to video.mp4
+          6. Save the video URL to video-url.txt
+          
+          Important: Make sure to wait for the generation to complete before downloading."
+          
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2v-fal-veo3-fast__veo3_fast_submit,mcp__t2v-fal-veo3-fast__veo3_fast_status,mcp__t2v-fal-veo3-fast__veo3_fast_result,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認とファイル名の柔軟な処理
+          cd "${{ inputs.output_dir }}"
+          
+          # video.mp4が存在しない場合の自動修正
+          if [ ! -f "video.mp4" ]; then
+            for file in *.mp4; do
+              if [ -f "$file" ] && [ "$file" != "video.mp4" ]; then
+                mv "$file" "video.mp4"
+                echo "✅ Renamed $file to video.mp4"
+                break
+              fi
+            done
+          fi
+          
+          # URLファイルを確認
+          if [ -f "video-url.txt" ]; then
+            VIDEO_URL=$(cat video-url.txt)
+          else
+            VIDEO_URL="generated-video-url"
+          fi
+          
+          # 最終確認
+          if [ -f "video.mp4" ]; then
+            echo "video_path=${{ inputs.output_dir }}/video.mp4" >> $GITHUB_OUTPUT
+            echo "video_url=$VIDEO_URL" >> $GITHUB_OUTPUT
+            echo "✅ Video generation completed successfully"
+          else
+            echo "❌ Video generation failed - no video file found"
+            echo "Current directory contents:"
+            ls -la
+            exit 1
+          fi
