@@ -287,19 +287,51 @@ jobs:
           export ISSUE_CONTENT
           envsubst < decomposition_prompt.txt > final_prompt.txt
           
+          # Create a specific prompt that instructs Claude to write to a specific file
+          cat > final_prompt_with_path.txt << 'EOF'
+あなたは${{ needs.validate-and-detect.outputs.primary_domain }}ドメインの専門家です。
+
+以下の内容をファイル 'artifacts/professional_task_decomposition.json' に書き込んでください。
+
+EOF
+          cat final_prompt.txt >> final_prompt_with_path.txt
+          
           # Execute Claude Code for task decomposition
           npx @anthropic-ai/claude-code \
-            -p "$(cat final_prompt.txt)" \
+            -p "$(cat final_prompt_with_path.txt)" \
             --allowedTools "Write" \
             --permission-mode "acceptEdits" \
             > claude_output.log 2>&1
           
-          # Extract the generated JSON file path from Claude's output
-          if grep -q "professional_task_decomposition.json" claude_output.log; then
-            # Find the generated file and copy it to artifacts
-            find . -name "professional_task_decomposition.json" -type f -exec cp {} artifacts/ \;
+          # Check if execution was successful
+          if [ $? -eq 0 ]; then
+            echo "✅ Claude Code execution completed"
+            
+            # Try multiple methods to find the generated file
+            if [ -f "artifacts/professional_task_decomposition.json" ]; then
+              echo "✅ Found file at expected location"
+            elif [ -f "professional_task_decomposition.json" ]; then
+              echo "📁 Found file in current directory, moving to artifacts"
+              mv professional_task_decomposition.json artifacts/
+            else
+              # Search for any JSON file that might contain the task decomposition
+              echo "🔍 Searching for generated JSON files..."
+              find . -name "*.json" -type f -newer final_prompt.txt -exec grep -l "professional_analysis" {} \; | while read -r file; do
+                echo "📁 Found potential task decomposition at: $file"
+                cp "$file" artifacts/professional_task_decomposition.json
+                break
+              done
+            fi
+            
+            # Final check
+            if [ ! -f "artifacts/professional_task_decomposition.json" ]; then
+              echo "❌ Could not find task decomposition file"
+              echo "📋 Claude output:"
+              cat claude_output.log
+              exit 1
+            fi
           else
-            echo "❌ Failed to generate task decomposition"
+            echo "❌ Claude Code execution failed"
             cat claude_output.log
             exit 1
           fi
