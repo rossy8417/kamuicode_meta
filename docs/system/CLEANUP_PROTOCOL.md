@@ -167,33 +167,33 @@ The script performs:
 ### **2025/08/04 Organization** 
 
 #### **Workflow Preservation Strategy**
-- **保持基準**: 最後に成功したバージョン + 最新の改良版のみ
-- **削除基準**: 古いバージョン番号のワークフロー（v1-v9など）
-- **例外**: .disabled拡張子の最新版は保持（テスト待ち）
+- **Preservation criteria**: Only keep last successful version + latest improvement
+- **Deletion criteria**: Old version numbered workflows (v1-v9, etc.)
+- **Exception**: Keep latest .disabled extension versions (awaiting test)
 
 #### **Root Directory Cleanup**
-- **成果物移動**: ルートディレクトリのメディアファイル → `projects/current-session/final/`
-- **対象ファイル**: `*.mp4`, `*.mp3`, `*.png`, `*.jpg`, `*-log.txt`
-- **移動後処理**: README.mdを作成して移動履歴を記録
+- **Output file relocation**: Root directory media files → `projects/current-session/final/`
+- **Target files**: `*.mp4`, `*.mp3`, `*.png`, `*.jpg`, `*-log.txt`
+- **Post-move action**: Create README.md to document relocation history
 
 #### **projects/ Directory Structure**
 ```
 projects/
-├── archive/YYYY-MM/        # 古い実行結果（月別管理）
-├── current-session/        # 現在のセッション成果物
-│   └── final/             # ルートから移動した最終成果物
-├── production/            # 本番環境で成功した結果
-│   ├── issue-XX/         # Issue番号別
-│   └── workflow-name/    # ワークフロー名別
-├── test-runs/            # テスト実行結果
-├── meta-workflow-vXX-analysis/  # 分析結果（保持）
-└── workflow-execution-logs/     # 実行ログ（常に保持）
+├── archive/YYYY-MM/        # Old execution results (monthly management)
+├── current-session/        # Current session outputs
+│   └── final/             # Final outputs moved from root
+├── production/            # Successful production results
+│   ├── issue-XX/         # By issue number
+│   └── workflow-name/    # By workflow name
+├── test-runs/            # Test execution results
+├── meta-workflow-vXX-analysis/  # Analysis results (preserved)
+└── workflow-execution-logs/     # Execution logs (always preserved)
 ```
 
 #### **Backup Policy Change**
-- **2025/08/04以降**: バックアップ作成なし（ユーザー要請）
-- **理由**: Gitで履歴管理されているため重複
-- **注意**: 重要な変更前は手動でバックアップ推奨
+- **After 2025/08/04**: No backup creation (per user request)
+- **Reason**: Redundant due to Git history management
+- **Note**: Manual backup recommended before major changes
 
 ### **Future Reference Criteria**
 1. **Function-based > Content-based**: Files related to functionality are consolidated in function directories
