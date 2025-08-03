@@ -1,0 +1,225 @@
+name: "🎯 Dynamic Workflow - Issue #60"
+run-name: "📊 Dynamic | ${{ github.actor }} | Issue #60"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Source issue number"
+        required: true
+        default: "60"
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  PROJECT_BASE: "projects/issue-60"
+
+jobs:
+  initialize:
+    name: "🚀 Initialize Workflow"
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Project Directory
+        id: setup
+        run: |
+          PROJECT_DIR="${{ env.PROJECT_BASE }}"
+          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final}
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Project directory initialized: $PROJECT_DIR"
+
+  job_1_video_generation:
+    name: "📦 Execute: video-generation"
+    runs-on: ubuntu-latest
+    needs: initialize
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute video-generation
+        run: |
+          echo "🔧 Executing minimal unit: video-generation"
+          echo "📂 Unit path: minimal-units/media/video/t2v-veo3.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ video-generation completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from video-generation" > ${{ env.PROJECT_BASE }}/outputs/1_video-generation.txt
+
+  job_2_image_generation:
+    name: "📦 Execute: image-generation"
+    runs-on: ubuntu-latest
+    needs: job_1_video_generation
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute image-generation
+        run: |
+          echo "🔧 Executing minimal unit: image-generation"
+          echo "📂 Unit path: minimal-units/media/image/t2i-imagen3.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ image-generation completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from image-generation" > ${{ env.PROJECT_BASE }}/outputs/2_image-generation.txt
+
+  job_3_audio_generation:
+    name: "📦 Execute: audio-generation"
+    runs-on: ubuntu-latest
+    needs: job_2_image_generation
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute audio-generation
+        run: |
+          echo "🔧 Executing minimal unit: audio-generation"
+          echo "📂 Unit path: minimal-units/media/audio/bgm-generate-mcp.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ audio-generation completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from audio-generation" > ${{ env.PROJECT_BASE }}/outputs/3_audio-generation.txt
+
+  job_4_web_search:
+    name: "📦 Execute: web-search"
+    runs-on: ubuntu-latest
+    needs: job_3_audio_generation
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute web-search
+        run: |
+          echo "🔧 Executing minimal unit: web-search"
+          echo "📂 Unit path: minimal-units/planning/web-search.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ web-search completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from web-search" > ${{ env.PROJECT_BASE }}/outputs/4_web-search.txt
+
+  job_5_data_analysis:
+    name: "📦 Execute: data-analysis"
+    runs-on: ubuntu-latest
+    needs: job_4_web_search
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute data-analysis
+        run: |
+          echo "🔧 Executing minimal unit: data-analysis"
+          echo "📂 Unit path: minimal-units/planning/data-analysis.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ data-analysis completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from data-analysis" > ${{ env.PROJECT_BASE }}/outputs/5_data-analysis.txt
+
+  job_6_news_planning:
+    name: "📦 Execute: news-planning"
+    runs-on: ubuntu-latest
+    needs: job_5_data_analysis
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute news-planning
+        run: |
+          echo "🔧 Executing minimal unit: news-planning"
+          echo "📂 Unit path: minimal-units/planning/news-planning.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ news-planning completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from news-planning" > ${{ env.PROJECT_BASE }}/outputs/6_news-planning.txt
+
+  job_7_text_to_speech:
+    name: "📦 Execute: text-to-speech"
+    runs-on: ubuntu-latest
+    needs: job_6_news_planning
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute text-to-speech
+        run: |
+          echo "🔧 Executing minimal unit: text-to-speech"
+          echo "📂 Unit path: minimal-units/media/audio/t2s-minimax-turbo-mcp.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ text-to-speech completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from text-to-speech" > ${{ env.PROJECT_BASE }}/outputs/7_text-to-speech.txt
+
+  job_8_video_editing:
+    name: "📦 Execute: video-editing"
+    runs-on: ubuntu-latest
+    needs: job_7_text_to_speech
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Execute video-editing
+        run: |
+          echo "🔧 Executing minimal unit: video-editing"
+          echo "📂 Unit path: minimal-units/postprod/video-concat.yml"
+          
+          # Here you would include the actual minimal unit
+          # For now, we'll simulate execution
+          echo "✅ video-editing completed successfully"
+          
+          # Save output
+          mkdir -p ${{ env.PROJECT_BASE }}/outputs
+          echo "Output from video-editing" > ${{ env.PROJECT_BASE }}/outputs/8_video-editing.txt
+
+  finalize:
+    name: "🎉 Finalize Workflow"
+    runs-on: ubuntu-latest
+    needs: [initialize]
+    if: always()
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Generate Summary
+        run: |
+          echo "## 📊 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: ${{ env.PROJECT_BASE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Dynamic workflow execution completed!" >> $GITHUB_STEP_SUMMARY

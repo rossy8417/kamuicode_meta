@@ -1,0 +1,486 @@
+name: "Professional Video Production Workflow"
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_topic:
+        description: "動画のトピック・テーマ"
+        required: true
+        type: string
+        default: "最新のAI技術について"
+      
+      video_duration:
+        description: "動画の長さ（秒）"
+        required: true
+        type: number
+        default: 60
+      
+      target_platform:
+        description: "配信プラットフォーム"
+        required: true
+        type: choice
+        options:
+          - "youtube"
+          - "instagram"
+          - "tiktok"
+          - "twitter"
+        default: "youtube"
+      
+      video_style:
+        description: "動画スタイル"
+        required: true
+        type: choice
+        options:
+          - "educational"
+          - "entertainment"
+          - "professional"
+          - "casual"
+        default: "educational"
+      
+      include_narration:
+        description: "ナレーション音声を含める"
+        required: true
+        type: boolean
+        default: true
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup-dirs.outputs.project_dir }}
+      scene_count: ${{ steps.calculate-scenes.outputs.scene_count }}
+      resolution: ${{ steps.platform-config.outputs.resolution }}
+      aspect_ratio: ${{ steps.platform-config.outputs.aspect_ratio }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup project directories
+        id: setup-dirs
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="projects/video-production-${TIMESTAMP}"
+          mkdir -p "${PROJECT_DIR}/metadata"
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/images"
+          mkdir -p "${PROJECT_DIR}/media/videos"
+          mkdir -p "${PROJECT_DIR}/media/audio"
+          mkdir -p "${PROJECT_DIR}/final"
+          echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+      
+      - name: Calculate scene count
+        id: calculate-scenes
+        run: |
+          DURATION=${{ inputs.video_duration }}
+          SCENES_BASE=$(( (DURATION + 6) / 7 ))
+          BUFFER_SCENES=$(( SCENES_BASE / 5 + 1 ))
+          TOTAL_SCENES=$(( SCENES_BASE + BUFFER_SCENES ))
+          echo "scene_count=${TOTAL_SCENES}" >> $GITHUB_OUTPUT
+          echo "Calculated ${TOTAL_SCENES} scenes for ${DURATION}s video" | tee -a workflow.log
+      
+      - name: Configure platform settings
+        id: platform-config
+        run: |
+          case "${{ inputs.target_platform }}" in
+            "youtube")
+              echo "resolution=1920x1080" >> $GITHUB_OUTPUT
+              echo "aspect_ratio=16:9" >> $GITHUB_OUTPUT
+              ;;
+            "instagram"|"tiktok")
+              echo "resolution=1080x1920" >> $GITHUB_OUTPUT
+              echo "aspect_ratio=9:16" >> $GITHUB_OUTPUT
+              ;;
+            "twitter")
+              echo "resolution=1280x720" >> $GITHUB_OUTPUT
+              echo "aspect_ratio=16:9" >> $GITHUB_OUTPUT
+              ;;
+          esac
+      
+      - name: Upload setup artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-config
+          path: workflow.log
+
+  content_planning:
+    runs-on: ubuntu-latest
+    needs: setup
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download setup artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: setup-config
+      
+      - name: Setup Node.js for Claude Code
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      
+      - name: Research video topic
+        run: |
+          mkdir -p ${{ needs.setup.outputs.project_dir }}/metadata
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "WebSearch,Write" \
+            --permission-mode "acceptEdits" \
+            -p "「${{ inputs.video_topic }}」について詳細にリサーチし、${{ inputs.video_duration }}秒の${{ inputs.video_style }}スタイルの動画に最適な情報を収集してください。以下の形式でJSON出力してください：{\"topic_analysis\": \"トピック分析\", \"key_points\": [\"ポイント1\", \"ポイント2\", \"ポイント3\"], \"target_audience\": \"対象視聴者\", \"hook\": \"視聴者を引きつけるフック\", \"call_to_action\": \"コールトゥアクション\"}" > ${{ needs.setup.outputs.project_dir }}/metadata/topic_research.json
+      
+      - name: Create content structure
+        run: |
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Write" \
+            --permission-mode "acceptEdits" \
+            -p "リサーチデータを基に、${{ needs.setup.outputs.scene_count }}シーンの動画構成を作成してください。各シーンは5-8秒とし、${{ inputs.target_platform }}プラットフォーム向けに最適化してください。JSON形式で出力：{\"scenes\": [{\"scene_number\": 1, \"duration\": 6, \"description\": \"シーン説明\", \"visual_description\": \"映像の詳細説明\", \"text_overlay\": \"表示テキスト\"}]}" > ${{ needs.setup.outputs.project_dir }}/metadata/content_structure.json
+      
+      - name: Generate narration script
+        if: inputs.include_narration == true
+        run: |
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Write" \
+            --permission-mode "acceptEdits" \
+            -p "コンテンツ構成を基に、${{ inputs.video_duration }}秒の動画用ナレーション台本を作成してください。自然な日本語で、${{ inputs.video_style }}スタイルに適した口調で書いてください。JSON形式：{\"narration_script\": \"完全な台本\", \"estimated_duration\": \"推定所要時間（秒）\", \"speaking_rate\": \"話す速度（文字/秒）\"}" > ${{ needs.setup.outputs.project_dir }}/metadata/narration_script.json
+      
+      - name: Upload planning artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-planning
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  audio_generation:
+    runs-on: ubuntu-latest
+    needs: [setup, content_planning]
+    if: inputs.include_narration == true
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download planning artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: content-planning
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Setup Node.js for Claude Code
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      
+      - name: Generate narration audio
+        run: |
+          mkdir -p ${{ needs.setup.outputs.project_dir }}/media/audio
+          
+          SCRIPT_TEXT=$(jq -r '.narration_script' ${{ needs.setup.outputs.project_dir }}/metadata/narration_script.json)
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result,Write" \
+            --permission-mode "acceptEdits" \
+            -p "以下のテキストを自然な日本語音声に変換してください：「${SCRIPT_TEXT}」。voice_id=Wise_Woman、speed=1.0、emotion=neutralを使用し、生成された音声を${{ needs.setup.outputs.project_dir }}/media/audio/narration.mp3として保存してください。"
+      
+      - name: Generate background music
+        run: |
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2m-google-lyria__lyria_generate,Write" \
+            --permission-mode "acceptEdits" \
+            -p "「${{ inputs.video_topic }}」のテーマに合う${{ inputs.video_style }}スタイルのBGMを${{ inputs.video_duration }}秒で生成してください。ナレーションの邪魔にならない程度の音量で、適度にアンビエントな楽曲を作成し、${{ needs.setup.outputs.project_dir }}/media/audio/bgm.wav として保存してください。"
+      
+      - name: Upload audio artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-assets
+          path: ${{ needs.setup.outputs.project_dir }}/media/audio/
+
+  image_generation:
+    runs-on: ubuntu-latest
+    needs: [setup, content_planning]
+    
+    strategy:
+      matrix:
+        batch: [1, 2, 3, 4, 5]
+      max-parallel: 5
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download planning artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: content-planning
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Setup Node.js for Claude Code
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      
+      - name: Calculate batch scenes
+        id: batch-calc
+        run: |
+          TOTAL_SCENES=${{ needs.setup.outputs.scene_count }}
+          BATCH_SIZE=$(( (TOTAL_SCENES + 4) / 5 ))
+          START_SCENE=$(( ((${{ matrix.batch }} - 1) * BATCH_SIZE) + 1 ))
+          END_SCENE=$(( ${{ matrix.batch }} * BATCH_SIZE ))
+          if [ $END_SCENE -gt $TOTAL_SCENES ]; then
+            END_SCENE=$TOTAL_SCENES
+          fi
+          echo "start_scene=${START_SCENE}" >> $GITHUB_OUTPUT
+          echo "end_scene=${END_SCENE}" >> $GITHUB_OUTPUT
+          echo "Processing scenes ${START_SCENE}-${END_SCENE} in batch ${{ matrix.batch }}"
+      
+      - name: Generate scene images for batch
+        run: |
+          mkdir -p ${{ needs.setup.outputs.project_dir }}/media/images/batch-${{ matrix.batch }}
+          
+          for scene in $(seq ${{ steps.batch-calc.outputs.start_scene }} ${{ steps.batch-calc.outputs.end_scene }}); do
+            SCENE_DESC=$(jq -r ".scenes[$(($scene - 1))].visual_description" ${{ needs.setup.outputs.project_dir }}/metadata/content_structure.json)
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-fal-imagen4-fast__imagen4_fast_submit,mcp__t2i-fal-imagen4-fast__imagen4_fast_status,mcp__t2i-fal-imagen4-fast__imagen4_fast_result,Write" \
+              --permission-mode "acceptEdits" \
+              -p "以下の説明に基づいて高品質な画像を生成してください：「${SCENE_DESC}」。${{ inputs.video_style }}スタイルで、${{ needs.setup.outputs.aspect_ratio }}のアスペクト比、${{ inputs.target_platform }}プラットフォーム向けに最適化し、${{ needs.setup.outputs.project_dir }}/media/images/batch-${{ matrix.batch }}/scene-${scene}.png として保存してください。"
+            
+            sleep 2
+          done
+      
+      - name: Upload batch images
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-batch-${{ matrix.batch }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/batch-${{ matrix.batch }}/
+
+  video_conversion:
+    runs-on: ubuntu-latest
+    needs: [setup, content_planning, image_generation]
+    
+    strategy:
+      matrix:
+        batch: [1, 2, 3, 4, 5]
+      max-parallel: 3
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download planning artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: content-planning
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Download batch images
+        uses: actions/download-artifact@v4
+        with:
+          name: images-batch-${{ matrix.batch }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/batch-${{ matrix.batch }}/
+      
+      - name: Setup Node.js for Claude Code
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      
+      - name: Calculate batch scenes
+        id: batch-calc
+        run: |
+          TOTAL_SCENES=${{ needs.setup.outputs.scene_count }}
+          BATCH_SIZE=$(( (TOTAL_SCENES + 4) / 5 ))
+          START_SCENE=$(( ((${{ matrix.batch }} - 1) * BATCH_SIZE) + 1 ))
+          END_SCENE=$(( ${{ matrix.batch }} * BATCH_SIZE ))
+          if [ $END_SCENE -gt $TOTAL_SCENES ]; then
+            END_SCENE=$TOTAL_SCENES
+          fi
+          echo "start_scene=${START_SCENE}" >> $GITHUB_OUTPUT
+          echo "end_scene=${END_SCENE}" >> $GITHUB_OUTPUT
+      
+      - name: Convert images to videos
+        run: |
+          mkdir -p ${{ needs.setup.outputs.project_dir }}/media/videos/batch-${{ matrix.batch }}
+          
+          for scene in $(seq ${{ steps.batch-calc.outputs.start_scene }} ${{ steps.batch-calc.outputs.end_scene }}); do
+            IMAGE_PATH="${{ needs.setup.outputs.project_dir }}/media/images/batch-${{ matrix.batch }}/scene-${scene}.png"
+            
+            if [ -f "$IMAGE_PATH" ]; then
+              SCENE_DESC=$(jq -r ".scenes[$(($scene - 1))].description" ${{ needs.setup.outputs.project_dir }}/metadata/content_structure.json)
+              
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_submit,mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_status,mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_result,Write" \
+                --permission-mode "acceptEdits" \
+                -p "画像ファイル「${IMAGE_PATH}」を6秒の動画に変換してください。プロンプト：「${SCENE_DESC}」。${{ needs.setup.outputs.resolution }}解像度で生成し、${{ needs.setup.outputs.project_dir }}/media/videos/batch-${{ matrix.batch }}/scene-${scene}.mp4 として保存してください。"
+              
+              sleep 5
+            else
+              echo "Warning: Image file not found: $IMAGE_PATH"
+            fi
+          done
+      
+      - name: Upload batch videos
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos-batch-${{ matrix.batch }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/batch-${{ matrix.batch }}/
+
+  video_assembly:
+    runs-on: ubuntu-latest
+    needs: [setup, content_planning, audio_generation, video_conversion]
+    if: always() && (needs.video_conversion.result == 'success')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download all video batches
+        uses: actions/download-artifact@v4
+        with:
+          pattern: videos-batch-*
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+          merge-multiple: true
+      
+      - name: Download audio assets
+        if: inputs.include_narration == true
+        uses: actions/download-artifact@v4
+        with:
+          name: audio-assets
+          path: ${{ needs.setup.outputs.project_dir }}/media/audio/
+      
+      - name: Download planning artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: content-planning
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Create video list file
+        run: |
+          find ${{ needs.setup.outputs.project_dir }}/media/videos/ -name "scene-*.mp4" | sort -V > video_list.txt
+          echo "Found videos:"
+          cat video_list.txt
+          
+          echo "# Video concatenation list" > concat_list.txt
+          while IFS= read -r video_file; do
+            if [ -f "$video_file" ]; then
+              echo "file '$(realpath "$video_file")'" >> concat_list.txt
+            fi
+          done < video_list.txt
+          
+          echo "Concat list:"
+          cat concat_list.txt
+      
+      - name: Concatenate videos
+        run: |
+          mkdir -p ${{ needs.setup.outputs.project_dir }}/final
+          
+          if [ -s concat_list.txt ]; then
+            ffmpeg -f concat -safe 0 -i concat_list.txt -c copy -y ${{ needs.setup.outputs.project_dir }}/final/video_only.mp4
+            echo "Video concatenation completed"
+          else
+            echo "Error: No videos found for concatenation"
+            exit 1
+          fi
+      
+      - name: Add audio track
+        if: inputs.include_narration == true
+        run: |
+          NARRATION_PATH="${{ needs.setup.outputs.project_dir }}/media/audio/narration.mp3"
+          BGM_PATH="${{ needs.setup.outputs.project_dir }}/media/audio/bgm.wav"
+          VIDEO_PATH="${{ needs.setup.outputs.project_dir }}/final/video_only.mp4"
+          
+          if [ -f "$NARRATION_PATH" ] && [ -f "$BGM_PATH" ]; then
+            # Mix narration and BGM
+            ffmpeg -i "$NARRATION_PATH" -i "$BGM_PATH" \
+              -filter_complex "[0:a]volume=1.0[narration];[1:a]volume=0.3[bgm];[narration][bgm]amix=inputs=2:duration=first[audio]" \
+              -map "[audio]" -c:a aac -y ${{ needs.setup.outputs.project_dir }}/final/mixed_audio.aac
+            
+            # Combine video with mixed audio
+            ffmpeg -i "$VIDEO_PATH" -i ${{ needs.setup.outputs.project_dir }}/final/mixed_audio.aac \
+              -c:v copy -c:a aac -shortest -y ${{ needs.setup.outputs.project_dir }}/final/final_video.mp4
+          elif [ -f "$NARRATION_PATH" ]; then
+            # Only narration
+            ffmpeg -i "$VIDEO_PATH" -i "$NARRATION_PATH" \
+              -c:v copy -c:a aac -shortest -y ${{ needs.setup.outputs.project_dir }}/final/final_video.mp4
+          else
+            # No audio, use video only
+            cp "$VIDEO_PATH" ${{ needs.setup.outputs.project_dir }}/final/final_video.mp4
+          fi
+      
+      - name: Finalize without audio
+        if: inputs.include_narration == false
+        run: |
+          cp ${{ needs.setup.outputs.project_dir }}/final/video_only.mp4 ${{ needs.setup.outputs.project_dir }}/final/final_video.mp4
+      
+      - name: Generate metadata
+        run: |
+          VIDEO_INFO=$(ffprobe -v quiet -print_format json -show_format -show_streams ${{ needs.setup.outputs.project_dir }}/final/final_video.mp4)
+          
+          cat > ${{ needs.setup.outputs.project_dir }}/final/video_metadata.json << EOF
+          {
+            "title": "Generated Video - ${{ inputs.video_topic }}",
+            "duration_seconds": ${{ inputs.video_duration }},
+            "target_platform": "${{ inputs.target_platform }}",
+            "style": "${{ inputs.video_style }}",
+            "resolution": "${{ needs.setup.outputs.resolution }}",
+            "aspect_ratio": "${{ needs.setup.outputs.aspect_ratio }}",
+            "scene_count": ${{ needs.setup.outputs.scene_count }},
+            "has_narration": ${{ inputs.include_narration }},
+            "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "technical_info": $VIDEO_INFO
+          }
+          EOF
+          
+          echo "Video generation completed successfully!"
+          echo "Final video: ${{ needs.setup.outputs.project_dir }}/final/final_video.mp4"
+          echo "Duration: $(ffprobe -v quiet -show_entries format=duration -of csv=p=0 ${{ needs.setup.outputs.project_dir }}/final/final_video.mp4) seconds"
+      
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video-production
+          path: ${{ needs.setup.outputs.project_dir }}/final/
+      
+      - name: Create workflow summary
+        run: |
+          echo "## 🎬 Video Production Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Topic:** ${{ inputs.video_topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Duration:** ${{ inputs.video_duration }} seconds" >> $GITHUB_STEP_SUMMARY
+          echo "**Platform:** ${{ inputs.target_platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Style:** ${{ inputs.video_style }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Resolution:** ${{ needs.setup.outputs.resolution }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scene Count:** ${{ needs.setup.outputs.scene_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Has Narration:** ${{ inputs.include_narration }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 **Artifacts:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Final video: \`final_video.mp4\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata: \`video_metadata.json\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Project directory: \`${{ needs.setup.outputs.project_dir }}\`" >> $GITHUB_STEP_SUMMARY

@@ -34,8 +34,7 @@ jobs:
     if: |
       (github.event_name == 'workflow_dispatch') ||
       (github.event_name == 'issue_comment' && 
-       github.event.issue.pull_request == null &&
-       contains(github.event.comment.body, '/start'))
+       github.event.issue.pull_request == null)
     outputs:
       issue_number: ${{ steps.extract.outputs.issue_number }}
       issue_title: ${{ steps.extract.outputs.issue_title }}
@@ -58,10 +57,18 @@ jobs:
       - name: Extract Issue Information
         id: extract
         run: |
-          # Determine issue number based on trigger
+          # Check if this is a valid trigger
           if [ "${{ github.event_name }}" == "issue_comment" ]; then
+            COMMENT_BODY="${{ github.event.comment.body }}"
+            # For issue comments, check if it's a start command
+            if ! echo "$COMMENT_BODY" | grep -qE '(/start|^start$|^実行$|^execute$)'; then
+              echo "::notice::Skipping - Comment does not contain start command"
+              echo "issue_number=skip" >> $GITHUB_OUTPUT
+              exit 0
+            fi
             ISSUE_NUMBER="${{ github.event.issue.number }}"
           else
+            # workflow_dispatch always proceeds
             ISSUE_NUMBER="${{ inputs.issue_number }}"
           fi
           
@@ -127,7 +134,9 @@ jobs:
     name: "📚 Load Domain Templates"
     runs-on: ubuntu-latest
     needs: ['validate-and-detect']
-    if: needs.validate-and-detect.outputs.primary_domain != 'null'
+    if: |
+      needs.validate-and-detect.outputs.issue_number != 'skip' &&
+      needs.validate-and-detect.outputs.primary_domain != 'null'
     outputs:
       template_summary: ${{ steps.load.outputs.template_summary }}
       chunk_count: ${{ steps.load.outputs.chunk_count }}
@@ -449,7 +458,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-workflow
-          path: projects/
+          path: |
+            projects/issue-${{ needs.validate-and-detect.outputs.issue_number }}-*
 
   # ===========================================
   # PHASE 5: VALIDATION & DEPLOYMENT

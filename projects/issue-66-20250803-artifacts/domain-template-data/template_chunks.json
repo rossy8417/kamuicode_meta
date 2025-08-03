@@ -1,0 +1,519 @@
+{
+  "domain": "video-production",
+  "total_chunks": 10,
+  "chunks": [
+    {
+      "id": "video-production_readme",
+      "type": "readme",
+      "size": 3037,
+      "data": {
+        "content": "# 動画制作ドメインテンプレート\n\n## 👤 専門家プロファイル\n- **役割**: 映画監督・プロデューサー・VFXスーパーバイザー\n- **経験**: ハリウッド大作からYouTube動画まで15年の実績\n- **専門**: ビジュアルストーリーテリング、ポストプロダクション、配信最適化\n\n## 🎯 このテンプレートが解決する課題\n- シーン数と動画尺のミスマッチによる品質低下\n- 画像URL有効期限切れによる生成失敗\n- 音声・動画の同期ズレ\n- レンダリング待機時間の最適化\n- 視聴者離脱率の高さ\n\n## 📋 使用ケース\n1. **企業プロモーション動画**: 30秒〜3分\n2. **教育コンテンツ**: 5分〜20分\n3. **ソーシャルメディア動画**: 15秒〜60秒\n4. **ドキュメンタリー**: 10分〜60分\n5. **ミュージックビデオ**: 3分〜5分\n6. **ライブ配信アーカイブ**: 30分〜2時間\n\n## 🔧 技術的制約\n- **画像URL有効期限**: 15分（GCS）、30分（S3）\n- **動画生成時間**: 1シーン約2-3分（i2v）、1-2分（t2v）\n- **最大並列処理数**: 5（API制限）\n- **ファイルサイズ制限**: 2GB/動画\n- **解像度上限**: 4K (3840x2160)\n\n## 💡 プロの知見\n1. **8秒ルール**: 最初の8秒で視聴継続が決まる\n2. **カット理論**: 感情的シーン（3-5秒）、説明的シーン（5-8秒）\n3. **音声優先編集**: ナレーションに映像を合わせる\n4. **プリプロダクション**: 全体の40%の時間を企画に使う\n5. **ポストプロダクション**: 全体の30%の時間を仕上げに使う"
+      }
+    },
+    {
+      "id": "video-production_constraints_timing_constraints",
+      "type": "constraints",
+      "section": "timing_constraints",
+      "size": 761,
+      "data": {
+        "timing_constraints": {
+          "scene_calculation": {
+            "formula": "total_scenes = ceil(duration_seconds / average_scene_length)\nwhere:\n  - average_scene_length = 6.5 (5-8秒の中央値)\n  - buffer_scenes = ceil(total_scenes * 0.2) # 20%の予備シーン\n  - final_scene_count = total_scenes + buffer_scenes\n",
+            "examples": [
+              "duration: 30s → scenes: 5 + 1 = 6",
+              "duration: 60s → scenes: 10 + 2 = 12",
+              "duration: 180s → scenes: 28 + 6 = 34"
+            ]
+          },
+          "url_expiration": {
+            "gcs_limit": 900,
+            "s3_limit": 1800,
+            "safety_margin": 180,
+            "batch_strategy": {
+              "max_parallel": 5,
+              "time_per_batch": 180,
+              "calculation": "total_batches = ceil(total_scenes / max_parallel)\ntotal_time = total_batches * time_per_batch\nif total_time > (url_limit - safety_margin):\n  reduce_parallel_count or split_workflow\n"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "video-production_constraints_technical_constraints",
+      "type": "constraints",
+      "section": "technical_constraints",
+      "size": 359,
+      "data": {
+        "technical_constraints": {
+          "resolution": {
+            "youtube_optimal": "1920x1080",
+            "instagram_reel": "1080x1920",
+            "tiktok": "1080x1920",
+            "twitter": "1280x720",
+            "linkedin": "1200x628"
+          },
+          "bitrate": {
+            "4k": "35-45 Mbps",
+            "1080p": "8-12 Mbps",
+            "720p": "5-8 Mbps",
+            "mobile": "2-4 Mbps"
+          },
+          "framerate": {
+            "cinema": 24,
+            "standard": 30,
+            "smooth_motion": 60,
+            "slow_motion": 120
+          }
+        }
+      }
+    },
+    {
+      "id": "video-production_constraints_parallel_processing",
+      "type": "constraints",
+      "section": "parallel_processing",
+      "size": 382,
+      "data": {
+        "parallel_processing": {
+          "strategies": [
+            {
+              "name": "シーン別並列",
+              "condition": "total_scenes > 10",
+              "approach": "1. シーンを5つのグループに分割\n2. 各グループを並列処理\n3. 完成したグループから順次結合\n"
+            },
+            {
+              "name": "レイヤー別並列",
+              "condition": "has_background && has_foreground",
+              "approach": "1. 背景生成と前景生成を並列実行\n2. 合成処理で統合\n"
+            },
+            {
+              "name": "品質別並列",
+              "condition": "need_preview",
+              "approach": "1. 低解像度プレビュー版を先行生成\n2. 高解像度本番版を並列生成\n"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "video-production_constraints_audio_video_sync",
+      "type": "constraints",
+      "section": "audio_video_sync",
+      "size": 335,
+      "data": {
+        "audio_video_sync": {
+          "sync_points": [
+            {
+              "type": "ナレーション駆動",
+              "process": "1. ナレーション音声を先に生成\n2. 音声解析でシーン切り替えポイント特定\n3. 各ポイントに合わせて映像生成\n"
+            },
+            {
+              "type": "ビート同期",
+              "process": "1. BGMのビート検出\n2. ビートに合わせたカット点設定\n3. リズムに同期した映像遷移\n"
+            }
+          ],
+          "lipsync": {
+            "required_when": "has_visible_speaker",
+            "pre_processing": "- 音素解析\n- 口形状マッピング\n- タイミング調整（±50ms許容）\n"
+          }
+        }
+      }
+    },
+    {
+      "id": "video-production_constraints_quality_assurance",
+      "type": "constraints",
+      "section": "quality_assurance",
+      "size": 283,
+      "data": {
+        "quality_assurance": {
+          "checkpoints": [
+            {
+              "stage": "プリプロダクション",
+              "checks": [
+                "ストーリーボードの完成度",
+                "音声スクリプトの長さ検証",
+                "必要リソースの確認"
+              ]
+            },
+            {
+              "stage": "プロダクション",
+              "checks": [
+                "各シーンの生成成功",
+                "解像度・フォーマット統一",
+                "カラーグレーディング一貫性"
+              ]
+            },
+            {
+              "stage": "ポストプロダクション",
+              "checks": [
+                "音声レベル正規化（-14 LUFS）",
+                "カット点の自然さ",
+                "エンコード品質"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "video-production_constraints_failure_recovery",
+      "type": "constraints",
+      "section": "failure_recovery",
+      "size": 284,
+      "data": {
+        "failure_recovery": {
+          "strategies": [
+            {
+              "error": "URL期限切れ",
+              "recovery": "1. 失敗したバッチを特定\n2. 新規URLで再生成\n3. 既存完了分と結合\n"
+            },
+            {
+              "error": "生成タイムアウト",
+              "recovery": "1. シーン分割（より短いクリップへ）\n2. 解像度を下げて再試行\n3. 代替シーン使用\n"
+            },
+            {
+              "error": "スタイル不一致",
+              "recovery": "1. スタイル参照画像を固定\n2. seed値の統一\n3. 後処理でカラー補正"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "video-production_input_schema_inputs",
+      "type": "input_schema",
+      "section": "inputs",
+      "size": 3635,
+      "data": {
+        "inputs": {
+          "required": {
+            "video_title": {
+              "type": "string",
+              "description": "動画のタイトル",
+              "example": "AIが変える未来の教育",
+              "validation": "max_length: 100"
+            },
+            "duration": {
+              "type": "string",
+              "description": "動画の長さ",
+              "enum": [
+                "15s",
+                "30s",
+                "60s",
+                "90s",
+                "3min",
+                "5min",
+                "10min",
+                "15min",
+                "30min"
+              ],
+              "default": "60s",
+              "note": "長さによってシーン数と処理戦略が自動決定される"
+            },
+            "target_platform": {
+              "type": "string",
+              "description": "配信プラットフォーム",
+              "enum": [
+                "youtube",
+                "instagram",
+                "tiktok",
+                "twitter",
+                "linkedin",
+                "web",
+                "broadcast"
+              ],
+              "default": "youtube",
+              "impacts": [
+                "解像度・アスペクト比の自動設定",
+                "エンコード設定の最適化",
+                "メタデータの調整"
+              ]
+            },
+            "content_type": {
+              "type": "string",
+              "description": "コンテンツの種類",
+              "enum": [
+                "promotional",
+                "educational",
+                "entertainment",
+                "documentary",
+                "tutorial",
+                "news",
+                "music_video"
+              ],
+              "default": "educational",
+              "impacts": [
+                "ペーシング（カット間隔）の調整",
+                "BGM選択の方向性",
+                "ビジュアルスタイルの決定"
+              ]
+            }
+          },
+          "recommended": {
+            "visual_style": {
+              "type": "string",
+              "description": "ビジュアルスタイル",
+              "enum": [
+                "cinematic",
+                "anime",
+                "documentary",
+                "corporate",
+                "vlog",
+                "artistic",
+                "minimalist"
+              ],
+              "default": "cinematic",
+              "pro_tip": "スタイルは全シーンで統一される。混在させたい場合はscene_overridesを使用"
+            },
+            "pacing": {
+              "type": "string",
+              "description": "編集ペース",
+              "enum": [
+                "slow",
+                "normal",
+                "fast",
+                "dynamic"
+              ],
+              "default": "normal",
+              "calculation": {
+                "slow": "7-10秒/カット",
+                "normal": "5-7秒/カット",
+                "fast": "3-5秒/カット",
+                "dynamic": "2-8秒/カット（変動）"
+              }
+            },
+            "narration_voice": {
+              "type": "string",
+              "description": "ナレーション音声",
+              "enum": [
+                "male_professional",
+                "female_professional",
+                "male_casual",
+                "female_casual",
+                "ai_neutral",
+                "child",
+                "elderly"
+              ],
+              "default": "female_professional",
+              "includes_accent": [
+                "us",
+                "uk",
+                "au",
+                "jp"
+              ]
+            },
+            "color_grading": {
+              "type": "string",
+              "description": "カラーグレーディング",
+              "enum": [
+                "natural",
+                "warm",
+                "cool",
+                "vintage",
+                "noir",
+                "high_contrast",
+                "pastel"
+              ],
+              "default": "natural",
+              "pro_tip": "ポストプロダクションで一括適用される"
+            },
+            "audio_mix": {
+              "type": "object",
+              "description": "音声ミックス設定",
+              "properties": {
+                "narration_level": {
+                  "type": "integer",
+                  "range": [
+                    -20,
+                    0
+                  ],
+                  "default": -3
+                },
+                "bgm_level": {
+                  "type": "integer",
+                  "range": [
+                    -30,
+                    -10
+                  ],
+                  "default": -18
+                },
+                "ducking_enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "ナレーション時のBGM自動減衰"
+                }
+              }
+            }
+          },
+          "optional": {
+            "scene_overrides": {
+              "type": "array",
+              "description": "個別シーンの詳細設定",
+              "items": {
+                "scene_number": {
+                  "type": "integer"
+                },
+                "duration_override": {
+                  "type": "string",
+                  "pattern": "^[0-9]+s$"
+                },
+                "style_override": {
+                  "type": "string"
+                },
+                "transition": {
+                  "type": "string",
+                  "enum": [
+                    "cut",
+                    "fade",
+                    "dissolve",
+                    "wipe",
+                    "zoom",
+                    "slide"
+                  ]
+                }
+              }
+            },
+            "advanced_sync": {
+              "type": "object",
+              "description": "高度な同期設定",
+              "properties": {
+                "enable_beat_sync": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "enable_motion_sync": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "sync_tolerance_ms": {
+                  "type": "integer",
+                  "default": 100,
+                  "range": [
+                    50,
+                    500
+                  ]
+                }
+              }
+            },
+            "export_settings": {
+              "type": "object",
+              "description": "エクスポート設定",
+              "properties": {
+                "formats": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "mp4",
+                      "mov",
+                      "webm",
+                      "gif"
+                    ]
+                  },
+                  "default": [
+                    "mp4"
+                  ]
+                },
+                "generate_subtitles": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "generate_thumbnail": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "create_preview": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "低解像度プレビュー版の生成"
+                }
+              }
+            },
+            "performance_mode": {
+              "type": "string",
+              "description": "処理モード",
+              "enum": [
+                "quality",
+                "balanced",
+                "speed"
+              ],
+              "default": "balanced",
+              "impacts": {
+                "quality": "最高品質、処理時間3倍",
+                "balanced": "品質と速度のバランス",
+                "speed": "最速処理、品質は標準"
+              }
+            },
+            "custom_assets": {
+              "type": "object",
+              "description": "カスタムアセット",
+              "properties": {
+                "logo_url": {
+                  "type": "string",
+                  "format": "url",
+                  "description": "ロゴ画像URL（透過PNG推奨）"
+                },
+                "bgm_url": {
+                  "type": "string",
+                  "format": "url",
+                  "description": "カスタムBGM URL"
+                },
+                "font_family": {
+                  "type": "string",
+                  "description": "字幕・テロップ用フォント"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "video-production_input_schema_computed_parameters",
+      "type": "input_schema",
+      "section": "computed_parameters",
+      "size": 426,
+      "data": {
+        "computed_parameters": {
+          "total_scenes": {
+            "formula": "ceil(duration_seconds / 6.5) * 1.2",
+            "description": "必要シーン数（20%バッファ含む）"
+          },
+          "parallel_batches": {
+            "formula": "ceil(total_scenes / 5)",
+            "description": "並列処理バッチ数"
+          },
+          "estimated_time": {
+            "formula": "parallel_batches * 3 + post_production_time",
+            "description": "推定処理時間（分）"
+          },
+          "storage_required": {
+            "formula": "duration_seconds * bitrate_mbps * 1.5",
+            "description": "必要ストレージ容量（GB）"
+          }
+        }
+      }
+    },
+    {
+      "id": "video-production_input_schema_validation_rules",
+      "type": "input_schema",
+      "section": "validation_rules",
+      "size": 476,
+      "data": {
+        "validation_rules": [
+          {
+            "name": "duration_platform_match",
+            "rule": "if target_platform == \"tiktok\" and duration > \"60s\":\n  error: \"TikTokは60秒以内である必要があります\"\n"
+          },
+          {
+            "name": "scene_complexity_check",
+            "rule": "if computed.total_scenes > 50 and performance_mode != \"speed\":\n  warning: \"シーン数が多いため、処理に時間がかかります。performance_mode: speed を推奨\"\n"
+          },
+          {
+            "name": "resource_availability",
+            "rule": "if computed.parallel_batches > 10:\n  require_confirmation: \"大規模な処理になります。続行しますか？\""
+          }
+        ]
+      }
+    }
+  ]
+}
