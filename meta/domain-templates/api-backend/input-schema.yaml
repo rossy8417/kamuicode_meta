@@ -1,0 +1,454 @@
+# API・バックエンド開発ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    api_name:
+      type: string
+      description: "API名"
+      example: "Payment Processing API"
+      validation: "max_length: 100"
+    
+    api_type:
+      type: string
+      description: "APIタイプ"
+      enum: ["rest", "graphql", "grpc", "websocket", "mixed"]
+      default: "rest"
+      impacts:
+        - "プロトコル選択"
+        - "スキーマ定義方法"
+        - "クライアント生成"
+        - "ドキュメント形式"
+    
+    architecture_pattern:
+      type: string
+      description: "アーキテクチャパターン"
+      enum: ["monolithic", "microservices", "serverless", "event_driven", "hybrid"]
+      default: "microservices"
+      impacts:
+        - "デプロイ戦略"
+        - "スケーリング方法"
+        - "データ管理"
+        - "通信パターン"
+    
+    primary_language:
+      type: string
+      description: "主要プログラミング言語"
+      enum: ["node", "python", "java", "go", "rust", "csharp", "ruby", "php"]
+      default: "node"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    performance_requirements:
+      type: object
+      description: "パフォーマンス要件"
+      properties:
+        target_rps:
+          type: integer
+          description: "目標リクエスト/秒"
+          default: 1000
+          range: [10, 1000000]
+        
+        latency_targets:
+          type: object
+          properties:
+            p50:
+              type: string
+              default: "20ms"
+              pattern: "^\\d+ms$"
+            
+            p95:
+              type: string
+              default: "50ms"
+              pattern: "^\\d+ms$"
+            
+            p99:
+              type: string
+              default: "100ms"
+              pattern: "^\\d+ms$"
+        
+        concurrent_connections:
+          type: integer
+          description: "同時接続数"
+          default: 10000
+          range: [100, 1000000]
+        
+        availability_target:
+          type: string
+          description: "可用性目標"
+          enum: ["99%", "99.9%", "99.99%", "99.999%"]
+          default: "99.9%"
+    
+    api_design:
+      type: object
+      description: "API設計仕様"
+      properties:
+        versioning_strategy:
+          type: string
+          enum: ["uri", "header", "query_param", "content_type"]
+          default: "uri"
+          
+        authentication_method:
+          type: string
+          enum: ["jwt", "oauth2", "api_key", "basic", "mutual_tls", "custom"]
+          default: "jwt"
+        
+        authorization_model:
+          type: string
+          enum: ["rbac", "abac", "acl", "custom", "none"]
+          default: "rbac"
+          description: "認可モデル"
+        
+        rate_limiting:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            
+            strategy:
+              type: string
+              enum: ["token_bucket", "sliding_window", "fixed_window", "adaptive"]
+              default: "token_bucket"
+            
+            limits:
+              type: object
+              properties:
+                anonymous:
+                  type: string
+                  default: "100/hour"
+                
+                authenticated:
+                  type: string
+                  default: "1000/hour"
+                
+                premium:
+                  type: string
+                  default: "10000/hour"
+    
+    data_layer:
+      type: object
+      description: "データ層設定"
+      properties:
+        primary_database:
+          type: string
+          enum: ["postgresql", "mysql", "mongodb", "dynamodb", "cosmos_db", "firestore", "redis"]
+          default: "postgresql"
+        
+        caching_strategy:
+          type: object
+          properties:
+            provider:
+              type: string
+              enum: ["redis", "memcached", "hazelcast", "in_memory", "none"]
+              default: "redis"
+            
+            ttl_default:
+              type: string
+              description: "デフォルトTTL"
+              default: "5m"
+              pattern: "^\\d+[smhd]$"
+            
+            cache_layers:
+              type: array
+              items:
+                type: string
+                enum: ["application", "database", "cdn", "edge"]
+              default: ["application", "cdn"]
+        
+        data_consistency:
+          type: string
+          enum: ["strong", "eventual", "causal", "weak"]
+          default: "eventual"
+          description: "データ整合性レベル"
+        
+        backup_strategy:
+          type: object
+          properties:
+            frequency:
+              type: string
+              enum: ["continuous", "hourly", "daily", "weekly"]
+              default: "daily"
+            
+            retention_days:
+              type: integer
+              default: 30
+              range: [1, 365]
+    
+    messaging_communication:
+      type: object
+      description: "メッセージング・通信設定"
+      properties:
+        message_broker:
+          type: string
+          enum: ["rabbitmq", "kafka", "redis_pubsub", "aws_sqs", "gcp_pubsub", "azure_service_bus", "none"]
+          default: "none"
+        
+        event_sourcing:
+          type: boolean
+          default: false
+          description: "イベントソーシング使用"
+        
+        service_mesh:
+          type: string
+          enum: ["istio", "linkerd", "consul", "aws_app_mesh", "none"]
+          default: "none"
+        
+        api_gateway:
+          type: string
+          enum: ["kong", "aws_api_gateway", "azure_api_management", "apigee", "custom", "none"]
+          default: "none"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_features:
+      type: object
+      description: "高度な機能"
+      properties:
+        circuit_breaker:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            
+            failure_threshold:
+              type: integer
+              description: "エラー閾値（%）"
+              default: 50
+              range: [10, 90]
+            
+            timeout:
+              type: string
+              description: "タイムアウト時間"
+              default: "30s"
+              pattern: "^\\d+[ms]$"
+            
+            recovery_timeout:
+              type: string
+              description: "回復待機時間"
+              default: "60s"
+              pattern: "^\\d+[ms]$"
+        
+        distributed_tracing:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            
+            provider:
+              type: string
+              enum: ["jaeger", "zipkin", "aws_xray", "gcp_trace", "datadog", "new_relic"]
+              default: "jaeger"
+            
+            sampling_rate:
+              type: number
+              description: "サンプリング率"
+              default: 0.1
+              range: [0.001, 1.0]
+        
+        feature_flags:
+          type: object
+          properties:
+            provider:
+              type: string
+              enum: ["launchdarkly", "split", "unleash", "custom", "none"]
+              default: "none"
+            
+            evaluation_mode:
+              type: string
+              enum: ["client_side", "server_side", "edge"]
+              default: "server_side"
+    
+    security_configuration:
+      type: object
+      description: "セキュリティ設定"
+      properties:
+        encryption:
+          type: object
+          properties:
+            in_transit:
+              type: string
+              enum: ["tls_1_2", "tls_1_3", "mutual_tls"]
+              default: "tls_1_3"
+            
+            at_rest:
+              type: string
+              enum: ["aes_256", "rsa_4096", "kms", "hsm"]
+              default: "aes_256"
+        
+        vulnerability_scanning:
+          type: object
+          properties:
+            sast:
+              type: boolean
+              default: true
+              description: "静的解析"
+            
+            dast:
+              type: boolean
+              default: true
+              description: "動的解析"
+            
+            dependency_check:
+              type: boolean
+              default: true
+              description: "依存関係チェック"
+        
+        compliance:
+          type: array
+          items:
+            type: string
+            enum: ["pci_dss", "hipaa", "gdpr", "sox", "iso_27001"]
+          description: "準拠規格"
+    
+    deployment_configuration:
+      type: object
+      description: "デプロイ設定"
+      properties:
+        infrastructure:
+          type: string
+          enum: ["kubernetes", "ecs", "lambda", "cloud_run", "app_engine", "heroku", "vm"]
+          default: "kubernetes"
+        
+        deployment_strategy:
+          type: string
+          enum: ["blue_green", "canary", "rolling", "recreate", "feature_flags"]
+          default: "canary"
+        
+        auto_scaling:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            
+            min_instances:
+              type: integer
+              default: 2
+              range: [1, 100]
+            
+            max_instances:
+              type: integer
+              default: 10
+              range: [2, 1000]
+            
+            metrics:
+              type: array
+              items:
+                type: string
+                enum: ["cpu", "memory", "requests", "custom"]
+              default: ["cpu", "requests"]
+        
+        regions:
+          type: array
+          items:
+            type: string
+          default: ["us-east-1", "eu-west-1", "ap-northeast-1"]
+          description: "デプロイリージョン"
+    
+    monitoring_alerting:
+      type: object
+      description: "監視・アラート設定"
+      properties:
+        monitoring_stack:
+          type: string
+          enum: ["prometheus_grafana", "elk", "datadog", "new_relic", "cloudwatch", "azure_monitor"]
+          default: "prometheus_grafana"
+        
+        alert_channels:
+          type: array
+          items:
+            type: string
+            enum: ["email", "slack", "pagerduty", "webhook", "sms"]
+          default: ["email", "slack"]
+        
+        sla_monitoring:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            
+            error_budget:
+              type: number
+              description: "エラーバジェット（%）"
+              default: 0.1
+              range: [0.001, 1.0]
+
+# 自動計算されるパラメータ
+computed_parameters:
+  infrastructure_cost_estimate:
+    formula: |
+      base_cost = instance_cost * instance_count * hours_per_month
+      
+      instance_costs:
+        small: 0.05
+        medium: 0.2
+        large: 0.8
+        xlarge: 1.6
+      
+      additional_costs:
+        load_balancer: 20
+        database: rds_cost_calculator()
+        cache: redis_cost_calculator()
+        monitoring: 50
+      
+      total_monthly = base_cost + sum(additional_costs)
+  
+  scaling_recommendations:
+    formula: |
+      instances_needed = ceil(target_rps / instance_capacity)
+      
+      instance_capacity:
+        node: 500
+        python: 300
+        java: 1000
+        go: 2000
+        rust: 3000
+      
+      with_redundancy = instances_needed * 1.5
+      recommended_min = max(2, floor(with_redundancy * 0.5))
+      recommended_max = ceil(with_redundancy * 2)
+  
+  database_sizing:
+    formula: |
+      storage_gb = (daily_requests * avg_record_size * retention_days) / 1e9
+      iops_needed = peak_rps * operations_per_request
+      
+      recommended_instance = match (iops_needed):
+        < 1000: "db.t3.medium"
+        < 5000: "db.m5.large"
+        < 20000: "db.m5.xlarge"
+        > 20000: "db.m5.2xlarge"
+  
+  monitoring_data_volume:
+    formula: |
+      metrics_volume = metric_count * frequency * retention_days
+      logs_volume = log_entries_per_request * daily_requests * retention_days
+      traces_volume = trace_size * daily_requests * sampling_rate * retention_days
+      
+      total_gb = (metrics_volume + logs_volume + traces_volume) / 1e9
+
+# バリデーションルール
+validation_rules:
+  - name: "performance_feasibility"
+    rule: |
+      if target_rps > 10000 and architecture == "monolithic":
+        warning: "モノリシックアーキテクチャでは高RPSの達成が困難です"
+  
+  - name: "consistency_architecture_match"
+    rule: |
+      if data_consistency == "strong" and architecture == "microservices":
+        warning: "マイクロサービスでの強整合性は複雑性が高くなります"
+  
+  - name: "serverless_limitations"
+    rule: |
+      if architecture == "serverless" and concurrent_connections > 1000:
+        warning: "サーバーレスの同時接続数制限に注意してください"
+  
+  - name: "compliance_requirements"
+    rule: |
+      if "pci_dss" in compliance and !encryption.at_rest:
+        error: "PCI DSS準拠には保存時暗号化が必須です"

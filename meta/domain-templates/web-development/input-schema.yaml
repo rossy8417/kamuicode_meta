@@ -1,0 +1,404 @@
+# Web開発ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    project_name:
+      type: string
+      description: "プロジェクト名"
+      example: "次世代ECプラットフォーム"
+      validation: "max_length: 100"
+    
+    application_type:
+      type: string
+      description: "アプリケーションタイプ"
+      enum: ["spa", "mpa", "pwa", "static_site", "jamstack", "micro_frontend"]
+      default: "spa"
+      impacts:
+        - "アーキテクチャ選択"
+        - "ビルド設定"
+        - "デプロイ戦略"
+        - "SEO対策"
+    
+    target_platforms:
+      type: array
+      description: "ターゲットプラットフォーム"
+      items:
+        type: string
+        enum: ["desktop", "mobile", "tablet", "watch", "tv"]
+      default: ["desktop", "mobile"]
+      min_items: 1
+    
+    primary_framework:
+      type: string
+      description: "主要フレームワーク"
+      enum: ["react", "vue", "angular", "svelte", "nextjs", "nuxt", "gatsby", "remix", "astro", "vanilla"]
+      default: "react"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    performance_requirements:
+      type: object
+      description: "パフォーマンス要件"
+      properties:
+        core_web_vitals:
+          type: object
+          properties:
+            lcp_target:
+              type: number
+              description: "Largest Contentful Paint目標（秒）"
+              default: 2.5
+              range: [0.5, 4.0]
+            
+            fid_target:
+              type: number
+              description: "First Input Delay目標（ミリ秒）"
+              default: 100
+              range: [10, 300]
+            
+            cls_target:
+              type: number
+              description: "Cumulative Layout Shift目標"
+              default: 0.1
+              range: [0, 0.25]
+        
+        bundle_size_limits:
+          type: object
+          properties:
+            initial_js:
+              type: string
+              description: "初期JavaScriptサイズ上限"
+              default: "170KB"
+              pattern: "^\\d+[KM]B$"
+            
+            initial_css:
+              type: string
+              description: "初期CSSサイズ上限"
+              default: "50KB"
+              pattern: "^\\d+[KM]B$"
+            
+            total_size:
+              type: string
+              description: "総ページサイズ上限"
+              default: "2MB"
+              pattern: "^\\d+[KM]B$"
+        
+        loading_time_budget:
+          type: object
+          properties:
+            mobile_3g:
+              type: number
+              description: "3G環境での読み込み時間（秒）"
+              default: 5.0
+            
+            mobile_4g:
+              type: number
+              description: "4G環境での読み込み時間（秒）"
+              default: 3.0
+            
+            desktop_broadband:
+              type: number
+              description: "ブロードバンドでの読み込み時間（秒）"
+              default: 2.0
+    
+    technical_specifications:
+      type: object
+      description: "技術仕様"
+      properties:
+        rendering_strategy:
+          type: string
+          enum: ["csr", "ssr", "ssg", "isr", "hybrid"]
+          default: "csr"
+          description: "レンダリング戦略"
+        
+        state_management:
+          type: string
+          enum: ["context", "redux", "mobx", "zustand", "recoil", "pinia", "vuex", "none"]
+          default: "context"
+        
+        styling_approach:
+          type: string
+          enum: ["css_modules", "styled_components", "emotion", "tailwind", "sass", "postcss", "vanilla_css"]
+          default: "css_modules"
+        
+        typescript:
+          type: boolean
+          default: true
+          description: "TypeScriptの使用"
+        
+        testing_strategy:
+          type: object
+          properties:
+            unit_testing:
+              type: string
+              enum: ["jest", "vitest", "mocha", "none"]
+              default: "jest"
+            
+            e2e_testing:
+              type: string
+              enum: ["cypress", "playwright", "puppeteer", "selenium", "none"]
+              default: "cypress"
+            
+            coverage_target:
+              type: integer
+              description: "テストカバレッジ目標（%）"
+              default: 80
+              range: [0, 100]
+    
+    seo_requirements:
+      type: object
+      description: "SEO要件"
+      properties:
+        meta_tags_management:
+          type: boolean
+          default: true
+          description: "動的メタタグ管理"
+        
+        structured_data:
+          type: array
+          items:
+            type: string
+            enum: ["organization", "article", "product", "breadcrumb", "faq", "howto", "recipe", "event"]
+          default: ["organization", "breadcrumb"]
+        
+        sitemap_generation:
+          type: boolean
+          default: true
+        
+        robots_txt:
+          type: boolean
+          default: true
+        
+        open_graph_tags:
+          type: boolean
+          default: true
+    
+    accessibility_level:
+      type: object
+      description: "アクセシビリティレベル"
+      properties:
+        wcag_compliance:
+          type: string
+          enum: ["wcag_2_0_a", "wcag_2_0_aa", "wcag_2_1_a", "wcag_2_1_aa", "wcag_2_1_aaa"]
+          default: "wcag_2_1_aa"
+        
+        features:
+          type: array
+          items:
+            type: string
+            enum: ["keyboard_navigation", "screen_reader", "high_contrast", "focus_indicators", "skip_links", "aria_live"]
+          default: ["keyboard_navigation", "screen_reader", "focus_indicators"]
+        
+        testing_tools:
+          type: array
+          items:
+            type: string
+            enum: ["axe", "wave", "lighthouse", "pa11y"]
+          default: ["axe", "lighthouse"]
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_features:
+      type: object
+      description: "高度な機能"
+      properties:
+        pwa_capabilities:
+          type: object
+          properties:
+            offline_mode:
+              type: boolean
+              default: false
+            
+            push_notifications:
+              type: boolean
+              default: false
+            
+            background_sync:
+              type: boolean
+              default: false
+            
+            install_prompt:
+              type: boolean
+              default: false
+        
+        internationalization:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            
+            languages:
+              type: array
+              items:
+                type: string
+              example: ["ja", "en", "zh", "ko"]
+            
+            routing_strategy:
+              type: string
+              enum: ["subdomain", "subdirectory", "query_param", "cookie"]
+              default: "subdirectory"
+        
+        analytics_integration:
+          type: object
+          properties:
+            google_analytics:
+              type: boolean
+              default: false
+            
+            custom_events:
+              type: boolean
+              default: false
+            
+            performance_monitoring:
+              type: boolean
+              default: true
+            
+            error_tracking:
+              type: string
+              enum: ["sentry", "rollbar", "bugsnag", "none"]
+              default: "sentry"
+    
+    deployment_configuration:
+      type: object
+      description: "デプロイ設定"
+      properties:
+        hosting_provider:
+          type: string
+          enum: ["vercel", "netlify", "aws", "gcp", "azure", "cloudflare", "github_pages", "heroku"]
+          default: "vercel"
+        
+        cdn_strategy:
+          type: object
+          properties:
+            provider:
+              type: string
+              enum: ["cloudflare", "fastly", "akamai", "aws_cloudfront", "built_in"]
+              default: "built_in"
+            
+            cache_strategy:
+              type: string
+              enum: ["aggressive", "moderate", "conservative"]
+              default: "moderate"
+        
+        deployment_strategy:
+          type: string
+          enum: ["continuous", "blue_green", "canary", "feature_flags"]
+          default: "continuous"
+        
+        environment_count:
+          type: integer
+          description: "環境数（dev, staging, prod等）"
+          default: 3
+          range: [1, 10]
+    
+    security_configuration:
+      type: object
+      description: "セキュリティ設定"
+      properties:
+        authentication:
+          type: object
+          properties:
+            provider:
+              type: string
+              enum: ["auth0", "firebase", "cognito", "custom", "none"]
+              default: "none"
+            
+            methods:
+              type: array
+              items:
+                type: string
+                enum: ["email", "social", "sso", "passwordless", "biometric"]
+        
+        security_headers:
+          type: object
+          properties:
+            csp:
+              type: boolean
+              default: true
+              description: "Content Security Policy"
+            
+            hsts:
+              type: boolean
+              default: true
+              description: "HTTP Strict Transport Security"
+            
+            x_frame_options:
+              type: boolean
+              default: true
+        
+        api_security:
+          type: object
+          properties:
+            rate_limiting:
+              type: boolean
+              default: true
+            
+            cors_policy:
+              type: string
+              enum: ["strict", "moderate", "permissive"]
+              default: "moderate"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  estimated_build_time:
+    formula: |
+      base_time = framework_build_time[primary_framework]
+      typescript_overhead = typescript ? 1.3 : 1.0
+      test_overhead = testing_enabled ? 1.5 : 1.0
+      
+      total_minutes = base_time * typescript_overhead * test_overhead
+  
+  recommended_server_specs:
+    formula: |
+      if application_type == "spa":
+        cpu = 1
+        ram = 512
+      elif application_type == "ssr":
+        cpu = 2
+        ram = 2048
+      elif application_type == "static_site":
+        cpu = 0  # CDNのみ
+        ram = 0
+  
+  monitoring_requirements:
+    formula: |
+      base_metrics = ["uptime", "response_time", "error_rate"]
+      
+      if core_web_vitals_monitoring:
+        base_metrics += ["lcp", "fid", "cls"]
+      
+      if user_analytics:
+        base_metrics += ["page_views", "bounce_rate", "session_duration"]
+  
+  bundle_optimization_score:
+    formula: |
+      code_splitting_score = has_route_splitting ? 30 : 0
+      lazy_loading_score = has_lazy_components ? 20 : 0
+      tree_shaking_score = has_tree_shaking ? 20 : 0
+      compression_score = uses_gzip ? 15 : 0
+      modern_build_score = has_modern_build ? 15 : 0
+      
+      total_score = sum(all_scores)
+
+# バリデーションルール
+validation_rules:
+  - name: "framework_compatibility"
+    rule: |
+      if rendering_strategy == "ssg" and framework not in ["nextjs", "gatsby", "nuxt"]:
+        error: "選択したフレームワークはSSGをサポートしていません"
+  
+  - name: "performance_budget_check"
+    rule: |
+      if bundle_size > performance_budget:
+        warning: "バンドルサイズが性能予算を超えています"
+  
+  - name: "accessibility_testing"
+    rule: |
+      if wcag_compliance >= "aa" and !accessibility_testing:
+        error: "WCAG AA準拠にはアクセシビリティテストが必要です"
+  
+  - name: "ssl_requirement"
+    rule: |
+      if pwa_enabled or has_authentication:
+        requirement: "HTTPSが必須です"

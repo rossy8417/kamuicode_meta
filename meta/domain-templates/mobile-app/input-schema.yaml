@@ -1,0 +1,444 @@
+# モバイルアプリ開発ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    app_name:
+      type: string
+      description: "アプリ名"
+      example: "SuperProductivityApp"
+      validation: "max_length: 50"
+    
+    app_type:
+      type: string
+      description: "アプリタイプ"
+      enum: ["consumer", "enterprise", "game", "utility", "social", "productivity", "health", "education"]
+      default: "consumer"
+      impacts:
+        - "アーキテクチャ選択"
+        - "セキュリティ要件"
+        - "UI/UXパターン"
+        - "収益モデル"
+    
+    target_platforms:
+      type: array
+      description: "ターゲットプラットフォーム"
+      items:
+        type: string
+        enum: ["ios", "android", "ipados", "watchos", "wear_os", "tvos", "android_tv"]
+      default: ["ios", "android"]
+      min_items: 1
+    
+    development_approach:
+      type: string
+      description: "開発アプローチ"
+      enum: ["native", "react_native", "flutter", "ionic", "xamarin", "unity"]
+      default: "native"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    technical_requirements:
+      type: object
+      description: "技術要件"
+      properties:
+        minimum_os_version:
+          type: object
+          properties:
+            ios:
+              type: string
+              default: "13.0"
+              pattern: "^\\d+\\.\\d+$"
+            
+            android:
+              type: integer
+              default: 23
+              description: "API Level"
+              range: [21, 34]
+        
+        offline_capability:
+          type: string
+          enum: ["none", "basic", "full", "sync"]
+          default: "basic"
+          description: "オフライン機能レベル"
+        
+        push_notifications:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            
+            types:
+              type: array
+              items:
+                type: string
+                enum: ["alert", "badge", "sound", "silent", "critical", "provisional"]
+              default: ["alert", "badge", "sound"]
+        
+        background_processing:
+          type: array
+          items:
+            type: string
+            enum: ["location", "audio", "voip", "fetch", "remote_notification", "bluetooth", "task"]
+          description: "バックグラウンド処理タイプ"
+    
+    ui_specifications:
+      type: object
+      description: "UI仕様"
+      properties:
+        design_system:
+          type: string
+          enum: ["material_design", "human_interface", "custom", "fluent", "ant_design"]
+          default: "platform_default"
+        
+        theme_support:
+          type: object
+          properties:
+            dark_mode:
+              type: boolean
+              default: true
+            
+            dynamic_colors:
+              type: boolean
+              default: false
+              description: "Material You / iOS tint color"
+            
+            custom_themes:
+              type: boolean
+              default: false
+        
+        localization:
+          type: object
+          properties:
+            languages:
+              type: array
+              items:
+                type: string
+              default: ["en", "ja"]
+              description: "対応言語"
+            
+            rtl_support:
+              type: boolean
+              default: false
+              description: "右から左への言語サポート"
+        
+        accessibility_features:
+          type: array
+          items:
+            type: string
+            enum: ["voice_over", "talk_back", "large_text", "high_contrast", "reduce_motion", "screen_reader"]
+          default: ["voice_over", "talk_back"]
+    
+    performance_targets:
+      type: object
+      description: "パフォーマンス目標"
+      properties:
+        launch_time:
+          type: object
+          properties:
+            cold_start:
+              type: number
+              description: "コールドスタート目標（秒）"
+              default: 2.0
+              range: [0.5, 5.0]
+            
+            warm_start:
+              type: number
+              description: "ウォームスタート目標（秒）"
+              default: 0.5
+              range: [0.1, 2.0]
+        
+        memory_usage:
+          type: object
+          properties:
+            baseline:
+              type: string
+              description: "ベースラインメモリ使用量"
+              default: "50MB"
+              pattern: "^\\d+[MG]B$"
+            
+            peak:
+              type: string
+              description: "ピークメモリ使用量"
+              default: "200MB"
+              pattern: "^\\d+[MG]B$"
+        
+        battery_impact:
+          type: string
+          enum: ["minimal", "low", "moderate", "high"]
+          default: "low"
+          description: "バッテリー影響度"
+        
+        frame_rate:
+          type: integer
+          enum: [30, 60, 90, 120]
+          default: 60
+          description: "目標フレームレート"
+    
+    data_management:
+      type: object
+      description: "データ管理"
+      properties:
+        storage_type:
+          type: string
+          enum: ["local_only", "cloud_sync", "hybrid", "streaming"]
+          default: "hybrid"
+        
+        authentication:
+          type: object
+          properties:
+            methods:
+              type: array
+              items:
+                type: string
+                enum: ["email", "phone", "social", "biometric", "passkey", "anonymous"]
+              default: ["email", "social"]
+            
+            providers:
+              type: array
+              items:
+                type: string
+                enum: ["firebase", "auth0", "cognito", "custom", "apple_id", "google"]
+              default: ["firebase"]
+        
+        api_integration:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: ["rest", "graphql", "grpc", "websocket", "mixed"]
+              default: "rest"
+            
+            offline_queue:
+              type: boolean
+              default: true
+              description: "オフライン時のリクエストキューイング"
+        
+        analytics:
+          type: object
+          properties:
+            provider:
+              type: string
+              enum: ["firebase", "amplitude", "mixpanel", "custom", "none"]
+              default: "firebase"
+            
+            events_tracking:
+              type: boolean
+              default: true
+            
+            crash_reporting:
+              type: boolean
+              default: true
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_features:
+      type: object
+      description: "高度な機能"
+      properties:
+        ar_capabilities:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            
+            frameworks:
+              type: array
+              items:
+                type: string
+                enum: ["arkit", "arcore", "unity_ar", "8th_wall"]
+        
+        ml_integration:
+          type: object
+          properties:
+            on_device:
+              type: boolean
+              default: false
+            
+            frameworks:
+              type: array
+              items:
+                type: string
+                enum: ["coreml", "tensorflow_lite", "ml_kit", "create_ml"]
+            
+            models:
+              type: array
+              items:
+                type: string
+                enum: ["image_classification", "object_detection", "face_detection", "text_recognition", "translation"]
+        
+        payment_integration:
+          type: object
+          properties:
+            in_app_purchase:
+              type: boolean
+              default: false
+            
+            payment_providers:
+              type: array
+              items:
+                type: string
+                enum: ["apple_pay", "google_pay", "stripe", "paypal", "square"]
+            
+            subscription_model:
+              type: boolean
+              default: false
+    
+    deployment_settings:
+      type: object
+      description: "デプロイ設定"
+      properties:
+        app_store_optimization:
+          type: object
+          properties:
+            keywords:
+              type: array
+              items:
+                type: string
+              max_items: 10
+              description: "ASO用キーワード"
+            
+            screenshots_count:
+              type: integer
+              default: 5
+              range: [3, 10]
+            
+            app_preview_video:
+              type: boolean
+              default: true
+        
+        beta_testing:
+          type: object
+          properties:
+            platform:
+              type: string
+              enum: ["testflight", "google_play_beta", "firebase_app_distribution", "hockey_app"]
+              default: "testflight"
+            
+            tester_count:
+              type: integer
+              default: 100
+              range: [10, 10000]
+        
+        release_strategy:
+          type: string
+          enum: ["immediate", "phased", "scheduled", "manual"]
+          default: "phased"
+          description: "リリース戦略"
+    
+    monitoring_configuration:
+      type: object
+      description: "モニタリング設定"
+      properties:
+        performance_monitoring:
+          type: object
+          properties:
+            trace_sampling_rate:
+              type: number
+              default: 0.1
+              range: [0.01, 1.0]
+              description: "トレースサンプリング率"
+            
+            custom_traces:
+              type: array
+              items:
+                type: string
+              description: "カスタムトレース名"
+        
+        error_tracking:
+          type: object
+          properties:
+            capture_rate:
+              type: number
+              default: 1.0
+              range: [0.1, 1.0]
+            
+            user_feedback:
+              type: boolean
+              default: true
+              description: "エラー時のユーザーフィードバック収集"
+        
+        user_analytics:
+          type: object
+          properties:
+            retention_cohorts:
+              type: array
+              items:
+                type: integer
+              default: [1, 7, 30]
+              description: "リテンション分析日数"
+            
+            funnel_events:
+              type: array
+              items:
+                type: string
+              description: "ファネル分析イベント"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  estimated_app_size:
+    formula: |
+      base_size = framework_sizes[development_approach]
+      assets_size = image_count * 0.5 + video_count * 10
+      dependencies_size = dependency_count * 2
+      
+      total_mb = base_size + assets_size + dependencies_size
+      
+      framework_sizes:
+        native: 10
+        react_native: 30
+        flutter: 40
+        ionic: 25
+  
+  development_time_estimate:
+    formula: |
+      base_weeks = complexity_factor * platform_count
+      
+      complexity_factors:
+        simple: 4
+        medium: 12
+        complex: 24
+        enterprise: 40
+      
+      platform_multiplier = platform_count == 1 ? 1.0 : 1.6
+      total_weeks = base_weeks * platform_multiplier
+  
+  performance_score:
+    formula: |
+      launch_score = (2.0 - actual_launch_time) / 2.0 * 30
+      memory_score = (200 - actual_memory_mb) / 200 * 30
+      battery_score = battery_efficiency * 20
+      smoothness_score = (actual_fps / 60) * 20
+      
+      total_score = sum(all_scores)
+  
+  maintenance_complexity:
+    formula: |
+      code_sharing = development_approach == "native" ? 0 : 0.8
+      platform_complexity = platform_count * 20
+      feature_complexity = advanced_features_count * 10
+      
+      complexity_score = 100 - (code_sharing * 30) + platform_complexity + feature_complexity
+
+# バリデーションルール
+validation_rules:
+  - name: "platform_framework_compatibility"
+    rule: |
+      if "watchos" in platforms and framework not in ["native", "swift"]:
+        error: "watchOSは選択したフレームワークをサポートしていません"
+  
+  - name: "minimum_os_requirement"
+    rule: |
+      if ar_enabled and ios_version < 11.0:
+        error: "AR機能にはiOS 11.0以上が必要です"
+  
+  - name: "offline_sync_requirement"
+    rule: |
+      if offline_capability == "sync" and !api_integration.offline_queue:
+        warning: "同期機能にはオフラインキューが推奨されます"
+  
+  - name: "app_size_warning"
+    rule: |
+      if estimated_app_size > 150:
+        warning: "アプリサイズが150MBを超える可能性があります"

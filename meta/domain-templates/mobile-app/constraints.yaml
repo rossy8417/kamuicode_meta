@@ -1,0 +1,355 @@
+# モバイルアプリ開発の制約条件と計算式
+
+performance_constraints:
+  # 起動時間最適化
+  launch_time_optimization:
+    cold_start_budget:
+      ios:
+        excellent: "< 400ms"
+        good: "< 1s"
+        acceptable: "< 2s"
+        poor: "> 2s"
+      
+      android:
+        excellent: "< 600ms"
+        good: "< 1.5s"
+        acceptable: "< 3s"
+        poor: "> 3s"
+    
+    optimization_techniques:
+      lazy_initialization: |
+        // 必要最小限の初期化
+        class AppDelegate {
+          func application(_ application: UIApplication, 
+                         didFinishLaunchingWithOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+            // 重い処理は後回し
+            DispatchQueue.main.async {
+              self.initializeHeavyComponents()
+            }
+            return true
+          }
+        }
+      
+      splash_screen_optimization:
+        - "起動画面と初期画面の一致"
+        - "スケルトンスクリーン使用"
+        - "プログレッシブローディング"
+    
+    startup_profiling:
+      ios_instruments: "Time Profiler"
+      android_profiler: "CPU Profiler"
+      metrics: ["main()実行時間", "初期画面表示", "インタラクティブ状態"]
+  
+  # メモリ管理
+  memory_management:
+    ios_limits:
+      foreground:
+        iphone_se: "~1GB"
+        iphone_13: "~4GB"
+        ipad_pro: "~8GB"
+      
+      background:
+        audio_playback: "~180MB"
+        location_updates: "~50MB"
+        voip: "~100MB"
+      
+      memory_warnings:
+        level_1: "キャッシュクリア"
+        level_2: "非表示ビュー解放"
+        level_3: "アプリ終了リスク"
+    
+    android_limits:
+      heap_size:
+        low_ram_device: "32MB"
+        normal_device: "192MB"
+        large_heap: "512MB"
+      
+      memory_classes:
+        formula: |
+          ActivityManager am = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
+          int memoryClass = am.getMemoryClass(); // MB単位
+          int largeMemoryClass = am.getLargeMemoryClass();
+      
+      gc_optimization:
+        - "オブジェクトプール使用"
+        - "ビットマップリサイクル"
+        - "弱参照の活用"
+
+battery_optimization:
+  # バッテリー消費計算
+  power_consumption:
+    components:
+      cpu:
+        active: "100-500mW"
+        idle: "10-50mW"
+      
+      screen:
+        max_brightness: "300-600mW"
+        min_brightness: "50-100mW"
+        oled_black: "~0mW"
+      
+      network:
+        wifi: "100-300mW"
+        lte: "300-800mW"
+        5g: "800-2000mW"
+      
+      gps:
+        active: "150-300mW"
+        passive: "50mW"
+    
+    battery_life_estimation:
+      formula: |
+        battery_hours = battery_capacity_mah * voltage / average_power_mw
+        
+        例: iPhone 13
+        capacity = 3227mAh
+        voltage = 3.7V
+        average_power = 500mW
+        battery_life = 3227 * 3.7 / 500 = 23.8時間
+    
+    optimization_strategies:
+      location:
+        - "重要度に応じた精度調整"
+        - "ジオフェンシング使用"
+        - "バッチ位置更新"
+      
+      network:
+        - "バッチAPI呼び出し"
+        - "適応的同期間隔"
+        - "差分同期"
+      
+      background:
+        - "BackgroundTasks使用"
+        - "省電力モード対応"
+        - "不要なウェイクアップ回避"
+
+ui_performance:
+  # 60fps維持
+  frame_budget:
+    calculation: |
+      1秒 / 60フレーム = 16.67ms/フレーム
+      
+      内訳:
+      - 入力処理: 2ms
+      - レイアウト計算: 4ms
+      - 描画: 4ms
+      - GPU転送: 4ms
+      - バッファ: 2.67ms
+    
+    jank_detection:
+      ios:
+        instruments: "Core Animation"
+        metrics: ["FPS", "Hitch Time Ratio"]
+      
+      android:
+        systrace: "Choreographer"
+        metrics: ["Jank frames", "Frame time"]
+    
+    optimization_techniques:
+      view_recycling:
+        ios: "UITableView/UICollectionView"
+        android: "RecyclerView"
+        
+      shadow_optimization:
+        avoid: "リアルタイムシャドウ計算"
+        use: "9-patch画像、事前レンダリング"
+      
+      animation_optimization:
+        - "shouldRasterize使用"
+        - "GPUレイヤー活用"
+        - "will-change相当の最適化"
+
+platform_specific:
+  # iOS固有の制約
+  ios_constraints:
+    app_store_requirements:
+      app_size:
+        cellular_download_limit: "200MB"
+        app_thinning: "bitcode, on-demand resources"
+        
+      privacy:
+        att_framework: "iOS 14.5+"
+        privacy_manifest: "必須"
+        purpose_strings: "全権限に必要"
+      
+      review_guidelines:
+        minimum_functionality: "単純すぎるアプリ拒否"
+        inappropriate_content: "暴力、成人向けコンテンツ"
+        copycat_apps: "既存アプリの模倣"
+    
+    ios_specific_apis:
+      push_notifications:
+        payload_size: "4KB (HTTP/2)"
+        silent_push_quota: "3/時間"
+        
+      background_modes:
+        - "audio"
+        - "location"
+        - "voip"
+        - "external-accessory"
+        - "bluetooth-central"
+        - "background-fetch"
+        - "remote-notification"
+        - "background-processing"
+  
+  # Android固有の制約
+  android_constraints:
+    play_store_requirements:
+      app_bundle:
+        max_size: "150MB"
+        dynamic_delivery: "必須"
+        
+      target_api:
+        minimum: "API 33 (2023年8月から)"
+        
+      permissions:
+        runtime_permissions: "API 23+"
+        foreground_service: "通知必須"
+    
+    fragmentation_handling:
+      screen_densities:
+        ldpi: "120dpi (0.75x)"
+        mdpi: "160dpi (1x)"
+        hdpi: "240dpi (1.5x)"
+        xhdpi: "320dpi (2x)"
+        xxhdpi: "480dpi (3x)"
+        xxxhdpi: "640dpi (4x)"
+      
+      screen_sizes:
+        small: "~3.7インチ"
+        normal: "~4.7インチ"
+        large: "~7インチ"
+        xlarge: "10インチ+"
+
+data_management:
+  # オフライン対応
+  offline_strategy:
+    data_sync:
+      conflict_resolution:
+        - "last-write-wins"
+        - "version-vector"
+        - "operational-transform"
+        - "CRDT"
+      
+      sync_optimization:
+        delta_sync: "差分のみ同期"
+        compression: "gzip/brotli"
+        batching: "複数操作をまとめて"
+    
+    local_storage:
+      ios:
+        userdefaults: "< 1MB"
+        keychain: "セキュアデータ"
+        coredata: "構造化データ"
+        files: "Documents/Library"
+      
+      android:
+        sharedpreferences: "< 1MB"
+        room: "構造化データ"
+        datastore: "Proto/Preferences"
+        files: "Internal/External"
+    
+    cache_management:
+      size_limits:
+        images: "100MB"
+        api_responses: "50MB"
+        offline_content: "500MB"
+      
+      eviction_policy:
+        - "LRU (Least Recently Used)"
+        - "TTL (Time To Live)"
+        - "サイズベース"
+
+security_requirements:
+  # セキュリティ実装
+  data_protection:
+    encryption:
+      ios:
+        file_protection: "NSFileProtectionComplete"
+        keychain_access: "kSecAttrAccessibleWhenUnlockedThisDeviceOnly"
+      
+      android:
+        keystore: "AndroidKeyStore"
+        encrypted_preferences: "EncryptedSharedPreferences"
+    
+    network_security:
+      certificate_pinning: "必須"
+      tls_version: "1.2+"
+      ats_exceptions: "正当化必要"
+    
+    authentication:
+      biometric:
+        ios: "LocalAuthentication"
+        android: "BiometricPrompt"
+      
+      secure_storage:
+        - "トークンをメモリに保持しない"
+        - "自動ログアウト実装"
+        - "root/jailbreak検出"
+
+analytics_monitoring:
+  # 分析とモニタリング
+  crash_reporting:
+    crash_free_rate:
+      target: "> 99.5%"
+      critical: "< 98%"
+    
+    crash_grouping:
+      - "スタックトレース類似性"
+      - "エラーメッセージ"
+      - "影響バージョン"
+  
+  performance_monitoring:
+    key_metrics:
+      - "アプリ起動時間"
+      - "画面遷移時間"
+      - "API応答時間"
+      - "フレームレート"
+      - "メモリ使用量"
+      - "バッテリー消費"
+    
+    user_engagement:
+      - "日次アクティブユーザー（DAU）"
+      - "セッション時間"
+      - "リテンション率"
+      - "チャーンレート"
+  
+  a_b_testing:
+    implementation:
+      - "Feature flags"
+      - "Remote config"
+      - "段階的ロールアウト"
+    
+    metrics:
+      - "コンバージョン率"
+      - "エンゲージメント"
+      - "収益影響"
+
+cross_platform_considerations:
+  # クロスプラットフォーム開発
+  framework_comparison:
+    react_native:
+      pros: ["JavaScript", "ホットリロード", "大規模コミュニティ"]
+      cons: ["ブリッジオーバーヘッド", "ネイティブ知識必要"]
+      performance: "ネイティブの80-90%"
+    
+    flutter:
+      pros: ["高パフォーマンス", "一貫したUI", "ホットリロード"]
+      cons: ["Dart学習", "アプリサイズ大"]
+      performance: "ネイティブの95%+"
+    
+    native:
+      pros: ["最高パフォーマンス", "最新機能即座に利用可能"]
+      cons: ["開発コスト2倍", "コード重複"]
+      performance: "100%"
+  
+  code_sharing_strategies:
+    architecture:
+      - "共有ビジネスロジック"
+      - "プラットフォーム固有UI"
+      - "共通API層"
+    
+    estimated_sharing:
+      business_logic: "90%"
+      ui_code: "60-70%"
+      platform_specific: "10-30%"

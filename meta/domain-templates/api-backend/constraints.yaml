@@ -1,0 +1,404 @@
+# API・バックエンド開発の制約条件と計算式
+
+api_design_constraints:
+  # RESTful API設計原則
+  rest_principles:
+    resource_naming:
+      conventions:
+        - "複数形名詞使用: /users, /products"
+        - "階層構造: /users/{id}/orders"
+        - "ケバブケース: /user-profiles"
+        - "動詞禁止: × /getUsers, ○ GET /users"
+      
+      uri_length:
+        recommended: "< 2000文字"
+        practical: "< 255文字"
+    
+    http_methods:
+      idempotency:
+        GET: "冪等・安全"
+        HEAD: "冪等・安全"
+        PUT: "冪等"
+        DELETE: "冪等"
+        POST: "非冪等"
+        PATCH: "非冪等"
+      
+      status_codes:
+        success:
+          200: "OK - 成功"
+          201: "Created - リソース作成"
+          204: "No Content - 本文なし成功"
+          
+        client_error:
+          400: "Bad Request - リクエスト不正"
+          401: "Unauthorized - 認証必要"
+          403: "Forbidden - 権限不足"
+          404: "Not Found - リソース不在"
+          429: "Too Many Requests - レート制限"
+          
+        server_error:
+          500: "Internal Server Error"
+          502: "Bad Gateway"
+          503: "Service Unavailable"
+          504: "Gateway Timeout"
+    
+    versioning_strategies:
+      uri_versioning: "/v1/users"
+      header_versioning: "Accept: application/vnd.api+json;version=1"
+      query_param: "?version=1"
+      content_negotiation: "Accept: application/vnd.api.v1+json"
+  
+  # GraphQL設計
+  graphql_constraints:
+    query_complexity:
+      calculation: |
+        complexity = Σ(field_cost * multiplier)
+        
+        field_costs:
+          scalar: 1
+          object: 2
+          list: field_cost * expected_size
+          
+        max_complexity: 1000
+      
+      depth_limit: 10
+      
+      rate_limiting:
+        by_complexity: "10000 points/minute"
+        by_time: "100 queries/minute"
+    
+    n_plus_one_prevention:
+      dataloader_pattern: |
+        // バッチングとキャッシング
+        const userLoader = new DataLoader(async (userIds) => {
+          const users = await User.findByIds(userIds);
+          return userIds.map(id => users.find(u => u.id === id));
+        });
+    
+    schema_design:
+      naming_conventions:
+        types: "PascalCase"
+        fields: "camelCase"
+        enums: "SCREAMING_SNAKE_CASE"
+      
+      pagination:
+        cursor_based: "推奨"
+        offset_based: "非推奨"
+        connection_pattern: "Relay仕様準拠"
+
+performance_optimization:
+  # レスポンスタイム最適化
+  latency_budget:
+    breakdown:
+      network_rtt: "10-50ms"
+      load_balancer: "1-5ms"
+      application: "10-50ms"
+      database: "5-30ms"
+      serialization: "1-10ms"
+      total_target: "< 100ms (p99)"
+    
+    optimization_techniques:
+      connection_pooling:
+        database:
+          min_connections: 10
+          max_connections: 100
+          idle_timeout: "30s"
+        
+        http_client:
+          max_connections_per_host: 20
+          keep_alive: true
+          timeout: "30s"
+      
+      caching_layers:
+        application_cache:
+          strategy: "LRU"
+          ttl: "5-60分"
+          size: "1GB"
+        
+        redis_cache:
+          eviction_policy: "allkeys-lru"
+          max_memory: "4GB"
+          
+        cdn_cache:
+          static_assets: "1年"
+          api_responses: "1-60分"
+  
+  # スループット最適化
+  throughput_scaling:
+    vertical_scaling:
+      cpu_threshold: "70%"
+      memory_threshold: "80%"
+      
+    horizontal_scaling:
+      auto_scaling_rules:
+        cpu_based: "> 60% for 5分"
+        request_rate: "> 1000 RPS"
+        queue_depth: "> 100"
+      
+      max_instances: 100
+      min_instances: 2
+    
+    load_balancing:
+      algorithms:
+        round_robin: "均等分散"
+        least_connections: "接続数ベース"
+        ip_hash: "セッション維持"
+        weighted: "重み付け分散"
+      
+      health_checks:
+        interval: "10s"
+        timeout: "5s"
+        unhealthy_threshold: 3
+        healthy_threshold: 2
+
+data_management:
+  # データベース設計
+  database_patterns:
+    consistency_models:
+      strong_consistency:
+        use_cases: ["金融取引", "在庫管理"]
+        latency: "高"
+        availability: "低"
+      
+      eventual_consistency:
+        use_cases: ["ソーシャルフィード", "分析"]
+        latency: "低"
+        availability: "高"
+        convergence_time: "< 1秒"
+    
+    sharding_strategies:
+      hash_based:
+        formula: "shard_id = hash(user_id) % shard_count"
+        pros: "均等分散"
+        cons: "リシャーディング困難"
+      
+      range_based:
+        example: "A-M: shard1, N-Z: shard2"
+        pros: "範囲クエリ効率的"
+        cons: "ホットスポット可能性"
+      
+      geo_based:
+        example: "region別シャード"
+        pros: "レイテンシ最小化"
+        cons: "クロスリージョンクエリ"
+  
+  # トランザクション管理
+  transaction_patterns:
+    saga_pattern:
+      choreography:
+        description: "イベント駆動調整"
+        use_case: "疎結合システム"
+        
+      orchestration:
+        description: "中央制御"
+        use_case: "複雑なフロー"
+    
+    two_phase_commit:
+      phases:
+        prepare: "全参加者に準備要求"
+        commit: "全員OKなら確定"
+      limitations: "ブロッキング、単一障害点"
+    
+    outbox_pattern:
+      implementation: |
+        BEGIN TRANSACTION;
+          INSERT INTO orders (...);
+          INSERT INTO outbox (event_data);
+        COMMIT;
+        
+        // 別プロセスでoutboxを処理
+
+security_implementation:
+  # 認証・認可
+  authentication:
+    jwt_configuration:
+      algorithm: "RS256推奨"
+      expiration: "15分（アクセストークン）"
+      refresh_token: "30日"
+      
+      payload_example: |
+        {
+          "sub": "user_id",
+          "iat": 1616239022,
+          "exp": 1616239922,
+          "scope": ["read", "write"],
+          "aud": "api.example.com"
+        }
+    
+    oauth2_flows:
+      authorization_code: "Webアプリ向け"
+      client_credentials: "M2M通信"
+      device_flow: "入力制限デバイス"
+      
+    api_key_management:
+      rotation_period: "90日"
+      key_format: "prefix.random_string"
+      storage: "ハッシュ化して保存"
+  
+  # レート制限
+  rate_limiting:
+    algorithms:
+      token_bucket:
+        capacity: 100
+        refill_rate: "10/秒"
+        
+      sliding_window:
+        window_size: "60秒"
+        request_limit: 1000
+        
+      fixed_window:
+        window_size: "1分"
+        request_limit: 100
+    
+    implementation_layers:
+      api_gateway: "エッジで制限"
+      application: "きめ細かい制御"
+      
+    response_headers:
+      x_ratelimit_limit: "制限値"
+      x_ratelimit_remaining: "残り"
+      x_ratelimit_reset: "リセット時刻"
+
+monitoring_observability:
+  # メトリクス収集
+  key_metrics:
+    golden_signals:
+      latency:
+        - "p50, p90, p95, p99"
+        - "エンドポイント別"
+        
+      traffic:
+        - "リクエスト/秒"
+        - "エンドポイント別"
+        
+      errors:
+        - "4xx, 5xx比率"
+        - "エラータイプ別"
+        
+      saturation:
+        - "CPU, メモリ使用率"
+        - "接続プール使用率"
+    
+    business_metrics:
+      - "API利用量"
+      - "ユニークユーザー数"
+      - "課金対象イベント"
+  
+  # 分散トレーシング
+  tracing_implementation:
+    trace_sampling:
+      head_based:
+        rate: "10%"
+        always_sample: ["エラー", "遅いリクエスト"]
+        
+      tail_based:
+        decision_wait: "30秒"
+        policies: ["レイテンシ > 1s", "エラー含む"]
+    
+    context_propagation:
+      headers:
+        - "X-Trace-Id"
+        - "X-Parent-Span-Id"
+        - "X-Sampling-Decision"
+  
+  # ログ戦略
+  logging_standards:
+    structured_logging:
+      format: "JSON"
+      required_fields:
+        - "timestamp"
+        - "level"
+        - "message"
+        - "trace_id"
+        - "user_id"
+        - "endpoint"
+        
+    log_levels:
+      ERROR: "即時対応必要"
+      WARN: "潜在的問題"
+      INFO: "通常操作"
+      DEBUG: "開発時のみ"
+    
+    retention_policy:
+      hot_storage: "7日"
+      warm_storage: "30日"
+      cold_storage: "1年"
+
+deployment_strategies:
+  # デプロイメント方式
+  deployment_patterns:
+    blue_green:
+      process: |
+        1. Green環境に新バージョンデプロイ
+        2. スモークテスト実行
+        3. トラフィック切り替え
+        4. Blue環境を待機
+      rollback_time: "< 1分"
+      
+    canary:
+      stages:
+        - { traffic: "5%", duration: "10分" }
+        - { traffic: "25%", duration: "30分" }
+        - { traffic: "50%", duration: "1時間" }
+        - { traffic: "100%", duration: "∞" }
+      
+      success_criteria:
+        error_rate: "< 0.1%"
+        latency_p99: "< 100ms"
+    
+    rolling_update:
+      batch_size: "25%"
+      max_surge: "25%"
+      max_unavailable: "25%"
+  
+  # コンテナ化
+  containerization:
+    image_optimization:
+      multi_stage_build: |
+        # ビルドステージ
+        FROM node:16 AS builder
+        WORKDIR /app
+        COPY package*.json ./
+        RUN npm ci --only=production
+        
+        # 実行ステージ
+        FROM node:16-alpine
+        WORKDIR /app
+        COPY --from=builder /app/node_modules ./node_modules
+        COPY . .
+        CMD ["node", "server.js"]
+      
+      size_targets:
+        microservice: "< 100MB"
+        full_app: "< 500MB"
+    
+    orchestration:
+      resource_limits:
+        cpu: "0.5-2 cores"
+        memory: "512MB-4GB"
+        
+      health_probes:
+        liveness:
+          path: "/health/live"
+          interval: "30s"
+          
+        readiness:
+          path: "/health/ready"
+          interval: "10s"
+
+disaster_recovery:
+  # バックアップ戦略
+  backup_policies:
+    rto_rpo_targets:
+      critical: { rto: "1時間", rpo: "5分" }
+      standard: { rto: "4時間", rpo: "1時間" }
+      low: { rto: "24時間", rpo: "24時間" }
+    
+    backup_strategies:
+      continuous_replication: "RPO < 1分"
+      snapshot_based: "RPO = snapshot間隔"
+      
+    geographic_distribution:
+      primary_region: "東京"
+      secondary_region: "大阪"
+      dr_region: "シンガポール"

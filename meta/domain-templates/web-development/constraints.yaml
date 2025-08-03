@@ -1,0 +1,322 @@
+# Web開発の制約条件と計算式
+
+performance_constraints:
+  # Core Web Vitals
+  core_web_vitals:
+    lcp_calculation:
+      formula: |
+        LCP = max(
+          hero_image_load_time,
+          largest_text_block_render_time,
+          video_poster_load_time
+        )
+      
+      thresholds:
+        good: "< 2.5s"
+        needs_improvement: "2.5s - 4.0s"
+        poor: "> 4.0s"
+      
+      optimization_tactics:
+        - "Critical CSS inline化"
+        - "画像の事前接続とpreload"
+        - "CDNからの配信"
+        - "次世代フォーマット使用"
+    
+    fid_calculation:
+      formula: |
+        FID = first_input_timestamp - first_input_event_timestamp
+      
+      thresholds:
+        good: "< 100ms"
+        needs_improvement: "100ms - 300ms"
+        poor: "> 300ms"
+      
+      reduction_strategies:
+        - "メインスレッドブロッキングの最小化"
+        - "長いタスクの分割"
+        - "Web Workerの活用"
+        - "不要なJavaScriptの削除"
+    
+    cls_calculation:
+      formula: |
+        CLS = Σ(impact_fraction * distance_fraction)
+        for all unexpected layout shifts
+      
+      thresholds:
+        good: "< 0.1"
+        needs_improvement: "0.1 - 0.25"
+        poor: "> 0.25"
+      
+      prevention:
+        - "画像・動画のサイズ指定"
+        - "広告スペースの事前確保"
+        - "Webフォントの最適化"
+        - "動的コンテンツの挿入位置固定"
+  
+  # JavaScriptバンドル最適化
+  bundle_optimization:
+    initial_bundle_budget:
+      mobile_3g: "170KB (gzip)"
+      mobile_4g: "300KB (gzip)"
+      desktop: "500KB (gzip)"
+      
+    splitting_strategy:
+      route_based: |
+        // ルートごとに分割
+        const routes = {
+          '/': () => import('./Home'),
+          '/about': () => import('./About'),
+          '/products': () => import('./Products')
+        }
+      
+      component_based: |
+        // 重いコンポーネントを分離
+        const HeavyChart = lazy(() => import('./HeavyChart'))
+      
+      vendor_splitting: |
+        // ベンダーライブラリを分離
+        optimization: {
+          splitChunks: {
+            cacheGroups: {
+              vendor: {
+                test: /[\\/]node_modules[\\/]/,
+                name: 'vendors',
+                priority: 10
+              }
+            }
+          }
+        }
+    
+    tree_shaking_impact:
+      lodash: "600KB → 70KB (使用関数のみ)"
+      moment: "230KB → 60KB (必要ロケールのみ)"
+      antd: "2MB → 200KB (使用コンポーネントのみ)"
+
+responsive_design:
+  # ブレイクポイント戦略
+  breakpoint_system:
+    mobile_first:
+      xs: "320px"  # iPhone SE
+      sm: "640px"  # 大型スマートフォン
+      md: "768px"  # タブレット
+      lg: "1024px" # デスクトップ
+      xl: "1280px" # 大型デスクトップ
+      xxl: "1536px" # 4K
+    
+    container_queries:
+      component_based: |
+        @container (min-width: 400px) {
+          .card { grid-template-columns: 1fr 1fr; }
+        }
+      
+      use_cases:
+        - "再利用可能コンポーネント"
+        - "動的レイアウト"
+        - "入れ子構造"
+  
+  # 画像最適化
+  image_optimization:
+    format_selection:
+      avif:
+        compression: "50% better than JPEG"
+        support: "Chrome 85+, Firefox 93+"
+        use_case: "写真、複雑な画像"
+      
+      webp:
+        compression: "25-35% better than JPEG"
+        support: "All modern browsers"
+        use_case: "汎用的な使用"
+      
+      svg:
+        scalability: "無限"
+        use_case: "アイコン、ロゴ、図形"
+    
+    responsive_images:
+      srcset_calculation: |
+        sizes = viewport_width * device_pixel_ratio * safety_margin
+        
+        標準的なセット:
+        - 320w (モバイル)
+        - 640w (モバイル@2x)
+        - 768w (タブレット)
+        - 1024w (デスクトップ)
+        - 1536w (デスクトップ@2x)
+        - 2048w (4K)
+    
+    lazy_loading:
+      intersection_observer:
+        root_margin: "50px"
+        threshold: 0.01
+      
+      native_loading:
+        support: "Chrome 76+, Firefox 75+"
+        fallback: "Intersection Observer"
+
+seo_technical:
+  # レンダリング戦略
+  rendering_strategies:
+    csr:
+      pros: ["高いインタラクティビティ", "開発効率"]
+      cons: ["SEO課題", "初期表示遅延"]
+      use_case: "内部向けアプリ、ダッシュボード"
+    
+    ssr:
+      pros: ["SEO最適", "初期表示高速"]
+      cons: ["サーバー負荷", "複雑性"]
+      use_case: "コンテンツサイト、EC"
+    
+    ssg:
+      pros: ["最高速", "CDN配信可能"]
+      cons: ["動的コンテンツ制限"]
+      use_case: "ブログ、マーケティングサイト"
+    
+    isr:
+      pros: ["SSGとSSRのハイブリッド"]
+      cons: ["キャッシュ戦略の複雑性"]
+      use_case: "大規模コンテンツサイト"
+  
+  # 構造化データ
+  structured_data:
+    required_schemas:
+      organization: ["name", "url", "logo"]
+      article: ["headline", "datePublished", "author"]
+      product: ["name", "price", "availability"]
+      breadcrumb: ["position", "name", "item"]
+    
+    json_ld_optimization:
+      placement: "headタグ内"
+      minification: "必須"
+      validation: "Google構造化データテストツール"
+
+accessibility_requirements:
+  # WCAG 2.1 AA準拠
+  wcag_compliance:
+    perceivable:
+      color_contrast:
+        normal_text: "4.5:1"
+        large_text: "3:1"
+        non_text: "3:1"
+      
+      text_alternatives:
+        images: "alt属性必須"
+        videos: "字幕とトランスクリプト"
+        audio: "トランスクリプト提供"
+    
+    operable:
+      keyboard_navigation:
+        tab_order: "論理的な順序"
+        skip_links: "メインコンテンツへのスキップ"
+        focus_indicators: "visible outline"
+      
+      timing:
+        session_timeout: "20秒前警告"
+        auto_playing: "一時停止可能"
+        animation: "停止可能"
+    
+    understandable:
+      form_validation:
+        error_identification: "明確なエラーメッセージ"
+        error_suggestion: "修正方法の提示"
+        success_confirmation: "送信成功の通知"
+    
+    robust:
+      semantic_html: "適切な要素使用"
+      aria_labels: "必要に応じて追加"
+      compatibility: "支援技術対応"
+
+security_constraints:
+  # セキュリティヘッダー
+  security_headers:
+    content_security_policy:
+      directives: |
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' trusted-cdn.com;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https:;
+        font-src 'self' data:;
+    
+    other_headers:
+      strict_transport_security: "max-age=31536000"
+      x_content_type_options: "nosniff"
+      x_frame_options: "SAMEORIGIN"
+      referrer_policy: "strict-origin-when-cross-origin"
+  
+  # 依存関係管理
+  dependency_management:
+    vulnerability_scanning:
+      tools: ["npm audit", "Snyk", "Dependabot"]
+      frequency: "毎日"
+      severity_thresholds:
+        critical: "即時対応"
+        high: "48時間以内"
+        medium: "1週間以内"
+        low: "次回リリース"
+    
+    update_strategy:
+      patch: "自動更新"
+      minor: "テスト後更新"
+      major: "計画的移行"
+
+deployment_optimization:
+  # CDN戦略
+  cdn_configuration:
+    edge_locations:
+      global_coverage: "200+ PoPs"
+      cache_strategy:
+        static_assets: "1年"
+        api_responses: "5分"
+        html: "10分"
+    
+    cache_invalidation:
+      methods: ["ファイル名ハッシュ", "バージョニング"]
+      strategy: "イミュータブルデプロイ"
+  
+  # CI/CDパイプライン
+  pipeline_optimization:
+    build_time_targets:
+      small_project: "< 2分"
+      medium_project: "< 5分"
+      large_project: "< 10分"
+    
+    parallel_execution:
+      test_splitting: "ファイル/スイート単位"
+      build_caching: "依存関係キャッシュ"
+      artifact_caching: "ビルド成果物キャッシュ"
+    
+    deployment_strategies:
+      blue_green: "ゼロダウンタイム"
+      canary: "段階的ロールアウト"
+      feature_flags: "機能単位の制御"
+
+monitoring_metrics:
+  # Real User Monitoring
+  rum_metrics:
+    performance:
+      - "ページ読み込み時間"
+      - "Time to Interactive"
+      - "First Contentful Paint"
+      - "Cumulative Layout Shift"
+    
+    user_behavior:
+      - "バウンス率"
+      - "セッション時間"
+      - "ページビュー/セッション"
+      - "コンバージョン率"
+    
+    technical:
+      - "JavaScriptエラー率"
+      - "APIレスポンスタイム"
+      - "リソース読み込み失敗"
+      - "ブラウザ別パフォーマンス"
+  
+  # アラート閾値
+  alerting_thresholds:
+    performance:
+      page_load: "> 3秒"
+      api_response: "> 500ms"
+      error_rate: "> 1%"
+    
+    availability:
+      uptime: "< 99.9%"
+      ssl_expiry: "< 30日"
+      domain_expiry: "< 60日"
