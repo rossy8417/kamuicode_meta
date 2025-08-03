@@ -276,3 +276,8 @@
 - **Concept**: AIトレンドニュース動画テスト
 - **Saved to**: projects/video-v8-run-30-AI-
 - **Date**: 2025-08-01
+
+## Video Production v8 - Run #32
+- **Concept**: オートファジーの効果
+- **Saved to**: projects/video-v8-run-32--
+- **Date**: 2025-08-03
