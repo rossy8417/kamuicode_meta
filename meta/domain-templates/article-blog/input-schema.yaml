@@ -1,0 +1,344 @@
+# 記事・ブログ執筆ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    article_title:
+      type: string
+      description: "記事タイトル（仮）"
+      example: "2025年版：AIツールで生産性を10倍にする究極ガイド"
+      validation: "max_length: 100"
+    
+    content_type:
+      type: string
+      description: "コンテンツタイプ"
+      enum: ["how_to", "listicle", "thought_leadership", "news", "review", "case_study", "interview", "ultimate_guide"]
+      default: "how_to"
+      impacts:
+        - "記事構成"
+        - "トーン＆マナー"
+        - "必要な要素"
+        - "目標文字数"
+    
+    target_audience:
+      type: string
+      description: "ターゲット読者"
+      example: "マーケティング担当者、中級レベル、B2B企業"
+      validation: "min_length: 10"
+    
+    primary_keyword:
+      type: string
+      description: "プライマリキーワード"
+      example: "AI生産性向上ツール"
+      validation: "max_length: 50"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    seo_strategy:
+      type: object
+      description: "SEO戦略設定"
+      properties:
+        secondary_keywords:
+          type: array
+          items:
+            type: string
+          example: ["業務効率化", "自動化ツール", "ChatGPT活用"]
+          max_items: 5
+        
+        search_intent:
+          type: string
+          enum: ["informational", "navigational", "transactional", "commercial_investigation"]
+          default: "informational"
+          description: "検索意図"
+        
+        competitor_urls:
+          type: array
+          items:
+            type: string
+            format: "uri"
+          description: "競合記事URL（分析用）"
+          max_items: 3
+        
+        target_serp_features:
+          type: array
+          items:
+            type: string
+            enum: ["featured_snippet", "people_also_ask", "knowledge_graph", "local_pack", "video_carousel"]
+          description: "狙うSERP機能"
+    
+    content_specifications:
+      type: object
+      description: "コンテンツ仕様"
+      properties:
+        target_word_count:
+          type: integer
+          range: [500, 10000]
+          default: 1500
+          description: "目標文字数"
+        
+        tone_of_voice:
+          type: string
+          enum: ["professional", "casual", "academic", "conversational", "authoritative", "friendly"]
+          default: "professional"
+        
+        content_depth:
+          type: string
+          enum: ["beginner", "intermediate", "advanced", "expert"]
+          default: "intermediate"
+        
+        unique_angle:
+          type: string
+          description: "独自の切り口・視点"
+          example: "実際の失敗事例から学ぶ"
+    
+    structure_preferences:
+      type: object
+      description: "記事構成設定"
+      properties:
+        intro_style:
+          type: string
+          enum: ["story", "statistic", "question", "quote", "problem_statement"]
+          default: "problem_statement"
+        
+        sections_count:
+          type: integer
+          range: [3, 10]
+          default: 5
+          description: "メインセクション数"
+        
+        include_elements:
+          type: array
+          items:
+            type: string
+            enum: ["table_of_contents", "key_takeaways", "faq", "summary_box", "infographic", "video", "podcast_embed"]
+          default: ["table_of_contents", "key_takeaways"]
+        
+        cta_strategy:
+          type: object
+          properties:
+            primary_cta:
+              type: string
+              example: "無料トライアルを開始"
+            
+            cta_positions:
+              type: array
+              items:
+                type: string
+                enum: ["after_intro", "mid_content", "before_conclusion", "sticky_sidebar", "exit_intent"]
+              default: ["after_intro", "before_conclusion"]
+    
+    engagement_optimization:
+      type: object
+      description: "エンゲージメント最適化"
+      properties:
+        multimedia_count:
+          type: object
+          properties:
+            images:
+              type: integer
+              default: 3
+              description: "画像数（1000語あたり2-3枚推奨）"
+            
+            videos:
+              type: integer
+              default: 0
+            
+            infographics:
+              type: integer
+              default: 1
+            
+            charts:
+              type: integer
+              default: 0
+        
+        interactive_elements:
+          type: array
+          items:
+            type: string
+            enum: ["quiz", "calculator", "checklist", "template_download", "slide_presentation"]
+          description: "インタラクティブ要素"
+        
+        social_proof:
+          type: object
+          properties:
+            include_testimonials:
+              type: boolean
+              default: false
+            
+            case_study_count:
+              type: integer
+              default: 0
+            
+            statistics_count:
+              type: integer
+              default: 5
+              description: "統計データの数"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_seo:
+      type: object
+      description: "高度なSEO設定"
+      properties:
+        schema_markup:
+          type: array
+          items:
+            type: string
+            enum: ["Article", "HowTo", "FAQ", "Review", "Recipe", "Course"]
+          default: ["Article"]
+        
+        pillar_content:
+          type: boolean
+          default: false
+          description: "ピラーコンテンツとして作成"
+        
+        content_cluster:
+          type: object
+          properties:
+            cluster_topic:
+              type: string
+              example: "AI生産性向上"
+            
+            related_articles:
+              type: array
+              items:
+                type: string
+              description: "関連記事URL"
+        
+        featured_snippet_optimization:
+          type: object
+          properties:
+            target_type:
+              type: string
+              enum: ["paragraph", "list", "table"]
+              default: "paragraph"
+            
+            snippet_content:
+              type: string
+              example: "40-60語の簡潔な回答"
+    
+    distribution_strategy:
+      type: object
+      description: "配信戦略"
+      properties:
+        primary_channel:
+          type: string
+          enum: ["website", "medium", "linkedin", "substack", "wordpress"]
+          default: "website"
+        
+        syndication_channels:
+          type: array
+          items:
+            type: string
+            enum: ["medium", "linkedin", "twitter", "facebook", "reddit", "hackernews"]
+        
+        email_newsletter:
+          type: boolean
+          default: true
+          description: "ニュースレター配信"
+        
+        translation_languages:
+          type: array
+          items:
+            type: string
+          example: ["en", "zh", "es"]
+          description: "翻訳言語"
+    
+    performance_tracking:
+      type: object
+      description: "パフォーマンストラッキング"
+      properties:
+        primary_goal:
+          type: string
+          enum: ["traffic", "leads", "sales", "brand_awareness", "thought_leadership"]
+          default: "traffic"
+        
+        success_metrics:
+          type: object
+          properties:
+            target_pageviews:
+              type: integer
+              example: 10000
+              description: "30日間の目標PV"
+            
+            target_conversion_rate:
+              type: number
+              example: 2.5
+              description: "目標CVR（%）"
+            
+            target_engagement_time:
+              type: integer
+              example: 180
+              description: "目標滞在時間（秒）"
+        
+        ab_testing:
+          type: object
+          properties:
+            test_headlines:
+              type: boolean
+              default: false
+            
+            test_ctas:
+              type: boolean
+              default: false
+            
+            test_images:
+              type: boolean
+              default: false
+
+# 自動計算されるパラメータ
+computed_parameters:
+  estimated_sections:
+    formula: |
+      sections = ceil(target_word_count / 300)
+      h2_count = min(sections, 7)
+      h3_count = sections - h2_count
+  
+  multimedia_requirements:
+    formula: |
+      min_images = ceil(target_word_count / 500)
+      hero_image = 1
+      section_images = h2_count
+      total_images = hero_image + section_images + infographics
+  
+  seo_score_estimate:
+    formula: |
+      keyword_score = keyword_density_check * 0.3
+      structure_score = proper_heading_hierarchy * 0.2
+      readability_score = flesch_score_normalized * 0.2
+      multimedia_score = has_sufficient_media * 0.15
+      meta_score = optimized_metadata * 0.15
+      
+      total_score = sum(all_scores) * 100
+  
+  production_time_estimate:
+    formula: |
+      research_hours = content_depth_factor * 2
+      writing_hours = target_word_count / 500
+      editing_hours = writing_hours * 0.5
+      seo_optimization = 1
+      multimedia_creation = image_count * 0.5
+      
+      total_hours = sum(all_hours)
+
+# バリデーションルール
+validation_rules:
+  - name: "keyword_cannibalization_check"
+    rule: |
+      if primary_keyword in existing_articles:
+        warning: "このキーワードで既に記事が存在します"
+  
+  - name: "optimal_length_check"
+    rule: |
+      if content_type == "how_to" and word_count < 1500:
+        suggestion: "How-to記事は1500語以上が推奨されます"
+  
+  - name: "multimedia_ratio_check"
+    rule: |
+      if images < (word_count / 500):
+        warning: "画像が不足しています。500語につき1枚を推奨"
+  
+  - name: "title_length_check"
+    rule: |
+      if len(title) > 60:
+        error: "タイトルが60文字を超えています。SERPで切れる可能性があります"

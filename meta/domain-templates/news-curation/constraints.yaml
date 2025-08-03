@@ -1,0 +1,298 @@
+# ニュース要約・キュレーションの制約条件と計算式
+
+news_value_constraints:
+  # ニュース価値判断基準
+  newsworthiness_criteria:
+    timeliness:
+      breaking_news: "< 1時間"
+      developing_story: "1-6時間"
+      daily_news: "6-24時間"
+      feature_story: "1-7日"
+      
+      decay_formula: |
+        value = initial_value * exp(-λ * hours_elapsed)
+        where λ = 0.1 for hard news, 0.01 for evergreen
+    
+    impact_score:
+      calculation: |
+        impact = (affected_people / 1000) * severity * proximity
+        
+        severity_scale:
+          life_threatening: 10
+          economic_major: 8
+          policy_change: 7
+          lifestyle: 5
+          entertainment: 3
+        
+        proximity_factor:
+          local: 1.0
+          national: 0.7
+          international: 0.4
+    
+    prominence:
+      public_figures:
+        world_leaders: 10
+        celebrities: 7
+        business_leaders: 6
+        experts: 5
+        
+    unusualness:
+      statistical_outlier: "3σ以上の偏差"
+      first_occurrence: "過去事例なし"
+      record_breaking: "既存記録更新"
+  
+  # 信頼性スコアリング
+  source_reliability:
+    tier_classification:
+      tier_1:
+        sources: ["Reuters", "AP", "Bloomberg", "官公庁"]
+        weight: 1.0
+        verification: "不要"
+      
+      tier_2:
+        sources: ["主要新聞", "専門誌", "学術機関"]
+        weight: 0.8
+        verification: "推奨"
+      
+      tier_3:
+        sources: ["業界誌", "企業発表", "NGO"]
+        weight: 0.6
+        verification: "必須"
+      
+      tier_4:
+        sources: ["ブログ", "SNS", "個人"]
+        weight: 0.3
+        verification: "複数ソース必須"
+    
+    credibility_formula: |
+      credibility = Σ(source_weight * corroboration_factor) / source_count
+      
+      corroboration_factor:
+        single_source: 0.5
+        two_sources: 0.8
+        three_plus: 1.0
+
+content_processing:
+  # 要約アルゴリズム
+  summarization_rules:
+    compression_ratio:
+      breaking_news: "10-15%"
+      daily_digest: "15-20%"
+      weekly_review: "5-10%"
+      
+    retention_priorities:
+      1: "5W1H (Who, What, When, Where, Why, How)"
+      2: "数値データ（統計、金額、割合）"
+      3: "引用・発言"
+      4: "因果関係"
+      5: "今後の展望"
+    
+    sentence_selection:
+      algorithm: "TextRank + MMR"
+      parameters:
+        similarity_threshold: 0.7
+        diversity_penalty: 0.3
+        position_weight: "冒頭30% = 1.5x"
+  
+  # 多言語処理
+  translation_requirements:
+    quality_thresholds:
+      accuracy: "> 95%"
+      fluency: "> 90%"
+      cultural_adaptation: "必須"
+    
+    processing_time:
+      machine_translation: "< 10秒"
+      human_review: "< 5分"
+      final_approval: "< 10分"
+    
+    terminology_consistency:
+      glossary_management: "必須"
+      named_entity_preservation: "100%"
+      number_format_localization: "地域別"
+
+bias_detection:
+  # 偏向検出メトリクス
+  linguistic_indicators:
+    sentiment_analysis:
+      neutral_range: "-0.2 to 0.2"
+      calculation: "VADER + TextBlob average"
+      
+    loaded_language:
+      detection_patterns:
+        - "感情的形容詞の頻度"
+        - "断定的表現の使用"
+        - "一方的な引用"
+      
+      threshold: "< 5% of total words"
+    
+    source_diversity:
+      political_spectrum: "左右バランス ±20%"
+      geographic_diversity: "3地域以上"
+      demographic_representation: "主要層カバー"
+  
+  # ファクトチェック要件
+  fact_checking:
+    verification_levels:
+      basic:
+        - "日付・時刻の確認"
+        - "人名・地名の照合"
+        - "数値データの検証"
+      
+      intermediate:
+        - "引用の原典確認"
+        - "画像・動画の真正性"
+        - "文脈の適切性"
+      
+      advanced:
+        - "統計手法の妥当性"
+        - "因果関係の検証"
+        - "利益相反の開示"
+    
+    verification_time:
+      automated: "< 30秒"
+      semi_automated: "< 5分"
+      manual: "< 30分"
+
+delivery_optimization:
+  # 配信タイミング
+  timing_strategy:
+    peak_hours:
+      morning: "7:00-9:00"
+      lunch: "12:00-13:00"
+      evening: "18:00-20:00"
+      
+    engagement_multiplier:
+      peak: 2.5
+      normal: 1.0
+      off_peak: 0.4
+    
+    time_zone_handling:
+      global_news: "UTC基準"
+      regional_news: "現地時間優先"
+      market_news: "市場開場時間連動"
+  
+  # パーソナライゼーション
+  personalization_engine:
+    user_profiling:
+      interests: "最大10カテゴリ"
+      reading_time: "平均滞在時間"
+      interaction_history: "過去30日分"
+    
+    content_scoring:
+      formula: |
+        score = (relevance * 0.4) + (freshness * 0.3) + 
+                (engagement_prediction * 0.2) + (diversity * 0.1)
+    
+    diversity_injection:
+      filter_bubble_prevention: "20%異分野混入"
+      serendipity_factor: "10%ランダム"
+
+format_specifications:
+  # ヘッドライン最適化
+  headline_construction:
+    character_limits:
+      main_headline: "30-50文字"
+      sub_headline: "50-80文字"
+      social_media: "100文字（リンク含む）"
+    
+    seo_optimization:
+      keyword_position: "前方30%以内"
+      power_words: ["速報", "独占", "初", "最新"]
+      
+    a_b_testing:
+      variants: 3
+      test_duration: "2時間"
+      significance_level: 0.95
+  
+  # 要約フォーマット
+  summary_structure:
+    bullet_points:
+      count: "3-5項目"
+      length: "1-2文/項目"
+      
+    paragraph_style:
+      intro: "状況説明（2-3文）"
+      body: "詳細・背景（3-5文）"
+      conclusion: "影響・展望（2-3文）"
+    
+    key_takeaways:
+      placement: "冒頭または末尾"
+      format: "箇条書き"
+      count: "3項目固定"
+
+quality_assurance:
+  # 編集基準
+  editorial_standards:
+    accuracy_checks:
+      - "固有名詞の表記統一"
+      - "数値の桁数確認"
+      - "時系列の整合性"
+      - "地理的整合性"
+    
+    style_consistency:
+      - "文体統一（です・ます調）"
+      - "専門用語の説明"
+      - "略語の初出展開"
+    
+    legal_compliance:
+      - "著作権表示"
+      - "引用ルール遵守"
+      - "プライバシー保護"
+      - "名誉毀損回避"
+  
+  # パフォーマンス指標
+  performance_metrics:
+    speed:
+      crawling: "< 5秒/ソース"
+      processing: "< 10秒/記事"
+      delivery: "< 1秒"
+      
+    accuracy:
+      fact_accuracy: "> 99.5%"
+      translation_accuracy: "> 95%"
+      summarization_fidelity: "> 90%"
+    
+    engagement:
+      click_through_rate: "> 15%"
+      read_completion: "> 60%"
+      share_rate: "> 5%"
+
+automation_rules:
+  # 自動化トリガー
+  automation_triggers:
+    breaking_news:
+      keyword_alerts: ["速報", "Breaking", "緊急"]
+      source_priority: "Tier 1優先"
+      distribution: "即時"
+    
+    scheduled_content:
+      daily_digest: "毎日 8:00, 18:00"
+      weekly_review: "金曜 17:00"
+      monthly_report: "月末最終営業日"
+    
+    threshold_alerts:
+      stock_movement: "> ±5%"
+      social_viral: "> 10000 shares/hour"
+      disaster_scale: "> magnitude 5.0"
+  
+  # ワークフロー自動化
+  workflow_automation:
+    content_pipeline:
+      1: "ソース収集"
+      2: "重複除去"
+      3: "重要度スコアリング"
+      4: "要約生成"
+      5: "ファクトチェック"
+      6: "多言語展開"
+      7: "配信"
+    
+    quality_gates:
+      - "信頼性スコア > 0.7"
+      - "要約品質スコア > 0.8"
+      - "偏向スコア < 0.3"
+      
+    fallback_procedures:
+      low_confidence: "人間レビューへ"
+      source_conflict: "追加ソース取得"
+      technical_error: "代替アルゴリズム使用"
