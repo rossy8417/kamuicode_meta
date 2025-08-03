@@ -1,0 +1,268 @@
+# 画像制作・写真編集の制約条件と計算式
+
+technical_constraints:
+  # 解像度と画素数
+  resolution_limits:
+    standard_formats:
+      web_small: "800x600 (0.5MP)"
+      web_medium: "1920x1080 (2MP)"
+      web_large: "3840x2160 (8MP)"
+      print_small: "2400x3000 (7MP)"
+      print_medium: "4000x6000 (24MP)"
+      print_large: "8000x12000 (96MP)"
+    
+    pixel_density_requirements:
+      screen: "72-144 PPI"
+      web_retina: "144-288 PPI"
+      print_standard: "300 PPI"
+      print_fine_art: "360-720 PPI"
+    
+    calculation:
+      formula: |
+        required_pixels = (print_width_inches * ppi) * (print_height_inches * ppi)
+        
+        例: A3印刷 (11.7" x 16.5" @ 300PPI)
+        = (11.7 * 300) * (16.5 * 300)
+        = 3510 * 4950
+        = 17,374,500 pixels (17.4MP)
+  
+  # ファイルサイズ計算
+  file_size_estimation:
+    uncompressed:
+      formula: |
+        file_size_mb = (width * height * bit_depth * channels) / (8 * 1024 * 1024)
+        
+        例: 4K画像 (3840x2160, 16bit, RGB)
+        = (3840 * 2160 * 16 * 3) / (8 * 1024 * 1024)
+        = 47.46 MB
+    
+    compressed_ratios:
+      jpeg_quality_100: "1:3"
+      jpeg_quality_90: "1:8"
+      jpeg_quality_80: "1:12"
+      jpeg_quality_70: "1:20"
+      png_24bit: "1:2"
+      webp_lossy: "1:25"
+      heif: "1:30"
+
+color_management:
+  # 色空間特性
+  color_spaces:
+    srgb:
+      gamut_coverage: "35% of visible colors"
+      use_case: "Web, モバイル, SNS"
+      bit_depth: "8bit標準"
+    
+    adobe_rgb:
+      gamut_coverage: "50% of visible colors"
+      use_case: "プロ印刷, 写真編集"
+      bit_depth: "16bit推奨"
+    
+    prophoto_rgb:
+      gamut_coverage: "90% of visible colors"
+      use_case: "アーカイブ, 高品質編集"
+      bit_depth: "16bit必須"
+    
+    display_p3:
+      gamut_coverage: "45% of visible colors"
+      use_case: "Apple devices, 映画"
+      bit_depth: "10bit以上"
+  
+  # 色変換の損失
+  conversion_quality_loss:
+    prophoto_to_adobe: "~10% gamut clipping"
+    adobe_to_srgb: "~20% gamut clipping"
+    prophoto_to_srgb: "~55% gamut clipping"
+    
+    perceptual_intent: "自然な見た目優先"
+    relative_colorimetric: "正確性優先"
+    saturation: "鮮やかさ優先"
+    absolute_colorimetric: "プルーフ用"
+
+image_processing:
+  # シャープネス適用
+  sharpening_workflow:
+    capture_sharpening:
+      amount: "30-50%"
+      radius: "0.3-1.0px"
+      purpose: "センサー特性補正"
+    
+    creative_sharpening:
+      amount: "50-150%"
+      radius: "1-3px"
+      purpose: "被写体強調"
+    
+    output_sharpening:
+      screen:
+        amount: "50-80%"
+        radius: "0.3-0.7px"
+      
+      print_matte:
+        amount: "80-120%"
+        radius: "1.0-2.0px"
+      
+      print_glossy:
+        amount: "60-100%"
+        radius: "0.7-1.5px"
+  
+  # ノイズリダクション
+  noise_reduction:
+    iso_thresholds:
+      clean: "ISO 100-400"
+      low_noise: "ISO 800-1600"
+      moderate_noise: "ISO 3200-6400"
+      high_noise: "ISO 12800+"
+    
+    reduction_strength:
+      formula: |
+        luminance_nr = log2(iso/100) * 10
+        color_nr = luminance_nr * 1.5
+        detail_preservation = max(100 - luminance_nr, 50)
+
+editing_constraints:
+  # 調整限界値
+  adjustment_limits:
+    exposure:
+      safe_range: "-2.0 to +2.0 EV"
+      quality_loss: "> ±3.0 EV"
+      clipping_risk: "> ±4.0 EV"
+    
+    highlights_shadows:
+      natural_range: "-50 to +50"
+      hdr_look: "-100 to +100"
+      artifact_risk: "> ±80"
+    
+    vibrance_saturation:
+      subtle: "+10 to +20"
+      moderate: "+20 to +40"
+      extreme: "> +50"
+      desaturate: "-20 to -40"
+    
+    clarity_texture:
+      portrait: "-20 to +10"
+      landscape: "+20 to +50"
+      architectural: "+30 to +60"
+  
+  # レイヤー合成
+  compositing_limits:
+    layer_count:
+      performance_impact:
+        1-10: "リアルタイム"
+        11-50: "若干の遅延"
+        51-100: "顕著な遅延"
+        100+: "レンダリング必要"
+    
+    blend_modes_impact:
+      normal: "低負荷"
+      multiply_screen: "低負荷"
+      overlay_soft_light: "中負荷"
+      difference_exclusion: "高負荷"
+      complex_modes: "最高負荷"
+
+output_optimization:
+  # Web用最適化
+  web_optimization:
+    responsive_images:
+      breakpoints: [320, 640, 768, 1024, 1440, 1920]
+      
+      srcset_calculation: |
+        sizes = []
+        for breakpoint in breakpoints:
+          if breakpoint <= max_width:
+            sizes.append(f"{breakpoint}w")
+        return ", ".join(sizes)
+    
+    lazy_loading:
+      placeholder_size: "20px"
+      blur_radius: "20px"
+      quality: "40%"
+    
+    format_selection:
+      modern_browsers: ["webp", "avif"]
+      fallback: "jpeg"
+      transparency: "png"
+  
+  # 印刷用最適化
+  print_optimization:
+    color_conversion:
+      rgb_to_cmyk: "デバイスプロファイル使用"
+      black_generation: "GCR (Gray Component Replacement)"
+      total_ink_limit: "240-320%"
+    
+    resolution_requirements:
+      newspaper: "170-200 PPI"
+      magazine: "266-300 PPI"
+      fine_art: "360-480 PPI"
+      billboard: "30-100 PPI"
+
+metadata_management:
+  # メタデータ保持
+  essential_metadata:
+    exif:
+      camera_info: ["Make", "Model", "LensModel"]
+      shooting_data: ["ISO", "FNumber", "ExposureTime", "FocalLength"]
+      gps: ["GPSLatitude", "GPSLongitude", "GPSAltitude"]
+    
+    iptc:
+      copyright: ["Creator", "Copyright", "UsageTerms"]
+      description: ["Caption", "Keywords", "Category"]
+      location: ["Country", "City", "Location"]
+    
+    xmp:
+      editing_history: "保持必須"
+      color_profile: "埋め込み必須"
+      rating_labels: "ワークフロー用"
+  
+  # プライバシー考慮
+  privacy_stripping:
+    remove_for_public: ["GPS", "SerialNumber", "OwnerName"]
+    keep_for_archive: "全メタデータ"
+    legal_requirements: "著作権情報は必須保持"
+
+performance_optimization:
+  # GPU活用
+  gpu_acceleration:
+    supported_operations:
+      - "リアルタイムプレビュー"
+      - "フィルター適用"
+      - "変形・ワープ"
+      - "AI処理（ノイズ除去、アップスケール）"
+    
+    vram_requirements:
+      minimum: "2GB"
+      recommended: "8GB"
+      professional: "16GB+"
+  
+  # キャッシュ戦略
+  caching_strategy:
+    preview_cache:
+      size: "元画像の25%"
+      format: "JPEG 80%"
+      update: "調整パラメータ変更時"
+    
+    smart_previews:
+      size: "2540px longest edge"
+      purpose: "高速編集"
+      quality: "損失なし（最終出力時にフル解像度適用）"
+
+quality_assurance:
+  # 自動品質チェック
+  automated_checks:
+    technical:
+      - "ヒストグラム分析（白飛び・黒潰れ）"
+      - "色域外警告"
+      - "フォーカスマップ"
+      - "ノイズレベル測定"
+    
+    aesthetic:
+      - "構図分析（三分割法）"
+      - "色彩調和"
+      - "露出バランス"
+      - "被写界深度評価"
+  
+  # 出力前検証
+  pre_export_validation:
+    resolution_check: "目的に適合"
+    color_space_check: "ターゲットデバイス対応"
+    compression_check: "品質とサイズのバランス"
+    metadata_check: "必要情報の保持"

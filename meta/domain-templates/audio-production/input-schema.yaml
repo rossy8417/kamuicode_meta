@@ -1,0 +1,266 @@
+# 音楽・音声制作ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    project_name:
+      type: string
+      description: "プロジェクト名"
+      example: "Corporate Podcast Episode 1"
+      validation: "max_length: 100"
+    
+    audio_type:
+      type: string
+      description: "音声コンテンツの種類"
+      enum: ["music", "podcast", "audiobook", "commercial", "game_audio", "asmr", "sound_effect"]
+      default: "podcast"
+      impacts:
+        - "処理チェーンの選択"
+        - "ラウドネス標準の適用"
+        - "コーデック設定"
+    
+    duration:
+      type: string
+      description: "コンテンツの長さ"
+      pattern: "^([0-9]+[hms])+$"
+      examples: ["30s", "5m", "1h30m", "2h"]
+      validation: "max: 10h"
+    
+    target_platform:
+      type: array
+      description: "配信プラットフォーム（複数可）"
+      items:
+        type: string
+        enum: ["spotify", "apple_music", "youtube", "podcast_platforms", "broadcast", "cinema", "game", "vr"]
+      default: ["spotify", "apple_music"]
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    genre_style:
+      type: string
+      description: "ジャンル・スタイル"
+      enum: ["pop", "rock", "jazz", "classical", "electronic", "ambient", "corporate", "narrative", "experimental"]
+      default: "corporate"
+      affects:
+        - "音響処理パラメータ"
+        - "周波数バランス"
+        - "ダイナミクスレンジ"
+    
+    voice_configuration:
+      type: object
+      description: "音声構成"
+      properties:
+        narration:
+          type: object
+          properties:
+            voice_type:
+              type: string
+              enum: ["male_deep", "male_standard", "female_warm", "female_clear", "ai_neutral"]
+            language:
+              type: string
+              default: "ja"
+            speed:
+              type: number
+              range: [0.8, 1.2]
+              default: 1.0
+        
+        multi_speaker:
+          type: boolean
+          default: false
+          description: "複数話者の管理"
+    
+    music_elements:
+      type: object
+      description: "音楽要素の構成"
+      properties:
+        tempo:
+          type: integer
+          range: [60, 200]
+          default: 120
+          unit: "BPM"
+        
+        key:
+          type: string
+          enum: ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+          mode: ["major", "minor"]
+        
+        instrumentation:
+          type: array
+          items:
+            type: string
+            enum: ["drums", "bass", "guitar", "piano", "strings", "synth", "brass", "woodwind", "vocal"]
+    
+    spatial_design:
+      type: object
+      description: "空間音響設計"
+      properties:
+        stereo_width:
+          type: string
+          enum: ["mono", "narrow", "standard", "wide", "surround"]
+          default: "standard"
+        
+        immersive_format:
+          type: string
+          enum: ["stereo", "5.1", "7.1", "dolby_atmos", "binaural", "ambisonics"]
+          default: "stereo"
+        
+        room_simulation:
+          type: string
+          enum: ["dry", "studio", "hall", "cathedral", "outdoor", "custom"]
+          default: "studio"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_processing:
+      type: object
+      description: "高度な処理設定"
+      properties:
+        stem_separation:
+          type: boolean
+          default: false
+          description: "ステム分離処理"
+        
+        spectral_repair:
+          type: boolean
+          default: false
+          description: "スペクトラル修復"
+        
+        ai_enhancement:
+          type: object
+          properties:
+            noise_reduction:
+              type: string
+              enum: ["off", "light", "moderate", "heavy"]
+              default: "light"
+            
+            voice_enhancement:
+              type: boolean
+              default: true
+            
+            auto_mixing:
+              type: boolean
+              default: false
+    
+    mastering_chain:
+      type: object
+      description: "マスタリングチェーン設定"
+      properties:
+        eq_curve:
+          type: string
+          enum: ["flat", "smile", "warm", "bright", "vintage", "modern", "custom"]
+          default: "modern"
+        
+        compression_style:
+          type: string
+          enum: ["transparent", "glue", "punch", "vintage", "parallel"]
+          default: "transparent"
+        
+        limiter_settings:
+          type: object
+          properties:
+            ceiling:
+              type: number
+              default: -0.3
+              unit: "dBFS"
+            
+            release:
+              type: string
+              enum: ["fast", "medium", "slow", "auto"]
+              default: "auto"
+    
+    delivery_formats:
+      type: object
+      description: "納品フォーマット設定"
+      properties:
+        master_format:
+          type: object
+          properties:
+            sample_rate:
+              type: integer
+              enum: [44100, 48000, 88200, 96000, 192000]
+              default: 48000
+            
+            bit_depth:
+              type: integer
+              enum: [16, 24, 32]
+              default: 24
+            
+            dithering:
+              type: string
+              enum: ["none", "tpdf", "apodizing", "noise_shaped"]
+              default: "tpdf"
+        
+        streaming_formats:
+          type: array
+          items:
+            type: object
+            properties:
+              codec:
+                type: string
+                enum: ["mp3", "aac", "opus", "flac", "alac"]
+              
+              bitrate:
+                type: string
+                pattern: "^[0-9]+kbps$"
+        
+        stems_export:
+          type: boolean
+          default: false
+          description: "ステム別エクスポート"
+    
+    monitoring_calibration:
+      type: object
+      description: "モニタリング環境校正"
+      properties:
+        reference_level:
+          type: integer
+          default: 85
+          unit: "dB SPL"
+          description: "リファレンスレベル"
+        
+        room_correction:
+          type: boolean
+          default: false
+          description: "ルーム補正の適用"
+        
+        headphone_compensation:
+          type: string
+          enum: ["none", "harman", "diffuse_field", "custom"]
+          default: "none"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  total_processing_time:
+    formula: "duration * complexity_factor + overhead"
+    factors:
+      music: 3.0
+      podcast: 1.5
+      audiobook: 1.2
+      game_audio: 4.0
+  
+  storage_requirements:
+    formula: "(sample_rate * bit_depth * channels * duration) / 8 * safety_factor"
+    safety_factor: 2.5
+  
+  cpu_cores_needed:
+    formula: "ceil(parallel_tracks / 4) * complexity"
+    min: 4
+    recommended: 8
+    optimal: 16
+
+# バリデーションルール
+validation_rules:
+  - name: "sample_rate_video_sync"
+    rule: |
+      if includes_video and sample_rate != 48000:
+        warning: "映像同期には48kHzを推奨"
+  
+  - name: "immersive_channel_check"
+    rule: |
+      if immersive_format == "dolby_atmos" and channels < 7.1.4:
+        error: "Dolby Atmosには最低7.1.4チャンネルが必要"
+  
+  - name: "loudness_compliance"
+    rule: |
+      if target_platform.includes("broadcast") and !loudness_standard:
+        error: "放送用にはラウドネス規格の指定が必須"

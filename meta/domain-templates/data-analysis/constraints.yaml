@@ -1,0 +1,255 @@
+# データ分析・可視化の制約条件と計算式
+
+statistical_constraints:
+  # サンプルサイズ計算
+  sample_size_calculation:
+    formula: |
+      n = (Z^2 * σ^2) / E^2
+      
+      where:
+        - Z: 信頼水準に対応するZ値
+          - 90%: 1.645
+          - 95%: 1.96
+          - 99%: 2.576
+        - σ: 母標準偏差（推定値）
+        - E: 許容誤差
+    
+    power_analysis:
+      formula: |
+        n = 2 * (Z_α + Z_β)^2 * σ^2 / δ^2
+        
+        where:
+          - Z_α: 有意水準のZ値
+          - Z_β: 検出力のZ値
+          - δ: 検出したい効果量
+      
+      common_values:
+        small_effect: 0.2
+        medium_effect: 0.5
+        large_effect: 0.8
+  
+  # 多重比較補正
+  multiple_testing:
+    bonferroni:
+      adjusted_alpha: "α / m"
+      use_case: "少数の比較（m < 20）"
+    
+    benjamini_hochberg:
+      procedure: |
+        1. p値を昇順にソート
+        2. k = max{i : p_i ≤ (i/m) * α}
+        3. i ≤ k の仮説を棄却
+      use_case: "多数の比較（m > 20）"
+    
+    false_discovery_rate:
+      target: "< 0.05"
+      interpretation: "有意な結果の5%以下が偽陽性"
+
+data_quality_constraints:
+  # データ品質チェック
+  completeness:
+    missing_threshold:
+      drop_column: "> 50% missing"
+      imputation_required: "10-50% missing"
+      acceptable: "< 10% missing"
+    
+    imputation_methods:
+      numeric:
+        - mean: "正規分布"
+        - median: "歪んだ分布"
+        - forward_fill: "時系列"
+        - interpolation: "連続データ"
+      
+      categorical:
+        - mode: "最頻値"
+        - "missing": "新カテゴリ"
+        - model_based: "予測モデル"
+  
+  # 外れ値検出
+  outlier_detection:
+    statistical_methods:
+      iqr_method:
+        formula: "Q1 - 1.5*IQR < x < Q3 + 1.5*IQR"
+        robust: true
+      
+      z_score:
+        formula: "|z| > 3"
+        assumption: "正規分布"
+      
+      isolation_forest:
+        contamination: 0.01
+        use_case: "高次元データ"
+    
+    handling_strategies:
+      remove: "分析から除外"
+      cap: "上下限でクリップ"
+      transform: "対数変換等"
+      investigate: "個別調査"
+
+visualization_constraints:
+  # 可視化の選択ロジック
+  chart_selection_matrix:
+    single_variable:
+      continuous:
+        distribution: ["histogram", "density_plot", "box_plot"]
+        summary: ["bar_chart", "dot_plot"]
+      
+      categorical:
+        frequency: ["bar_chart", "pie_chart"]
+        proportion: ["donut_chart", "waffle_chart"]
+    
+    two_variables:
+      continuous_continuous:
+        correlation: ["scatter_plot", "hexbin_plot"]
+        regression: ["scatter_with_line", "residual_plot"]
+      
+      continuous_categorical:
+        comparison: ["box_plot", "violin_plot"]
+        distribution: ["ridge_plot", "strip_plot"]
+      
+      categorical_categorical:
+        association: ["heatmap", "mosaic_plot"]
+        flow: ["sankey_diagram", "chord_diagram"]
+    
+    multivariate:
+      3_4_variables: ["bubble_chart", "parallel_coordinates"]
+      5_plus_variables: ["pca_biplot", "heatmap", "facet_grid"]
+    
+    temporal:
+      single_series: ["line_chart", "area_chart"]
+      multiple_series: ["multi_line", "stream_graph"]
+      cyclical: ["radar_chart", "circular_heatmap"]
+  
+  # 色彩理論
+  color_schemes:
+    sequential:
+      use_case: "順序データ、連続値"
+      examples: ["Blues", "Viridis", "Plasma"]
+      max_classes: 9
+    
+    diverging:
+      use_case: "中心値からの偏差"
+      examples: ["RdBu", "PuOr", "BrBG"]
+      center: "白または薄い色"
+    
+    categorical:
+      use_case: "カテゴリデータ"
+      max_categories: 12
+      colorblind_safe: ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
+
+computational_constraints:
+  # メモリ管理
+  memory_optimization:
+    dtype_optimization:
+      int64_to_int32: "値域 < 2^31"
+      float64_to_float32: "精度要求が低い場合"
+      object_to_category: "カテゴリ数 < 全体の50%"
+    
+    chunking_strategy:
+      chunk_size: "available_memory / 10"
+      processing: "iterative"
+      aggregation: "incremental"
+  
+  # 計算量最適化
+  algorithm_complexity:
+    sorting: "O(n log n)"
+    groupby: "O(n)"
+    join: "O(n + m)"
+    pivot: "O(n * k)"
+    
+    optimization_thresholds:
+      use_sample: "n > 1_000_000"
+      use_approximate: "n > 10_000_000"
+      distribute: "n > 100_000_000"
+
+analytical_constraints:
+  # 統計的仮定
+  assumptions_testing:
+    normality:
+      tests: ["shapiro_wilk", "anderson_darling", "qq_plot"]
+      threshold: "p > 0.05"
+      alternatives: "非パラメトリック手法"
+    
+    homoscedasticity:
+      tests: ["levene", "bartlett", "breusch_pagan"]
+      visual: "residual_plot"
+      alternatives: "robust_regression"
+    
+    independence:
+      tests: ["durbin_watson", "acf_plot"]
+      threshold: "1.5 < DW < 2.5"
+      alternatives: "時系列モデル"
+  
+  # 因果推論
+  causal_inference:
+    requirements:
+      temporal_precedence: "原因が結果に先行"
+      covariation: "相関関係の存在"
+      no_confounders: "交絡因子の制御"
+    
+    methods:
+      rct: "ランダム化比較試験（ゴールドスタンダード）"
+      propensity_score: "傾向スコアマッチング"
+      instrumental_variable: "操作変数法"
+      regression_discontinuity: "回帰不連続デザイン"
+
+reporting_constraints:
+  # 結果報告基準
+  statistical_reporting:
+    required_elements:
+      - "効果量と信頼区間"
+      - "サンプルサイズ"
+      - "使用した統計手法"
+      - "仮定の確認結果"
+      - "多重比較の補正方法"
+    
+    precision:
+      p_values: "3桁（例: p = 0.042）"
+      correlations: "2桁（例: r = 0.75）"
+      percentages: "1桁（例: 45.2%）"
+  
+  # 可視化品質基準
+  visualization_standards:
+    accessibility:
+      color_contrast: "WCAG AA (4.5:1)"
+      alternative_text: "必須"
+      pattern_fills: "色覚異常対応"
+    
+    accuracy:
+      axis_starts: "原則0から（比率データ除く）"
+      aspect_ratio: "データの性質に応じて"
+      error_bars: "不確実性の明示"
+    
+    simplicity:
+      data_ink_ratio: "> 0.9"
+      chartjunk: "排除"
+      annotations: "重要ポイントのみ"
+
+performance_benchmarks:
+  # 処理速度基準
+  interactive_analysis:
+    response_time:
+      excellent: "< 1s"
+      good: "1-3s"
+      acceptable: "3-5s"
+      needs_optimization: "> 5s"
+    
+    data_size_limits:
+      in_memory: "< 8GB"
+      chunked: "8-50GB"
+      distributed: "> 50GB"
+  
+  # スケーラビリティ
+  scalability_patterns:
+    vertical:
+      cpu_cores: "linear up to 8"
+      memory: "linear up to 64GB"
+    
+    horizontal:
+      data_parallel: "near linear"
+      model_parallel: "sub linear"
+      
+    optimization_triggers:
+      profile_first: "response > 5s"
+      sample_data: "n > 1M"
+      cache_results: "repeated queries"

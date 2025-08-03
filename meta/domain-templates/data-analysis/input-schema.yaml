@@ -1,0 +1,344 @@
+# データ分析・可視化ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    analysis_title:
+      type: string
+      description: "分析プロジェクトのタイトル"
+      example: "2025年度売上データ分析 - 地域別パフォーマンス評価"
+      validation: "max_length: 100"
+    
+    analysis_type:
+      type: string
+      description: "分析の種類"
+      enum: ["exploratory", "descriptive", "predictive", "prescriptive", "diagnostic", "comparative"]
+      default: "exploratory"
+      impacts:
+        - "統計手法の選択"
+        - "可視化タイプの決定"
+        - "レポート構成"
+        - "必要な前処理"
+    
+    data_source:
+      type: object
+      description: "データソース設定"
+      properties:
+        type:
+          type: string
+          enum: ["csv", "excel", "database", "api", "google_sheets", "bigquery", "s3"]
+          default: "csv"
+        
+        connection_string:
+          type: string
+          description: "接続文字列またはファイルパス"
+          sensitive: true
+        
+        data_size_estimate:
+          type: string
+          enum: ["small", "medium", "large", "xlarge"]
+          description: "<1MB: small, 1-100MB: medium, 100MB-1GB: large, >1GB: xlarge"
+          impacts: ["処理方法", "メモリ戦略", "サンプリング必要性"]
+    
+    business_context:
+      type: string
+      description: "ビジネス上の課題・目的"
+      example: "四半期売上が前年比10%減少。地域別の要因分析が必要"
+      validation: "min_length: 20"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    statistical_requirements:
+      type: object
+      description: "統計的要件"
+      properties:
+        confidence_level:
+          type: number
+          enum: [0.90, 0.95, 0.99]
+          default: 0.95
+          description: "信頼水準"
+        
+        significance_level:
+          type: number
+          enum: [0.01, 0.05, 0.10]
+          default: 0.05
+          description: "有意水準（α）"
+        
+        power:
+          type: number
+          range: [0.7, 0.95]
+          default: 0.8
+          description: "検出力（1-β）"
+        
+        effect_size:
+          type: string
+          enum: ["small", "medium", "large", "custom"]
+          default: "medium"
+          mapping:
+            small: 0.2
+            medium: 0.5
+            large: 0.8
+    
+    data_quality_thresholds:
+      type: object
+      description: "データ品質基準"
+      properties:
+        missing_data_threshold:
+          type: number
+          range: [0, 0.5]
+          default: 0.1
+          description: "許容欠損率"
+        
+        outlier_method:
+          type: string
+          enum: ["iqr", "zscore", "isolation_forest", "manual"]
+          default: "iqr"
+        
+        minimum_sample_size:
+          type: integer
+          default: 30
+          description: "最小サンプルサイズ（中心極限定理）"
+        
+        duplicate_handling:
+          type: string
+          enum: ["remove", "keep_first", "keep_last", "investigate"]
+          default: "investigate"
+    
+    visualization_preferences:
+      type: object
+      description: "可視化設定"
+      properties:
+        style:
+          type: string
+          enum: ["minimal", "corporate", "academic", "journalistic", "dashboard"]
+          default: "corporate"
+        
+        color_palette:
+          type: string
+          enum: ["sequential", "diverging", "categorical", "brand_colors", "colorblind_safe"]
+          default: "colorblind_safe"
+        
+        interactivity:
+          type: boolean
+          default: true
+          description: "インタラクティブ要素の有無"
+        
+        animation:
+          type: boolean
+          default: false
+          description: "アニメーション効果"
+    
+    analysis_depth:
+      type: object
+      description: "分析の深さ設定"
+      properties:
+        exploratory_depth:
+          type: string
+          enum: ["basic", "standard", "comprehensive", "exhaustive"]
+          default: "standard"
+          impacts:
+            basic: "単変量分析のみ"
+            standard: "二変量分析含む"
+            comprehensive: "多変量分析含む"
+            exhaustive: "全組み合わせ分析"
+        
+        hypothesis_testing:
+          type: boolean
+          default: true
+          description: "仮説検定の実施"
+        
+        predictive_modeling:
+          type: boolean
+          default: false
+          description: "予測モデルの構築"
+        
+        causal_analysis:
+          type: boolean
+          default: false
+          description: "因果推論の実施"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_statistics:
+      type: object
+      description: "高度な統計設定"
+      properties:
+        multiple_testing_correction:
+          type: string
+          enum: ["none", "bonferroni", "benjamini_hochberg", "holm", "fdr"]
+          default: "benjamini_hochberg"
+        
+        bootstrap_iterations:
+          type: integer
+          range: [1000, 10000]
+          default: 5000
+          description: "ブートストラップ反復回数"
+        
+        cross_validation_folds:
+          type: integer
+          range: [3, 20]
+          default: 5
+          description: "交差検証の分割数"
+        
+        time_series_settings:
+          type: object
+          properties:
+            seasonality:
+              type: string
+              enum: ["none", "daily", "weekly", "monthly", "quarterly", "yearly", "auto"]
+              default: "auto"
+            
+            trend_type:
+              type: string
+              enum: ["none", "linear", "exponential", "polynomial", "auto"]
+              default: "auto"
+    
+    output_configuration:
+      type: object
+      description: "出力設定"
+      properties:
+        report_format:
+          type: array
+          items:
+            type: string
+            enum: ["html", "pdf", "excel", "powerpoint", "markdown", "jupyter"]
+          default: ["html", "pdf"]
+        
+        executive_summary:
+          type: boolean
+          default: true
+          description: "エグゼクティブサマリーの生成"
+        
+        technical_appendix:
+          type: boolean
+          default: false
+          description: "技術的詳細の付録"
+        
+        raw_data_export:
+          type: boolean
+          default: false
+          description: "処理済みデータのエクスポート"
+    
+    performance_optimization:
+      type: object
+      description: "パフォーマンス最適化"
+      properties:
+        use_sampling:
+          type: boolean
+          default: "auto"
+          description: "サンプリングの使用（データサイズに応じて自動）"
+        
+        parallel_processing:
+          type: boolean
+          default: true
+          description: "並列処理の有効化"
+        
+        memory_limit:
+          type: string
+          enum: ["2GB", "4GB", "8GB", "16GB", "32GB", "unlimited"]
+          default: "8GB"
+        
+        cache_intermediates:
+          type: boolean
+          default: true
+          description: "中間結果のキャッシュ"
+    
+    collaboration_features:
+      type: object
+      description: "協業機能"
+      properties:
+        shareable_link:
+          type: boolean
+          default: false
+          description: "共有可能なリンクの生成"
+        
+        version_control:
+          type: boolean
+          default: true
+          description: "分析のバージョン管理"
+        
+        comments_enabled:
+          type: boolean
+          default: false
+          description: "コメント機能の有効化"
+        
+        real_time_updates:
+          type: boolean
+          default: false
+          description: "リアルタイム更新（データソース接続時）"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  required_sample_size:
+    formula: |
+      if analysis_type == "predictive":
+        n = max(10 * predictors, 100)
+      elif hypothesis_testing:
+        n = calculate_power_analysis(effect_size, power, alpha)
+      else:
+        n = 30  # 中心極限定理の最小値
+  
+  processing_strategy:
+    formula: |
+      if data_size == "xlarge":
+        strategy = "distributed"
+      elif data_size == "large":
+        strategy = "chunked"
+      else:
+        strategy = "in_memory"
+  
+  visualization_count:
+    formula: |
+      base_count = variables * 2
+      if exploratory_depth == "comprehensive":
+        count = base_count * 3
+      elif exploratory_depth == "exhaustive":
+        count = combinations(variables, 2) + base_count
+      else:
+        count = base_count
+  
+  analysis_duration_estimate:
+    formula: |
+      base_time = data_size_factor * complexity_factor
+      optimization_factor = 0.5 if parallel_processing else 1.0
+      total_minutes = base_time * optimization_factor
+    
+    factors:
+      data_size:
+        small: 5
+        medium: 15
+        large: 60
+        xlarge: 240
+      
+      complexity:
+        exploratory: 1.0
+        predictive: 3.0
+        prescriptive: 5.0
+
+# バリデーションルール
+validation_rules:
+  - name: "sample_size_adequacy"
+    rule: |
+      if data_points < required_sample_size:
+        warning: "サンプルサイズが統計的に不十分です"
+  
+  - name: "memory_feasibility"
+    rule: |
+      estimated_memory = data_size * processing_overhead
+      if estimated_memory > memory_limit:
+        error: "メモリ制限を超える可能性があります"
+  
+  - name: "statistical_assumptions"
+    rule: |
+      if analysis_type == "predictive" and !normality_assumed:
+        suggestion: "非パラメトリック手法の使用を検討してください"
+  
+  - name: "visualization_overload"
+    rule: |
+      if computed.visualization_count > 50:
+        warning: "可視化が多すぎます。重要な図表に絞ることを推奨"
+  
+  - name: "p_hacking_prevention"
+    rule: |
+      if hypothesis_tests > 20 and multiple_testing_correction == "none":
+        error: "多重検定の補正が必要です"

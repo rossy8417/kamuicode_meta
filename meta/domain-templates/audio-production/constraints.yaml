@@ -1,0 +1,200 @@
+# 音楽・音声制作の制約条件と計算式
+
+acoustic_constraints:
+  # ラウドネス管理
+  loudness_standards:
+    streaming_platforms:
+      spotify: -14 LUFS
+      apple_music: -16 LUFS
+      youtube: -14 LUFS
+      soundcloud: -10 LUFS
+      podcast: -16 LUFS
+    
+    broadcast_standards:
+      ebu_r128: -23 LUFS
+      atsc_a85: -24 LKFS
+      netflix: -27 LUFS ±2
+    
+    headroom_requirements:
+      true_peak: -1 dBTP
+      safety_margin: -0.3 dB
+      intersample_peaks: -0.5 dB
+  
+  # 周波数帯域管理
+  frequency_allocation:
+    sub_bass: "20-60 Hz (感じる低音)"
+    bass: "60-250 Hz (基音)"
+    low_mid: "250-500 Hz (温かさ)"
+    mid: "500-2000 Hz (存在感)"
+    high_mid: "2-6 kHz (明瞭度)"
+    high: "6-20 kHz (空気感)"
+    
+    critical_bands:
+      speech_intelligibility: "1-4 kHz"
+      presence: "3-5 kHz"
+      sibilance: "5-8 kHz"
+      air: "10-20 kHz"
+
+technical_constraints:
+  # サンプリング定理
+  nyquist_theorem:
+    formula: "max_frequency = sample_rate / 2"
+    implications:
+      44100: "最大22.05 kHz"
+      48000: "最大24 kHz"
+      96000: "最大48 kHz"
+    
+    aliasing_prevention:
+      filter_type: "急峻なローパスフィルタ"
+      cutoff: "sample_rate * 0.45"
+      slope: "96 dB/octave"
+  
+  # ダイナミックレンジ
+  dynamic_range:
+    bit_depth_snr:
+      16bit: "96 dB"
+      24bit: "144 dB"
+      32bit_float: "1528 dB (理論値)"
+    
+    practical_limits:
+      room_noise_floor: "30-40 dB SPL"
+      pain_threshold: "130 dB SPL"
+      usable_range: "90 dB"
+
+processing_strategies:
+  # マルチバンド処理
+  multiband_compression:
+    bands:
+      - range: "20-200 Hz"
+        ratio: "2:1"
+        attack: "10ms"
+        release: "100ms"
+      
+      - range: "200-1000 Hz"
+        ratio: "3:1"
+        attack: "5ms"
+        release: "50ms"
+      
+      - range: "1-5 kHz"
+        ratio: "4:1"
+        attack: "1ms"
+        release: "20ms"
+      
+      - range: "5-20 kHz"
+        ratio: "2:1"
+        attack: "0.5ms"
+        release: "10ms"
+  
+  # ダッキング設定
+  ducking_parameters:
+    trigger_source: "ナレーション"
+    target: "BGM"
+    threshold: -20 dB
+    ratio: "4:1"
+    attack: "50ms"
+    hold: "10ms"
+    release: "500ms"
+    reduction: "-6 to -12 dB"
+
+spatial_audio:
+  # 3D音響パラメータ
+  binaural_processing:
+    hrtf_database: "IRCAM Listen"
+    elevation_range: "-40° to +90°"
+    azimuth_range: "0° to 360°"
+    distance_attenuation: "1/r²"
+    
+    room_simulation:
+      early_reflections: "0-80ms"
+      late_reverb: "80ms+"
+      rt60: "0.3-2.0s"
+  
+  # ステレオイメージング
+  stereo_width:
+    mono_compatibility: "必須チェック"
+    correlation_meter: "> +0.5"
+    phase_issues: "< -0.5で警告"
+    
+    width_guidelines:
+      bass: "< 30% (モノラル推奨)"
+      mid: "50-70%"
+      high: "70-100%"
+      reverb: "100-150%"
+
+workflow_optimization:
+  # バッチ処理戦略
+  parallel_processing:
+    stem_separation:
+      process: |
+        1. 音源を要素別に分離
+           - ドラム
+           - ベース
+           - メロディ
+           - ハーモニー
+           - 効果音
+        2. 各ステムを並列処理
+        3. 最終ミックスで統合
+    
+    multitrack_rendering:
+      max_parallel: 8
+      cpu_per_track: "25%"
+      ram_per_track: "2GB"
+  
+  # リアルタイム処理
+  live_processing:
+    buffer_size:
+      low_latency: 64
+      balanced: 256
+      high_quality: 1024
+    
+    plugin_chain_optimization:
+      order: ["EQ", "Compression", "Spatial", "Reverb", "Limiter"]
+      bypass_unused: true
+      freeze_tracks: true
+
+quality_metrics:
+  # 客観的測定
+  objective_measurements:
+    thd_n: "< 0.01%"
+    frequency_response: "±0.5 dB (20Hz-20kHz)"
+    phase_response: "±5° (200Hz-10kHz)"
+    stereo_separation: "> 40 dB"
+  
+  # 主観的評価
+  subjective_criteria:
+    clarity: "音声の明瞭度"
+    warmth: "低中域の豊かさ"
+    presence: "前に出る感じ"
+    spaciousness: "空間の広がり"
+    punch: "アタックの強さ"
+
+codec_optimization:
+  # 圧縮設定
+  lossy_compression:
+    mp3:
+      bitrate: "320 kbps"
+      mode: "joint stereo"
+      quality: "VBR V0"
+    
+    aac:
+      bitrate: "256 kbps"
+      profile: "LC"
+      afterburner: true
+    
+    opus:
+      bitrate: "128-256 kbps"
+      complexity: 10
+      frame_size: "20ms"
+  
+  # ストリーミング最適化
+  adaptive_streaming:
+    quality_levels:
+      - "64 kbps (低帯域)"
+      - "128 kbps (標準)"
+      - "256 kbps (高品質)"
+      - "320 kbps (最高品質)"
+    
+    buffer_strategy:
+      initial: "5 seconds"
+      minimum: "2 seconds"
+      target: "10 seconds"

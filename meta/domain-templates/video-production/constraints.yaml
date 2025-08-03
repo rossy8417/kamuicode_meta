@@ -1,0 +1,141 @@
+# 動画制作の制約条件と計算式
+
+timing_constraints:
+  # シーン数計算
+  scene_calculation:
+    formula: |
+      total_scenes = ceil(duration_seconds / average_scene_length)
+      where:
+        - average_scene_length = 6.5 (5-8秒の中央値)
+        - buffer_scenes = ceil(total_scenes * 0.2) # 20%の予備シーン
+        - final_scene_count = total_scenes + buffer_scenes
+    
+    examples:
+      - duration: 30s → scenes: 5 + 1 = 6
+      - duration: 60s → scenes: 10 + 2 = 12
+      - duration: 180s → scenes: 28 + 6 = 34
+  
+  # URL有効期限対策
+  url_expiration:
+    gcs_limit: 900 # 15分
+    s3_limit: 1800 # 30分
+    safety_margin: 180 # 3分の安全マージン
+    
+    batch_strategy:
+      max_parallel: 5
+      time_per_batch: 180 # 3分
+      calculation: |
+        total_batches = ceil(total_scenes / max_parallel)
+        total_time = total_batches * time_per_batch
+        if total_time > (url_limit - safety_margin):
+          reduce_parallel_count or split_workflow
+
+technical_constraints:
+  # 解像度とアスペクト比
+  resolution:
+    youtube_optimal: "1920x1080"
+    instagram_reel: "1080x1920"
+    tiktok: "1080x1920"
+    twitter: "1280x720"
+    linkedin: "1200x628"
+  
+  # ビットレート推奨値
+  bitrate:
+    4k: "35-45 Mbps"
+    1080p: "8-12 Mbps"
+    720p: "5-8 Mbps"
+    mobile: "2-4 Mbps"
+  
+  # フレームレート
+  framerate:
+    cinema: 24
+    standard: 30
+    smooth_motion: 60
+    slow_motion: 120
+
+parallel_processing:
+  # 並列処理戦略
+  strategies:
+    - name: "シーン別並列"
+      condition: "total_scenes > 10"
+      approach: |
+        1. シーンを5つのグループに分割
+        2. 各グループを並列処理
+        3. 完成したグループから順次結合
+    
+    - name: "レイヤー別並列"
+      condition: "has_background && has_foreground"
+      approach: |
+        1. 背景生成と前景生成を並列実行
+        2. 合成処理で統合
+    
+    - name: "品質別並列"
+      condition: "need_preview"
+      approach: |
+        1. 低解像度プレビュー版を先行生成
+        2. 高解像度本番版を並列生成
+
+audio_video_sync:
+  # 音声・動画同期戦略
+  sync_points:
+    - type: "ナレーション駆動"
+      process: |
+        1. ナレーション音声を先に生成
+        2. 音声解析でシーン切り替えポイント特定
+        3. 各ポイントに合わせて映像生成
+    
+    - type: "ビート同期"
+      process: |
+        1. BGMのビート検出
+        2. ビートに合わせたカット点設定
+        3. リズムに同期した映像遷移
+  
+  # リップシンク要件
+  lipsync:
+    required_when: "has_visible_speaker"
+    pre_processing: |
+      - 音素解析
+      - 口形状マッピング
+      - タイミング調整（±50ms許容）
+
+quality_assurance:
+  # 品質チェックポイント
+  checkpoints:
+    - stage: "プリプロダクション"
+      checks:
+        - "ストーリーボードの完成度"
+        - "音声スクリプトの長さ検証"
+        - "必要リソースの確認"
+    
+    - stage: "プロダクション"
+      checks:
+        - "各シーンの生成成功"
+        - "解像度・フォーマット統一"
+        - "カラーグレーディング一貫性"
+    
+    - stage: "ポストプロダクション"
+      checks:
+        - "音声レベル正規化（-14 LUFS）"
+        - "カット点の自然さ"
+        - "エンコード品質"
+
+failure_recovery:
+  # 失敗時リカバリー戦略
+  strategies:
+    - error: "URL期限切れ"
+      recovery: |
+        1. 失敗したバッチを特定
+        2. 新規URLで再生成
+        3. 既存完了分と結合
+    
+    - error: "生成タイムアウト"
+      recovery: |
+        1. シーン分割（より短いクリップへ）
+        2. 解像度を下げて再試行
+        3. 代替シーン使用
+    
+    - error: "スタイル不一致"
+      recovery: |
+        1. スタイル参照画像を固定
+        2. seed値の統一
+        3. 後処理でカラー補正

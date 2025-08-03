@@ -1,0 +1,166 @@
+# 動画制作ワークフローパターン
+
+workflow_patterns:
+  # 基本パターン
+  basic_video_workflow:
+    description: "30秒〜3分の標準的な動画制作"
+    stages:
+      1_planning:
+        parallel: false
+        tasks:
+          - web_search: "トピックリサーチ"
+          - content_planning: "構成作成"
+          - script_writing: "ナレーション台本"
+      
+      2_asset_generation:
+        parallel: true
+        tasks:
+          - narration_generation: "音声生成"
+          - scene_images: "シーン画像生成（並列5）"
+          - bgm_selection: "BGM生成/選択"
+      
+      3_video_production:
+        parallel: true
+        tasks:
+          - i2v_conversion: "画像→動画変換（並列5）"
+          - title_card: "タイトルカード作成"
+          - end_card: "エンドカード作成"
+      
+      4_post_production:
+        parallel: false
+        tasks:
+          - video_concat: "動画結合"
+          - audio_mixing: "音声ミックス"
+          - lipsync: "リップシンク（必要時）"
+          - subtitle_overlay: "字幕追加"
+          - final_export: "最終出力"
+  
+  # 高速パターン（URL期限対策）
+  rapid_production_pattern:
+    description: "URL期限を考慮した高速制作フロー"
+    strategy: "画像生成後、即座に動画変換"
+    stages:
+      1_preparation:
+        tasks:
+          - all_planning: "全ての企画を完了"
+          - audio_pregeneration: "音声を先行生成"
+      
+      2_rolling_production:
+        description: "ローリング方式で順次処理"
+        loop:
+          - generate_image_batch: "画像5枚生成"
+          - immediate_i2v: "即座にi2v変換"
+          - local_save: "ローカル保存"
+          - next_batch: "次のバッチへ"
+      
+      3_assembly:
+        tasks:
+          - collect_all_videos: "全動画収集"
+          - final_composition: "最終合成"
+  
+  # 長尺動画パターン
+  long_form_pattern:
+    description: "10分以上の長尺動画"
+    strategy: "チャプター分割方式"
+    stages:
+      1_chapter_planning:
+        tasks:
+          - outline_creation: "チャプター構成"
+          - time_allocation: "時間配分"
+      
+      2_chapter_production:
+        parallel: true
+        max_parallel: 3
+        tasks:
+          - chapter_1: "チャプター1制作"
+          - chapter_2: "チャプター2制作"
+          - chapter_3: "チャプター3制作"
+      
+      3_integration:
+        tasks:
+          - chapter_merge: "チャプター結合"
+          - transition_add: "トランジション追加"
+          - consistency_check: "一貫性確認"
+  
+  # ライブ風動画パターン
+  live_style_pattern:
+    description: "ライブ配信風の動画制作"
+    characteristics:
+      - "単一カメラアングル"
+      - "リアルタイム感"
+      - "最小限の編集"
+    stages:
+      1_setup:
+        tasks:
+          - virtual_set: "バーチャル背景設定"
+          - avatar_setup: "アバター設定"
+      
+      2_recording:
+        tasks:
+          - continuous_generation: "連続生成"
+          - realtime_lipsync: "リアルタイムリップシンク"
+      
+      3_minimal_edit:
+        tasks:
+          - intro_outro: "イントロ・アウトロのみ追加"
+          - basic_correction: "基本的な補正のみ"
+
+optimization_patterns:
+  # メモリ最適化パターン
+  memory_efficient:
+    description: "大量シーン処理時のメモリ最適化"
+    techniques:
+      - streaming_process: "ストリーミング処理"
+      - garbage_collection: "定期的なガベージコレクション"
+      - proxy_generation: "プロキシファイル活用"
+  
+  # 品質優先パターン
+  quality_first:
+    description: "処理時間を犠牲にして最高品質を追求"
+    techniques:
+      - upscale_pipeline: "段階的アップスケール"
+      - multi_pass_rendering: "マルチパスレンダリング"
+      - manual_qa_checks: "手動品質チェックポイント"
+  
+  # コスト最適化パターン
+  cost_optimized:
+    description: "API使用量とコストを最小化"
+    techniques:
+      - cache_utilization: "キャッシュ最大活用"
+      - batch_api_calls: "APIコールのバッチ化"
+      - fallback_to_local: "ローカル処理へのフォールバック"
+
+conditional_patterns:
+  # 条件分岐パターン
+  has_speaker:
+    condition: "narration_voice != 'none'"
+    then_pattern: "lipsync_workflow"
+    else_pattern: "standard_workflow"
+  
+  is_short_form:
+    condition: "duration <= 60s"
+    then_pattern: "rapid_production_pattern"
+    else_pattern: "basic_video_workflow"
+  
+  is_live_event:
+    condition: "content_type == 'live_archive'"
+    then_pattern: "live_style_pattern"
+    else_pattern: "basic_video_workflow"
+
+error_recovery_patterns:
+  # エラーリカバリーパターン
+  partial_failure_recovery:
+    description: "一部のシーンが失敗した場合"
+    steps:
+      1: "失敗シーンの特定"
+      2: "代替シーン生成"
+      3: "既存シーンとの調整"
+      4: "部分的な再レンダリング"
+  
+  style_mismatch_recovery:
+    description: "スタイルが統一されていない場合"
+    steps:
+      1: "基準スタイルの決定"
+      2: "スタイル転送処理"
+      3: "カラーグレーディング統一"
+      4: "最終調整"

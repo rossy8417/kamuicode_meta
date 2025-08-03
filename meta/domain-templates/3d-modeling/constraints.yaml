@@ -1,0 +1,310 @@
+# 3Dモデリング・アニメーションの制約条件と計算式
+
+polygon_constraints:
+  # プラットフォーム別ポリゴン数上限
+  platform_limits:
+    mobile:
+      characters: "5,000 - 10,000"
+      props: "500 - 2,000"
+      environments: "20,000 - 50,000"
+      total_scene: "100,000 - 300,000"
+    
+    pc_console:
+      characters: "30,000 - 100,000"
+      props: "5,000 - 20,000"
+      environments: "500,000 - 2,000,000"
+      total_scene: "5,000,000 - 20,000,000"
+    
+    film_vfx:
+      characters: "1,000,000 - 50,000,000"
+      props: "100,000 - 5,000,000"
+      environments: "10,000,000 - 500,000,000"
+      total_scene: "無制限（レンダリング時間依存）"
+    
+    vr_ar:
+      per_eye: "750,000"
+      total_budget: "1,500,000"
+      frame_time: "11ms (90fps)"
+  
+  # LOD（Level of Detail）計算
+  lod_calculation:
+    formula: |
+      screen_coverage = object_size / distance_to_camera
+      
+      LOD0: screen_coverage > 0.5 (画面の50%以上)
+      LOD1: 0.25 < screen_coverage <= 0.5
+      LOD2: 0.1 < screen_coverage <= 0.25
+      LOD3: 0.05 < screen_coverage <= 0.1
+      LOD4: screen_coverage <= 0.05
+    
+    polygon_reduction:
+      LOD0: "100% (フルメッシュ)"
+      LOD1: "50%"
+      LOD2: "25%"
+      LOD3: "10%"
+      LOD4: "5%"
+      billboard: "2ポリゴン（遠距離）"
+
+texture_constraints:
+  # テクスチャ解像度とメモリ使用量
+  memory_calculation:
+    formula: |
+      texture_memory = width * height * channels * bit_depth / 8
+      
+      例: 4K PBRテクスチャセット
+      - Albedo: 4096 * 4096 * 3 * 8 / 8 = 50.3 MB
+      - Normal: 4096 * 4096 * 3 * 8 / 8 = 50.3 MB
+      - Roughness/Metallic/AO: 4096 * 4096 * 3 * 8 / 8 = 50.3 MB
+      合計: 150.9 MB (非圧縮)
+    
+    compression_savings:
+      dxt1: "1:6 (RGB)"
+      dxt5: "1:4 (RGBA)"
+      bc7: "1:4 (高品質)"
+      astc: "可変 (1:4 - 1:20)"
+  
+  # テクセル密度
+  texel_density:
+    calculation: |
+      texel_density = texture_resolution / world_size_meters
+      
+      推奨密度:
+      - ヒーローアセット: 1024 pixels/meter
+      - 標準アセット: 512 pixels/meter
+      - 背景アセット: 256 pixels/meter
+      - 遠景: 128 pixels/meter
+    
+    platform_guidelines:
+      mobile: "256-512 px/m"
+      pc: "512-1024 px/m"
+      film: "2048-4096 px/m"
+
+uv_mapping_constraints:
+  # UV展開の効率性
+  packing_efficiency:
+    target: "> 75%"
+    calculation: |
+      efficiency = used_uv_area / total_uv_area
+      wasted_space = 1 - efficiency
+    
+    optimization_techniques:
+      - "アイランドマージン: 2-8ピクセル"
+      - "回転許可で密度向上"
+      - "ミラーリング活用"
+      - "重要部分に大きなUVスペース割当"
+  
+  # 歪み制限
+  distortion_limits:
+    stretch: "< 10%"
+    compression: "< 10%"
+    angle_distortion: "< 15度"
+    
+    measurement: |
+      stretch = (uv_edge_length / 3d_edge_length) - 1
+      良好: stretch < 0.05
+      許容: 0.05 <= stretch < 0.1
+      要修正: stretch >= 0.1
+
+rigging_constraints:
+  # ボーン数制限
+  bone_limits:
+    mobile_character:
+      total: "30-60"
+      spine: "3-4"
+      arm: "3-4 per arm"
+      hand: "15 per hand (3 per finger)"
+      face: "10-20"
+    
+    pc_character:
+      total: "100-300"
+      spine: "5-8"
+      arm: "4-6 per arm"
+      hand: "20-25 per hand"
+      face: "50-100"
+      cloth: "20-50"
+    
+    film_character:
+      total: "500-2000"
+      muscle_system: "200-500"
+      face: "200-500"
+      secondary: "無制限"
+  
+  # スキンウェイト
+  skin_weights:
+    influences_per_vertex:
+      mobile: "2-4"
+      pc: "4-8"
+      film: "8-16"
+    
+    normalization: "必須（合計 = 1.0）"
+    
+    quality_checks:
+      - "スムーズな変形"
+      - "ボリューム保持"
+      - "極端なストレッチ回避"
+
+animation_constraints:
+  # フレームレート要件
+  frame_rates:
+    game_animations:
+      idle: "30 fps"
+      locomotion: "30-60 fps"
+      combat: "60 fps"
+      cutscene: "24-30 fps"
+    
+    film_animation:
+      standard: "24 fps"
+      high_action: "48 fps"
+      slow_motion: "120-240 fps"
+    
+    vr_requirements:
+      minimum: "72 fps"
+      recommended: "90 fps"
+      ideal: "120 fps"
+  
+  # アニメーションデータサイズ
+  compression:
+    keyframe_reduction:
+      tolerance: "0.01 units"
+      rotation_threshold: "1 degree"
+      compression_ratio: "10:1 - 20:1"
+    
+    curve_optimization:
+      linear_segments: "誤差 < 0.1%"
+      bezier_fitting: "制御点最小化"
+      
+    memory_footprint:
+      per_bone_per_frame: "48 bytes (position + rotation + scale)"
+      30fps_1min: "bone_count * 30 * 60 * 48 bytes"
+
+shader_performance:
+  # シェーダー複雑度
+  instruction_counts:
+    mobile:
+      vertex: "< 50 instructions"
+      pixel: "< 100 instructions"
+      texture_samples: "< 4"
+    
+    pc:
+      vertex: "< 200 instructions"
+      pixel: "< 500 instructions"
+      texture_samples: "< 16"
+    
+    film:
+      complexity: "無制限（レンダリング時間依存）"
+  
+  # マテリアル最適化
+  material_batching:
+    draw_calls:
+      mobile: "< 100 per frame"
+      pc: "< 1000 per frame"
+      vr: "< 200 per eye"
+    
+    atlasing_benefits:
+      separate_materials: "N draw calls"
+      atlased_materials: "1 draw call"
+      performance_gain: "最大N倍"
+
+physics_simulation:
+  # コリジョンメッシュ
+  collision_complexity:
+    primitives:
+      box: "最速"
+      sphere: "高速"
+      capsule: "高速"
+      convex: "中速"
+      concave: "低速"
+    
+    polygon_limits:
+      mobile: "< 50 triangles"
+      pc: "< 500 triangles"
+      
+    optimization: "複数のプリミティブ組み合わせ推奨"
+  
+  # クロスシミュレーション
+  cloth_constraints:
+    vertex_count:
+      mobile: "100-500"
+      pc: "1000-5000"
+      film: "10000+"
+    
+    solver_iterations:
+      mobile: "2-4"
+      pc: "4-16"
+      film: "32-128"
+    
+    performance_impact: "頂点数の2乗に比例"
+
+file_format_specifications:
+  # 形式別特性
+  format_comparison:
+    fbx:
+      pros: ["広範な互換性", "アニメーション対応", "マテリアル保持"]
+      cons: ["大きなファイルサイズ", "プロプライエタリ"]
+      use_case: "ゲーム開発パイプライン"
+    
+    gltf:
+      pros: ["オープン標準", "Web最適化", "PBR対応"]
+      cons: ["機能制限あり", "拡張性依存"]
+      use_case: "Web3D、AR/VR"
+    
+    usd:
+      pros: ["映画業界標準", "レイヤーシステム", "大規模シーン対応"]
+      cons: ["複雑", "大容量"]
+      use_case: "映画制作、大規模プロダクション"
+    
+    obj:
+      pros: ["シンプル", "広範なサポート"]
+      cons: ["静的メッシュのみ", "マテリアル制限"]
+      use_case: "静的モデル交換"
+
+optimization_strategies:
+  # 自動最適化
+  mesh_optimization:
+    decimation:
+      algorithm: "Quadric Error Metrics"
+      preserve: ["シルエット", "UV境界", "マテリアル境界"]
+      target_reduction: "50-90%"
+    
+    remeshing:
+      uniform: "均一なトポロジー"
+      adaptive: "詳細度に応じた密度"
+      quad_dominant: "変形に最適"
+  
+  # バッチング戦略
+  instancing:
+    static_batching:
+      condition: "同一メッシュ、異なる変換"
+      benefit: "ドローコール削減"
+    
+    dynamic_batching:
+      vertex_limit: "< 900 vertices"
+      benefit: "小オブジェクト最適化"
+    
+    gpu_instancing:
+      min_instances: "> 10"
+      benefit: "大量複製オブジェクト"
+
+quality_metrics:
+  # 品質評価基準
+  visual_quality:
+    silhouette_preservation: "98%以上"
+    normal_deviation: "< 5度"
+    texture_stretching: "< 10%"
+    
+  performance_metrics:
+    frame_time_budget:
+      rendering: "11ms (33%)"
+      animation: "5ms (15%)"
+      physics: "5ms (15%)"
+      other: "12ms (37%)"
+      total: "33ms (30fps)"
+    
+  optimization_score:
+    formula: |
+      score = (
+        polygon_efficiency * 0.3 +
+        texture_efficiency * 0.2 +
+        draw_call_efficiency * 0.3 +
+        memory_efficiency * 0.2
+      )

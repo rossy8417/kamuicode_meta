@@ -1,0 +1,202 @@
+# 動画制作ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    video_title:
+      type: string
+      description: "動画のタイトル"
+      example: "AIが変える未来の教育"
+      validation: "max_length: 100"
+    
+    duration:
+      type: string
+      description: "動画の長さ"
+      enum: ["15s", "30s", "60s", "90s", "3min", "5min", "10min", "15min", "30min"]
+      default: "60s"
+      note: "長さによってシーン数と処理戦略が自動決定される"
+    
+    target_platform:
+      type: string
+      description: "配信プラットフォーム"
+      enum: ["youtube", "instagram", "tiktok", "twitter", "linkedin", "web", "broadcast"]
+      default: "youtube"
+      impacts:
+        - "解像度・アスペクト比の自動設定"
+        - "エンコード設定の最適化"
+        - "メタデータの調整"
+    
+    content_type:
+      type: string
+      description: "コンテンツの種類"
+      enum: ["promotional", "educational", "entertainment", "documentary", "tutorial", "news", "music_video"]
+      default: "educational"
+      impacts:
+        - "ペーシング（カット間隔）の調整"
+        - "BGM選択の方向性"
+        - "ビジュアルスタイルの決定"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    visual_style:
+      type: string
+      description: "ビジュアルスタイル"
+      enum: ["cinematic", "anime", "documentary", "corporate", "vlog", "artistic", "minimalist"]
+      default: "cinematic"
+      pro_tip: "スタイルは全シーンで統一される。混在させたい場合はscene_overridesを使用"
+    
+    pacing:
+      type: string
+      description: "編集ペース"
+      enum: ["slow", "normal", "fast", "dynamic"]
+      default: "normal"
+      calculation:
+        slow: "7-10秒/カット"
+        normal: "5-7秒/カット"
+        fast: "3-5秒/カット"
+        dynamic: "2-8秒/カット（変動）"
+    
+    narration_voice:
+      type: string
+      description: "ナレーション音声"
+      enum: ["male_professional", "female_professional", "male_casual", "female_casual", "ai_neutral", "child", "elderly"]
+      default: "female_professional"
+      includes_accent: ["us", "uk", "au", "jp"]
+    
+    color_grading:
+      type: string
+      description: "カラーグレーディング"
+      enum: ["natural", "warm", "cool", "vintage", "noir", "high_contrast", "pastel"]
+      default: "natural"
+      pro_tip: "ポストプロダクションで一括適用される"
+    
+    audio_mix:
+      type: object
+      description: "音声ミックス設定"
+      properties:
+        narration_level:
+          type: integer
+          range: [-20, 0]
+          default: -3
+        bgm_level:
+          type: integer
+          range: [-30, -10]
+          default: -18
+        ducking_enabled:
+          type: boolean
+          default: true
+          description: "ナレーション時のBGM自動減衰"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    scene_overrides:
+      type: array
+      description: "個別シーンの詳細設定"
+      items:
+        scene_number:
+          type: integer
+        duration_override:
+          type: string
+          pattern: "^[0-9]+s$"
+        style_override:
+          type: string
+        transition:
+          type: string
+          enum: ["cut", "fade", "dissolve", "wipe", "zoom", "slide"]
+    
+    advanced_sync:
+      type: object
+      description: "高度な同期設定"
+      properties:
+        enable_beat_sync:
+          type: boolean
+          default: false
+        enable_motion_sync:
+          type: boolean
+          default: false
+        sync_tolerance_ms:
+          type: integer
+          default: 100
+          range: [50, 500]
+    
+    export_settings:
+      type: object
+      description: "エクスポート設定"
+      properties:
+        formats:
+          type: array
+          items:
+            type: string
+            enum: ["mp4", "mov", "webm", "gif"]
+          default: ["mp4"]
+        generate_subtitles:
+          type: boolean
+          default: false
+        generate_thumbnail:
+          type: boolean
+          default: true
+        create_preview:
+          type: boolean
+          default: true
+          description: "低解像度プレビュー版の生成"
+    
+    performance_mode:
+      type: string
+      description: "処理モード"
+      enum: ["quality", "balanced", "speed"]
+      default: "balanced"
+      impacts:
+        quality: "最高品質、処理時間3倍"
+        balanced: "品質と速度のバランス"
+        speed: "最速処理、品質は標準"
+    
+    custom_assets:
+      type: object
+      description: "カスタムアセット"
+      properties:
+        logo_url:
+          type: string
+          format: "url"
+          description: "ロゴ画像URL（透過PNG推奨）"
+        bgm_url:
+          type: string
+          format: "url"
+          description: "カスタムBGM URL"
+        font_family:
+          type: string
+          description: "字幕・テロップ用フォント"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  total_scenes:
+    formula: "ceil(duration_seconds / 6.5) * 1.2"
+    description: "必要シーン数（20%バッファ含む）"
+  
+  parallel_batches:
+    formula: "ceil(total_scenes / 5)"
+    description: "並列処理バッチ数"
+  
+  estimated_time:
+    formula: "parallel_batches * 3 + post_production_time"
+    description: "推定処理時間（分）"
+  
+  storage_required:
+    formula: "duration_seconds * bitrate_mbps * 1.5"
+    description: "必要ストレージ容量（GB）"
+
+# バリデーションルール
+validation_rules:
+  - name: "duration_platform_match"
+    rule: |
+      if target_platform == "tiktok" and duration > "60s":
+        error: "TikTokは60秒以内である必要があります"
+  
+  - name: "scene_complexity_check"
+    rule: |
+      if computed.total_scenes > 50 and performance_mode != "speed":
+        warning: "シーン数が多いため、処理に時間がかかります。performance_mode: speed を推奨"
+  
+  - name: "resource_availability"
+    rule: |
+      if computed.parallel_batches > 10:
+        require_confirmation: "大規模な処理になります。続行しますか？"

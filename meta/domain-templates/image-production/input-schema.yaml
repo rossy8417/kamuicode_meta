@@ -1,0 +1,421 @@
+# 画像制作・写真編集ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    project_name:
+      type: string
+      description: "プロジェクト名"
+      example: "2025春夏コレクション商品撮影"
+      validation: "max_length: 100"
+    
+    image_type:
+      type: string
+      description: "画像の種類"
+      enum: ["product", "portrait", "landscape", "architecture", "food", "fashion", "editorial", "artistic"]
+      default: "product"
+      impacts:
+        - "撮影・編集スタイル"
+        - "色調補正の方向性"
+        - "レタッチの深度"
+        - "出力仕様"
+    
+    output_purpose:
+      type: string
+      description: "用途"
+      enum: ["web", "print", "both", "social_media", "exhibition", "archive"]
+      default: "web"
+      impacts:
+        - "解像度設定"
+        - "色空間選択"
+        - "ファイル形式"
+        - "圧縮率"
+    
+    quantity:
+      type: integer
+      description: "処理画像数"
+      range: [1, 10000]
+      default: 10
+      impacts:
+        - "バッチ処理戦略"
+        - "自動化レベル"
+        - "品質チェック方法"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    source_specifications:
+      type: object
+      description: "元画像仕様"
+      properties:
+        format:
+          type: string
+          enum: ["raw", "tiff", "jpeg", "png", "psd"]
+          default: "raw"
+        
+        resolution:
+          type: object
+          properties:
+            width:
+              type: integer
+              minimum: 800
+            height:
+              type: integer
+              minimum: 600
+            unit:
+              type: string
+              enum: ["pixels", "inches", "cm"]
+              default: "pixels"
+        
+        color_depth:
+          type: string
+          enum: ["8bit", "16bit", "32bit"]
+          default: "16bit"
+        
+        color_profile:
+          type: string
+          enum: ["sRGB", "Adobe RGB", "ProPhoto RGB", "Display P3", "untagged"]
+          default: "Adobe RGB"
+    
+    editing_requirements:
+      type: object
+      description: "編集要件"
+      properties:
+        style:
+          type: string
+          enum: ["natural", "enhanced", "stylized", "vintage", "modern", "minimalist", "dramatic"]
+          default: "natural"
+        
+        retouching_level:
+          type: string
+          enum: ["none", "basic", "standard", "advanced", "extensive"]
+          default: "standard"
+          mapping:
+            none: "無編集"
+            basic: "基本補正のみ"
+            standard: "スポット修正含む"
+            advanced: "形状調整含む"
+            extensive: "完全レタッチ"
+        
+        color_grading:
+          type: object
+          properties:
+            mood:
+              type: string
+              enum: ["neutral", "warm", "cool", "vibrant", "muted", "high_contrast", "low_contrast"]
+              default: "neutral"
+            
+            reference_image:
+              type: string
+              description: "参考画像URL（任意）"
+              format: "uri"
+        
+        special_effects:
+          type: array
+          items:
+            type: string
+            enum: ["hdr", "focus_stacking", "panorama", "time_blend", "double_exposure", "tilt_shift"]
+          default: []
+    
+    output_specifications:
+      type: object
+      description: "出力仕様"
+      properties:
+        formats:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: ["jpeg", "png", "webp", "tiff", "psd", "pdf"]
+              
+              quality:
+                type: integer
+                range: [1, 100]
+                default: 90
+              
+              purpose:
+                type: string
+                enum: ["master", "web", "print", "thumbnail", "social"]
+          default:
+            - type: "jpeg"
+              quality: 90
+              purpose: "web"
+        
+        resolutions:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "large"
+              
+              width:
+                type: integer
+                minimum: 100
+              
+              height:
+                type: integer
+                minimum: 100
+              
+              maintain_aspect:
+                type: boolean
+                default: true
+        
+        naming_convention:
+          type: string
+          example: "{original_name}_{resolution}_{date}"
+          default: "{original_name}_{purpose}_{index}"
+    
+    workflow_preferences:
+      type: object
+      description: "ワークフロー設定"
+      properties:
+        batch_processing:
+          type: boolean
+          default: true
+          description: "バッチ処理の使用"
+        
+        auto_corrections:
+          type: object
+          properties:
+            exposure:
+              type: boolean
+              default: true
+            
+            white_balance:
+              type: boolean
+              default: true
+            
+            lens_corrections:
+              type: boolean
+              default: true
+            
+            noise_reduction:
+              type: boolean
+              default: "auto"
+        
+        review_checkpoints:
+          type: array
+          items:
+            type: string
+            enum: ["after_import", "after_basic_edit", "after_retouching", "before_export"]
+          default: ["after_basic_edit", "before_export"]
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_editing:
+      type: object
+      description: "高度な編集オプション"
+      properties:
+        ai_enhancements:
+          type: object
+          properties:
+            upscaling:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: false
+                
+                scale_factor:
+                  type: number
+                  enum: [2, 4, 6, 8]
+                  default: 2
+                
+                model:
+                  type: string
+                  enum: ["real_esrgan", "esrgan", "waifu2x", "gigapixel"]
+                  default: "real_esrgan"
+            
+            background_removal:
+              type: boolean
+              default: false
+            
+            sky_replacement:
+              type: boolean
+              default: false
+            
+            object_removal:
+              type: array
+              items:
+                type: string
+              description: "除去する要素の説明"
+        
+        compositing:
+          type: object
+          properties:
+            layers:
+              type: array
+              items:
+                type: object
+                properties:
+                  source:
+                    type: string
+                    description: "レイヤー画像URL"
+                  
+                  blend_mode:
+                    type: string
+                    enum: ["normal", "multiply", "screen", "overlay", "soft_light", "hard_light"]
+                    default: "normal"
+                  
+                  opacity:
+                    type: number
+                    range: [0, 100]
+                    default: 100
+            
+            masks:
+              type: boolean
+              default: false
+              description: "マスク処理の必要性"
+    
+    technical_settings:
+      type: object
+      description: "技術的詳細設定"
+      properties:
+        color_management:
+          type: object
+          properties:
+            working_space:
+              type: string
+              enum: ["sRGB", "Adobe RGB", "ProPhoto RGB"]
+              default: "Adobe RGB"
+            
+            rendering_intent:
+              type: string
+              enum: ["perceptual", "relative_colorimetric", "saturation", "absolute_colorimetric"]
+              default: "relative_colorimetric"
+            
+            soft_proofing:
+              type: boolean
+              default: false
+        
+        sharpening:
+          type: object
+          properties:
+            capture:
+              type: object
+              properties:
+                amount:
+                  type: integer
+                  range: [0, 150]
+                  default: 30
+                
+                radius:
+                  type: number
+                  range: [0.1, 3.0]
+                  default: 1.0
+            
+            output:
+              type: object
+              properties:
+                screen:
+                  type: object
+                  properties:
+                    amount:
+                      type: integer
+                      default: 60
+                    radius:
+                      type: number
+                      default: 0.5
+                
+                print:
+                  type: object
+                  properties:
+                    amount:
+                      type: integer
+                      default: 90
+                    radius:
+                      type: number
+                      default: 1.5
+    
+    metadata_handling:
+      type: object
+      description: "メタデータ管理"
+      properties:
+        preserve:
+          type: array
+          items:
+            type: string
+            enum: ["exif", "iptc", "xmp", "color_profile", "all"]
+          default: ["exif", "color_profile"]
+        
+        add_copyright:
+          type: object
+          properties:
+            creator:
+              type: string
+              example: "John Doe Photography"
+            
+            rights:
+              type: string
+              example: "© 2025 All Rights Reserved"
+            
+            usage_terms:
+              type: string
+              example: "Commercial use requires license"
+        
+        remove_sensitive:
+          type: boolean
+          default: true
+          description: "GPS情報等の削除"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  processing_time_estimate:
+    formula: |
+      base_time = quantity * complexity_factor
+      
+      complexity_factors:
+        basic_edit: 0.5  # 分/画像
+        standard_edit: 2.0
+        advanced_edit: 10.0
+        extensive_edit: 30.0
+      
+      batch_efficiency = 0.7 if batch_processing else 1.0
+      total_minutes = base_time * batch_efficiency
+  
+  storage_requirements:
+    formula: |
+      source_size = (width * height * bit_depth * channels) / (8 * 1024 * 1024)
+      working_size = source_size * 3  # レイヤー、履歴等
+      output_size = sum(format_sizes)
+      total_gb = (source_size + working_size + output_size) * quantity / 1024
+  
+  quality_score_factors:
+    formula: |
+      technical_score = (
+        resolution_score * 0.3 +
+        color_accuracy * 0.3 +
+        sharpness_score * 0.2 +
+        noise_level * 0.2
+      )
+      
+      aesthetic_score = (
+        composition * 0.4 +
+        color_harmony * 0.3 +
+        mood_match * 0.3
+      )
+
+# バリデーションルール
+validation_rules:
+  - name: "resolution_compatibility"
+    rule: |
+      if output_purpose == "print" and resolution < 300:
+        warning: "印刷用には300DPI以上を推奨"
+  
+  - name: "color_space_match"
+    rule: |
+      if output_purpose == "web" and color_profile != "sRGB":
+        suggestion: "Web用にはsRGBへの変換を推奨"
+  
+  - name: "file_size_warning"
+    rule: |
+      if computed.output_size > 100:
+        warning: "出力ファイルが100MBを超える可能性があります"
+  
+  - name: "batch_efficiency"
+    rule: |
+      if quantity > 100 and !batch_processing:
+        error: "100枚以上の処理にはバッチ処理を有効にしてください"

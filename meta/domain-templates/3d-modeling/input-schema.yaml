@@ -1,0 +1,387 @@
+# 3Dモデリング・アニメーションワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    project_name:
+      type: string
+      description: "プロジェクト名"
+      example: "次世代RPGキャラクターアセット"
+      validation: "max_length: 100"
+    
+    model_type:
+      type: string
+      description: "モデルの種類"
+      enum: ["character", "prop", "environment", "vehicle", "architectural", "organic", "hard_surface"]
+      default: "prop"
+      impacts:
+        - "ワークフロー選択"
+        - "トポロジー要件"
+        - "リギング必要性"
+        - "最適化戦略"
+    
+    target_platform:
+      type: string
+      description: "ターゲットプラットフォーム"
+      enum: ["mobile", "pc", "console", "vr", "ar", "web", "film", "3d_print"]
+      default: "pc"
+      impacts:
+        - "ポリゴン数制限"
+        - "テクスチャ解像度"
+        - "シェーダー複雑度"
+        - "ファイル形式"
+    
+    complexity_level:
+      type: string
+      description: "複雑度レベル"
+      enum: ["low", "medium", "high", "hero"]
+      default: "medium"
+      mapping:
+        low: "背景・小道具"
+        medium: "標準アセット"
+        high: "重要アセット"
+        hero: "主要キャラクター"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    technical_requirements:
+      type: object
+      description: "技術要件"
+      properties:
+        polygon_budget:
+          type: object
+          properties:
+            target_count:
+              type: integer
+              description: "目標ポリゴン数"
+              example: 50000
+            
+            lod_levels:
+              type: array
+              items:
+                type: object
+                properties:
+                  level:
+                    type: integer
+                  percentage:
+                    type: integer
+              default:
+                - {level: 0, percentage: 100}
+                - {level: 1, percentage: 50}
+                - {level: 2, percentage: 25}
+        
+        texture_specifications:
+          type: object
+          properties:
+            resolution:
+              type: string
+              enum: ["512", "1024", "2048", "4096", "8192"]
+              default: "2048"
+            
+            maps_required:
+              type: array
+              items:
+                type: string
+                enum: ["albedo", "normal", "roughness", "metallic", "ao", "emissive", "height", "opacity"]
+              default: ["albedo", "normal", "roughness", "metallic", "ao"]
+            
+            texel_density:
+              type: integer
+              description: "pixels per meter"
+              default: 512
+    
+    modeling_specifications:
+      type: object
+      description: "モデリング仕様"
+      properties:
+        topology_type:
+          type: string
+          enum: ["triangles", "quads", "mixed", "ngons_allowed"]
+          default: "quads"
+          impacts: "変形品質、UV展開、サブディビジョン"
+        
+        edge_flow_priority:
+          type: string
+          enum: ["none", "basic", "animation_ready", "perfect"]
+          default: "animation_ready"
+        
+        scale_units:
+          type: string
+          enum: ["centimeters", "meters", "inches", "feet"]
+          default: "meters"
+        
+        pivot_placement:
+          type: string
+          enum: ["center", "bottom", "custom"]
+          default: "bottom"
+    
+    animation_requirements:
+      type: object
+      description: "アニメーション要件"
+      properties:
+        needs_rigging:
+          type: boolean
+          default: false
+        
+        rig_complexity:
+          type: string
+          enum: ["none", "basic", "intermediate", "advanced", "facial"]
+          default: "basic"
+          
+        animation_types:
+          type: array
+          items:
+            type: string
+            enum: ["idle", "locomotion", "combat", "facial", "cloth", "hair", "custom"]
+          default: []
+        
+        bone_limit:
+          type: integer
+          description: "最大ボーン数"
+          default: 100
+    
+    optimization_preferences:
+      type: object
+      description: "最適化設定"
+      properties:
+        auto_optimize:
+          type: boolean
+          default: true
+        
+        optimization_level:
+          type: string
+          enum: ["minimal", "balanced", "aggressive"]
+          default: "balanced"
+        
+        preserve_features:
+          type: array
+          items:
+            type: string
+            enum: ["silhouette", "uv_seams", "material_boundaries", "hard_edges", "vertex_colors"]
+          default: ["silhouette", "uv_seams"]
+        
+        instancing_eligible:
+          type: boolean
+          default: false
+          description: "インスタンス化可能か"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_features:
+      type: object
+      description: "高度な機能"
+      properties:
+        procedural_elements:
+          type: object
+          properties:
+            use_procedural:
+              type: boolean
+              default: false
+            
+            procedural_types:
+              type: array
+              items:
+                type: string
+                enum: ["textures", "geometry", "animation", "effects"]
+            
+            seed:
+              type: integer
+              description: "プロシージャル生成シード"
+        
+        simulation_setup:
+          type: object
+          properties:
+            physics:
+              type: object
+              properties:
+                collision_type:
+                  type: string
+                  enum: ["none", "box", "sphere", "convex", "concave", "compound"]
+                  default: "convex"
+                
+                mass:
+                  type: number
+                  default: 1.0
+                
+                material:
+                  type: string
+                  enum: ["metal", "wood", "plastic", "rubber", "glass", "concrete"]
+            
+            cloth:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: false
+                
+                preset:
+                  type: string
+                  enum: ["silk", "cotton", "leather", "denim", "rubber"]
+        
+        baking_settings:
+          type: object
+          properties:
+            high_to_low:
+              type: boolean
+              default: false
+              description: "ハイポリからローポリへのベイク"
+            
+            cage_offset:
+              type: number
+              default: 0.01
+              description: "ケージオフセット（メートル）"
+            
+            ray_distance:
+              type: number
+              default: 0.1
+            
+            bake_maps:
+              type: array
+              items:
+                type: string
+                enum: ["normal", "ao", "curvature", "thickness", "position", "id"]
+    
+    pipeline_integration:
+      type: object
+      description: "パイプライン統合"
+      properties:
+        source_files:
+          type: object
+          properties:
+            concept_art:
+              type: array
+              items:
+                type: string
+                format: "uri"
+            
+            reference_models:
+              type: array
+              items:
+                type: string
+                format: "uri"
+        
+        naming_convention:
+          type: string
+          example: "{project}_{type}_{variant}_{lod}"
+          default: "{name}_{lod}"
+        
+        version_control:
+          type: object
+          properties:
+            track_iterations:
+              type: boolean
+              default: true
+            
+            major_version:
+              type: integer
+              default: 1
+            
+            minor_version:
+              type: integer
+              default: 0
+    
+    export_settings:
+      type: object
+      description: "エクスポート設定"
+      properties:
+        formats:
+          type: array
+          items:
+            type: object
+            properties:
+              format:
+                type: string
+                enum: ["fbx", "obj", "gltf", "glb", "usd", "abc", "dae", "stl"]
+              
+              options:
+                type: object
+                properties:
+                  embed_textures:
+                    type: boolean
+                    default: false
+                  
+                  include_animation:
+                    type: boolean
+                    default: true
+                  
+                  compression:
+                    type: string
+                    enum: ["none", "draco", "meshopt"]
+          default:
+            - format: "fbx"
+              options:
+                embed_textures: false
+                include_animation: true
+        
+        coordinate_system:
+          type: object
+          properties:
+            up_axis:
+              type: string
+              enum: ["Y", "Z"]
+              default: "Y"
+            
+            handedness:
+              type: string
+              enum: ["left", "right"]
+              default: "left"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  texture_memory_usage:
+    formula: |
+      per_texture = resolution^2 * 4 # RGBA
+      total_mb = (per_texture * map_count) / (1024 * 1024)
+      
+      compression_factor = 0.25 if dxt else 1.0
+      final_mb = total_mb * compression_factor
+  
+  render_performance_score:
+    formula: |
+      poly_score = min(100, (budget / actual_polys) * 100)
+      texture_score = min(100, (2048 / actual_resolution) * 100)
+      draw_call_score = min(100, (10 / material_count) * 100)
+      
+      total_score = (poly_score + texture_score + draw_call_score) / 3
+  
+  estimated_production_time:
+    formula: |
+      base_hours = complexity_factor * type_factor
+      
+      complexity_factors:
+        low: 4
+        medium: 16
+        high: 40
+        hero: 100
+      
+      type_factors:
+        prop: 1.0
+        character: 3.0
+        environment: 5.0
+      
+      additional_time:
+        rigging: base_hours * 0.5
+        animation: base_hours * 0.3
+        optimization: base_hours * 0.2
+
+# バリデーションルール
+validation_rules:
+  - name: "polygon_budget_check"
+    rule: |
+      if actual_polygons > platform_limits[target_platform]:
+        error: "ポリゴン数が{target_platform}の上限を超えています"
+  
+  - name: "texture_resolution_compatibility"
+    rule: |
+      if target_platform == "mobile" and texture_resolution > 2048:
+        warning: "モバイルプラットフォームには2K以下を推奨"
+  
+  - name: "bone_count_validation"
+    rule: |
+      if bone_count > platform_bone_limits[target_platform]:
+        error: "ボーン数がプラットフォーム制限を超えています"
+  
+  - name: "file_size_estimation"
+    rule: |
+      if estimated_file_size > 100:
+        warning: "ファイルサイズが100MBを超える可能性があります"
