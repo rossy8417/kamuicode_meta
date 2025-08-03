@@ -292,8 +292,18 @@ jobs:
             -p "$(cat final_prompt.txt)" \
             --allowedTools "Write" \
             --permission-mode "acceptEdits" \
-            --outputFile "artifacts/professional_task_decomposition.json" \
-            --autoApprove
+            --autoApprove \
+            > claude_output.log 2>&1
+          
+          # Extract the generated JSON file path from Claude's output
+          if grep -q "professional_task_decomposition.json" claude_output.log; then
+            # Find the generated file and copy it to artifacts
+            find . -name "professional_task_decomposition.json" -type f -exec cp {} artifacts/ \;
+          else
+            echo "❌ Failed to generate task decomposition"
+            cat claude_output.log
+            exit 1
+          fi
           
           # Extract results
           if [ -f "artifacts/professional_task_decomposition.json" ]; then
