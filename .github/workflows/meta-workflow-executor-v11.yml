@@ -1,0 +1,1349 @@
+name: "Meta Workflow Executor v11 with Inline Implementation"
+run-name: "🚀 Meta Workflow v11 | Issue #${{ inputs.issue_number }} | Inline Code Generation"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number for workflow generation request'
+        required: true
+        default: '60'
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # ===========================================
+  # PHASE 1: ISSUE VALIDATION
+  # ===========================================
+  
+  validate-trigger:
+    name: "🔍 Issue Validation"
+    runs-on: ubuntu-latest
+    outputs:
+      issue_number: ${{ steps.extract.outputs.issue_number }}
+      issue_title: ${{ steps.extract.outputs.issue_title }}
+      request_type: ${{ steps.analyze.outputs.request_type }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Extract Issue Information
+        id: extract
+        run: |
+          echo "🔍 Analyzing Issue #${{ inputs.issue_number }}..."
+          
+          # Get issue details using GitHub CLI
+          ISSUE_DATA=$(gh issue view ${{ inputs.issue_number }} --json title,body,number --jq '{title: .title, body: .body, number: .number}')
+          
+          ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
+          ISSUE_BODY=$(echo "$ISSUE_DATA" | jq -r '.body')
+          ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.number')
+          
+          # Save to artifacts for next jobs
+          mkdir -p artifacts
+          echo "$ISSUE_TITLE" > artifacts/issue_title.txt
+          echo "$ISSUE_BODY" > artifacts/issue_body.txt
+          echo "$ISSUE_NUMBER" > artifacts/issue_number.txt
+          
+          # Output minimal data
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
+          
+          echo "✅ Issue #$ISSUE_NUMBER validated: $ISSUE_TITLE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Analyze Request Type
+        id: analyze
+        run: |
+          ISSUE_BODY=$(cat artifacts/issue_body.txt)
+          
+          REQUEST_TYPE="unknown"
+          if echo "$ISSUE_BODY" | grep -qi "video\|動画"; then
+            REQUEST_TYPE="video-generation"
+          elif echo "$ISSUE_BODY" | grep -qi "image\|画像"; then
+            REQUEST_TYPE="image-generation"
+          elif echo "$ISSUE_BODY" | grep -qi "audio\|音声\|music"; then
+            REQUEST_TYPE="audio-generation"
+          fi
+          
+          echo "request_type=$REQUEST_TYPE" >> $GITHUB_OUTPUT
+          
+      - name: Upload Issue Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-data
+          path: artifacts/
+
+  # ===========================================
+  # PHASE 2: BASIC TASK DECOMPOSITION
+  # ===========================================
+  
+  basic-task-decomposition:
+    name: "📋 Basic Task Decomposition"
+    runs-on: ubuntu-latest
+    needs: ['validate-trigger']
+    outputs:
+      capabilities_count: ${{ steps.detect.outputs.capabilities_count }}
+      has_video: ${{ steps.detect.outputs.has_video }}
+      has_narration: ${{ steps.detect.outputs.has_narration }}
+      complexity: ${{ steps.detect.outputs.complexity }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Issue Data
+        uses: actions/download-artifact@v4
+        with:
+          name: issue-data
+          path: artifacts/
+          
+      - name: Detect Capabilities
+        id: detect
+        run: |
+          echo "🔍 Detecting required capabilities..."
+          
+          ISSUE_BODY=$(cat artifacts/issue_body.txt)
+          
+          # Temporary arrays to store detected capabilities
+          RESEARCH_CAPS=""
+          PLANNING_CAPS=""
+          MEDIA_CAPS=""
+          POST_CAPS=""
+          
+          # Detection phase (categorized)
+          HAS_VIDEO=false
+          HAS_NARRATION=false
+          
+          # Video capabilities
+          if echo "$ISSUE_BODY" | grep -qi "動画\|video\|ビデオ"; then
+            HAS_VIDEO=true
+            echo "has_video=true" >> $GITHUB_OUTPUT
+            
+            # Context-based additions
+            if echo "$ISSUE_BODY" | grep -qi "ナレーション\|narration\|音声付"; then
+              HAS_NARRATION=true
+              echo "has_narration=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+          
+          # Research phase
+          if echo "$ISSUE_BODY" | grep -qi "検索\|調査\|ニュース\|最新"; then
+            RESEARCH_CAPS="${RESEARCH_CAPS}web-search,"
+          fi
+          
+          # Planning phase
+          if echo "$ISSUE_BODY" | grep -qi "企画\|計画\|構成"; then
+            PLANNING_CAPS="${PLANNING_CAPS}planning,"
+          fi
+          
+          # For video content, add detailed planning capabilities
+          if [ "$HAS_VIDEO" = true ]; then
+            PLANNING_CAPS="${PLANNING_CAPS}content-planning,"
+            if [ "$HAS_NARRATION" = true ]; then
+              PLANNING_CAPS="${PLANNING_CAPS}narration-creation,"
+            fi
+            if echo "$ISSUE_BODY" | grep -qi "シーン\|複数\|ストーリー"; then
+              PLANNING_CAPS="${PLANNING_CAPS}scene-composition,"
+            fi
+          fi
+          
+          # Media generation phase
+          if [ "$HAS_VIDEO" = true ]; then
+            MEDIA_CAPS="${MEDIA_CAPS}image-generation,"
+            if [ "$HAS_NARRATION" = true ]; then
+              MEDIA_CAPS="${MEDIA_CAPS}text-to-speech,"
+            fi
+            MEDIA_CAPS="${MEDIA_CAPS}video-generation,"
+          fi
+          
+          # Post-processing phase
+          if [ "$HAS_VIDEO" = true ] && [ "$HAS_NARRATION" = true ]; then
+            POST_CAPS="${POST_CAPS}lipsync,subtitle-overlay,"
+          fi
+          
+          # Combine in logical order
+          CAPABILITIES="${RESEARCH_CAPS}${PLANNING_CAPS}${MEDIA_CAPS}${POST_CAPS}"
+          
+          # Save capabilities
+          mkdir -p metadata
+          echo "$CAPABILITIES" > metadata/capabilities.txt
+          
+          # Count and complexity
+          CAP_COUNT=$(echo "$CAPABILITIES" | tr ',' '\n' | grep -v '^$' | wc -l)
+          echo "capabilities_count=$CAP_COUNT" >> $GITHUB_OUTPUT
+          
+          if [ "$CAP_COUNT" -gt 6 ]; then
+            echo "complexity=complex" >> $GITHUB_OUTPUT
+          elif [ "$CAP_COUNT" -gt 3 ]; then
+            echo "complexity=medium" >> $GITHUB_OUTPUT
+          else
+            echo "complexity=simple" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "✅ Detected $CAP_COUNT capabilities"
+          
+      - name: Upload Capabilities
+        uses: actions/upload-artifact@v4
+        with:
+          name: capabilities-data
+          path: metadata/
+
+  # ===========================================
+  # PHASE 3: DETAILED ANALYSIS
+  # ===========================================
+  
+  detailed-analysis:
+    name: "🧠 Detailed Analysis"
+    runs-on: ubuntu-latest
+    needs: ['validate-trigger', 'basic-task-decomposition']
+    outputs:
+      orchestrator_match: ${{ steps.orchestrator.outputs.match_found }}
+      execution_pattern: ${{ steps.orchestrator.outputs.pattern }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+          
+      - name: Install Dependencies
+        run: |
+          pip install pyyaml
+          
+      - name: Download Previous Data
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          
+      - name: Orchestrator Analysis
+        id: orchestrator
+        run: |
+          echo "🔍 Running orchestrator analysis..."
+          
+          # Copy analyzer script
+          if [ -f scripts/orchestrator_analyzer.py ]; then
+            cp scripts/orchestrator_analyzer.py .
+            
+            # Run analysis
+            export USER_REQUEST=$(cat artifacts/issue-data/issue_title.txt)
+            export CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
+            
+            python orchestrator_analyzer.py || echo "⚠️ Orchestrator analysis failed"
+            
+            if [ -f projects/meta-workflow-${{ github.run_number }}-${{ github.run_id }}/metadata/orchestrator_analysis.json ]; then
+              echo "match_found=true" >> $GITHUB_OUTPUT
+              # Extract pattern
+              PATTERN=$(jq -r '.execution_pattern // "sequential"' projects/meta-workflow-${{ github.run_number }}-${{ github.run_id }}/metadata/orchestrator_analysis.json)
+              echo "pattern=$PATTERN" >> $GITHUB_OUTPUT
+            else
+              echo "match_found=false" >> $GITHUB_OUTPUT
+              echo "pattern=sequential" >> $GITHUB_OUTPUT
+            fi
+          fi
+          
+      - name: Generate Mermaid Diagram
+        run: |
+          echo "📊 Generating execution flow diagram..."
+          
+          # Create metadata directory
+          mkdir -p metadata
+          
+          CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
+          
+          # Generate basic Mermaid diagram
+          echo "graph TD" > metadata/mermaid.txt
+          echo "    Start[開始]" >> metadata/mermaid.txt
+          
+          IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
+          PREV_NODE="Start"
+          NODE_COUNT=1
+          
+          for cap in "${CAP_ARRAY[@]}"; do
+            if [ -n "$cap" ]; then
+              NODE_NAME="Node$NODE_COUNT"
+              
+              case "$cap" in
+                "web-search") LABEL="🔍 Web検索" ;;
+                "planning") LABEL="📋 企画・計画" ;;
+                "content-planning") LABEL="📝 コンテンツ企画" ;;
+                "narration-creation") LABEL="🎤 ナレーション作成" ;;
+                "scene-composition") LABEL="🎨 シーン構成" ;;
+                "image-generation") LABEL="🖼️ 画像生成" ;;
+                "text-to-speech") LABEL="🗣️ 音声合成" ;;
+                "video-generation") LABEL="🎬 動画生成" ;;
+                "lipsync") LABEL="👄 リップシンク" ;;
+                "subtitle-overlay") LABEL="📝 字幕追加" ;;
+                *) LABEL="$cap" ;;
+              esac
+              
+              echo "    $NODE_NAME[$LABEL]" >> metadata/mermaid.txt
+              echo "    $PREV_NODE --> $NODE_NAME" >> metadata/mermaid.txt
+              
+              PREV_NODE=$NODE_NAME
+              NODE_COUNT=$((NODE_COUNT + 1))
+            fi
+          done
+          
+          echo "    $PREV_NODE --> End[完了]" >> metadata/mermaid.txt
+          
+      - name: Upload Analysis Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: analysis-data
+          path: |
+            metadata/
+            projects/meta-workflow-${{ github.run_number }}-${{ github.run_id }}/metadata/
+
+  # ===========================================
+  # PHASE 4: WORKFLOW GENERATION
+  # ===========================================
+  
+  workflow-generation:
+    name: "🚀 Workflow Generation"
+    runs-on: ubuntu-latest
+    needs: ['validate-trigger', 'basic-task-decomposition', 'detailed-analysis']
+    outputs:
+      workflow_id: ${{ steps.generate.outputs.workflow_id }}
+      total_jobs: ${{ steps.generate.outputs.total_jobs }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          
+      - name: Generate Workflow
+        id: generate
+        run: |
+          echo "🚀 Generating optimized workflow with inline implementations..."
+          echo "📋 Following rules from: meta/prompts/github-actions-generation-rules.md"
+          
+          # Read generation rules for reference
+          if [ -f "meta/prompts/github-actions-generation-rules.md" ]; then
+            echo "✅ Found generation rules document"
+            echo "Key rules:"
+            echo "1. ❌ No uses: references to local files"
+            echo "2. ✅ Inline Claude Code CLI implementations"
+            echo "3. ✅ Use GitHub Actions variables for paths"
+            echo "4. ✅ Include --mcp-config for MCP tools"
+            echo "5. ✅ Share files between jobs via artifacts"
+          fi
+          
+          ISSUE_NUMBER=$(cat artifacts/issue-data/issue_number.txt)
+          CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
+          COMPLEXITY="${{ needs['basic-task-decomposition'].outputs.complexity }}"
+          
+          # Create workflow directory
+          mkdir -p generated-workflows
+          WORKFLOW_FILE="generated-workflows/dynamic-workflow-${ISSUE_NUMBER}.yml"
+          
+          # Generate workflow header
+          echo 'name: "🎯 Dynamic Workflow - Issue #${{ github.event.inputs.issue_number }}"' > "$WORKFLOW_FILE"
+          echo 'run-name: "📊 Dynamic | ${{ github.actor }} | Issue #${{ github.event.inputs.issue_number }}"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'on:' >> "$WORKFLOW_FILE"
+          echo '  workflow_dispatch:' >> "$WORKFLOW_FILE"
+          echo '    inputs:' >> "$WORKFLOW_FILE"
+          echo '      issue_number:' >> "$WORKFLOW_FILE"
+          echo '        description: "Source issue number"' >> "$WORKFLOW_FILE"
+          echo '        required: true' >> "$WORKFLOW_FILE"
+          echo "        default: \"$ISSUE_NUMBER\"" >> "$WORKFLOW_FILE"
+          echo '      branch_name:' >> "$WORKFLOW_FILE"
+          echo '        description: "Working branch name"' >> "$WORKFLOW_FILE"
+          echo '        required: false' >> "$WORKFLOW_FILE"
+          echo "        default: \"issue-${ISSUE_NUMBER}\"" >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          
+          # Add permissions and environment
+          echo 'permissions:' >> "$WORKFLOW_FILE"
+          echo '  contents: write' >> "$WORKFLOW_FILE"
+          echo '  actions: write' >> "$WORKFLOW_FILE"
+          echo '  issues: write' >> "$WORKFLOW_FILE"
+          echo '  pull-requests: write' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo 'env:' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_CI_MODE: true' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_AUTO_APPROVE_MCP: true' >> "$WORKFLOW_FILE"
+          echo '  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          
+          # Add jobs based on capabilities
+          echo 'jobs:' >> "$WORKFLOW_FILE"
+          
+          # Setup job (minimal to avoid expression limits)
+          echo '  setup:' >> "$WORKFLOW_FILE"
+          echo '    name: "🚀 Setup"' >> "$WORKFLOW_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
+          echo '    outputs:' >> "$WORKFLOW_FILE"
+          echo '      project_dir: ${{ steps.setup.outputs.project_dir }}' >> "$WORKFLOW_FILE"
+          echo '      timestamp: ${{ steps.setup.outputs.timestamp }}' >> "$WORKFLOW_FILE"
+          echo '    steps:' >> "$WORKFLOW_FILE"
+          echo '      - name: Checkout Repository' >> "$WORKFLOW_FILE"
+          echo '        uses: actions/checkout@v4' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          echo '      - name: Create Project Structure' >> "$WORKFLOW_FILE"
+          echo '        id: setup' >> "$WORKFLOW_FILE"
+          echo '        run: |' >> "$WORKFLOW_FILE"
+          echo '          TIMESTAMP=$(date +%Y%m%d-%H%M%S)' >> "$WORKFLOW_FILE"
+          echo '          PROJECT_DIR="projects/issue-${{ github.event.inputs.issue_number }}-$TIMESTAMP"' >> "$WORKFLOW_FILE"
+          echo '          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final,media}' >> "$WORKFLOW_FILE"
+          echo '          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT' >> "$WORKFLOW_FILE"
+          echo '          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT' >> "$WORKFLOW_FILE"
+          echo '          echo "✅ Project structure created: $PROJECT_DIR"' >> "$WORKFLOW_FILE"
+          echo '' >> "$WORKFLOW_FILE"
+          
+          # Group capabilities and create phases
+          IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
+          
+          # Capability mapping to minimal units
+          declare -A UNIT_MAP
+          UNIT_MAP["web-search"]="./minimal-units/planning/web-search.yml"
+          UNIT_MAP["data-analysis"]="./minimal-units/planning/data-analysis.yml"
+          UNIT_MAP["planning"]="./minimal-units/planning/planning-ccsdk.yml"
+          UNIT_MAP["content-planning"]="./minimal-units/planning/content-planning.yml"
+          UNIT_MAP["scene-composition"]="./minimal-units/planning/scene-composition.yml"
+          UNIT_MAP["image-generation"]="./minimal-units/media/image/t2i-imagen3.yml"
+          UNIT_MAP["video-generation"]="./minimal-units/media/video/t2v-veo3.yml"
+          UNIT_MAP["audio-generation"]="./minimal-units/media/audio/bgm-generate-mcp.yml"
+          UNIT_MAP["lipsync"]="./minimal-units/postprod/lipsync-generation.yml"
+          UNIT_MAP["subtitle-overlay"]="./minimal-units/postprod/subtitle-overlay.yml"
+          UNIT_MAP["video-editing"]="./minimal-units/postprod/video-concat.yml"
+          
+          # Phase separation
+          RESEARCH_JOBS=""
+          PLANNING_JOBS=""
+          MEDIA_JOBS=""
+          POST_JOBS=""
+          
+          for cap in "${CAP_ARRAY[@]}"; do
+            if [ -n "$cap" ]; then
+              case "$cap" in
+                web-search|data-analysis)
+                  RESEARCH_JOBS="${RESEARCH_JOBS}${cap},"
+                  ;;
+                planning|scene-composition|content-planning|narration-creation)
+                  PLANNING_JOBS="${PLANNING_JOBS}${cap},"
+                  ;;
+                image-generation|video-generation|audio-generation|text-to-speech)
+                  MEDIA_JOBS="${MEDIA_JOBS}${cap},"
+                  ;;
+                lipsync|subtitle-overlay|video-editing|video-concat)
+                  POST_JOBS="${POST_JOBS}${cap},"
+                  ;;
+              esac
+            fi
+          done
+          
+          # Research phase (sequential)
+          if [ -n "$RESEARCH_JOBS" ]; then
+            IFS=',' read -ra RESEARCH_ARRAY <<< "$RESEARCH_JOBS"
+            JOB_INDEX=1
+            for research_job in "${RESEARCH_ARRAY[@]}"; do
+              if [ -n "$research_job" ]; then
+                JOB_NAME="research_${JOB_INDEX}"
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"🔍 Research: ${research_job}\"" >> "$WORKFLOW_FILE"
+                echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+                if [ $JOB_INDEX -eq 1 ]; then
+                  echo '    needs: setup' >> "$WORKFLOW_FILE"
+                else
+                  PREV_JOB="research_$((JOB_INDEX - 1))"
+                  echo "    needs: [setup, ${PREV_JOB}]" >> "$WORKFLOW_FILE"
+                fi
+                echo "    outputs:" >> "$WORKFLOW_FILE"
+                echo "      completed: \${{ steps.execute.outputs.completed }}" >> "$WORKFLOW_FILE"
+                echo "      summary_path: \${{ steps.execute.outputs.summary_path }}" >> "$WORKFLOW_FILE"
+                echo "    steps:" >> "$WORKFLOW_FILE"
+                echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
+                echo "        " >> "$WORKFLOW_FILE"
+                echo "      - name: Setup Node.js" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/setup-node@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          node-version: '20'" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Install Claude Code" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                echo "          npm init -y" >> "$WORKFLOW_FILE"
+                echo "          npm install @anthropic-ai/claude-code" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Create output directory" >> "$WORKFLOW_FILE"
+                echo "        run: mkdir -p \${{ needs.setup.outputs.project_dir }}/metadata" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Execute Web Search" >> "$WORKFLOW_FILE"
+                echo "        id: execute" >> "$WORKFLOW_FILE"
+                echo "        env:" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_OAUTH_TOKEN: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_CI_MODE: true" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_AUTO_APPROVE_MCP: true" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                echo "          PROMPT=\"Web検索を実行してください: \${{ github.event.issue.title }}\"" >> "$WORKFLOW_FILE"
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                echo "            --allowedTools \"WebSearch,Write\" \\\\" >> "$WORKFLOW_FILE"
+                echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          # 結果確認" >> "$WORKFLOW_FILE"
+                echo "          if [ -f \"\${{ needs.setup.outputs.project_dir }}/metadata/search-summary.md\" ]; then" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=true\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "            echo \"summary_path=\${{ needs.setup.outputs.project_dir }}/metadata/search-summary.md\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          else" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=false\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          fi" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Upload Research Artifacts" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/upload-artifact@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          name: research-artifacts" >> "$WORKFLOW_FILE"
+                echo "          path: \${{ needs.setup.outputs.project_dir }}/metadata/" >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+                JOB_INDEX=$((JOB_INDEX + 1))
+              fi
+            done
+          fi
+          
+          # Planning phase (sequential with dependency)
+          if [ -n "$PLANNING_JOBS" ]; then
+            IFS=',' read -ra PLANNING_ARRAY <<< "$PLANNING_JOBS"
+            JOB_INDEX=1
+            PREV_PHASE_JOB=""
+            if [ -n "$RESEARCH_JOBS" ]; then
+              RESEARCH_COUNT=$(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+              PREV_PHASE_JOB="research_${RESEARCH_COUNT}"
+            fi
+            
+            for planning_job in "${PLANNING_ARRAY[@]}"; do
+              if [ -n "$planning_job" ]; then
+                JOB_NAME="planning_${JOB_INDEX}"
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"📋 Planning: ${planning_job}\"" >> "$WORKFLOW_FILE"
+                echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+                
+                # Dependencies
+                if [ $JOB_INDEX -eq 1 ]; then
+                  if [ -n "$PREV_PHASE_JOB" ]; then
+                    echo "    needs: [setup, ${PREV_PHASE_JOB}]" >> "$WORKFLOW_FILE"
+                  else
+                    echo '    needs: setup' >> "$WORKFLOW_FILE"
+                  fi
+                else
+                  PREV_JOB="planning_$((JOB_INDEX - 1))"
+                  echo "    needs: ${PREV_JOB}" >> "$WORKFLOW_FILE"
+                fi
+                
+                echo "    outputs:" >> "$WORKFLOW_FILE"
+                echo "      completed: \${{ steps.execute.outputs.completed }}" >> "$WORKFLOW_FILE"
+                echo "      plan_path: \${{ steps.execute.outputs.plan_path }}" >> "$WORKFLOW_FILE"
+                echo "    steps:" >> "$WORKFLOW_FILE"
+                echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
+                echo "        " >> "$WORKFLOW_FILE"
+                echo "      - name: Setup Node.js" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/setup-node@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          node-version: '20'" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Install Claude Code SDK" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                echo "          npm init -y" >> "$WORKFLOW_FILE"
+                echo "          npm install @anthropic-ai/claude-code" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                
+                # Download artifacts if needed
+                if [ $JOB_INDEX -eq 1 ] && [ -n "$PREV_PHASE_JOB" ]; then
+                  echo "      - name: Download Research Artifacts" >> "$WORKFLOW_FILE"
+                  echo "        uses: actions/download-artifact@v4" >> "$WORKFLOW_FILE"
+                  echo "        with:" >> "$WORKFLOW_FILE"
+                  echo "          name: research-artifacts" >> "$WORKFLOW_FILE"
+                  echo "          path: \${{ needs.setup.outputs.project_dir }}/metadata/" >> "$WORKFLOW_FILE"
+                  echo "      " >> "$WORKFLOW_FILE"
+                fi
+                
+                echo "      - name: Create output directory" >> "$WORKFLOW_FILE"
+                echo "        run: mkdir -p \${{ needs.setup.outputs.project_dir }}/metadata" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Execute Planning Agent" >> "$WORKFLOW_FILE"
+                echo "        id: execute" >> "$WORKFLOW_FILE"
+                echo "        env:" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_OAUTH_TOKEN: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_CI_MODE: true" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_AUTO_APPROVE_MCP: true" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                echo "          PROMPT=\"プランニングを実行してください: ${planning_job}\"" >> "$WORKFLOW_FILE"
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                echo "            --allowedTools \"Read,Write,Edit\" \\\\" >> "$WORKFLOW_FILE"
+                echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          # 結果確認" >> "$WORKFLOW_FILE"
+                echo "          if [ -f \"\${{ needs.setup.outputs.project_dir }}/metadata/plan.md\" ]; then" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=true\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "            echo \"plan_path=\${{ needs.setup.outputs.project_dir }}/metadata/plan.md\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          else" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=false\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          fi" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Upload Planning Artifacts" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/upload-artifact@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          name: planning-artifacts" >> "$WORKFLOW_FILE"
+                echo "          path: \${{ needs.setup.outputs.project_dir }}/metadata/" >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+                JOB_INDEX=$((JOB_INDEX + 1))
+              fi
+            done
+          fi
+          
+          # Media generation phase (parallel execution)
+          if [ -n "$MEDIA_JOBS" ]; then
+            # Determine dependencies for media jobs
+            MEDIA_DEPS="setup"
+            if [ -n "$PLANNING_JOBS" ]; then
+              PLANNING_COUNT=$(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+              MEDIA_DEPS="planning_${PLANNING_COUNT}"
+            elif [ -n "$RESEARCH_JOBS" ]; then
+              RESEARCH_COUNT=$(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+              MEDIA_DEPS="research_${RESEARCH_COUNT}"
+            fi
+            
+            IFS=',' read -ra MEDIA_ARRAY <<< "$MEDIA_JOBS"
+            for media_job in "${MEDIA_ARRAY[@]}"; do
+              if [ -n "$media_job" ]; then
+                JOB_NAME=$(echo "$media_job" | tr '-' '_')
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"🎨 ${media_job}\"" >> "$WORKFLOW_FILE"
+                echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+                echo "    needs: ${MEDIA_DEPS}" >> "$WORKFLOW_FILE"
+                echo "    outputs:" >> "$WORKFLOW_FILE"
+                echo "      completed: \${{ steps.generate.outputs.completed }}" >> "$WORKFLOW_FILE"
+                echo "      ${media_job//-/_}_path: \${{ steps.generate.outputs.output_path }}" >> "$WORKFLOW_FILE"
+                echo "    steps:" >> "$WORKFLOW_FILE"
+                echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
+                echo "        " >> "$WORKFLOW_FILE"
+                echo "      - name: Setup Node.js" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/setup-node@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          node-version: '20'" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Install Claude Code" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                echo "          npm init -y" >> "$WORKFLOW_FILE"
+                echo "          npm install @anthropic-ai/claude-code" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                
+                # Download planning artifacts if this is a media job
+                if [ -n "$PLANNING_JOBS" ]; then
+                  echo "      - name: Download Planning Artifacts" >> "$WORKFLOW_FILE"
+                  echo "        uses: actions/download-artifact@v4" >> "$WORKFLOW_FILE"
+                  echo "        with:" >> "$WORKFLOW_FILE"
+                  echo "          name: planning-artifacts" >> "$WORKFLOW_FILE"
+                  echo "          path: \${{ needs.setup.outputs.project_dir }}/metadata/" >> "$WORKFLOW_FILE"
+                  echo "      " >> "$WORKFLOW_FILE"
+                fi
+                
+                echo "      - name: Generate ${media_job}" >> "$WORKFLOW_FILE"
+                echo "        id: generate" >> "$WORKFLOW_FILE"
+                echo "        env:" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_OAUTH_TOKEN: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_CI_MODE: true" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_AUTO_APPROVE_MCP: true" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                
+                # Customize prompts based on media type
+                case "$media_job" in
+                  image-generation)
+                    echo "          PROMPT=\"画像を生成してください: \${{ github.event.issue.title }}\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --mcp-config \".claude/mcp-kamuicode.json\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"mcp__t2i-google-imagen3__imagen_t2i,Bash,Write\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                  video-generation)
+                    echo "          PROMPT=\"動画を生成してください: \${{ github.event.issue.title }}\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --mcp-config \".claude/mcp-kamuicode.json\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit,mcp__i2v-fal-hailuo-02-pro__hailuo_02_status,mcp__i2v-fal-hailuo-02-pro__hailuo_02_result,Bash,Write\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                  text-to-speech|audio-generation)
+                    echo "          PROMPT=\"音声を生成してください: \${{ github.event.issue.title }}\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --mcp-config \".claude/mcp-kamuicode.json\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result,Bash,Write\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                  *)
+                    echo "          PROMPT=\"メディアを生成してください: ${media_job}\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"Write,Bash\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                esac
+                
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          # 結果確認" >> "$WORKFLOW_FILE"
+                echo "          mkdir -p \${{ needs.setup.outputs.project_dir }}/media" >> "$WORKFLOW_FILE"
+                echo "          if ls \${{ needs.setup.outputs.project_dir }}/media/* 2>/dev/null; then" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=true\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "            echo \"output_path=\${{ needs.setup.outputs.project_dir }}/media\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          else" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=false\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          fi" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Upload ${media_job} Artifacts" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/upload-artifact@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          name: ${media_job}-artifacts" >> "$WORKFLOW_FILE"
+                echo "          path: \${{ needs.setup.outputs.project_dir }}/media/" >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+              fi
+            done
+          fi
+          
+          # Post-processing phase (sequential)
+          if [ -n "$POST_JOBS" ]; then
+            # Collect all media job names for dependencies
+            MEDIA_JOB_NAMES=""
+            if [ -n "$MEDIA_JOBS" ]; then
+              IFS=',' read -ra MEDIA_ARRAY <<< "$MEDIA_JOBS"
+              for media_job in "${MEDIA_ARRAY[@]}"; do
+                if [ -n "$media_job" ]; then
+                  JOB_NAME=$(echo "$media_job" | tr '-' '_')
+                  MEDIA_JOB_NAMES="${MEDIA_JOB_NAMES}${JOB_NAME}, "
+                fi
+              done
+              MEDIA_JOB_NAMES="${MEDIA_JOB_NAMES%, }"
+            fi
+            
+            IFS=',' read -ra POST_ARRAY <<< "$POST_JOBS"
+            JOB_INDEX=1
+            for post_job in "${POST_ARRAY[@]}"; do
+              if [ -n "$post_job" ]; then
+                JOB_NAME="post_${JOB_INDEX}"
+                echo "  ${JOB_NAME}:" >> "$WORKFLOW_FILE"
+                echo "    name: \"🔧 Post: ${post_job}\"" >> "$WORKFLOW_FILE"
+                echo "    runs-on: ubuntu-latest" >> "$WORKFLOW_FILE"
+                
+                # Dependencies
+                if [ $JOB_INDEX -eq 1 ]; then
+                  if [ -n "$MEDIA_JOB_NAMES" ]; then
+                    echo "    needs: [${MEDIA_JOB_NAMES}]" >> "$WORKFLOW_FILE"
+                  else
+                    echo '    needs: setup' >> "$WORKFLOW_FILE"
+                  fi
+                else
+                  PREV_JOB="post_$((JOB_INDEX - 1))"
+                  echo "    needs: ${PREV_JOB}" >> "$WORKFLOW_FILE"
+                fi
+                
+                echo "    outputs:" >> "$WORKFLOW_FILE"
+                echo "      completed: \${{ steps.execute.outputs.completed }}" >> "$WORKFLOW_FILE"
+                echo "      final_path: \${{ steps.execute.outputs.final_path }}" >> "$WORKFLOW_FILE"
+                echo "    steps:" >> "$WORKFLOW_FILE"
+                echo "      - name: Checkout Repository" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/checkout@v4" >> "$WORKFLOW_FILE"
+                echo "        " >> "$WORKFLOW_FILE"
+                echo "      - name: Setup Node.js" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/setup-node@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          node-version: '20'" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Install Dependencies" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                echo "          npm init -y" >> "$WORKFLOW_FILE"
+                echo "          npm install @anthropic-ai/claude-code" >> "$WORKFLOW_FILE"
+                
+                # Add ffmpeg for post-processing if lipsync or video editing
+                if [ "$post_job" == "lipsync" ] || [ "$post_job" == "video-editing" ] || [ "$post_job" == "video-concat" ]; then
+                  echo "          sudo apt-get update" >> "$WORKFLOW_FILE"
+                  echo "          sudo apt-get install -y ffmpeg" >> "$WORKFLOW_FILE"
+                fi
+                
+                echo "      " >> "$WORKFLOW_FILE"
+                
+                # Download all media artifacts
+                if [ -n "$MEDIA_JOB_NAMES" ]; then
+                  IFS=',' read -ra MEDIA_NAMES <<< "$MEDIA_JOB_NAMES"
+                  for media_name in "${MEDIA_NAMES[@]}"; do
+                    MEDIA_NAME_TRIMMED=$(echo "$media_name" | xargs)
+                    if [ -n "$MEDIA_NAME_TRIMMED" ]; then
+                      echo "      - name: Download ${MEDIA_NAME_TRIMMED} Artifacts" >> "$WORKFLOW_FILE"
+                      echo "        uses: actions/download-artifact@v4" >> "$WORKFLOW_FILE"
+                      echo "        with:" >> "$WORKFLOW_FILE"
+                      echo "          name: $(echo "$MEDIA_NAME_TRIMMED" | tr '_' '-')-artifacts" >> "$WORKFLOW_FILE"
+                      echo "          path: \${{ needs.setup.outputs.project_dir }}/media/" >> "$WORKFLOW_FILE"
+                      echo "      " >> "$WORKFLOW_FILE"
+                    fi
+                  done
+                fi
+                
+                echo "      - name: Execute Post Processing" >> "$WORKFLOW_FILE"
+                echo "        id: execute" >> "$WORKFLOW_FILE"
+                echo "        env:" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_OAUTH_TOKEN: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_CI_MODE: true" >> "$WORKFLOW_FILE"
+                echo "          CLAUDE_CODE_AUTO_APPROVE_MCP: true" >> "$WORKFLOW_FILE"
+                echo "        run: |" >> "$WORKFLOW_FILE"
+                
+                # Customize prompts based on post job type
+                case "$post_job" in
+                  lipsync)
+                    echo "          PROMPT=\"リップシンクを適用してください\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --mcp-config \".claude/mcp-kamuicode.json\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_submit,mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_status,mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_result,Bash,Write,Read\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                  subtitle-overlay)
+                    echo "          PROMPT=\"字幕をオーバーレイしてください\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"Bash,Write,Read\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                  video-editing|video-concat)
+                    echo "          PROMPT=\"動画を編集・結合してください\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"Bash,Write,Read\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                  *)
+                    echo "          PROMPT=\"ポストプロセスを実行してください: ${post_job}\"" >> "$WORKFLOW_FILE"
+                    echo "          " >> "$WORKFLOW_FILE"
+                    echo "          npx @anthropic-ai/claude-code \\\\" >> "$WORKFLOW_FILE"
+                    echo "            -p \"\$PROMPT\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --allowedTools \"Write,Bash,Read\" \\\\" >> "$WORKFLOW_FILE"
+                    echo "            --permission-mode \"acceptEdits\"" >> "$WORKFLOW_FILE"
+                    ;;
+                esac
+                
+                echo "          " >> "$WORKFLOW_FILE"
+                echo "          # 結果確認" >> "$WORKFLOW_FILE"
+                echo "          mkdir -p \${{ needs.setup.outputs.project_dir }}/final" >> "$WORKFLOW_FILE"
+                echo "          if ls \${{ needs.setup.outputs.project_dir }}/final/* 2>/dev/null; then" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=true\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "            echo \"final_path=\${{ needs.setup.outputs.project_dir }}/final\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          else" >> "$WORKFLOW_FILE"
+                echo "            echo \"completed=false\" >> \$GITHUB_OUTPUT" >> "$WORKFLOW_FILE"
+                echo "          fi" >> "$WORKFLOW_FILE"
+                echo "      " >> "$WORKFLOW_FILE"
+                echo "      - name: Upload Final Artifacts" >> "$WORKFLOW_FILE"
+                echo "        uses: actions/upload-artifact@v4" >> "$WORKFLOW_FILE"
+                echo "        with:" >> "$WORKFLOW_FILE"
+                echo "          name: final-artifacts" >> "$WORKFLOW_FILE"
+                echo "          path: \${{ needs.setup.outputs.project_dir }}/final/" >> "$WORKFLOW_FILE"
+                echo '' >> "$WORKFLOW_FILE"
+                JOB_INDEX=$((JOB_INDEX + 1))
+              fi
+            done
+          fi
+          
+          # Summary job
+          echo '  summary:' >> "$WORKFLOW_FILE"
+          echo '    name: "📊 Summary"' >> "$WORKFLOW_FILE"
+          echo '    runs-on: ubuntu-latest' >> "$WORKFLOW_FILE"
+          echo '    if: always()' >> "$WORKFLOW_FILE"
+          
+          # Build needs list for summary
+          ALL_JOBS="setup"
+          if [ -n "$RESEARCH_JOBS" ]; then
+            RESEARCH_COUNT=$(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+            for i in $(seq 1 $RESEARCH_COUNT); do
+              ALL_JOBS="${ALL_JOBS}, research_${i}"
+            done
+          fi
+          if [ -n "$PLANNING_JOBS" ]; then
+            PLANNING_COUNT=$(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+            for i in $(seq 1 $PLANNING_COUNT); do
+              ALL_JOBS="${ALL_JOBS}, planning_${i}"
+            done
+          fi
+          if [ -n "$MEDIA_JOBS" ]; then
+            IFS=',' read -ra MEDIA_ARRAY <<< "$MEDIA_JOBS"
+            for media_job in "${MEDIA_ARRAY[@]}"; do
+              if [ -n "$media_job" ]; then
+                JOB_NAME=$(echo "$media_job" | tr '-' '_')
+                ALL_JOBS="${ALL_JOBS}, ${JOB_NAME}"
+              fi
+            done
+          fi
+          if [ -n "$POST_JOBS" ]; then
+            POST_COUNT=$(echo "$POST_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)
+            for i in $(seq 1 $POST_COUNT); do
+              ALL_JOBS="${ALL_JOBS}, post_${i}"
+            done
+          fi
+          
+          echo "    needs: [${ALL_JOBS}]" >> "$WORKFLOW_FILE"
+          echo '    steps:' >> "$WORKFLOW_FILE"
+          echo '      - name: Generate Summary' >> "$WORKFLOW_FILE"
+          echo '        run: |' >> "$WORKFLOW_FILE"
+          echo '          echo "# 🎯 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          echo '          echo "- **Project**: ${{ needs.setup.outputs.project_dir }}" >> $GITHUB_STEP_SUMMARY' >> "$WORKFLOW_FILE"
+          
+          # Count total jobs
+          JOB_COUNT=2  # setup + summary
+          [ -n "$RESEARCH_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$RESEARCH_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
+          [ -n "$PLANNING_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$PLANNING_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
+          [ -n "$MEDIA_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$MEDIA_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
+          [ -n "$POST_JOBS" ] && JOB_COUNT=$((JOB_COUNT + $(echo "$POST_JOBS" | tr ',' '\n' | grep -v '^$' | wc -l)))
+          
+          echo "workflow_id=${ISSUE_NUMBER}-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+          echo "total_jobs=$JOB_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "✅ Generated workflow with $JOB_COUNT jobs"
+          
+      - name: Upload Generated Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-workflow
+          path: generated-workflows/
+
+  # ===========================================
+  # PHASE 5: WORKFLOW VALIDATION
+  # ===========================================
+  
+  workflow-validation:
+    name: "✅ Workflow Validation"
+    runs-on: ubuntu-latest
+    needs: ['workflow-generation']
+    outputs:
+      validation_passed: ${{ steps.validate.outputs.passed }}
+      optimization_needed: ${{ steps.validate.outputs.needs_optimization }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Generated Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-workflow
+          path: generated-workflows/
+          
+      - name: Validate Workflow
+        id: validate
+        run: |
+          echo "✅ Validating generated workflow..."
+          
+          WORKFLOW_FILE=$(find generated-workflows -name '*.yml' | head -1)
+          
+          # Check YAML syntax
+          python3 -c "import yaml; yaml.safe_load(open('$WORKFLOW_FILE'))" 2>/dev/null
+          if [ $? -eq 0 ]; then
+            echo "✅ YAML syntax valid"
+            SYNTAX_OK=true
+          else
+            echo "❌ YAML syntax error"
+            SYNTAX_OK=false
+          fi
+          
+          # Check for long expressions
+          LONG_LINES=$(grep -n '\${{' "$WORKFLOW_FILE" | grep '}}' | awk 'length($0) > 500' | wc -l)
+          if [ "$LONG_LINES" -gt 0 ]; then
+            echo "⚠️ Found $LONG_LINES long expression lines"
+            echo "needs_optimization=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ No long expressions found"
+            echo "needs_optimization=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check job count
+          JOB_COUNT=$(grep -c "^  [a-zA-Z][a-zA-Z0-9_-]*:" "$WORKFLOW_FILE" | grep -v "^on:" | grep -v "^jobs:" || echo 0)
+          if [ "$JOB_COUNT" -gt 10 ]; then
+            echo "⚠️ Too many jobs ($JOB_COUNT), consider parallelization"
+            echo "needs_optimization=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "$SYNTAX_OK" = true ]; then
+            echo "passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "passed=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Prepare Optimization Script Part 1
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "📊 Preparing optimization script (Part 1)..."
+          
+          # Create optimization script header using echo commands
+          echo '#!/usr/bin/env python3' > optimize_part1.py
+          echo 'import yaml' >> optimize_part1.py
+          echo 'import sys' >> optimize_part1.py
+          echo 'import json' >> optimize_part1.py
+          echo 'from typing import List, Dict, Any' >> optimize_part1.py
+          echo '' >> optimize_part1.py
+          echo 'def load_workflow(file_path: str) -> Dict:' >> optimize_part1.py
+          echo '    """ワークフローファイルを読み込む"""' >> optimize_part1.py
+          echo '    with open(file_path, "r", encoding="utf-8") as f:' >> optimize_part1.py
+          echo '        return yaml.safe_load(f)' >> optimize_part1.py
+          echo '' >> optimize_part1.py
+          echo 'def analyze_node_length(job_content: Dict) -> int:' >> optimize_part1.py
+          echo '    """ノードの長さを分析"""' >> optimize_part1.py
+          echo '    content_str = yaml.dump(job_content)' >> optimize_part1.py
+          echo '    return len(content_str)' >> optimize_part1.py
+          echo '' >> optimize_part1.py
+          echo 'def identify_long_nodes(workflow: Dict, threshold: int = 15000) -> List[str]:' >> optimize_part1.py
+          echo '    """長いノードを特定"""' >> optimize_part1.py
+          echo '    long_nodes = []' >> optimize_part1.py
+          echo '    if "jobs" in workflow:' >> optimize_part1.py
+          echo '        for job_name, job_content in workflow["jobs"].items():' >> optimize_part1.py
+          echo '            length = analyze_node_length(job_content)' >> optimize_part1.py
+          echo '            if length > threshold:' >> optimize_part1.py
+          echo '                long_nodes.append(job_name)' >> optimize_part1.py
+          echo '                print(f"⚠️ Long node detected: {job_name} ({length} chars)")' >> optimize_part1.py
+          echo '    return long_nodes' >> optimize_part1.py
+          
+      - name: Prepare Optimization Script Part 2
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "📊 Preparing optimization script (Part 2)..."
+          
+          # Add node splitting logic using echo commands
+          echo '' >> optimize_part1.py
+          echo 'def split_long_node(job_name: str, job_content: Dict) -> Dict[str, Dict]:' >> optimize_part1.py
+          echo '    """長いノードを分割"""' >> optimize_part1.py
+          echo '    split_jobs = {}' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    if "steps" in job_content and len(job_content["steps"]) > 10:' >> optimize_part1.py
+          echo '        # ステップ数が多い場合は分割' >> optimize_part1.py
+          echo '        steps = job_content["steps"]' >> optimize_part1.py
+          echo '        mid_point = len(steps) // 2' >> optimize_part1.py
+          echo '        ' >> optimize_part1.py
+          echo '        # Part 1' >> optimize_part1.py
+          echo '        job1 = job_content.copy()' >> optimize_part1.py
+          echo '        job1["steps"] = steps[:mid_point]' >> optimize_part1.py
+          echo '        split_jobs[f"{job_name}_part1"] = job1' >> optimize_part1.py
+          echo '        ' >> optimize_part1.py
+          echo '        # Part 2' >> optimize_part1.py
+          echo '        job2 = job_content.copy()' >> optimize_part1.py
+          echo '        job2["steps"] = steps[mid_point:]' >> optimize_part1.py
+          echo '        if "needs" in job1:' >> optimize_part1.py
+          echo '            job2["needs"] = [f"{job_name}_part1"]' >> optimize_part1.py
+          echo '        split_jobs[f"{job_name}_part2"] = job2' >> optimize_part1.py
+          echo '        ' >> optimize_part1.py
+          echo '        print(f"✅ Split {job_name} into 2 parts")' >> optimize_part1.py
+          echo '    else:' >> optimize_part1.py
+          echo '        split_jobs[job_name] = job_content' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    return split_jobs' >> optimize_part1.py
+          echo '' >> optimize_part1.py
+          echo 'def identify_parallel_opportunities(workflow: Dict) -> List[List[str]]:' >> optimize_part1.py
+          echo '    """並列実行可能なジョブを特定"""' >> optimize_part1.py
+          echo '    parallel_groups = []' >> optimize_part1.py
+          echo '    jobs = workflow.get("jobs", {})' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    # 依存関係のないジョブをグループ化' >> optimize_part1.py
+          echo '    no_deps = []' >> optimize_part1.py
+          echo '    for job_name, job_content in jobs.items():' >> optimize_part1.py
+          echo '        if "needs" not in job_content or not job_content["needs"]:' >> optimize_part1.py
+          echo '            no_deps.append(job_name)' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    if len(no_deps) > 1:' >> optimize_part1.py
+          echo '        parallel_groups.append(no_deps)' >> optimize_part1.py
+          echo '        print(f"🚀 Found parallel group: {no_deps}")' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    return parallel_groups' >> optimize_part1.py
+
+      - name: Prepare Optimization Script Part 3
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "📊 Preparing optimization script (Part 3)..."
+          
+          # Add main optimization logic using echo commands
+          echo '' >> optimize_part1.py
+          echo 'def optimize_workflow(workflow: Dict) -> Dict:' >> optimize_part1.py
+          echo '    """ワークフローを最適化"""' >> optimize_part1.py
+          echo '    optimized = workflow.copy()' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    # 1. 長いノードを特定して分割' >> optimize_part1.py
+          echo '    long_nodes = identify_long_nodes(workflow)' >> optimize_part1.py
+          echo '    if long_nodes:' >> optimize_part1.py
+          echo '        print(f"\\n🔍 Found {len(long_nodes)} long nodes to split")' >> optimize_part1.py
+          echo '        new_jobs = {}' >> optimize_part1.py
+          echo '        ' >> optimize_part1.py
+          echo '        for job_name, job_content in workflow.get("jobs", {}).items():' >> optimize_part1.py
+          echo '            if job_name in long_nodes:' >> optimize_part1.py
+          echo '                split_jobs = split_long_node(job_name, job_content)' >> optimize_part1.py
+          echo '                new_jobs.update(split_jobs)' >> optimize_part1.py
+          echo '            else:' >> optimize_part1.py
+          echo '                new_jobs[job_name] = job_content' >> optimize_part1.py
+          echo '        ' >> optimize_part1.py
+          echo '        optimized["jobs"] = new_jobs' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    # 2. 並列実行の最適化' >> optimize_part1.py
+          echo '    parallel_groups = identify_parallel_opportunities(optimized)' >> optimize_part1.py
+          echo '    if parallel_groups:' >> optimize_part1.py
+          echo '        print(f"\\n🚀 Identified {len(parallel_groups)} parallel execution opportunities")' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    return optimized' >> optimize_part1.py
+          echo '' >> optimize_part1.py
+          echo '# メイン処理' >> optimize_part1.py
+          echo 'if __name__ == "__main__":' >> optimize_part1.py
+          echo '    if len(sys.argv) < 2:' >> optimize_part1.py
+          echo '        print("Usage: python optimize.py <workflow.yml>")' >> optimize_part1.py
+          echo '        sys.exit(1)' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    workflow_file = sys.argv[1]' >> optimize_part1.py
+          echo '    print(f"🔧 Optimizing workflow: {workflow_file}")' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    # ワークフローを読み込み' >> optimize_part1.py
+          echo '    workflow = load_workflow(workflow_file)' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    # 最適化' >> optimize_part1.py
+          echo '    optimized = optimize_workflow(workflow)' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    # 結果を保存' >> optimize_part1.py
+          echo '    output_file = workflow_file.replace(".yml", "_optimized.yml")' >> optimize_part1.py
+          echo '    with open(output_file, "w", encoding="utf-8") as f:' >> optimize_part1.py
+          echo '        yaml.dump(optimized, f, default_flow_style=False, sort_keys=False)' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    print(f"✅ Optimized workflow saved to: {output_file}")' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    # メタデータを出力' >> optimize_part1.py
+          echo '    metadata = {' >> optimize_part1.py
+          echo '        "original_jobs": len(workflow.get("jobs", {})),' >> optimize_part1.py
+          echo '        "optimized_jobs": len(optimized.get("jobs", {})),' >> optimize_part1.py
+          echo '        "long_nodes_split": len(identify_long_nodes(workflow)),' >> optimize_part1.py
+          echo '        "parallel_groups": len(identify_parallel_opportunities(optimized))' >> optimize_part1.py
+          echo '    }' >> optimize_part1.py
+          echo '    ' >> optimize_part1.py
+          echo '    with open("optimization_metadata.json", "w") as f:' >> optimize_part1.py
+          echo '        json.dump(metadata, f, indent=2)' >> optimize_part1.py
+
+      - name: Execute Optimization
+        if: ${{ steps.validate.outputs.needs_optimization == 'true' }}
+        run: |
+          echo "🚀 Executing optimization..."
+          
+          # Combine script parts
+          mv optimize_part1.py optimize.py
+          
+          # Find and optimize workflow
+          WORKFLOW_FILE=$(find generated-workflows -name '*.yml' | head -1)
+          
+          if [ -f "$WORKFLOW_FILE" ]; then
+            python optimize.py "$WORKFLOW_FILE"
+            
+            # Check if optimization was successful
+            OPTIMIZED_FILE="${WORKFLOW_FILE%.yml}_optimized.yml"
+            if [ -f "$OPTIMIZED_FILE" ]; then
+              # Replace original with optimized version
+              mv "$OPTIMIZED_FILE" "$WORKFLOW_FILE"
+              echo "✅ Workflow optimized successfully"
+              
+              # Read metadata
+              if [ -f "optimization_metadata.json" ]; then
+                cat optimization_metadata.json
+              fi
+            else
+              echo "⚠️ Optimization did not produce output"
+            fi
+          else
+            echo "⚠️ No workflow file found to optimize"
+          fi
+          
+      - name: Upload Validated Workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-workflow
+          path: generated-workflows/
+
+  # ===========================================
+  # PHASE 6: DEPLOYMENT
+  # ===========================================
+  
+  deployment:
+    name: "📦 Deployment"
+    runs-on: ubuntu-latest
+    needs: ['workflow-validation', 'workflow-generation']
+    if: ${{ needs['workflow-validation'].outputs.validation_passed == 'true' }}
+    outputs:
+      deployed_path: ${{ steps.deploy.outputs.path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Validated Workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: validated-workflow
+          path: generated-workflows/
+          
+      - name: Deploy Workflow
+        id: deploy
+        run: |
+          echo "📦 Deploying workflow..."
+          
+          WORKFLOW_FILE=$(find generated-workflows -name '*.yml' | head -1)
+          DEPLOYMENT_NAME="issue-${{ inputs.issue_number }}-$(date +%Y%m%d-%H%M%S).yml.disabled"
+          DEPLOYMENT_PATH=".github/workflows/generated/$DEPLOYMENT_NAME"
+          
+          # Create deployment directory
+          mkdir -p .github/workflows/generated
+          
+          # Copy workflow
+          cp "$WORKFLOW_FILE" "$DEPLOYMENT_PATH"
+          
+          echo "path=$DEPLOYMENT_PATH" >> $GITHUB_OUTPUT
+          
+          # Commit and push
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$DEPLOYMENT_PATH"
+          git commit -m "🤖 Generated workflow for Issue #${{ inputs.issue_number }}" || echo "No changes"
+          git push origin main || echo "Push failed"
+          
+          echo "✅ Deployed to: $DEPLOYMENT_PATH"
+
+  # ===========================================
+  # PHASE 7: EXECUTION SUMMARY
+  # ===========================================
+  
+  execution-summary:
+    name: "📊 Execution Summary"
+    runs-on: ubuntu-latest
+    needs: ['validate-trigger', 'basic-task-decomposition', 'detailed-analysis', 'workflow-generation', 'workflow-validation', 'deployment']
+    if: ${{ always() }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          
+      - name: Generate Summary
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ISSUE_TITLE: ${{ needs['validate-trigger'].outputs.issue_title }}
+          REQUEST_TYPE: ${{ needs['validate-trigger'].outputs.request_type }}
+          CAPABILITIES_COUNT: ${{ needs['basic-task-decomposition'].outputs.capabilities_count }}
+          COMPLEXITY: ${{ needs['basic-task-decomposition'].outputs.complexity }}
+          HAS_VIDEO: ${{ needs['basic-task-decomposition'].outputs.has_video }}
+          HAS_NARRATION: ${{ needs['basic-task-decomposition'].outputs.has_narration }}
+          ORCHESTRATOR_MATCH: ${{ needs['detailed-analysis'].outputs.orchestrator_match }}
+          EXECUTION_PATTERN: ${{ needs['detailed-analysis'].outputs.execution_pattern }}
+          TOTAL_JOBS: ${{ needs['workflow-generation'].outputs.total_jobs }}
+          VALIDATION_PASSED: ${{ needs['workflow-validation'].outputs.validation_passed }}
+          OPTIMIZATION_NEEDED: ${{ needs['workflow-validation'].outputs.optimization_needed }}
+          DEPLOYED_PATH: ${{ needs.deployment.outputs.deployed_path }}
+        run: |
+          echo "# 📊 Meta Workflow v10 実行結果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📋 リクエスト情報" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #$ISSUE_NUMBER" >> $GITHUB_STEP_SUMMARY
+          echo "- **タイトル**: $ISSUE_TITLE" >> $GITHUB_STEP_SUMMARY
+          echo "- **タイプ**: $REQUEST_TYPE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔍 タスク分解結果" >> $GITHUB_STEP_SUMMARY
+          echo "### 検出された能力" >> $GITHUB_STEP_SUMMARY
+          if [ -f "artifacts/capabilities-data/capabilities.txt" ]; then
+            CAPABILITIES=$(cat artifacts/capabilities-data/capabilities.txt)
+            IFS=',' read -ra CAP_ARRAY <<< "$CAPABILITIES"
+            for cap in "${CAP_ARRAY[@]}"; do
+              if [ -n "$cap" ]; then
+                echo "- ✅ $cap" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### タスク分解の詳細" >> $GITHUB_STEP_SUMMARY
+          echo "- **検出能力数**: $CAPABILITIES_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "- **複雑度**: $COMPLEXITY" >> $GITHUB_STEP_SUMMARY
+          
+          # Show fine-grained decomposition
+          if [ "$HAS_VIDEO" == "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### 🎬 動画生成タスクの詳細分解:" >> $GITHUB_STEP_SUMMARY
+            echo "- 📋 コンテンツ企画 (content-planning)" >> $GITHUB_STEP_SUMMARY
+            if [ "$HAS_NARRATION" == "true" ]; then
+              echo "- 🎤 ナレーション作成 (narration-creation)" >> $GITHUB_STEP_SUMMARY
+              echo "- 👄 リップシンク処理 (lipsync)" >> $GITHUB_STEP_SUMMARY
+              echo "- 📝 字幕オーバーレイ (subtitle-overlay)" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "- 🎨 シーン構成 (scene-composition)" >> $GITHUB_STEP_SUMMARY
+            echo "- 🖼️ 画像生成 (image-generation)" >> $GITHUB_STEP_SUMMARY
+            echo "- 🎬 動画生成 (video-generation)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🧠 オーケストレーター分析" >> $GITHUB_STEP_SUMMARY
+          echo "- **マッチング**: $ORCHESTRATOR_MATCH" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行パターン**: $EXECUTION_PATTERN" >> $GITHUB_STEP_SUMMARY
+          
+          # Show Mermaid diagram if exists
+          if [ -f "artifacts/analysis-data/metadata/mermaid.txt" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 実行フロー図" >> $GITHUB_STEP_SUMMARY
+            echo '```mermaid' >> $GITHUB_STEP_SUMMARY
+            cat artifacts/analysis-data/metadata/mermaid.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🚀 ワークフロー生成" >> $GITHUB_STEP_SUMMARY
+          echo "- **生成ジョブ数**: $TOTAL_JOBS" >> $GITHUB_STEP_SUMMARY
+          echo "- **検証結果**: $VALIDATION_PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "- **最適化**: $OPTIMIZATION_NEEDED" >> $GITHUB_STEP_SUMMARY
+          
+          # Show job structure
+          if [ -d "artifacts/generated-workflow" ] && [ -n "$(ls -A artifacts/generated-workflow/*.yml 2>/dev/null)" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📋 生成されたジョブ構造" >> $GITHUB_STEP_SUMMARY
+            WORKFLOW_FILE=$(find artifacts/generated-workflow -name '*.yml' | head -1)
+            # Extract job names
+            grep -E "^  [a-zA-Z_-]+:" "$WORKFLOW_FILE" | grep -v "^  workflow_dispatch:" | sed 's/://g' | while read job; do
+              echo "- $job" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$DEPLOYED_PATH" != "" ]; then
+            echo "## ✅ デプロイ完了" >> $GITHUB_STEP_SUMMARY
+            echo "- **保存場所**: \`$DEPLOYED_PATH\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **アクティベーション**: .disabled拡張子を削除して有効化" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🎯 次のステップ" >> $GITHUB_STEP_SUMMARY
+            echo "1. 生成されたワークフローを確認" >> $GITHUB_STEP_SUMMARY
+            echo "2. \`.disabled\`拡張子を削除して有効化" >> $GITHUB_STEP_SUMMARY
+            echo "3. Actions タブから手動実行" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ⚠️ デプロイスキップ" >> $GITHUB_STEP_SUMMARY
+            echo "検証エラーのためデプロイをスキップしました。" >> $GITHUB_STEP_SUMMARY
+          fi
