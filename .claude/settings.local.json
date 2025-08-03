@@ -47,7 +47,13 @@
       "ExitPlanMode(*)",
       "WebFetch(domain:docs.anthropic.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.aimlapi.com)"
+      "WebFetch(domain:docs.aimlapi.com)",
+      "Bash(# ワークフローの整理（最新成功版のみ残す）\nmkdir -p archive/workflows/old-versions\nfor file in .github/workflows/*.yml; do\n  filename=$(basename \"\"$file\"\")\n  if [[ ! \"\"$filename\"\" =~ (meta-workflow-executor-v11\\.yml|dynamic-workflow-60-v10\\.yml|video-content-creation-production-v8\\.yml) ]]; then\n    mv \"\"$file\"\" archive/workflows/old-versions/\n  fi\ndone)",
+      "Bash(# 古いワークフローを削除\nrm -rf archive/workflows/)",
+      "Bash(# ルートディレクトリの成果物を移動\nmkdir -p projects/current-session/final\nmv final-video-with-audio.mp4 projects/current-session/final/ 2>/dev/null || true\nmv final-video.mp4 projects/current-session/final/ 2>/dev/null || true\nmv lipsync-processing-log.txt projects/current-session/final/ 2>/dev/null || true)",
+      "Bash(# projects/ディレクトリの整理\nmkdir -p projects/archive/2024-08\nmkdir -p projects/test-runs\nmkdir -p projects/production\n\n# 古い実行結果をアーカイブ\nmv projects/autophagy-video-* projects/archive/2024-08/ 2>/dev/null || true\n\n# テスト実行結果を移動\nmv projects/simple-test-result projects/test-runs/ 2>/dev/null || true\n\n# 本番実行結果を整理\nmv projects/issue-62-results-latest projects/production/issue-62 2>/dev/null || true\nmv projects/issue-62-* projects/archive/2024-08/ 2>/dev/null || true\n\n# dynamic-workflow-60の最新版だけ残す\nmv projects/dynamic-workflow-60-v10-artifacts projects/production/dynamic-workflow-60 2>/dev/null || true\nmv projects/dynamic-workflow-60-* projects/archive/2024-08/ 2>/dev/null || true)",
+      "Bash(# deprecated スクリプトをアーカイブ\nmkdir -p archive/deprecated\nmv scripts/deprecated archive/deprecated/scripts 2>/dev/null || true)",
+      "Bash(# 最終状態確認\necho \"\"=== ワークフロー整理結果 ===\"\"\nls -la .github/workflows/*.yml | wc -l\necho \"\"\"\"\necho \"\"=== projects/ディレクトリ構造 ===\"\"\nls -la projects/\necho \"\"\"\"\necho \"\"=== archive/ディレクトリ ===\"\"\nls -la archive/)"
     ],
     "deny": []
   }
