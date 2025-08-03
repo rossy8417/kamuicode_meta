@@ -239,6 +239,85 @@ jobs:
 - **Weekly**: Validate all templates in `meta/examples/`
 - **Monthly**: Review and update protocol based on new failure patterns
 
+## Critical Workflow Generation Rules (MUST FOLLOW)
+
+### 🚨 Prevent Common Errors When Generating Workflows
+
+**IMPORTANT**: These rules prevent the most common errors discovered through testing. Follow them EXACTLY when generating workflows:
+
+#### 1. ❌ NEVER use `uses:` with local paths
+```yaml
+# ❌ WRONG - GitHub Actions cannot reference local files
+- uses: ./minimal-units/research/web-search-claude.yml
+
+# ✅ CORRECT - Always inline the implementation
+- name: Execute Web Search
+  run: |
+    npx @anthropic-ai/claude-code \
+      -p "$PROMPT" \
+      --allowedTools "WebSearch,Write" \
+      --permission-mode "acceptEdits"
+```
+
+#### 2. ❌ NEVER use absolute paths
+```yaml
+# ❌ WRONG - Will fail in GitHub Actions
+path: /media/image.png
+path: /projects/issue-60/media/video.mp4
+
+# ✅ CORRECT - Always use variables
+path: ${{ needs.setup.outputs.project_dir }}/media/image.png
+```
+
+#### 3. ✅ ALWAYS include MCP config for AI tools
+```bash
+# ❌ WRONG - MCP tools won't work
+npx @anthropic-ai/claude-code --allowedTools "mcp__t2i-google-imagen3__imagen_t2i"
+
+# ✅ CORRECT - Must include config
+npx @anthropic-ai/claude-code \
+  --mcp-config ".claude/mcp-kamuicode.json" \
+  --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Bash,Write"
+```
+
+#### 4. ✅ ALWAYS share files between jobs with artifacts
+```yaml
+# After generating files
+- name: Upload Artifacts
+  uses: actions/upload-artifact@v4
+  with:
+    name: my-artifacts
+    path: ${{ needs.setup.outputs.project_dir }}/media/
+
+# Before using files from another job
+- name: Download Artifacts
+  uses: actions/download-artifact@v4
+  with:
+    name: my-artifacts
+    path: ${{ needs.setup.outputs.project_dir }}/media/
+```
+
+#### 5. ✅ ALWAYS handle dynamic filenames
+```bash
+# Video files often have dynamic names - handle them
+if [ ! -f "video.mp4" ]; then
+  for file in *.mp4; do
+    if [ -f "$file" ]; then
+      mv "$file" "video.mp4"
+      break
+    fi
+  done
+fi
+```
+
+### Meta-Workflow Integration
+When meta-workflow generates workflows, it MUST check:
+- No `uses:` references to local files
+- All paths use `${{ needs.setup.outputs.project_dir }}`
+- MCP tools include `--mcp-config`
+- Jobs sharing files have artifact upload/download
+- File existence checks with error handling
+
 ## Development Guidelines for Claude Code
 
 ### File Structure to Respect

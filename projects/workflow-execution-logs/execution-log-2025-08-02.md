@@ -132,3 +132,117 @@ Result: Created dynamic-workflow-60-v2.yml ready for testing
 Issue: Testing v2 with path fixes
 Action: Started workflow with topic="京都の食べ物トレンド"
 Result: Workflow in progress - Run ID: 16695329833
+
+### [17:09:00] [FAILED] dynamic-workflow-60-v2.yml
+Issue: Workflow failed - MCP tools not recognized
+Error:
+  1. Claude Code cannot find MCP tools with mcp__ prefix
+  2. Error: "The MCP tool `mcp__t2i-google-imagen3__imagen_t2i` is not available"
+  3. Same issue with all MCP tools (image, audio, video generation)
+Action: Need different approach - MCP tools may not work in GitHub Actions
+Result: Failed after 7m12s
+
+### [17:18:26] [SUCCESS] test-mcp-naming.yml
+Issue: Testing MCP tool naming conventions
+Discovery: 
+  1. MCP tools are NOT available for direct Claude Code CLI calls
+  2. "The MCP services are configured for GitHub Actions workflows, not direct CLI access"
+  3. MCP tools are designed to work as HTTP requests with proper authentication
+  4. Claude Code CLI cannot invoke MCP tools directly
+Action: Need to use external API calls or different approach
+Result: Critical discovery - MCP tools require HTTP implementation
+
+### [17:25:00] [FIXED] dynamic-workflow-60-v3.yml
+Issue: Previous versions missing --mcp-config option
+Action: Created v3 based on video-content-creation-production-v8.yml pattern:
+  - Added --mcp-config ".claude/mcp-kamuicode.json" to all MCP calls
+  - Using correct mcp__ prefix for tool names
+  - Simplified prompts for clarity
+Result: v3 created with proper MCP configuration
+
+### [17:25:30] [RUNNING] dynamic-workflow-60-v3.yml
+Issue: Testing v3 with proper MCP configuration
+Action: Started workflow with topic="京都の食べ物トレンド"
+Result: Workflow started
+
+### [17:32:00] [FAILED] dynamic-workflow-60-v3.yml
+Issue: Workflow failed at lipsync stage
+Error:
+  1. All generation steps succeeded (image, audio, video)
+  2. Files were generated correctly (audio: 74KB, video: 3.2MB)
+  3. But lipsync step couldn't access files - reported as 0 bytes
+  4. Root cause: Missing artifact upload/download between jobs
+  5. Each job runs in isolated environment without file sharing
+Action: Need to add artifact upload/download steps
+Result: Failed at post-production - file sharing issue between jobs
+
+### [17:50:00] [FIXED] dynamic-workflow-60-v4.yml
+Issue: Previous versions missing artifact sharing between jobs
+Action: Created v4 with comprehensive fixes:
+  - Added artifact upload after each generation job (image, audio, video)
+  - Added artifact download before post-production job
+  - Preserved all MCP configurations from v3
+  - Added file existence verification steps
+Result: v4 created and pushed to GitHub, ready for testing
+
+## Dynamic Workflow v4 Testing
+
+### [17:50:43] [RUNNING] dynamic-workflow-60-v4.yml
+Issue: Testing v4 with artifact sharing implementation
+Action: Started workflow with default parameters
+  - Topic: 京都の食べ物トレンド
+  - Artifact sharing between jobs implemented
+Result: Workflow started - Run ID: 16698726288
+
+### [18:00:00] [PARTIAL SUCCESS] dynamic-workflow-60-v4.yml
+Issue: Workflow partially succeeded but failed at video generation step
+Results:
+  1. ✅ Web Search: Successfully searched for 京都の食べ物トレンド 2025
+  2. ✅ Planning: Created video plan with theme "伝統と革新が織りなす京都グルメの新時代"
+  3. ✅ Image Generation: Successfully generated Kyoto confectionery image
+  4. ✅ Audio Generation: Successfully generated 30-second narration (74KB)
+  5. ❌ Video Generation: File generated (2.6MB) but with different filename
+     - Expected: video.mp4
+     - Actual: kyoto-food-trends-2025_45a0c8c5_1754177179.mp4
+  6. ⏸️ Post Production: Skipped due to video generation failure
+Findings:
+  - Artifact sharing is working correctly
+  - MCP tools are generating content successfully
+  - Issue is filename mismatch in video generation step
+  - Video content theme: "The New Era of Kyoto Gourmet: Where Tradition and Innovation Interweave"
+Action: Need to fix filename handling in video generation
+Result: 5/6 jobs succeeded - filename issue only
+
+### [18:10:00] [FIXED] dynamic-workflow-60-v5.yml
+Issue: Fix filename mismatch in video generation
+Action: Created v5 with improvements:
+  - Added automatic file renaming logic in video generation
+  - Instructed Claude Code to rename downloaded video to video.mp4
+  - Added fallback logic to find and rename any mp4 file
+  - Enhanced error messages to show directory contents on failure
+Result: v5 created and pushed, ready for testing
+
+### [18:33:00] [SUCCESS] dynamic-workflow-60-v5.yml ✅
+Issue: Complete end-to-end video generation workflow
+Results: ALL JOBS SUCCEEDED! 
+  1. ✅ Setup: Project structure created
+  2. ✅ Research: Web search for "京都の食べ物トレンド 最新トレンド 2025年"
+  3. ✅ Planning: Created video plan "京都の伝統美食と2025年最新グルメトレンドの融合"
+  4. ✅ Image: Traditional Kyoto street with wagashi and modern foods (1.5MB)
+  5. ✅ Audio: 44-second Japanese narration (597KB)
+  6. ✅ Video: 8-second video successfully renamed to video.mp4 (2.3MB)
+  7. ✅ Post Production: Lipsync completed, final video created
+  8. ✅ Summary: All assets documented
+
+Generated Content Theme:
+  - Title: "古都京都で味わう新旧食文化のハーモニー"
+  - Visual: Traditional Kyoto with bamboo, wagashi meets churros/tacos
+  - Audio: Professional female voice narration about food trends
+  - Video: Arashiyama backdrop with traditional and modern fusion
+
+Technical Achievements:
+  - Artifact sharing working perfectly
+  - Filename handling fixed with automatic renaming
+  - All MCP integrations successful
+  - Complete workflow from research to final video
+Result: COMPLETE SUCCESS - First fully working dynamic workflow!
