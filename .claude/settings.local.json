@@ -29,7 +29,6 @@
       "Bash(echo:*)",
       "Bash(chmod:*)",
       "Bash(chown:*)",
-      "Bash(./scripts/download-workflow-artifacts.sh:*)",
       "Bash(./scripts/*.sh:*)",
       "Edit(*)",
       "Read(*)",
@@ -53,7 +52,9 @@
       "Bash(# ルートディレクトリの成果物を移動\nmkdir -p projects/current-session/final\nmv final-video-with-audio.mp4 projects/current-session/final/ 2>/dev/null || true\nmv final-video.mp4 projects/current-session/final/ 2>/dev/null || true\nmv lipsync-processing-log.txt projects/current-session/final/ 2>/dev/null || true)",
       "Bash(# projects/ディレクトリの整理\nmkdir -p projects/archive/2024-08\nmkdir -p projects/test-runs\nmkdir -p projects/production\n\n# 古い実行結果をアーカイブ\nmv projects/autophagy-video-* projects/archive/2024-08/ 2>/dev/null || true\n\n# テスト実行結果を移動\nmv projects/simple-test-result projects/test-runs/ 2>/dev/null || true\n\n# 本番実行結果を整理\nmv projects/issue-62-results-latest projects/production/issue-62 2>/dev/null || true\nmv projects/issue-62-* projects/archive/2024-08/ 2>/dev/null || true\n\n# dynamic-workflow-60の最新版だけ残す\nmv projects/dynamic-workflow-60-v10-artifacts projects/production/dynamic-workflow-60 2>/dev/null || true\nmv projects/dynamic-workflow-60-* projects/archive/2024-08/ 2>/dev/null || true)",
       "Bash(# deprecated スクリプトをアーカイブ\nmkdir -p archive/deprecated\nmv scripts/deprecated archive/deprecated/scripts 2>/dev/null || true)",
-      "Bash(# 最終状態確認\necho \"\"=== ワークフロー整理結果 ===\"\"\nls -la .github/workflows/*.yml | wc -l\necho \"\"\"\"\necho \"\"=== projects/ディレクトリ構造 ===\"\"\nls -la projects/\necho \"\"\"\"\necho \"\"=== archive/ディレクトリ ===\"\"\nls -la archive/)"
+      "Bash(# 最終状態確認\necho \"\"=== ワークフロー整理結果 ===\"\"\nls -la .github/workflows/*.yml | wc -l\necho \"\"\"\"\necho \"\"=== projects/ディレクトリ構造 ===\"\"\nls -la projects/\necho \"\"\"\"\necho \"\"=== archive/ディレクトリ ===\"\"\nls -la archive/)",
+      "Bash(# ワークフロー実行状況を確認\necho \"\"📊 現在のワークフロー実行状況を確認...\"\"\n\nRUN_INFO=$(gh run view 16710691110 --json status,conclusion,jobs)\nSTATUS=$(echo \"\"$RUN_INFO\"\" | jq -r ''.status'')\nCONCLUSION=$(echo \"\"$RUN_INFO\"\" | jq -r ''.conclusion'')\n\necho \"\"Status: $STATUS\"\"\necho \"\"Conclusion: $CONCLUSION\"\"\n\n# ジョブ別の状況\necho -e \"\"\\n📋 ジョブ別の状況:\"\"\necho \"\"$RUN_INFO\"\" | jq -r ''.jobs[] | \"\"- \\(.name): \\(.conclusion)\"\"'')",
+      "Bash(# jqを使わずに実行状況を確認\ngh run view 16710691110 > temp_run_info.txt\n\necho \"\"📊 ワークフロー実行状況:\"\"\ngrep -E \"\"TITLE|STATUS|JOBS\"\" temp_run_info.txt\n\necho -e \"\"\\n📋 詳細な実行結果:\"\"\ngh run view 16710691110 --log | tail -20\n\nrm temp_run_info.txt)"
     ],
     "deny": []
   }
