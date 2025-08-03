@@ -1,5 +1,5 @@
-name: "Meta Workflow Executor v11 with Domain Templates"
-run-name: "🚀 Meta Workflow v11 | Issue #${{ inputs.issue_number }} | ${{ github.actor }}"
+name: "Meta Workflow Executor v12 with Domain Templates"
+run-name: "🚀 Meta Workflow v12 | Issue #${{ inputs.issue_number || github.event.issue.number }} | ${{ github.actor }}"
 
 on:
   workflow_dispatch:
@@ -8,6 +8,9 @@ on:
         description: 'Issue number for workflow generation request'
         required: true
         default: '60'
+  
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -28,6 +31,11 @@ jobs:
   validate-and-detect:
     name: "🔍 Issue Validation & Domain Detection"
     runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'issue_comment' && 
+       github.event.issue.pull_request == null &&
+       contains(github.event.comment.body, '/start'))
     outputs:
       issue_number: ${{ steps.extract.outputs.issue_number }}
       issue_title: ${{ steps.extract.outputs.issue_title }}
@@ -50,10 +58,17 @@ jobs:
       - name: Extract Issue Information
         id: extract
         run: |
-          echo "🔍 Analyzing Issue #${{ inputs.issue_number }}..."
+          # Determine issue number based on trigger
+          if [ "${{ github.event_name }}" == "issue_comment" ]; then
+            ISSUE_NUMBER="${{ github.event.issue.number }}"
+          else
+            ISSUE_NUMBER="${{ inputs.issue_number }}"
+          fi
+          
+          echo "🔍 Analyzing Issue #$ISSUE_NUMBER..."
           
           # Get issue details using GitHub CLI
-          ISSUE_DATA=$(gh issue view ${{ inputs.issue_number }} --json title,body,number --jq '{title: .title, body: .body, number: .number}')
+          ISSUE_DATA=$(gh issue view $ISSUE_NUMBER --json title,body,number --jq '{title: .title, body: .body, number: .number}')
           
           ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
           ISSUE_BODY=$(echo "$ISSUE_DATA" | jq -r '.body')
