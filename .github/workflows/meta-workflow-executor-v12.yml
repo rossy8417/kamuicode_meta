@@ -229,8 +229,9 @@ jobs:
           ISSUE_CONTENT=$(cat artifacts/issue-domain-data/issue_content.txt)
           
           # Create decomposition prompt with domain expertise
-          cat > decomposition_prompt.txt << 'EOF'
-          あなたは${{ needs.validate-and-detect.outputs.primary_domain }}ドメインの専門家です。
+          PRIMARY_DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
+          cat > decomposition_prompt.txt << EOF
+          あなたは${PRIMARY_DOMAIN}ドメインの専門家です。
           
           以下のドメイン情報を基に、プロフェッショナルな視点でタスクを分解してください：
           
@@ -288,12 +289,11 @@ jobs:
           envsubst < decomposition_prompt.txt > final_prompt.txt
           
           # Create a specific prompt that instructs Claude to write to a specific file
-          cat > final_prompt_with_path.txt << 'EOF'
-あなたは${{ needs.validate-and-detect.outputs.primary_domain }}ドメインの専門家です。
-
-以下の内容をファイル 'artifacts/professional_task_decomposition.json' に書き込んでください。
-
-EOF
+          PRIMARY_DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
+          echo "あなたは${PRIMARY_DOMAIN}ドメインの専門家です。" > final_prompt_with_path.txt
+          echo "" >> final_prompt_with_path.txt
+          echo "以下の内容をファイル 'artifacts/professional_task_decomposition.json' に書き込んでください。" >> final_prompt_with_path.txt
+          echo "" >> final_prompt_with_path.txt
           cat final_prompt.txt >> final_prompt_with_path.txt
           
           # Execute Claude Code for task decomposition
@@ -402,7 +402,7 @@ EOF
           CHUNKS=$(jq -r '.chunks[].id' artifacts/domain-template-data/template_chunks.json)
           
           # Create comprehensive generation prompt
-          cat > generation_prompt.txt << 'EOF'
+          cat > generation_prompt.txt << EOF
           プロフェッショナルなGitHub Actionsワークフローを生成してください。
           
           タスク分解結果：
@@ -414,7 +414,7 @@ EOF
           
           重要な制約:
           1. uses: でローカルファイルを参照しない
-          2. 全てのパスは${{ needs.setup.outputs.project_dir }}を使用
+          2. 全てのパスは\${{ needs.setup.outputs.project_dir }}を使用
           3. MCP使用時は--mcp-configを必ず含める
           4. ジョブ間のファイル共有はartifactsを使用
           5. 各ステップは21000文字以内
