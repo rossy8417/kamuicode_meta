@@ -440,6 +440,27 @@ fi
 
 **CRITICAL**: Follow these rules EXACTLY. No exceptions. No creativity.
 
+#### **ALL OUTPUT MUST GO TO PROJECTS DIRECTORY**
+```bash
+# ✅ CORRECT - Everything goes to projects/
+projects/issue-{number}-{timestamp}/     # Issue-driven outputs
+projects/workflow-name-{timestamp}/      # Workflow execution outputs
+projects/current-session/                # Current work session
+projects/production/                     # Production deliverables
+projects/archive/                        # Archived outputs
+projects/workflow-execution-logs/        # Execution logs
+projects/analysis/                       # Analysis results
+
+# ❌ FORBIDDEN - Never create these in root
+./production/              # NO root production directory
+./test-runs/              # NO root test directory
+./meta-workflow-v*/       # NO root analysis directories
+./workflow-execution-logs/ # NO root log directories (use projects/)
+./output/                 # NO root output directory
+./downloads/              # NO root downloads directory
+./artifacts/              # NO root artifacts directory
+```
+
 #### **Project-Based File Creation Rules**
 ```bash
 # ✅ CORRECT - Use project-based directory structure
