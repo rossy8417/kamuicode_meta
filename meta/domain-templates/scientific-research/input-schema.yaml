@@ -1,0 +1,566 @@
+# 科学論文・技術文書ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    document_title:
+      type: string
+      description: "文書タイトル"
+      example: "Deep Learning Approaches for Climate Change Prediction: A Systematic Review and Meta-Analysis"
+      validation: "max_length: 300"
+    
+    document_type:
+      type: string
+      description: "文書タイプ"
+      enum: ["research_article", "review_article", "technical_report", "patent", "grant_proposal", "thesis"]
+      default: "research_article"
+      impacts:
+        - "文書構造"
+        - "必要セクション"
+        - "引用スタイル"
+        - "査読プロセス"
+    
+    research_field:
+      type: string
+      description: "研究分野"
+      enum: ["computer_science", "life_sciences", "physical_sciences", "engineering", "medicine", "social_sciences", "interdisciplinary"]
+      default: "interdisciplinary"
+      
+    target_venue:
+      type: object
+      description: "投稿先"
+      properties:
+        venue_type:
+          type: string
+          enum: ["journal", "conference", "repository", "patent_office", "funding_agency"]
+          default: "journal"
+          
+        venue_name:
+          type: string
+          example: "Nature Machine Intelligence"
+          
+        impact_factor:
+          type: number
+          description: "インパクトファクター（該当する場合）"
+          example: 25.898
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    research_design:
+      type: object
+      description: "研究デザイン"
+      properties:
+        study_type:
+          type: string
+          enum: ["experimental", "observational", "systematic_review", "meta_analysis", "case_study", "theoretical", "computational"]
+          default: "experimental"
+          
+        methodology:
+          type: object
+          properties:
+            quantitative:
+              type: object
+              properties:
+                design:
+                  type: string
+                  enum: ["rct", "quasi_experimental", "cross_sectional", "longitudinal", "factorial"]
+                  
+                sample_size:
+                  type: object
+                  properties:
+                    calculated:
+                      type: integer
+                      description: "統計的検出力分析による"
+                      
+                    actual:
+                      type: integer
+                      description: "実際のサンプル数"
+                      
+                    power:
+                      type: number
+                      default: 0.80
+                      range: [0.70, 0.95]
+                
+                statistical_plan:
+                  type: object
+                  properties:
+                    primary_analysis:
+                      type: string
+                      example: "Mixed-effects model"
+                      
+                    alpha_level:
+                      type: number
+                      default: 0.05
+                      
+                    correction_method:
+                      type: string
+                      enum: ["bonferroni", "fdr", "holm", "none"]
+                      default: "fdr"
+            
+            qualitative:
+              type: object
+              properties:
+                approach:
+                  type: string
+                  enum: ["grounded_theory", "phenomenology", "ethnography", "case_study", "narrative"]
+                  
+                data_collection:
+                  type: array
+                  items:
+                    type: string
+                    enum: ["interviews", "focus_groups", "observation", "documents"]
+                  
+                analysis_method:
+                  type: string
+                  enum: ["thematic", "content", "discourse", "narrative", "framework"]
+        
+        ethics_considerations:
+          type: object
+          properties:
+            irb_required:
+              type: boolean
+              default: true
+              
+            risk_level:
+              type: string
+              enum: ["minimal", "low", "moderate", "high"]
+              default: "minimal"
+              
+            informed_consent:
+              type: string
+              enum: ["written", "verbal", "waived", "not_applicable"]
+              
+            data_protection:
+              type: array
+              items:
+                type: string
+                enum: ["anonymization", "pseudonymization", "encryption", "secure_storage"]
+              default: ["anonymization", "encryption", "secure_storage"]
+    
+    manuscript_specifications:
+      type: object
+      description: "原稿仕様"
+      properties:
+        length_limits:
+          type: object
+          properties:
+            word_count:
+              type: integer
+              description: "総単語数"
+              default: 5000
+              range: [2000, 15000]
+              
+            abstract_words:
+              type: integer
+              default: 250
+              range: [150, 350]
+              
+            figures_tables_max:
+              type: integer
+              default: 8
+              range: [0, 15]
+              
+            references_max:
+              type: integer
+              default: 50
+              range: [20, 200]
+        
+        section_structure:
+          type: object
+          properties:
+            main_sections:
+              type: array
+              items:
+                type: string
+              default: ["Introduction", "Methods", "Results", "Discussion"]
+              
+            subsection_depth:
+              type: integer
+              description: "最大階層深度"
+              default: 3
+              range: [2, 4]
+              
+            supplementary_allowed:
+              type: boolean
+              default: true
+        
+        formatting_requirements:
+          type: object
+          properties:
+            citation_style:
+              type: string
+              enum: ["apa", "vancouver", "ieee", "nature", "chicago", "mla"]
+              default: "vancouver"
+              
+            reference_manager:
+              type: string
+              enum: ["zotero", "mendeley", "endnote", "bibtex", "csl"]
+              default: "zotero"
+              
+            figure_format:
+              type: object
+              properties:
+                preferred_formats:
+                  type: array
+                  items:
+                    type: string
+                  default: ["tiff", "eps", "pdf"]
+                  
+                resolution_dpi:
+                  type: integer
+                  default: 300
+                  range: [300, 1200]
+                  
+                color_mode:
+                  type: string
+                  enum: ["rgb", "cmyk", "grayscale"]
+                  default: "rgb"
+    
+    collaboration_setup:
+      type: object
+      description: "共同研究設定"
+      properties:
+        author_list:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "山田太郎"
+                
+              affiliation:
+                type: string
+                example: "東京大学大学院情報理工学系研究科"
+                
+              contribution:
+                type: array
+                items:
+                  type: string
+                  enum: ["conceptualization", "methodology", "software", "validation", "analysis", "investigation", "resources", "data_curation", "writing_original", "writing_review", "visualization", "supervision", "project_admin", "funding"]
+                
+              corresponding:
+                type: boolean
+                default: false
+        
+        collaboration_tools:
+          type: object
+          properties:
+            writing_platform:
+              type: string
+              enum: ["overleaf", "google_docs", "word_online", "authorea", "git"]
+              default: "overleaf"
+              
+            version_control:
+              type: boolean
+              default: true
+              
+            reference_sharing:
+              type: string
+              enum: ["shared_library", "bibtex_file", "individual"]
+              default: "shared_library"
+        
+        communication:
+          type: object
+          properties:
+            regular_meetings:
+              type: string
+              enum: ["weekly", "biweekly", "monthly", "as_needed"]
+              default: "biweekly"
+              
+            decision_making:
+              type: string
+              enum: ["consensus", "lead_author", "voting", "pi_decision"]
+              default: "consensus"
+    
+    quality_assurance:
+      type: object
+      description: "品質保証"
+      properties:
+        internal_review:
+          type: object
+          properties:
+            rounds:
+              type: integer
+              description: "内部レビュー回数"
+              default: 2
+              range: [1, 5]
+              
+            reviewers:
+              type: array
+              items:
+                type: object
+                properties:
+                  expertise:
+                    type: string
+                    enum: ["subject_matter", "statistics", "language", "graphics"]
+                    
+                  focus_areas:
+                    type: array
+                    items:
+                      type: string
+        
+        plagiarism_check:
+          type: object
+          properties:
+            tool:
+              type: string
+              enum: ["turnitin", "ithenticate", "copyscape", "grammarly"]
+              default: "ithenticate"
+              
+            threshold:
+              type: integer
+              description: "許容類似度（%）"
+              default: 15
+              range: [0, 20]
+        
+        statistical_review:
+          type: object
+          properties:
+            reviewer_qualification:
+              type: string
+              enum: ["statistician", "experienced_researcher", "external_consultant"]
+              
+            review_scope:
+              type: array
+              items:
+                type: string
+                enum: ["study_design", "power_analysis", "analysis_plan", "results_interpretation", "software_validation"]
+              default: ["study_design", "analysis_plan", "results_interpretation"]
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_features:
+      type: object
+      description: "高度な機能"
+      properties:
+        reproducibility_package:
+          type: object
+          properties:
+            code_repository:
+              type: string
+              enum: ["github", "gitlab", "bitbucket", "osf", "zenodo"]
+              default: "github"
+              
+            data_availability:
+              type: string
+              enum: ["fully_open", "upon_request", "restricted", "synthetic_data"]
+              default: "upon_request"
+              
+            containerization:
+              type: string
+              enum: ["docker", "singularity", "binder", "none"]
+              default: "docker"
+              
+            documentation_standard:
+              type: string
+              enum: ["readme", "jupyter", "quarto", "comprehensive"]
+              default: "comprehensive"
+        
+        preregistration:
+          type: object
+          properties:
+            platform:
+              type: string
+              enum: ["osf", "aspredicted", "clinicaltrials", "prospero"]
+              
+            registration_timing:
+              type: string
+              enum: ["before_data_collection", "before_analysis", "not_applicable"]
+              
+            deviation_reporting:
+              type: boolean
+              default: true
+              description: "計画からの逸脱報告"
+        
+        open_peer_review:
+          type: object
+          properties:
+            preference:
+              type: string
+              enum: ["fully_open", "open_identities", "open_reports", "traditional"]
+              default: "traditional"
+              
+            review_sharing:
+              type: boolean
+              default: false
+              description: "査読コメント公開"
+    
+    dissemination_strategy:
+      type: object
+      description: "成果発信戦略"
+      properties:
+        preprint:
+          type: object
+          properties:
+            submit_preprint:
+              type: boolean
+              default: true
+              
+            platform:
+              type: string
+              enum: ["arxiv", "biorxiv", "medrxiv", "ssrn", "osf", "researchsquare"]
+              
+            timing:
+              type: string
+              enum: ["before_submission", "upon_submission", "after_acceptance"]
+              default: "upon_submission"
+        
+        social_media:
+          type: object
+          properties:
+            twitter_thread:
+              type: boolean
+              default: true
+              
+            visual_abstract:
+              type: boolean
+              default: true
+              
+            plain_language_summary:
+              type: boolean
+              default: true
+              
+            press_release:
+              type: boolean
+              default: false
+        
+        academic_networks:
+          type: array
+          items:
+            type: string
+            enum: ["researchgate", "academia_edu", "orcid", "google_scholar", "linkedin"]
+          default: ["researchgate", "orcid", "google_scholar"]
+    
+    post_publication:
+      type: object
+      description: "出版後活動"
+      properties:
+        metrics_tracking:
+          type: array
+          items:
+            type: string
+            enum: ["citations", "altmetrics", "downloads", "media_mentions", "policy_citations"]
+          default: ["citations", "altmetrics", "downloads"]
+          
+        engagement_plan:
+          type: object
+          properties:
+            conference_presentations:
+              type: boolean
+              default: true
+              
+            invited_talks:
+              type: boolean
+              default: false
+              
+            blog_posts:
+              type: boolean
+              default: true
+              
+            podcasts:
+              type: boolean
+              default: false
+        
+        updates_corrections:
+          type: object
+          properties:
+            erratum_threshold:
+              type: string
+              description: "訂正が必要なエラーレベル"
+              enum: ["any_error", "significant_only", "results_affecting"]
+              default: "results_affecting"
+              
+            version_tracking:
+              type: boolean
+              default: true
+
+# 自動計算されるパラメータ
+computed_parameters:
+  timeline_estimation:
+    formula: |
+      # 研究フェーズ時間（週）
+      if document_type == "research_article":
+        literature_review = 4
+        data_collection = study_dependent  # 8-52週
+        analysis = 4
+        writing = 6
+        internal_review = 2
+        
+      # 投稿プロセス時間（週）
+      submission_prep = 1
+      initial_review = 8  # 中央値
+      revision = 4
+      final_decision = 2
+      
+      total_weeks = sum(all_phases)
+  
+  statistical_power_calculation:
+    formula: |
+      # 二群比較の場合
+      n_per_group = ((z_alpha + z_beta)^2 * 2 * sigma^2) / delta^2
+      
+      # 調整
+      if multiple_comparisons:
+        alpha_adjusted = alpha / n_comparisons
+        z_alpha = qnorm(1 - alpha_adjusted/2)
+      
+      if unequal_allocation:
+        n_total = n_per_group * (1 + allocation_ratio)^2 / (2 * allocation_ratio)
+  
+  cost_estimation:
+    formula: |
+      # 研究実施コスト
+      personnel_cost = hours * hourly_rate * team_size
+      
+      # 出版コスト
+      if open_access:
+        apc = journal_specific  # 1000-5000 USD typical
+      
+      # データ管理
+      storage_cost = data_size_gb * storage_rate * duration_years
+      
+      # ソフトウェア
+      software_licenses = sum(annual_licenses)
+      
+      total_cost = personnel + apc + storage + software + overhead(30%)
+  
+  impact_prediction:
+    formula: |
+      # 引用予測（分野調整）
+      expected_citations_year1 = journal_if * 0.3 * field_factor
+      expected_citations_year5 = journal_if * 2.5 * field_factor
+      
+      field_factors = {
+        "computer_science": 1.2,
+        "life_sciences": 1.0,
+        "physical_sciences": 0.8,
+        "social_sciences": 0.6
+      }
+      
+      # Altmetrics予測
+      if visual_abstract: altmetric_score *= 1.5
+      if press_release: altmetric_score *= 3
+      if open_access: altmetric_score *= 1.3
+
+# バリデーションルール
+validation_rules:
+  - name: "sample_size_adequacy"
+    rule: |
+      if calculated_n > actual_n:
+        warning: "実際のサンプルサイズが統計的検出力を満たしていません"
+  
+  - name: "ethics_requirement"
+    rule: |
+      if study_involves_humans and !irb_approval:
+        error: "人を対象とする研究には倫理承認が必要です"
+  
+  - name: "preprint_compatibility"
+    rule: |
+      if preprint and venue_prohibits_preprints:
+        error: "選択したジャーナルはプレプリントを許可していません"
+  
+  - name: "open_data_compliance"
+    rule: |
+      if funder_requires_open_data and data_availability == "restricted":
+        warning: "資金提供者のオープンデータポリシーを確認してください"

@@ -1,0 +1,519 @@
+# Eコマース・商品管理の制約条件と計算式
+
+ecommerce_operations:
+  # 商品管理
+  product_management:
+    catalog_optimization:
+      product_information:
+        required_fields:
+          - "商品名（SEO最適化）"
+          - "商品説明（特徴・仕様）"
+          - "価格情報"
+          - "在庫状況"
+          - "画像（複数アングル）"
+          - "カテゴリ・タグ"
+          
+        seo_optimization:
+          title_length: "30-60文字"
+          meta_description: "120-160文字"
+          
+          keyword_density: "2-3%"
+          
+          structured_data:
+            - "Product schema"
+            - "Review schema"
+            - "FAQ schema"
+            - "BreadcrumbList"
+      
+      image_requirements:
+        main_image:
+          resolution: "1200x1200px minimum"
+          format: ["JPEG", "WebP"]
+          file_size: "< 200KB (圧縮後)"
+          
+        gallery_images:
+          count: "5-8枚推奨"
+          angles: ["正面", "側面", "背面", "詳細", "使用例"]
+          
+        zoom_capability:
+          magnification: "2-4倍"
+          quality: "高解像度維持"
+      
+      product_variants:
+        management:
+          - "カラーバリエーション"
+          - "サイズ展開"
+          - "素材違い"
+          - "セット商品"
+          
+        inventory_tracking:
+          granularity: "SKU単位"
+          real_time_sync: "全チャネル同期"
+    
+    pricing_strategy:
+      dynamic_pricing:
+        factors:
+          demand_elasticity: "需要の価格弾力性"
+          
+          competitor_pricing: "競合価格モニタリング"
+          
+          inventory_level: "在庫レベル"
+          
+          seasonality: "季節性・トレンド"
+          
+          customer_segment: "顧客セグメント別"
+        
+        calculation:
+          formula: |
+            optimal_price = base_price * demand_factor * competition_factor * 
+                          inventory_factor * season_factor * segment_factor
+            
+            constraints:
+              min_price = cost * (1 + min_margin)
+              max_price = competitor_avg * 1.2
+        
+        update_frequency:
+          high_velocity: "1時間ごと"
+          normal: "日次"
+          slow_moving: "週次"
+      
+      psychological_pricing:
+        strategies:
+          charm_pricing: "末尾9の価格"
+          
+          reference_pricing: "定価からの割引表示"
+          
+          bundle_pricing: "セット割引"
+          
+          tiered_pricing: "数量割引"
+      
+      margin_calculation:
+        formula: |
+          gross_margin = (selling_price - cogs) / selling_price * 100
+          
+          contribution_margin = selling_price - variable_costs
+          
+          net_margin = (selling_price - all_costs) / selling_price * 100
+          
+          where:
+            cogs = product_cost + inbound_shipping
+            variable_costs = cogs + payment_fees + fulfillment_cost
+            all_costs = variable_costs + fixed_cost_allocation
+
+inventory_management:
+  # 在庫最適化
+  inventory_optimization:
+    demand_forecasting:
+      methods:
+        time_series:
+          - "移動平均"
+          - "指数平滑法"
+          - "ARIMA"
+          - "Prophet"
+          
+        machine_learning:
+          - "Random Forest"
+          - "XGBoost"
+          - "LSTM (季節性)"
+        
+        factors:
+          - "過去の販売実績"
+          - "季節性・トレンド"
+          - "プロモーション計画"
+          - "外部要因（天候、イベント）"
+      
+      accuracy_metrics:
+        mape: "平均絶対誤差率 < 20%"
+        
+        bias: "予測バイアス ±5%以内"
+    
+    stock_level_calculation:
+      safety_stock:
+        formula: |
+          safety_stock = z_score * √(lead_time * demand_variance)
+          
+          where:
+            z_score = service_level_factor
+            service_levels:
+              95%: 1.65
+              97.5%: 1.96
+              99%: 2.33
+      
+      reorder_point:
+        formula: |
+          ROP = (average_daily_demand * lead_time) + safety_stock
+          
+          economic_order_quantity:
+            EOQ = √(2 * annual_demand * order_cost / holding_cost)
+      
+      abc_analysis:
+        classification:
+          a_items: "売上の70%（在庫の20%）"
+          b_items: "売上の20%（在庫の30%）"
+          c_items: "売上の10%（在庫の50%）"
+          
+        policies:
+          a_items: "高頻度レビュー、低在庫"
+          b_items: "中頻度レビュー、中在庫"
+          c_items: "低頻度レビュー、一括発注"
+    
+    inventory_turnover:
+      calculation:
+        formula: |
+          turnover_ratio = COGS / average_inventory
+          
+          days_inventory = 365 / turnover_ratio
+          
+          target_turnover_by_category:
+            fashion: 4-6回/年
+            electronics: 6-8回/年
+            food: 12-24回/年
+            furniture: 2-4回/年
+      
+      optimization_strategies:
+        - "遅動在庫の特定"
+        - "マークダウン戦略"
+        - "クロスドッキング"
+        - "ドロップシッピング活用"
+
+customer_experience:
+  # コンバージョン最適化
+  conversion_optimization:
+    funnel_analysis:
+      stages:
+        awareness: "トラフィック獲得"
+        
+        interest: "商品ページ閲覧"
+        
+        consideration: "カート追加"
+        
+        purchase: "決済完了"
+        
+        retention: "リピート購入"
+      
+      benchmark_rates:
+        page_to_cart: "3-5%"
+        cart_to_purchase: "60-70%"
+        
+        overall_conversion: "2-3%"
+      
+      optimization_tactics:
+        product_page:
+          - "高品質画像・動画"
+          - "詳細な商品情報"
+          - "レビュー表示"
+          - "在庫状況明示"
+          - "関連商品提案"
+          
+        cart_page:
+          - "送料無料閾値表示"
+          - "クーポン適用"
+          - "ゲスト購入オプション"
+          - "セキュリティバッジ"
+          
+        checkout:
+          - "ステップ数最小化"
+          - "進捗インジケーター"
+          - "複数決済オプション"
+          - "エラー処理改善"
+    
+    cart_abandonment:
+      recovery_strategies:
+        email_campaigns:
+          timing:
+            - "1時間後: リマインダー"
+            - "24時間後: 割引オファー"
+            - "72時間後: 最終案内"
+            
+          conversion_rate: "10-30%"
+          
+        retargeting:
+          channels: ["Google Ads", "Facebook", "Instagram"]
+          
+          dynamic_ads: "閲覧商品表示"
+          
+        exit_intent_popups:
+          offers:
+            - "割引コード"
+            - "送料無料"
+            - "限定特典"
+      
+      prevention_measures:
+        - "価格透明性"
+        - "配送オプション明示"
+        - "返品ポリシー表示"
+        - "カスタマーサポート"
+  
+  # パーソナライゼーション
+  personalization:
+    recommendation_engine:
+      algorithms:
+        collaborative_filtering:
+          user_based: "類似ユーザーの購買履歴"
+          
+          item_based: "商品間の相関"
+          
+        content_based:
+          features: ["カテゴリ", "ブランド", "価格帯", "属性"]
+          
+        hybrid_approach:
+          weight_distribution:
+            collaborative: 0.6
+            content: 0.3
+            trending: 0.1
+      
+      placement_strategy:
+        homepage: "パーソナライズドフィード"
+        
+        product_page:
+          - "この商品を見た人は"
+          - "一緒に購入されている商品"
+          - "あなたへのおすすめ"
+          
+        cart_page: "追加購入提案"
+        
+        email: "パーソナライズドキャンペーン"
+      
+      performance_metrics:
+        ctr: "クリック率 > 15%"
+        
+        conversion_lift: "20-30%向上"
+        
+        basket_size_increase: "15-25%"
+    
+    customer_segmentation:
+      rfm_analysis:
+        recency_scores:
+          5: "0-30日"
+          4: "31-60日"
+          3: "61-90日"
+          2: "91-180日"
+          1: "181日以上"
+          
+        frequency_scores:
+          5: "10回以上"
+          4: "6-9回"
+          3: "3-5回"
+          2: "2回"
+          1: "1回"
+          
+        monetary_scores:
+          5: "上位20%"
+          4: "次の20%"
+          3: "次の20%"
+          2: "次の20%"
+          1: "下位20%"
+        
+        segment_strategies:
+          champions: "VIP特典・早期アクセス"
+          
+          loyal_customers: "ロイヤルティプログラム"
+          
+          at_risk: "再活性化キャンペーン"
+          
+          new_customers: "ウェルカムシリーズ"
+          
+          lost: "ウィンバックオファー"
+      
+      behavioral_segmentation:
+        - "ブラウジング行動"
+        - "購買パターン"
+        - "デバイス使用"
+        - "エンゲージメントレベル"
+
+logistics_fulfillment:
+  # 物流最適化
+  fulfillment_optimization:
+    warehouse_management:
+      location_strategy:
+        distribution_centers:
+          placement: "需要密度ベース"
+          
+          coverage: "翌日配送カバー率"
+          
+        inventory_allocation:
+          algorithm: "需要予測ベース分散"
+          
+          balancing: "在庫偏在の最小化"
+      
+      picking_efficiency:
+        methods:
+          zone_picking: "エリア別担当制"
+          
+          batch_picking: "複数注文同時ピック"
+          
+          wave_picking: "時間帯別処理"
+          
+        optimization:
+          route_optimization: "最短経路算出"
+          
+          abc_location: "高頻度品の配置最適化"
+          
+        kpi:
+          picks_per_hour: "150-200"
+          
+          accuracy_rate: "> 99.5%"
+    
+    shipping_optimization:
+      carrier_selection:
+        factors:
+          - "配送エリア"
+          - "商品サイズ・重量"
+          - "配送スピード要求"
+          - "コスト"
+          
+        multi_carrier_strategy:
+          algorithm: |
+            optimal_carrier = min(
+              cost * cost_weight + 
+              time * time_weight + 
+              reliability * reliability_weight
+            )
+      
+      packaging_optimization:
+        dimensional_weight:
+          calculation: "(L × W × H) / dimensional_factor"
+          
+        right_sizing:
+          - "商品に最適なサイズ選択"
+          - "緩衝材の最適化"
+          - "環境配慮型包装"
+      
+      last_mile_delivery:
+        options:
+          - "宅配ボックス"
+          - "コンビニ受取"
+          - "置き配"
+          - "店舗受取（BOPIS）"
+          
+        route_optimization:
+          factors: ["配送密度", "時間指定", "交通状況"]
+          
+        delivery_success_rate:
+          target: "> 95% (初回配送)"
+  
+  # 返品管理
+  returns_management:
+    return_policy:
+      standard_terms:
+        period: "30日間"
+        
+        condition: "未使用・タグ付き"
+        
+        refund_method: ["原決済手段", "ストアクレジット"]
+      
+      category_specific:
+        apparel: "試着後返品可"
+        
+        electronics: "初期不良14日"
+        
+        consumables: "返品不可"
+    
+    reverse_logistics:
+      process_flow:
+        - "返品申請受付"
+        - "返送ラベル発行"
+        - "商品受領・検品"
+        - "返金・交換処理"
+        - "在庫戻し・廃棄判定"
+      
+      cost_optimization:
+        consolidation: "返品センター集約"
+        
+        inspection_automation: "AI画像検査"
+        
+        restocking_decision:
+          formula: |
+            if (product_value - inspection_cost - restocking_cost) > liquidation_value:
+              restock()
+            else:
+              liquidate()
+    
+    return_analytics:
+      metrics:
+        return_rate: "カテゴリ別・理由別分析"
+        
+        processing_time: "受領から返金まで"
+        
+        cost_per_return: "総コスト/返品数"
+      
+      reduction_strategies:
+        - "サイズガイド改善"
+        - "商品説明の詳細化"
+        - "レビュー充実"
+        - "バーチャル試着"
+
+analytics_reporting:
+  # KPIダッシュボード
+  kpi_framework:
+    sales_metrics:
+      revenue:
+        - "総売上高"
+        - "前年同期比"
+        - "カテゴリ別売上"
+        - "チャネル別売上"
+        
+      transaction:
+        - "注文数"
+        - "平均注文額（AOV）"
+        - "購入頻度"
+        
+      product_performance:
+        - "売れ筋商品"
+        - "在庫回転率"
+        - "売上総利益率"
+    
+    customer_metrics:
+      acquisition:
+        - "新規顧客数"
+        - "獲得コスト（CAC）"
+        - "チャネル別効率"
+        
+      retention:
+        - "リピート率"
+        - "顧客維持率"
+        - "チャーンレート"
+        
+      lifetime_value:
+        calculation: |
+          LTV = AOV * purchase_frequency * customer_lifespan
+          
+          or
+          
+          LTV = (average_order_value * repeat_rate) / (1 - repeat_rate)
+    
+    operational_metrics:
+      fulfillment:
+        - "注文処理時間"
+        - "配送リードタイム"
+        - "完納率"
+        - "配送コスト率"
+        
+      inventory:
+        - "在庫切れ率"
+        - "過剰在庫率"
+        - "在庫精度"
+        
+      website_performance:
+        - "ページ読込速度"
+        - "サイト稼働率"
+        - "エラー率"
+        - "検索精度"
+  
+  # 分析レポート
+  reporting_automation:
+    daily_reports:
+      - "売上サマリー"
+      - "在庫アラート"
+      - "注文処理状況"
+      
+    weekly_reports:
+      - "KPIダッシュボード"
+      - "マーケティング効果"
+      - "顧客行動分析"
+      
+    monthly_reports:
+      - "財務レポート"
+      - "在庫分析"
+      - "顧客セグメント分析"
+      - "競合分析"

@@ -1,0 +1,783 @@
+# ゲーム開発ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    project_name:
+      type: string
+      description: "プロジェクト名"
+      example: "魔法学園オンラインRPG - モバイル向け新作タイトル"
+      validation: "max_length: 200"
+    
+    game_type:
+      type: string
+      description: "ゲームジャンル"
+      enum: ["action", "rpg", "puzzle", "strategy", "simulation", "sports", "racing", "fighting", "shooter", "mmo", "battle_royale", "casual", "hyper_casual"]
+      default: "rpg"
+      impacts:
+        - "コアメカニクス設計"
+        - "技術スタック選択"
+        - "マネタイゼーション戦略"
+        - "ターゲット層設定"
+    
+    target_platform:
+      type: array
+      description: "対象プラットフォーム"
+      items:
+        type: string
+        enum: ["ios", "android", "steam", "playstation", "xbox", "nintendo_switch", "web", "vr", "ar"]
+      default: ["ios", "android"]
+      constraints:
+        min_items: 1
+        max_items: 9
+    
+    development_scope:
+      type: object
+      description: "開発範囲"
+      properties:
+        game_modes:
+          type: array
+          items:
+            type: string
+            enum: ["single_player", "multiplayer_coop", "multiplayer_pvp", "battle_royale", "mmo", "async_multiplayer"]
+          default: ["single_player"]
+          
+        content_volume:
+          type: object
+          properties:
+            playtime_hours:
+              type: integer
+              description: "想定プレイ時間（時間）"
+              example: 30
+              range: [1, 1000]
+              
+            level_count:
+              type: integer
+              description: "レベル/ステージ数"
+              example: 50
+              
+            character_count:
+              type: integer
+              description: "プレイアブルキャラクター数"
+              example: 20
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    game_design_details:
+      type: object
+      description: "ゲームデザイン詳細"
+      properties:
+        core_loop_design:
+          type: object
+          properties:
+            primary_loop:
+              type: string
+              description: "プライマリループ（30秒-5分）"
+              example: "戦闘 → 報酬獲得 → キャラ強化 → 次の戦闘"
+              
+            secondary_loop:
+              type: string
+              description: "セカンダリループ（15-30分）"
+              example: "クエスト完了 → 装備調整 → 新エリア解放"
+              
+            meta_loop:
+              type: string
+              description: "メタループ（数日-数週間）"
+              example: "シーズン進行 → ランキング競争 → 限定報酬獲得"
+        
+        difficulty_curve:
+          type: object
+          properties:
+            progression_model:
+              type: string
+              enum: ["linear", "exponential", "logarithmic", "stepped", "adaptive"]
+              default: "logarithmic"
+              
+            balancing_method:
+              type: string
+              enum: ["static", "dynamic_adjustment", "player_skill_based", "ai_driven"]
+              default: "player_skill_based"
+              
+            onboarding_strategy:
+              type: object
+              properties:
+                tutorial_type:
+                  type: string
+                  enum: ["guided", "interactive", "contextual", "optional", "integrated"]
+                  default: "contextual"
+                  
+                completion_target:
+                  type: number
+                  description: "チュートリアル完了率目標（%）"
+                  default: 90
+                  range: [80, 100]
+        
+        retention_mechanics:
+          type: array
+          items:
+            type: string
+            enum: ["daily_login", "daily_quests", "limited_events", "season_pass", "guild_system", "pvp_ranking", "collection", "achievement"]
+          default: ["daily_login", "daily_quests", "limited_events"]
+          
+        social_features:
+          type: object
+          properties:
+            guild_system:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                max_members:
+                  type: integer
+                  default: 50
+                  range: [10, 500]
+                  
+                activities:
+                  type: array
+                  items:
+                    type: string
+                  example: ["ギルドレイド", "ギルド対戦", "共同クエスト"]
+            
+            friend_system:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                features:
+                  type: array
+                  items:
+                    type: string
+                    enum: ["gift_exchange", "visit_friend", "coop_play", "chat", "leaderboard"]
+                  default: ["gift_exchange", "leaderboard"]
+    
+    monetization_strategy:
+      type: object
+      description: "マネタイゼーション戦略"
+      properties:
+        business_model:
+          type: string
+          enum: ["free_to_play", "premium", "freemium", "subscription", "hybrid"]
+          default: "free_to_play"
+          
+        revenue_streams:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: ["iap_currency", "iap_items", "iap_gacha", "ads", "battle_pass", "subscription", "dlc", "cosmetics"]
+                
+              estimated_percentage:
+                type: number
+                description: "収益構成比（%）"
+                range: [0, 100]
+          
+          example:
+            - type: "iap_gacha"
+              estimated_percentage: 60
+            - type: "battle_pass"
+              estimated_percentage: 25
+            - type: "ads"
+              estimated_percentage: 15
+        
+        gacha_system:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+              
+            rarity_distribution:
+              type: object
+              properties:
+                ssr:
+                  type: number
+                  default: 3
+                  description: "SSRレア確率（%）"
+                  
+                sr:
+                  type: number
+                  default: 15
+                  
+                r:
+                  type: number
+                  default: 35
+                  
+                n:
+                  type: number
+                  default: 47
+              
+            pity_system:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                guarantee_at:
+                  type: integer
+                  default: 90
+                  description: "確定入手回数"
+        
+        pricing_tiers:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "スタータパック"
+                
+              price:
+                type: integer
+                example: 120
+                
+              currency_amount:
+                type: integer
+                example: 120
+                
+              bonus_percentage:
+                type: number
+                example: 0
+          
+          default:
+            - name: "少量"
+              price: 120
+              currency_amount: 120
+              bonus_percentage: 0
+            - name: "中量"
+              price: 980
+              currency_amount: 1000
+              bonus_percentage: 2
+            - name: "大量"
+              price: 4900
+              currency_amount: 5200
+              bonus_percentage: 6
+            - name: "特大"
+              price: 9800
+              currency_amount: 11000
+              bonus_percentage: 12
+    
+    technical_requirements:
+      type: object
+      description: "技術要件"
+      properties:
+        performance_targets:
+          type: object
+          properties:
+            target_fps:
+              type: object
+              properties:
+                mobile:
+                  type: string
+                  enum: ["30fps", "60fps", "120fps", "variable"]
+                  default: "60fps"
+                  
+                console:
+                  type: string
+                  enum: ["30fps", "60fps", "120fps", "performance_mode"]
+                  default: "60fps"
+                  
+                pc:
+                  type: string
+                  enum: ["60fps", "144fps", "240fps", "uncapped"]
+                  default: "144fps"
+            
+            graphics_settings:
+              type: object
+              properties:
+                mobile_presets:
+                  type: array
+                  items:
+                    type: string
+                    enum: ["low", "medium", "high", "ultra"]
+                  default: ["low", "medium", "high"]
+                  
+                scalability_options:
+                  type: array
+                  items:
+                    type: string
+                  example: ["解像度", "影品質", "テクスチャ品質", "エフェクト品質"]
+        
+        network_architecture:
+          type: object
+          properties:
+            multiplayer_type:
+              type: string
+              enum: ["peer_to_peer", "client_server", "dedicated_server", "cloud_gaming"]
+              default: "client_server"
+              
+            expected_ccu:
+              type: integer
+              description: "想定同時接続数"
+              example: 100000
+              
+            latency_requirements:
+              type: object
+              properties:
+                acceptable:
+                  type: string
+                  default: "< 100ms"
+                  
+                optimal:
+                  type: string
+                  default: "< 50ms"
+            
+            backend_services:
+              type: array
+              items:
+                type: string
+                enum: ["authentication", "matchmaking", "leaderboards", "cloud_save", "analytics", "chat", "guild", "marketplace"]
+              default: ["authentication", "matchmaking", "leaderboards", "cloud_save", "analytics"]
+        
+        platform_specific:
+          type: object
+          properties:
+            mobile_optimization:
+              type: object
+              properties:
+                battery_life_target:
+                  type: string
+                  default: "> 3時間"
+                  
+                thermal_management:
+                  type: boolean
+                  default: true
+                  
+                download_size:
+                  type: object
+                  properties:
+                    initial:
+                      type: string
+                      default: "< 150MB"
+                      
+                    full:
+                      type: string
+                      default: "< 2GB"
+            
+            console_certification:
+              type: object
+              properties:
+                platform_requirements:
+                  type: array
+                  items:
+                    type: string
+                  example: ["トロフィー実装", "実績システム", "プラットフォーム固有機能"]
+                  
+                age_rating:
+                  type: string
+                  enum: ["CERO_A", "CERO_B", "CERO_C", "CERO_D", "CERO_Z", "ESRB_E", "ESRB_T", "ESRB_M"]
+                  default: "CERO_B"
+    
+    live_operations:
+      type: object
+      description: "ライブオペレーション計画"
+      properties:
+        update_schedule:
+          type: object
+          properties:
+            major_updates:
+              type: string
+              enum: ["monthly", "quarterly", "seasonal"]
+              default: "seasonal"
+              
+            minor_updates:
+              type: string
+              enum: ["weekly", "biweekly", "monthly"]
+              default: "biweekly"
+              
+            hotfix_sla:
+              type: string
+              description: "緊急修正対応時間"
+              default: "24時間以内"
+        
+        event_planning:
+          type: object
+          properties:
+            event_frequency:
+              type: string
+              enum: ["weekly", "biweekly", "monthly"]
+              default: "biweekly"
+              
+            event_types:
+              type: array
+              items:
+                type: string
+                enum: ["seasonal", "collaboration", "competition", "story", "limited_gacha", "anniversary"]
+              default: ["seasonal", "competition", "limited_gacha"]
+              
+            preparation_lead_time:
+              type: string
+              description: "イベント準備期間"
+              default: "3ヶ月前"
+        
+        community_management:
+          type: object
+          properties:
+            channels:
+              type: array
+              items:
+                type: string
+                enum: ["discord", "twitter", "youtube", "twitch", "reddit", "forum", "in_game"]
+              default: ["twitter", "youtube", "discord"]
+              
+            content_creation:
+              type: array
+              items:
+                type: string
+              example: ["開発者ブログ", "動画アップデート", "ライブストリーム", "コミュニティイベント"]
+              
+            response_time_target:
+              type: object
+              properties:
+                critical_issues:
+                  type: string
+                  default: "1時間以内"
+                  
+                general_inquiries:
+                  type: string
+                  default: "24時間以内"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_features:
+      type: object
+      description: "高度な機能"
+      properties:
+        ai_integration:
+          type: object
+          properties:
+            procedural_generation:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: false
+                  
+                generation_types:
+                  type: array
+                  items:
+                    type: string
+                    enum: ["levels", "quests", "items", "enemies", "dungeons", "stories"]
+                  example: ["dungeons", "items"]
+            
+            ai_opponents:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                difficulty_adaptation:
+                  type: boolean
+                  default: true
+                  description: "AIの難易度自動調整"
+                  
+                behavior_types:
+                  type: array
+                  items:
+                    type: string
+                  example: ["攻撃的", "防御的", "バランス型", "トリッキー"]
+            
+            content_moderation:
+              type: object
+              properties:
+                chat_filtering:
+                  type: boolean
+                  default: true
+                  
+                image_recognition:
+                  type: boolean
+                  default: false
+                  
+                behavior_analysis:
+                  type: boolean
+                  default: true
+        
+        blockchain_features:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+              
+            nft_integration:
+              type: object
+              properties:
+                item_types:
+                  type: array
+                  items:
+                    type: string
+                  example: ["キャラクター", "装備", "土地", "アート"]
+                  
+                marketplace:
+                  type: boolean
+                  default: true
+                  
+                cross_game_compatibility:
+                  type: boolean
+                  default: false
+            
+            play_to_earn:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: false
+                  
+                earning_mechanisms:
+                  type: array
+                  items:
+                    type: string
+                  example: ["バトル勝利", "クエスト完了", "ステーキング", "トーナメント"]
+        
+        accessibility_features:
+          type: object
+          properties:
+            visual_accessibility:
+              type: array
+              items:
+                type: string
+                enum: ["colorblind_mode", "high_contrast", "text_size_adjustment", "motion_reduction"]
+              default: ["colorblind_mode", "text_size_adjustment"]
+              
+            audio_accessibility:
+              type: array
+              items:
+                type: string
+                enum: ["subtitles", "visual_sound_indicators", "audio_description"]
+              default: ["subtitles"]
+              
+            control_accessibility:
+              type: array
+              items:
+                type: string
+                enum: ["button_remapping", "one_handed_mode", "hold_to_press_toggle", "difficulty_adjustment"]
+              default: ["button_remapping", "difficulty_adjustment"]
+    
+    analytics_configuration:
+      type: object
+      description: "分析設定"
+      properties:
+        tracking_events:
+          type: array
+          items:
+            type: string
+            enum: ["tutorial_completion", "level_completion", "purchase_events", "session_data", "social_interactions", "battle_results", "item_usage"]
+          default: ["tutorial_completion", "purchase_events", "session_data"]
+          
+        kpi_targets:
+          type: object
+          properties:
+            d1_retention:
+              type: number
+              description: "1日目継続率目標（%）"
+              default: 50
+              range: [30, 70]
+              
+            d7_retention:
+              type: number
+              description: "7日目継続率目標（%）"
+              default: 25
+              range: [15, 50]
+              
+            d30_retention:
+              type: number
+              description: "30日目継続率目標（%）"
+              default: 15
+              range: [5, 40]
+              
+            arppu:
+              type: number
+              description: "課金ユーザーあたり平均収益（円）"
+              default: 5000
+              
+            conversion_rate:
+              type: number
+              description: "課金転換率目標（%）"
+              default: 3
+              range: [1, 10]
+        
+        analytics_tools:
+          type: array
+          items:
+            type: string
+            enum: ["unity_analytics", "gameanalytics", "firebase", "adjust", "appsflyer", "mixpanel", "custom"]
+          default: ["unity_analytics", "firebase"]
+    
+    marketing_strategy:
+      type: object
+      description: "マーケティング戦略"
+      properties:
+        pre_launch:
+          type: object
+          properties:
+            soft_launch_regions:
+              type: array
+              items:
+                type: string
+              example: ["カナダ", "オーストラリア", "フィリピン"]
+              
+            beta_test_size:
+              type: integer
+              description: "ベータテスト参加者数"
+              example: 10000
+              
+            pre_registration_target:
+              type: integer
+              description: "事前登録目標数"
+              example: 1000000
+        
+        launch_campaign:
+          type: object
+          properties:
+            channels:
+              type: array
+              items:
+                type: string
+                enum: ["app_store_featuring", "google_play_featuring", "influencer", "youtube_ads", "twitter_ads", "tiktok", "traditional_media"]
+              default: ["app_store_featuring", "influencer", "youtube_ads"]
+              
+            launch_bonus:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                rewards:
+                  type: array
+                  items:
+                    type: string
+                  example: ["限定キャラクター", "プレミアム通貨", "特別アイテム"]
+        
+        user_acquisition:
+          type: object
+          properties:
+            target_cpi:
+              type: number
+              description: "目標インストール単価（円）"
+              example: 300
+              
+            monthly_budget:
+              type: string
+              enum: ["<100万円", "100-500万円", "500-1000万円", "1000万円+"]
+              default: "100-500万円"
+              
+            roi_target:
+              type: number
+              description: "目標ROI（%）"
+              default: 150
+              range: [100, 300]
+
+# 自動計算されるパラメータ
+computed_parameters:
+  development_timeline:
+    formula: |
+      # 開発期間見積もり
+      base_months = game_type_complexity[game_type] * platform_multiplier[platform_count]
+      
+      content_factor = 1 + (content_volume.level_count / 50) * 0.2
+      mode_factor = 1 + (len(game_modes) - 1) * 0.3
+      
+      total_months = base_months * content_factor * mode_factor
+      
+      phases:
+        pre_production: total_months * 0.15
+        production: total_months * 0.5
+        polish: total_months * 0.25
+        post_launch: total_months * 0.1
+  
+  team_size_estimation:
+    formula: |
+      # チーム規模見積もり
+      base_team = {
+        "programmer": 3,
+        "artist": 2,
+        "designer": 1,
+        "qa": 1
+      }
+      
+      # スケール係数
+      if game_type in ["mmo", "battle_royale"]:
+        scale_factor = 5
+      elif game_type in ["rpg", "action", "strategy"]:
+        scale_factor = 2
+      else:
+        scale_factor = 1
+      
+      # プラットフォーム追加
+      platform_addition = (len(platforms) - 1) * 0.3
+      
+      final_team = {
+        role: ceil(count * scale_factor * (1 + platform_addition))
+        for role, count in base_team.items()
+      }
+  
+  server_infrastructure:
+    formula: |
+      # サーバー要件計算
+      if "multiplayer" in game_modes:
+        concurrent_users = expected_dau * 0.2  # ピーク時20%
+        
+        server_requirements = {
+          "game_servers": ceil(concurrent_users / 100),  # 100人/サーバー
+          "database_nodes": ceil(concurrent_users / 10000),
+          "cache_nodes": ceil(concurrent_users / 5000),
+          "load_balancers": max(2, ceil(concurrent_users / 50000))
+        }
+        
+        bandwidth_gbps = concurrent_users * 0.0001  # 100kbps/ユーザー
+        storage_tb = expected_users * 0.001  # 1GB/ユーザー
+  
+  monetization_projection:
+    formula: |
+      # 収益予測
+      # F2Pモデル
+      if business_model == "free_to_play":
+        daily_active_users = install_base * d30_retention * 0.5
+        paying_users = daily_active_users * (conversion_rate / 100)
+        
+        monthly_revenue = paying_users * arppu
+        
+        # 広告収益
+        if "ads" in revenue_streams:
+          ad_impressions = (daily_active_users - paying_users) * 5 * 30
+          ad_revenue = ad_impressions * (ecpm / 1000)
+          monthly_revenue += ad_revenue
+      
+      # プレミアムモデル
+      elif business_model == "premium":
+        monthly_revenue = monthly_sales * game_price * (1 - platform_fee)
+
+# バリデーションルール
+validation_rules:
+  - name: "platform_compatibility"
+    rule: |
+      if "vr" in platforms and game_type not in ["action", "simulation", "puzzle"]:
+        warning: "選択されたゲームタイプはVRに最適化されていません"
+  
+  - name: "monetization_balance"
+    rule: |
+      if business_model == "free_to_play" and len(revenue_streams) < 2:
+        warning: "F2Pゲームには複数の収益源を推奨します"
+  
+  - name: "multiplayer_infrastructure"
+    rule: |
+      if "multiplayer" in game_modes and not network_architecture.dedicated_server:
+        error: "マルチプレイヤーゲームには専用サーバーが必要です"
+  
+  - name: "retention_mechanics_check"
+    rule: |
+      if d1_retention > 50 and len(retention_mechanics) < 3:
+        warning: "高い継続率目標には複数のリテンション施策が必要です"
+  
+  - name: "performance_feasibility"
+    rule: |
+      if target_fps == "120fps" and "mobile" in platforms:
+        warning: "モバイルでの120fps実現には最新ハードウェアが必要です"

@@ -1,0 +1,448 @@
+# 科学論文・技術文書の制約条件と計算式
+
+academic_writing_standards:
+  # 論文構造要件
+  paper_structure:
+    imrad_format:
+      introduction:
+        word_count: "10-15% of total"
+        content_requirements:
+          - "研究背景・文脈"
+          - "既存研究のギャップ"
+          - "研究目的・仮説"
+          - "研究の意義・貢献"
+        
+        quality_criteria:
+          novelty_statement: "明確な新規性主張"
+          literature_integration: "30-50引用"
+          logical_flow: "一般→具体の流れ"
+          
+      methods:
+        word_count: "15-25% of total"
+        subsections:
+          - "研究デザイン"
+          - "参加者/サンプル"
+          - "材料・装置"
+          - "手順・プロトコル"
+          - "データ分析"
+          
+        reproducibility_requirements:
+          detail_level: "第三者が再現可能"
+          protocol_registration: "事前登録推奨"
+          code_availability: "GitHub/OSF公開"
+          
+      results:
+        word_count: "20-30% of total"
+        presentation_order:
+          - "主要結果"
+          - "副次的結果"
+          - "探索的分析"
+          
+        statistical_reporting:
+          effect_sizes: "必須（Cohen's d, η²等）"
+          confidence_intervals: "95% CI必須"
+          p_values: "正確な値（p < 0.001まで）"
+          
+      discussion:
+        word_count: "25-35% of total"
+        components:
+          - "主要知見の要約"
+          - "既存研究との関連"
+          - "理論的・実践的含意"
+          - "限界と今後の方向性"
+          
+    abstract_requirements:
+      word_limit: 250  # 多くのジャーナル標準
+      structure: "構造化推奨"
+      
+      components:
+        background: "1-2文"
+        methods: "2-3文"
+        results: "3-4文"
+        conclusions: "1-2文"
+        
+      keywords: "5-8個"
+  
+  # 図表作成基準
+  figures_tables:
+    figure_standards:
+      resolution:
+        print: "300 dpi minimum"
+        line_art: "600-1200 dpi"
+        
+      format_requirements:
+        file_types: ["TIFF", "EPS", "PDF", "PNG"]
+        color_mode: "RGB/CMYK（印刷用）"
+        dimensions: "単段幅: 85mm, 両段幅: 175mm"
+        
+      accessibility:
+        color_blindness: "カラーユニバーサルデザイン"
+        alt_text: "視覚障害者対応"
+        
+    table_guidelines:
+      formatting:
+        borders: "上下端と見出し下のみ"
+        alignment: "数値は右揃え"
+        
+      content:
+        self_contained: "本文なしで理解可能"
+        abbreviations: "脚注で定義"
+        statistics: "平均±SD or 中央値(IQR)"
+    
+    caption_writing:
+      components:
+        title: "簡潔な説明"
+        methods: "必要に応じて"
+        abbreviations: "使用略語の定義"
+        statistics: "統計記号の説明"
+
+statistical_rigor:
+  # サンプルサイズ計算
+  power_analysis:
+    standard_parameters:
+      alpha: 0.05
+      power: 0.80
+      
+    effect_size_conventions:
+      cohen_d:
+        small: 0.2
+        medium: 0.5
+        large: 0.8
+        
+      correlation_r:
+        small: 0.1
+        medium: 0.3
+        large: 0.5
+        
+    calculation_formula: |
+      # t検定の場合
+      n = 2 * (z_alpha + z_beta)^2 * σ^2 / δ^2
+      
+      where:
+        z_alpha = 1.96 (two-tailed, α = 0.05)
+        z_beta = 0.84 (power = 0.80)
+        σ = population SD
+        δ = expected difference
+  
+  # 多重検定補正
+  multiple_testing:
+    correction_methods:
+      bonferroni:
+        formula: "α_adjusted = α / n_tests"
+        use_case: "少数の計画的比較"
+        
+      fdr_benjamini_hochberg:
+        formula: "q-value calculation"
+        use_case: "多数の探索的検定"
+        
+      holm_bonferroni:
+        description: "段階的補正"
+        use_case: "Bonferroniより検出力高"
+    
+    reporting_requirements:
+      - "補正方法の明記"
+      - "補正前後のp値"
+      - "有意性判定基準"
+  
+  # 効果量報告
+  effect_size_reporting:
+    required_measures:
+      mean_differences:
+        cohens_d: "2群比較"
+        hedges_g: "小サンプル補正版"
+        glass_delta: "不等分散"
+        
+      variance_explained:
+        eta_squared: "ANOVA"
+        partial_eta_squared: "共変量あり"
+        omega_squared: "より正確な推定"
+        
+      correlation_based:
+        pearsons_r: "線形関係"
+        spearmans_rho: "順位相関"
+        point_biserial: "二値変数"
+    
+    interpretation_guidelines:
+      context_specific: "分野特有の基準優先"
+      practical_significance: "統計的有意性と区別"
+      confidence_intervals: "効果量のCI必須"
+
+citation_management:
+  # 引用スタイル
+  citation_formats:
+    major_styles:
+      apa_7th:
+        in_text: "(Author, Year)"
+        reference_list: "著者姓順"
+        
+      vancouver:
+        in_text: "[1]"
+        reference_list: "出現順"
+        
+      ieee:
+        in_text: "[1]"
+        formatting: "技術論文標準"
+        
+      nature:
+        in_text: "上付き数字¹"
+        reference_list: "出現順"
+    
+    software_citations:
+      format: |
+        Software: Name (Version X.X)
+        R packages: citation("package")
+        Python: __citation__
+        
+      repositories:
+        zenodo: "DOI付与"
+        github: "リリースタグ"
+        
+  # 文献検索戦略
+  literature_search:
+    databases:
+      comprehensive:
+        - "PubMed/MEDLINE"
+        - "Web of Science"
+        - "Scopus"
+        - "Google Scholar"
+        
+      field_specific:
+        - "IEEE Xplore (工学)"
+        - "PsycINFO (心理学)"
+        - "ERIC (教育)"
+        - "EconLit (経済)"
+        
+    search_strategy:
+      pico_framework:
+        p: "Population/Problem"
+        i: "Intervention"
+        c: "Comparison"
+        o: "Outcome"
+        
+      boolean_operators:
+        and: "絞り込み"
+        or: "同義語展開"
+        not: "除外"
+        
+      wildcards:
+        truncation: "child*"
+        substitution: "wom?n"
+    
+    screening_process:
+      title_abstract: "初期スクリーニング"
+      full_text: "適格性評価"
+      
+      prisma_flow:
+        identification: "検索結果総数"
+        screening: "重複除去後"
+        eligibility: "全文評価"
+        included: "最終包含"
+
+research_ethics:
+  # 倫理承認
+  ethics_approval:
+    required_elements:
+      irb_approval: "施設内倫理委員会"
+      protocol_number: "承認番号明記"
+      
+      informed_consent:
+        written: "介入研究"
+        waiver: "後ろ向き研究"
+        
+      special_populations:
+        children: "保護者同意 + 本人同意"
+        vulnerable: "追加的保護措置"
+    
+    reporting_requirements:
+      declaration: "倫理セクション必須"
+      trial_registration: "臨床試験登録"
+      
+  # 利益相反
+  conflict_of_interest:
+    disclosure_requirements:
+      financial:
+        - "研究資金源"
+        - "コンサルタント料"
+        - "株式保有"
+        - "特許・ロイヤリティ"
+        
+      non_financial:
+        - "個人的関係"
+        - "学術的競合"
+        - "信念・イデオロギー"
+    
+    management_strategies:
+      transparency: "完全開示原則"
+      independence: "データ解析の独立性"
+      
+  # 著者資格
+  authorship_criteria:
+    icmje_guidelines:
+      all_required:
+        - "研究の構想・デザインへの実質的貢献"
+        - "データ取得・分析・解釈"
+        - "論文執筆・重要な改訂"
+        - "最終版の承認"
+        
+    credit_taxonomy:
+      conceptualization: "研究構想"
+      methodology: "方法論開発"
+      investigation: "研究実施"
+      writing_original: "初稿執筆"
+      supervision: "研究監督"
+
+peer_review_process:
+  # 査読対応
+  review_response:
+    response_structure:
+      cover_letter:
+        - "編集者への感謝"
+        - "主要変更の要約"
+        - "各査読者への対応概要"
+        
+      point_by_point:
+        format: |
+          Reviewer 1, Comment 1:
+          [査読者コメント全文]
+          
+          Response:
+          [詳細な回答]
+          
+          Changes made:
+          [具体的な変更箇所・内容]
+        
+      revision_tracking:
+        highlight_changes: "色分け/下線"
+        clean_version: "最終版も提出"
+    
+    response_strategies:
+      agreement: "変更実施 + 感謝"
+      
+      partial_agreement:
+        acknowledge: "妥当性認識"
+        explain: "部分的対応理由"
+        compromise: "代替案提示"
+        
+      disagreement:
+        respectful: "敬意を持って"
+        evidence_based: "データ/文献で反論"
+        editor_judgment: "編集者の判断仰ぐ"
+  
+  # 査読期間管理
+  timeline_management:
+    typical_durations:
+      initial_review: "4-8週間"
+      revision: "2-4週間"
+      final_decision: "1-2週間"
+      
+    expediting_strategies:
+      presubmission: "事前問い合わせ"
+      fast_track: "緊急性の説明"
+      
+    communication:
+      status_inquiry: "8週間後に照会可"
+      professional_tone: "常に丁寧に"
+
+technical_documentation:
+  # API/SDK文書
+  api_documentation:
+    structure:
+      overview:
+        - "目的・スコープ"
+        - "認証方法"
+        - "レート制限"
+        - "エラーハンドリング"
+        
+      endpoints:
+        format: |
+          ## GET /api/v1/resource/{id}
+          
+          **Description**: リソースの取得
+          
+          **Parameters**:
+          - id (string, required): リソースID
+          
+          **Response**:
+          ```json
+          {
+            "id": "string",
+            "data": {}
+          }
+          ```
+      
+      code_examples:
+        languages: ["curl", "Python", "JavaScript", "Go"]
+        
+    openapi_spec:
+      version: "3.0+"
+      components:
+        - "schemas"
+        - "parameters"
+        - "responses"
+        - "security"
+  
+  # 技術仕様書
+  technical_specifications:
+    ieee_830_standard:
+      sections:
+        - "導入（スコープ、定義、参照）"
+        - "全体記述"
+        - "具体的要件"
+        - "付録"
+        
+    requirements_classification:
+      functional: "SHALL statements"
+      non_functional:
+        performance: "応答時間、スループット"
+        security: "認証、暗号化"
+        usability: "学習曲線、エラー率"
+        
+    traceability_matrix:
+      requirement_id: "一意識別子"
+      source: "要求元"
+      implementation: "実装箇所"
+      test_case: "検証方法"
+
+publication_optimization:
+  # ジャーナル選択
+  journal_selection:
+    evaluation_criteria:
+      impact_factor: "分野内位置づけ"
+      scope_match: "研究内容との適合"
+      
+      acceptance_rate:
+        high_impact: "< 10%"
+        specialized: "20-30%"
+        open_access: "varied"
+        
+      publication_speed:
+        traditional: "6-12ヶ月"
+        rapid: "2-3ヶ月"
+        preprint: "即時"
+    
+    strategic_considerations:
+      career_stage:
+        early: "specialized journals"
+        mid: "balance IF and fit"
+        senior: "high impact"
+        
+      audience_reach:
+        academic: "traditional journals"
+        practitioner: "applied journals"
+        public: "open access"
+  
+  # プレプリント戦略
+  preprint_strategy:
+    platforms:
+      general: ["arXiv", "bioRxiv", "medRxiv"]
+      field_specific: ["SSRN", "ChemRxiv", "PsyArXiv"]
+      
+    benefits:
+      - "優先権確立"
+      - "早期フィードバック"
+      - "引用可能性"
+      
+    considerations:
+      journal_policies: "プレプリント許可確認"
+      embargo_periods: "一部誌は制限"
+      version_control: "更新履歴管理"

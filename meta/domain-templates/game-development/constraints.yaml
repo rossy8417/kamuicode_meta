@@ -1,0 +1,487 @@
+# ゲーム開発の制約条件と計算式
+
+game_design_fundamentals:
+  # コアゲームループ
+  core_game_loop:
+    loop_structure:
+      primary_loop:
+        duration: "30秒-5分"
+        
+        components:
+          action: "プレイヤーの主要アクション"
+          
+          reward: "即時フィードバック"
+          
+          progression: "成長・進化要素"
+          
+        examples:
+          fps: "戦闘 → キル → 経験値/装備"
+          puzzle: "パズル解き → クリア → 次ステージ"
+          rpg: "戦闘 → 報酬 → キャラ強化"
+      
+      secondary_loop:
+        duration: "15-30分"
+        
+        components:
+          - "ミッション/クエスト完了"
+          - "リソース管理"
+          - "装備/スキル調整"
+      
+      meta_loop:
+        duration: "数日-数週間"
+        
+        components:
+          - "シーズン進行"
+          - "ランキング競争"
+          - "コレクション完成"
+    
+    engagement_metrics:
+      session_length:
+        mobile: "5-15分"
+        console: "30-120分"
+        pc: "60-180分"
+        
+      sessions_per_day:
+        casual: 3-5
+        midcore: 2-3
+        hardcore: 1-2
+  
+  # 難易度設計
+  difficulty_balancing:
+    flow_theory:
+      optimal_challenge:
+        formula: |
+          challenge_level = skill_level * (1 + growth_factor)
+          
+          where:
+            growth_factor = 0.1-0.2  # 10-20%の成長余地
+        
+        zone_boundaries:
+          anxiety: "challenge > skill * 1.5"
+          flow: "skill * 0.8 < challenge < skill * 1.3"
+          boredom: "challenge < skill * 0.5"
+      
+      dynamic_difficulty:
+        adjustment_factors:
+          - "連続失敗回数"
+          - "クリアタイム"
+          - "使用アイテム数"
+          - "プレイヤースキル推定"
+        
+        adjustment_methods:
+          discrete: "難易度選択"
+          continuous: "リアルタイム調整"
+          hidden: "見えない補助"
+    
+    progression_curve:
+      power_scaling:
+        linear: "レベル * 定数"
+        
+        exponential: "base ^ レベル"
+        
+        logarithmic: "log(経験値) * 係数"
+        
+        custom: |
+          # よく使われる式
+          power = base_power * (1 + level * 0.1) * (1 + equipment_bonus)
+      
+      experience_requirements:
+        formula: |
+          # 次レベルまでの必要経験値
+          exp_to_next = base_exp * (level ^ exp_factor)
+          
+          common_values:
+            base_exp: 100
+            exp_factor: 1.5-2.0
+      
+      content_gating:
+        methods:
+          - "レベル制限"
+          - "アイテム要求"
+          - "スキルチェック"
+          - "時間制限"
+
+monetization_strategy:
+  # F2Pモデル
+  free_to_play:
+    revenue_streams:
+      in_app_purchases:
+        types:
+          consumables:
+            - "ゲーム内通貨"
+            - "エナジー/スタミナ"
+            - "ブースター"
+            - "ガチャチケット"
+            
+          non_consumables:
+            - "キャラクター"
+            - "スキン/コスメティック"
+            - "拡張パック"
+            - "広告除去"
+          
+          subscriptions:
+            - "VIPパス"
+            - "バトルパス"
+            - "月額特典"
+        
+        pricing_psychology:
+          price_points:
+            - { tier: "micro", price: "120-360円", purpose: "初回課金" }
+            - { tier: "small", price: "480-980円", purpose: "定期課金" }
+            - { tier: "medium", price: "1500-3000円", purpose: "イベント" }
+            - { tier: "large", price: "5000-10000円", purpose: "重課金" }
+            - { tier: "whale", price: "10000円+", purpose: "VIP層" }
+          
+          bundle_strategies:
+            value_perception: "通常価格の3-5倍の価値"
+            
+            limited_time: "24-72時間限定"
+            
+            first_purchase: "初回限定80%OFF"
+      
+      gacha_mechanics:
+        probability_disclosure:
+          ssr: "1-3%"
+          sr: "10-15%"
+          r: "30-40%"
+          n: "40-50%"
+          
+        pity_system:
+          hard_pity: "90-100連で確定"
+          
+          soft_pity: "70連目から確率上昇"
+          
+        monetization_formula: |
+          revenue = active_users * conversion_rate * arppu
+          
+          where:
+            conversion_rate: 2-5% (F2P average)
+            arppu: $20-200/month (game type dependent)
+    
+    ad_monetization:
+      ad_types:
+        rewarded_video:
+          length: "15-30秒"
+          reward_value: "5-10%のプレミアム通貨価値"
+          daily_limit: 5-10
+          ecpm: "$10-50"
+          
+        interstitial:
+          frequency: "3-5分に1回"
+          skip_option: "5秒後"
+          ecpm: "$5-20"
+          
+        banner:
+          placement: "非ゲームプレイ画面"
+          refresh_rate: "30-60秒"
+          ecpm: "$0.5-2"
+      
+      hybrid_monetization:
+        balance: |
+          # 広告と課金のバランス
+          if player_ltv < $5:
+            focus: "広告収益"
+          elif player_ltv < $50:
+            focus: "軽課金+広告"
+          else:
+            focus: "課金のみ（広告なし）"
+  
+  # プレミアムモデル
+  premium_pricing:
+    price_tiers:
+      mobile:
+        premium: "600-1200円"
+        indie: "240-600円"
+        
+      console:
+        aaa: "7000-9000円"
+        aa: "4000-7000円"
+        indie: "1500-4000円"
+        
+      pc:
+        aaa: "6000-8000円"
+        aa: "3000-6000円"
+        indie: "1000-3000円"
+    
+    dlc_strategy:
+      expansion_pack: "本編の30-50%の価格"
+      
+      season_pass: "DLC合計の70-80%の価格"
+      
+      cosmetic_packs: "500-2000円"
+
+player_retention:
+  # リテンション指標
+  retention_metrics:
+    benchmark_rates:
+      d1_retention:
+        hyper_casual: "30-40%"
+        casual: "40-50%"
+        midcore: "45-55%"
+        hardcore: "50-70%"
+        
+      d7_retention:
+        hyper_casual: "10-15%"
+        casual: "15-25%"
+        midcore: "20-30%"
+        hardcore: "30-50%"
+        
+      d30_retention:
+        hyper_casual: "3-5%"
+        casual: "5-10%"
+        midcore: "10-20%"
+        hardcore: "20-40%"
+    
+    improvement_tactics:
+      onboarding:
+        - "チュートリアル完了率 > 90%"
+        - "初回セッション > 10分"
+        - "初日2セッション以上"
+        
+      daily_rewards:
+        structure: "累積ボーナス（7日周期）"
+        
+        reset_penalty: "1日目に戻る"
+        
+      push_notifications:
+        timing:
+          - "エナジー回復時"
+          - "イベント開始時"
+          - "離脱24時間後"
+          
+        personalization: "プレイスタイル別"
+  
+  # ソーシャル機能
+  social_features:
+    guild_system:
+      size_limits:
+        small: 20-30
+        medium: 50-100
+        large: 100-500
+        
+      activities:
+        - "ギルドレイド"
+        - "ギルド対戦"
+        - "共同目標"
+        - "ギルドチャット"
+      
+      monetization:
+        - "ギルドブースト"
+        - "ギルド装飾"
+        - "特別イベント参加権"
+    
+    pvp_systems:
+      matchmaking:
+        elo_rating: |
+          new_rating = old_rating + k * (actual - expected)
+          
+          where:
+            k = 32  # K係数
+            expected = 1 / (1 + 10^((opponent_rating - player_rating)/400))
+        
+        skill_brackets:
+          - "ブロンズ: 0-1000"
+          - "シルバー: 1000-1500"
+          - "ゴールド: 1500-2000"
+          - "プラチナ: 2000-2500"
+          - "ダイヤモンド: 2500+"
+      
+      season_structure:
+        duration: "1-3ヶ月"
+        
+        rewards: "ランク別報酬"
+        
+        soft_reset: "1ランクダウン"
+
+technical_constraints:
+  # パフォーマンス要件
+  performance_targets:
+    frame_rates:
+      mobile:
+        low_end: "30fps @ 720p"
+        mid_range: "30-60fps @ 1080p"
+        high_end: "60-120fps @ 1440p+"
+        
+      console:
+        base: "30fps @ 1080p or 60fps @ 900p"
+        pro: "60fps @ 1080p or 30fps @ 4K"
+        next_gen: "60fps @ 4K or 120fps @ 1080p"
+        
+      pc:
+        minimum: "30fps @ 720p low"
+        recommended: "60fps @ 1080p high"
+        ultra: "144fps+ @ 1440p+ ultra"
+    
+    optimization_targets:
+      draw_calls: "< 1000 (mobile), < 3000 (console)"
+      
+      polygon_count:
+        mobile: "< 100k vertices/frame"
+        console: "< 1M vertices/frame"
+        pc: "< 10M vertices/frame"
+        
+      texture_memory:
+        mobile: "< 1GB"
+        console: "< 4GB"
+        pc: "< 8GB"
+    
+    network_requirements:
+      latency_tolerance:
+        turn_based: "< 1000ms"
+        real_time: "< 100ms"
+        competitive: "< 50ms"
+        
+      bandwidth:
+        minimal: "56kbps"
+        average: "256kbps"
+        streaming: "5Mbps+"
+  
+  # プラットフォーム要件
+  platform_requirements:
+    mobile:
+      app_size:
+        initial_download: "< 150MB (App Store)"
+        
+        additional_content: "OBB/CDN"
+        
+      battery_life: "> 3時間のプレイ"
+      
+      heat_management: "サーマルスロットリング対策"
+      
+    console:
+      certification:
+        performance: "安定FPS"
+        
+        loading_times: "< 30秒"
+        
+        trophy_achievements: "必須実装"
+        
+      storage:
+        install_size: "< 100GB"
+        
+        save_data: "< 10MB"
+    
+    cross_platform:
+      save_sync: "クラウドセーブ"
+      
+      progression_sync: "全プラットフォーム共通"
+      
+      input_parity: "コントローラー/KB&M/タッチ"
+
+live_operations:
+  # イベント設計
+  event_planning:
+    event_types:
+      seasonal:
+        frequency: "月1-2回"
+        duration: "1-2週間"
+        
+        themes: ["季節", "祝日", "記念日"]
+        
+      collaboration:
+        frequency: "四半期に1回"
+        duration: "2-4週間"
+        
+        ip_types: ["アニメ", "他ゲーム", "ブランド"]
+        
+      competitive:
+        frequency: "月1回"
+        duration: "3-7日"
+        
+        formats: ["ランキング", "トーナメント", "レイド"]
+    
+    reward_structure:
+      participation: "ログインで基本報酬"
+      
+      milestone: "累積ポイントで段階報酬"
+      
+      ranking: "上位X%に特別報酬"
+      
+      gacha: "イベント限定ガチャ"
+    
+    content_pipeline:
+      planning: "3-6ヶ月前"
+      
+      development: "2-3ヶ月前"
+      
+      testing: "1ヶ月前"
+      
+      announcement: "1-2週間前"
+  
+  # バランス調整
+  balance_patching:
+    data_analysis:
+      metrics:
+        - "使用率"
+        - "勝率"
+        - "バンレート"
+        - "プレイヤー満足度"
+      
+      threshold_for_change:
+        usage_rate: "< 5% or > 30%"
+        win_rate: "< 45% or > 55%"
+        
+    patch_cycle:
+      major: "月1回"
+      
+      minor: "2週間に1回"
+      
+      hotfix: "随時（緊急）"
+    
+    communication:
+      patch_notes: "詳細な変更理由"
+      
+      developer_commentary: "設計意図の説明"
+      
+      community_feedback: "フォーラム/Discord"
+
+analytics_kpi:
+  # 主要指標
+  core_metrics:
+    user_acquisition:
+      cpi: "インストール単価"
+      
+      cpa: "アクティブユーザー獲得単価"
+      
+      k_factor: "バイラル係数"
+      
+    engagement:
+      dau: "デイリーアクティブユーザー"
+      
+      mau: "マンスリーアクティブユーザー"
+      
+      stickiness: "DAU/MAU比率"
+      
+      playtime: "平均プレイ時間"
+    
+    monetization:
+      arpu: "ユーザーあたり平均収益"
+      
+      arppu: "課金ユーザーあたり平均収益"
+      
+      conversion: "課金転換率"
+      
+      ltv: "顧客生涯価値"
+      
+      ltv_calculation: |
+        ltv = (arpu * retention_days) or
+        ltv = arpu * (1 / (1 - retention_rate))
+  
+  # 分析ツール
+  analytics_stack:
+    internal:
+      custom_events: "ゲーム固有イベント"
+      
+      real_time_dashboard: "ライブ監視"
+      
+    third_party:
+      - "Unity Analytics"
+      - "GameAnalytics"
+      - "Mixpanel"
+      - "Amplitude"
+      - "Firebase"
+    
+    data_warehouse:
+      - "BigQuery"
+      - "Redshift"
+      - "Snowflake"

@@ -1,0 +1,620 @@
+# 金融レポート・分析ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    report_title:
+      type: string
+      description: "レポートタイトル"
+      example: "トヨタ自動車（7203）投資分析レポート - EV転換期における成長戦略評価"
+      validation: "max_length: 200"
+    
+    report_type:
+      type: string
+      description: "レポートタイプ"
+      enum: ["equity_research", "fixed_income", "risk_assessment", "market_commentary", "regulatory_report", "esg_analysis"]
+      default: "equity_research"
+      impacts:
+        - "分析手法"
+        - "必要データ"
+        - "レポート構成"
+        - "規制要件"
+    
+    analysis_scope:
+      type: object
+      description: "分析範囲"
+      properties:
+        asset_class:
+          type: string
+          enum: ["equity", "bond", "commodity", "fx", "crypto", "derivatives", "multi_asset"]
+          default: "equity"
+          
+        geography:
+          type: array
+          items:
+            type: string
+          example: ["日本", "米国", "欧州", "新興国"]
+          
+        time_horizon:
+          type: string
+          enum: ["intraday", "short_term", "medium_term", "long_term"]
+          default: "medium_term"
+          description: "日中・短期（〜3ヶ月）・中期（〜1年）・長期（1年超）"
+    
+    target_audience:
+      type: string
+      enum: ["institutional", "retail", "internal", "regulatory", "board", "public"]
+      default: "institutional"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    valuation_parameters:
+      type: object
+      description: "評価パラメータ"
+      properties:
+        valuation_methods:
+          type: array
+          items:
+            type: string
+            enum: ["dcf", "multiples", "ddm", "sotp", "nav", "option_pricing", "monte_carlo"]
+          default: ["dcf", "multiples"]
+          
+        dcf_inputs:
+          type: object
+          properties:
+            forecast_period:
+              type: integer
+              description: "予測期間（年）"
+              default: 5
+              range: [3, 10]
+              
+            terminal_growth:
+              type: number
+              description: "永続成長率（%）"
+              default: 2.0
+              range: [0, 5]
+              
+            wacc_components:
+              type: object
+              properties:
+                risk_free_rate:
+                  type: number
+                  description: "リスクフリーレート（%）"
+                  example: 0.5
+                  
+                market_risk_premium:
+                  type: number
+                  description: "マーケットリスクプレミアム（%）"
+                  default: 6.0
+                  
+                beta:
+                  type: number
+                  description: "ベータ値"
+                  example: 1.2
+                  
+                cost_of_debt:
+                  type: number
+                  description: "負債コスト（%）"
+                  example: 1.5
+                  
+                tax_rate:
+                  type: number
+                  description: "実効税率（%）"
+                  default: 30.0
+        
+        sensitivity_analysis:
+          type: object
+          properties:
+            parameters:
+              type: array
+              items:
+                type: string
+                enum: ["revenue_growth", "margin", "discount_rate", "terminal_value", "fx_rate"]
+              default: ["revenue_growth", "discount_rate"]
+              
+            range:
+              type: object
+              properties:
+                min:
+                  type: number
+                  default: -20
+                  description: "変動幅下限（%）"
+                  
+                max:
+                  type: number
+                  default: 20
+                  description: "変動幅上限（%）"
+                  
+                steps:
+                  type: integer
+                  default: 5
+                  description: "分析ステップ数"
+    
+    risk_analysis:
+      type: object
+      description: "リスク分析設定"
+      properties:
+        risk_metrics:
+          type: array
+          items:
+            type: string
+            enum: ["var", "cvar", "volatility", "sharpe_ratio", "max_drawdown", "beta", "correlation"]
+          default: ["var", "volatility", "sharpe_ratio"]
+          
+        var_parameters:
+          type: object
+          properties:
+            method:
+              type: string
+              enum: ["historical", "parametric", "monte_carlo"]
+              default: "historical"
+              
+            confidence_level:
+              type: number
+              description: "信頼水準（%）"
+              enum: [95, 99]
+              default: 95
+              
+            holding_period:
+              type: integer
+              description: "保有期間（日）"
+              default: 1
+              range: [1, 30]
+              
+            lookback_period:
+              type: integer
+              description: "データ遡及期間（日）"
+              default: 252
+              range: [100, 1000]
+        
+        stress_testing:
+          type: object
+          properties:
+            scenarios:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    example: "金融危機シナリオ"
+                    
+                  parameters:
+                    type: object
+                    additionalProperties:
+                      type: number
+                    example:
+                      equity_decline: -30
+                      credit_spread_widening: 200
+                      fx_volatility: 50
+              
+            reverse_stress_test:
+              type: boolean
+              default: false
+              description: "破綻シナリオの逆算"
+    
+    market_data_config:
+      type: object
+      description: "市場データ設定"
+      properties:
+        data_sources:
+          type: array
+          items:
+            type: string
+            enum: ["bloomberg", "refinitiv", "yahoo_finance", "quandl", "alpha_vantage", "custom_api"]
+          default: ["bloomberg"]
+          
+        data_frequency:
+          type: string
+          enum: ["tick", "minute", "hourly", "daily", "weekly", "monthly"]
+          default: "daily"
+          
+        historical_period:
+          type: object
+          properties:
+            start_date:
+              type: string
+              format: "date"
+              example: "2020-01-01"
+              
+            end_date:
+              type: string
+              format: "date"
+              example: "2024-12-31"
+        
+        benchmark_indices:
+          type: array
+          items:
+            type: string
+          example: ["TOPIX", "S&P500", "MSCI World"]
+          
+        peer_companies:
+          type: array
+          items:
+            type: object
+            properties:
+              ticker:
+                type: string
+                example: "7203.T"
+                
+              name:
+                type: string
+                example: "トヨタ自動車"
+                
+              weight:
+                type: number
+                description: "ピアグループ内の重み"
+                default: 1.0
+    
+    regulatory_compliance:
+      type: object
+      description: "規制遵守設定"
+      properties:
+        regulatory_framework:
+          type: array
+          items:
+            type: string
+            enum: ["basel_iii", "ifrs", "mifid_ii", "solvency_ii", "j_gaap", "us_gaap"]
+          default: ["ifrs"]
+          
+        disclosure_requirements:
+          type: object
+          properties:
+            conflict_of_interest:
+              type: array
+              items:
+                type: string
+              example: ["投資銀行部門との関係", "自己勘定保有", "マーケットメイク"]
+              
+            analyst_certification:
+              type: boolean
+              default: true
+              
+            rating_distribution:
+              type: boolean
+              default: true
+              description: "レーティング分布の開示"
+        
+        audit_trail:
+          type: object
+          properties:
+            data_lineage:
+              type: boolean
+              default: true
+              description: "データ系統の記録"
+              
+            calculation_log:
+              type: boolean
+              default: true
+              description: "計算過程の保存"
+              
+            version_control:
+              type: boolean
+              default: true
+              description: "バージョン管理"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_analytics:
+      type: object
+      description: "高度な分析機能"
+      properties:
+        machine_learning:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+              
+            models:
+              type: array
+              items:
+                type: string
+                enum: ["price_prediction", "sentiment_analysis", "anomaly_detection", "factor_analysis", "regime_detection"]
+              
+            feature_engineering:
+              type: object
+              properties:
+                technical_indicators:
+                  type: array
+                  items:
+                    type: string
+                  example: ["RSI", "MACD", "Bollinger Bands", "ATR"]
+                  
+                fundamental_ratios:
+                  type: array
+                  items:
+                    type: string
+                  example: ["P/E", "ROE", "D/E", "Current Ratio"]
+                  
+                alternative_data:
+                  type: boolean
+                  default: false
+        
+        portfolio_optimization:
+          type: object
+          properties:
+            optimization_method:
+              type: string
+              enum: ["mean_variance", "risk_parity", "black_litterman", "cvar", "kelly"]
+              default: "mean_variance"
+              
+            constraints:
+              type: object
+              properties:
+                long_only:
+                  type: boolean
+                  default: true
+                  
+                max_position_size:
+                  type: number
+                  description: "最大ポジションサイズ（%）"
+                  default: 10
+                  
+                sector_limits:
+                  type: object
+                  additionalProperties:
+                    type: number
+                  example:
+                    technology: 30
+                    finance: 25
+                
+                turnover_limit:
+                  type: number
+                  description: "最大回転率（年率%）"
+                  default: 100
+        
+        derivative_analytics:
+          type: object
+          properties:
+            option_pricing_models:
+              type: array
+              items:
+                type: string
+                enum: ["black_scholes", "binomial", "monte_carlo", "heston", "sabr"]
+              
+            greeks_calculation:
+              type: boolean
+              default: true
+              
+            implied_volatility_surface:
+              type: boolean
+              default: false
+              
+            exotic_options:
+              type: array
+              items:
+                type: string
+                enum: ["asian", "barrier", "lookback", "chooser", "compound"]
+    
+    report_customization:
+      type: object
+      description: "レポートカスタマイズ"
+      properties:
+        branding:
+          type: object
+          properties:
+            logo_url:
+              type: string
+              format: "uri"
+              
+            color_scheme:
+              type: object
+              properties:
+                primary:
+                  type: string
+                  default: "#002F6C"
+                  
+                secondary:
+                  type: string
+                  default: "#00A0E9"
+                  
+                accent:
+                  type: string
+                  default: "#E60012"
+            
+            font_family:
+              type: string
+              default: "Noto Sans JP"
+        
+        sections:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                
+              included:
+                type: boolean
+                default: true
+                
+              order:
+                type: integer
+          
+          default:
+            - { name: "Executive Summary", order: 1 }
+            - { name: "Investment Thesis", order: 2 }
+            - { name: "Financial Analysis", order: 3 }
+            - { name: "Valuation", order: 4 }
+            - { name: "Risk Analysis", order: 5 }
+            - { name: "Appendix", order: 6 }
+        
+        language:
+          type: string
+          enum: ["ja", "en", "bilingual"]
+          default: "ja"
+          
+        output_formats:
+          type: array
+          items:
+            type: string
+            enum: ["pdf", "excel", "pptx", "html", "api_json"]
+          default: ["pdf", "excel"]
+    
+    automation_settings:
+      type: object
+      description: "自動化設定"
+      properties:
+        update_frequency:
+          type: string
+          enum: ["real_time", "intraday", "daily", "weekly", "monthly", "quarterly"]
+          default: "daily"
+          
+        triggers:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: ["schedule", "event", "threshold", "manual"]
+                
+              parameters:
+                type: object
+                additionalProperties: true
+          
+          example:
+            - type: "schedule"
+              parameters:
+                cron: "0 9 * * 1-5"
+            - type: "threshold"
+              parameters:
+                metric: "price_change"
+                threshold: 5
+                direction: "both"
+        
+        notifications:
+          type: object
+          properties:
+            channels:
+              type: array
+              items:
+                type: string
+                enum: ["email", "slack", "teams", "webhook", "sms"]
+              default: ["email"]
+              
+            recipients:
+              type: array
+              items:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: "email"
+                    
+                  role:
+                    type: string
+                    enum: ["analyst", "pm", "trader", "compliance", "client"]
+            
+            alert_levels:
+              type: object
+              properties:
+                critical:
+                  type: array
+                  items:
+                    type: string
+                  example: ["limit_breach", "system_failure"]
+                  
+                warning:
+                  type: array
+                  items:
+                    type: string
+                  example: ["unusual_volume", "rating_change"]
+                  
+                info:
+                  type: array
+                  items:
+                    type: string
+                  example: ["report_generated", "data_updated"]
+
+# 自動計算されるパラメータ
+computed_parameters:
+  valuation_summary:
+    formula: |
+      # 複数手法の加重平均
+      target_price = Σ(weight_i * valuation_i)
+      
+      default_weights:
+        dcf: 0.5
+        multiples: 0.3
+        ddm: 0.2
+      
+      # アップサイド計算
+      upside = (target_price - current_price) / current_price * 100
+      
+      # レーティング判定
+      if upside > 15: rating = "BUY"
+      elif upside > 5: rating = "OUTPERFORM"
+      elif upside > -5: rating = "HOLD"
+      elif upside > -15: rating = "UNDERPERFORM"
+      else: rating = "SELL"
+  
+  risk_adjusted_returns:
+    formula: |
+      # シャープレシオ
+      sharpe_ratio = (return - risk_free_rate) / volatility
+      
+      # ソルティノレシオ
+      sortino_ratio = (return - risk_free_rate) / downside_deviation
+      
+      # 情報レシオ
+      information_ratio = active_return / tracking_error
+      
+      # カルマーレシオ
+      calmar_ratio = annualized_return / max_drawdown
+  
+  portfolio_metrics:
+    formula: |
+      # ポートフォリオリターン
+      portfolio_return = Σ(weight_i * return_i)
+      
+      # ポートフォリオリスク
+      portfolio_risk = √(w'Σw)
+      
+      where:
+        w = weight vector
+        Σ = covariance matrix
+      
+      # リスク寄与度
+      marginal_risk_i = ∂σ_p/∂w_i = (Σw)_i / σ_p
+      risk_contribution_i = w_i * marginal_risk_i
+  
+  report_generation_time:
+    formula: |
+      # データ取得時間
+      data_fetch_time = record_count * api_latency + processing_overhead
+      
+      # 計算時間
+      if monte_carlo:
+        calc_time += simulations * paths * computational_complexity
+      
+      if optimization:
+        calc_time += iterations * portfolio_size^2
+      
+      # レポート作成時間
+      report_time = template_rendering + chart_generation + pdf_conversion
+      
+      total_time = data_fetch_time + calc_time + report_time
+
+# バリデーションルール
+validation_rules:
+  - name: "forecast_period_check"
+    rule: |
+      if forecast_period > 10:
+        warning: "10年超の予測は信頼性が低下します"
+  
+  - name: "terminal_growth_sanity"
+    rule: |
+      if terminal_growth > gdp_growth + 2:
+        error: "永続成長率がGDP成長率を大幅に上回っています"
+  
+  - name: "var_lookback_sufficiency"
+    rule: |
+      if lookback_period < 250 and method == "historical":
+        warning: "ヒストリカルVaRには最低1年分のデータを推奨"
+  
+  - name: "peer_group_size"
+    rule: |
+      if len(peer_companies) < 3:
+        warning: "相対評価には最低3社のピア企業が必要です"

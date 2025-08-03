@@ -1,0 +1,704 @@
+# Eコマース・商品管理ワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    project_name:
+      type: string
+      description: "プロジェクト名"
+      example: "2024年秋冬コレクション展開 - オムニチャネル統合キャンペーン"
+      validation: "max_length: 200"
+    
+    business_type:
+      type: string
+      description: "ビジネスタイプ"
+      enum: ["b2c_retail", "b2b_wholesale", "marketplace", "d2c", "subscription", "omnichannel"]
+      default: "b2c_retail"
+      impacts:
+        - "システム要件"
+        - "物流戦略"
+        - "価格設定"
+        - "顧客対応"
+    
+    operation_scope:
+      type: object
+      description: "運営範囲"
+      properties:
+        channels:
+          type: array
+          items:
+            type: string
+            enum: ["own_ec", "amazon", "rakuten", "yahoo", "shopify", "physical_store", "pop_up", "wholesale"]
+          default: ["own_ec"]
+          
+        product_categories:
+          type: array
+          items:
+            type: string
+          example: ["アパレル", "アクセサリー", "コスメ", "雑貨"]
+          
+        target_markets:
+          type: array
+          items:
+            type: string
+          example: ["日本", "アメリカ", "中国", "東南アジア"]
+    
+    business_scale:
+      type: object
+      description: "事業規模"
+      properties:
+        annual_revenue:
+          type: string
+          enum: ["<1億円", "1-10億円", "10-50億円", "50-100億円", "100億円+"]
+          default: "10-50億円"
+          
+        sku_count:
+          type: integer
+          description: "管理SKU数"
+          example: 5000
+          range: [10, 1000000]
+          
+        order_volume:
+          type: string
+          description: "月間注文数"
+          enum: ["<1000", "1000-10000", "10000-100000", "100000+"]
+          default: "10000-100000"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    product_strategy:
+      type: object
+      description: "商品戦略"
+      properties:
+        product_mix:
+          type: object
+          properties:
+            core_products:
+              type: integer
+              description: "定番商品比率（%）"
+              default: 60
+              
+            seasonal_products:
+              type: integer
+              description: "季節商品比率（%）"
+              default: 30
+              
+            limited_editions:
+              type: integer
+              description: "限定商品比率（%）"
+              default: 10
+        
+        pricing_strategy:
+          type: object
+          properties:
+            pricing_model:
+              type: string
+              enum: ["cost_plus", "value_based", "competitive", "dynamic", "psychological"]
+              default: "value_based"
+              
+            margin_targets:
+              type: object
+              properties:
+                gross_margin:
+                  type: number
+                  description: "目標粗利率（%）"
+                  default: 50
+                  range: [20, 80]
+                  
+                net_margin:
+                  type: number
+                  description: "目標純利率（%）"
+                  default: 10
+                  range: [5, 30]
+            
+            discount_strategy:
+              type: object
+              properties:
+                max_discount:
+                  type: integer
+                  description: "最大割引率（%）"
+                  default: 50
+                  
+                promotion_frequency:
+                  type: string
+                  enum: ["weekly", "monthly", "seasonal", "event_based"]
+                  default: "seasonal"
+                  
+                member_benefits:
+                  type: object
+                  properties:
+                    regular:
+                      type: integer
+                      default: 5
+                      
+                    gold:
+                      type: integer
+                      default: 10
+                      
+                    platinum:
+                      type: integer
+                      default: 15
+        
+        inventory_policy:
+          type: object
+          properties:
+            stock_strategy:
+              type: string
+              enum: ["make_to_stock", "make_to_order", "assemble_to_order", "hybrid"]
+              default: "make_to_stock"
+              
+            lead_times:
+              type: object
+              properties:
+                procurement:
+                  type: integer
+                  description: "調達リードタイム（日）"
+                  default: 30
+                  
+                production:
+                  type: integer
+                  description: "生産リードタイム（日）"
+                  default: 45
+                  
+                safety_lead:
+                  type: integer
+                  description: "安全リードタイム（日）"
+                  default: 7
+            
+            service_levels:
+              type: object
+              properties:
+                a_items:
+                  type: number
+                  description: "Aランク商品サービスレベル（%）"
+                  default: 98
+                  
+                b_items:
+                  type: number
+                  default: 95
+                  
+                c_items:
+                  type: number
+                  default: 90
+    
+    customer_experience_design:
+      type: object
+      description: "顧客体験設計"
+      properties:
+        website_features:
+          type: array
+          items:
+            type: string
+            enum: ["search_filters", "visual_search", "ar_try_on", "size_guide", "live_chat", "wishlist", "comparison", "reviews", "qa_section"]
+          default: ["search_filters", "size_guide", "reviews", "wishlist"]
+          
+        personalization_level:
+          type: string
+          enum: ["basic", "intermediate", "advanced", "ai_driven"]
+          default: "intermediate"
+          description: "パーソナライゼーションレベル"
+          
+        customer_service:
+          type: object
+          properties:
+            channels:
+              type: array
+              items:
+                type: string
+                enum: ["email", "phone", "chat", "line", "social_media", "chatbot"]
+              default: ["email", "phone", "chat"]
+              
+            response_time_target:
+              type: object
+              properties:
+                email:
+                  type: string
+                  default: "24時間以内"
+                  
+                chat:
+                  type: string
+                  default: "1分以内"
+                  
+                phone:
+                  type: string
+                  default: "30秒以内"
+            
+            self_service_options:
+              type: array
+              items:
+                type: string
+                enum: ["faq", "order_tracking", "return_portal", "size_calculator", "product_finder"]
+              default: ["faq", "order_tracking", "return_portal"]
+        
+        loyalty_program:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+              
+            program_type:
+              type: string
+              enum: ["points", "tiered", "paid_membership", "hybrid"]
+              default: "tiered"
+              
+            benefits:
+              type: array
+              items:
+                type: object
+                properties:
+                  tier:
+                    type: string
+                    
+                  perks:
+                    type: array
+                    items:
+                      type: string
+              
+              example:
+                - tier: "Silver"
+                  perks: ["5%割引", "送料無料", "誕生日クーポン"]
+                - tier: "Gold"
+                  perks: ["10%割引", "優先配送", "限定商品アクセス"]
+    
+    fulfillment_configuration:
+      type: object
+      description: "フルフィルメント設定"
+      properties:
+        fulfillment_model:
+          type: string
+          enum: ["in_house", "3pl", "dropship", "fba", "hybrid"]
+          default: "3pl"
+          
+        warehouse_locations:
+          type: array
+          items:
+            type: object
+            properties:
+              location:
+                type: string
+                example: "関東DC"
+                
+              coverage_area:
+                type: array
+                items:
+                  type: string
+                example: ["東京", "神奈川", "千葉", "埼玉"]
+                
+              capacity:
+                type: string
+                description: "保管能力"
+                example: "10000SKU"
+        
+        shipping_options:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "通常配送"
+                
+              delivery_time:
+                type: string
+                example: "3-5営業日"
+                
+              cost:
+                type: number
+                example: 500
+                
+              free_threshold:
+                type: number
+                description: "送料無料閾値"
+                example: 3000
+          
+          default:
+            - name: "通常配送"
+              delivery_time: "3-5営業日"
+              cost: 500
+              free_threshold: 3000
+            - name: "お急ぎ便"
+              delivery_time: "1-2営業日"
+              cost: 800
+              free_threshold: 5000
+        
+        return_handling:
+          type: object
+          properties:
+            return_window:
+              type: integer
+              description: "返品受付期間（日）"
+              default: 30
+              
+            return_shipping:
+              type: string
+              enum: ["customer_pays", "free_return", "prepaid_label"]
+              default: "prepaid_label"
+              
+            restocking_fee:
+              type: number
+              description: "返品手数料（%）"
+              default: 0
+              range: [0, 20]
+    
+    analytics_requirements:
+      type: object
+      description: "分析要件"
+      properties:
+        kpi_tracking:
+          type: array
+          items:
+            type: string
+            enum: ["conversion_rate", "aov", "cart_abandonment", "customer_ltv", "inventory_turnover", "gmv", "return_rate", "nps"]
+          default: ["conversion_rate", "aov", "cart_abandonment", "customer_ltv"]
+          
+        reporting_frequency:
+          type: object
+          properties:
+            real_time:
+              type: array
+              items:
+                type: string
+              example: ["売上", "在庫", "注文状況"]
+              
+            daily:
+              type: array
+              items:
+                type: string
+              example: ["KPIサマリー", "在庫アラート"]
+              
+            weekly:
+              type: array
+              items:
+                type: string
+              example: ["マーケティング効果", "顧客分析"]
+              
+            monthly:
+              type: array
+              items:
+                type: string
+              example: ["財務レポート", "商品分析"]
+        
+        analytics_tools:
+          type: array
+          items:
+            type: string
+            enum: ["google_analytics", "adobe_analytics", "mixpanel", "amplitude", "tableau", "power_bi", "custom"]
+          default: ["google_analytics", "tableau"]
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_features:
+      type: object
+      description: "高度な機能"
+      properties:
+        ai_integration:
+          type: object
+          properties:
+            demand_forecasting:
+              type: boolean
+              default: true
+              description: "AI需要予測"
+              
+            price_optimization:
+              type: boolean
+              default: false
+              description: "AI価格最適化"
+              
+            chatbot_support:
+              type: boolean
+              default: true
+              description: "AIチャットボット"
+              
+            visual_search:
+              type: boolean
+              default: false
+              description: "画像検索機能"
+              
+            recommendation_engine:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                algorithm:
+                  type: string
+                  enum: ["collaborative", "content_based", "hybrid", "deep_learning"]
+                  default: "hybrid"
+        
+        marketplace_integration:
+          type: object
+          properties:
+            sync_inventory:
+              type: boolean
+              default: true
+              description: "在庫同期"
+              
+            sync_pricing:
+              type: boolean
+              default: true
+              description: "価格同期"
+              
+            sync_orders:
+              type: boolean
+              default: true
+              description: "注文統合"
+              
+            marketplace_specific:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  api_key:
+                    type: string
+                    
+                  store_id:
+                    type: string
+                    
+                  sync_interval:
+                    type: string
+                    enum: ["real_time", "5min", "15min", "hourly", "daily"]
+        
+        sustainability_features:
+          type: object
+          properties:
+            carbon_neutral_shipping:
+              type: boolean
+              default: false
+              
+            eco_packaging:
+              type: boolean
+              default: true
+              
+            product_lifecycle_tracking:
+              type: boolean
+              default: false
+              
+            sustainability_badges:
+              type: boolean
+              default: true
+    
+    marketing_automation:
+      type: object
+      description: "マーケティング自動化"
+      properties:
+        email_marketing:
+          type: object
+          properties:
+            platform:
+              type: string
+              enum: ["mailchimp", "sendgrid", "salesforce", "hubspot", "custom"]
+              default: "mailchimp"
+              
+            automation_flows:
+              type: array
+              items:
+                type: string
+                enum: ["welcome_series", "abandoned_cart", "post_purchase", "re_engagement", "birthday", "vip_program"]
+              default: ["welcome_series", "abandoned_cart", "post_purchase"]
+              
+            segmentation_criteria:
+              type: array
+              items:
+                type: string
+              example: ["購買履歴", "行動データ", "デモグラフィック", "エンゲージメント"]
+        
+        social_commerce:
+          type: object
+          properties:
+            platforms:
+              type: array
+              items:
+                type: string
+                enum: ["instagram_shop", "facebook_shop", "tiktok_shop", "pinterest", "line_shopping"]
+              default: ["instagram_shop"]
+              
+            live_commerce:
+              type: boolean
+              default: false
+              
+            influencer_collaboration:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                tracking_method:
+                  type: string
+                  enum: ["promo_code", "affiliate_link", "utm_tracking"]
+                  default: "promo_code"
+        
+        retargeting:
+          type: object
+          properties:
+            channels:
+              type: array
+              items:
+                type: string
+                enum: ["google_ads", "facebook_ads", "criteo", "rtb_house"]
+              default: ["google_ads", "facebook_ads"]
+              
+            dynamic_product_ads:
+              type: boolean
+              default: true
+              
+            audience_segments:
+              type: array
+              items:
+                type: string
+              example: ["カート放棄", "商品閲覧", "カテゴリ閲覧", "過去購入者"]
+    
+    international_expansion:
+      type: object
+      description: "国際展開設定"
+      properties:
+        localization:
+          type: object
+          properties:
+            languages:
+              type: array
+              items:
+                type: string
+              default: ["ja", "en"]
+              
+            currency_support:
+              type: array
+              items:
+                type: string
+              default: ["JPY", "USD"]
+              
+            payment_methods:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              example:
+                japan: ["クレジットカード", "コンビニ決済", "代引き", "PayPay"]
+                usa: ["Credit Card", "PayPal", "Apple Pay", "Shop Pay"]
+        
+        tax_compliance:
+          type: object
+          properties:
+            tax_calculation:
+              type: string
+              enum: ["manual", "automated", "third_party"]
+              default: "automated"
+              
+            vat_handling:
+              type: boolean
+              default: true
+              
+            customs_integration:
+              type: boolean
+              default: true
+        
+        shipping_international:
+          type: object
+          properties:
+            carriers:
+              type: array
+              items:
+                type: string
+              example: ["DHL", "FedEx", "EMS", "UPS"]
+              
+            duty_handling:
+              type: string
+              enum: ["ddu", "ddp", "customer_choice"]
+              default: "ddu"
+              description: "関税処理（DDP:元払い、DDU:着払い）"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  inventory_requirements:
+    formula: |
+      # 必要在庫量計算
+      for sku in all_skus:
+        avg_daily_demand = sales_history.rolling(90).mean()
+        demand_variability = sales_history.rolling(90).std()
+        
+        # 基本在庫
+        cycle_stock = avg_daily_demand * replenishment_cycle
+        
+        # 安全在庫
+        safety_stock = z_score * sqrt(lead_time) * demand_variability
+        
+        # 最大在庫
+        max_inventory = cycle_stock + safety_stock
+        
+        # 発注点
+        reorder_point = (avg_daily_demand * lead_time) + safety_stock
+  
+  pricing_optimization:
+    formula: |
+      # 最適価格計算
+      base_price = cost * (1 + target_margin)
+      
+      # 競合調整
+      competitor_avg = mean(competitor_prices)
+      if base_price > competitor_avg * 1.2:
+        adjusted_price = competitor_avg * 1.1
+      
+      # 需要弾力性調整
+      elasticity = calculate_price_elasticity(historical_data)
+      optimal_price = base_price * (1 + elasticity_factor)
+      
+      # 心理的価格調整
+      final_price = apply_psychological_pricing(optimal_price)
+  
+  fulfillment_cost_estimation:
+    formula: |
+      # フルフィルメントコスト
+      pick_pack_cost = order_count * cost_per_pick
+      
+      storage_cost = sum(sku_volume * days_in_storage * storage_rate)
+      
+      shipping_cost = sum(order_weight * shipping_rate * distance_factor)
+      
+      returns_cost = return_rate * order_count * return_processing_cost
+      
+      total_fulfillment_cost = pick_pack_cost + storage_cost + shipping_cost + returns_cost
+      
+      fulfillment_cost_ratio = total_fulfillment_cost / revenue * 100
+  
+  customer_lifetime_value:
+    formula: |
+      # CLV計算
+      # シンプル版
+      clv_simple = average_order_value * purchase_frequency * customer_lifespan
+      
+      # 詳細版（割引考慮）
+      retention_rate = 1 - churn_rate
+      discount_rate = 0.1  # 年率10%
+      
+      clv_detailed = sum([
+        (aov * purchase_freq * retention_rate^t * gross_margin) / (1 + discount_rate)^t
+        for t in range(expected_lifetime_years)
+      ])
+      
+      # CAC比較
+      ltv_to_cac_ratio = clv_detailed / customer_acquisition_cost
+
+# バリデーションルール
+validation_rules:
+  - name: "channel_inventory_sync"
+    rule: |
+      if len(channels) > 1 and not real_time_inventory_sync:
+        warning: "複数チャネル運営には在庫リアルタイム同期を推奨"
+  
+  - name: "international_compliance"
+    rule: |
+      if len(target_markets) > 1 and not tax_compliance.automated:
+        error: "国際展開には自動税計算が必要です"
+  
+  - name: "return_window_standard"
+    rule: |
+      if return_window < 14:
+        warning: "返品期間が業界標準（14-30日）より短いです"
+  
+  - name: "fulfillment_capacity"
+    rule: |
+      if order_volume > warehouse_capacity * 0.8:
+        warning: "フルフィルメント容量が逼迫しています"

@@ -1,0 +1,469 @@
+# 金融レポート・分析の制約条件と計算式
+
+financial_modeling_standards:
+  # 評価モデル
+  valuation_models:
+    dcf_analysis:
+      components:
+        fcf_calculation:
+          formula: |
+            FCF = EBIT * (1 - Tax_Rate) + Depreciation - CapEx - ΔNWC
+            
+            where:
+              EBIT = Earnings Before Interest and Tax
+              ΔNWC = Change in Net Working Capital
+          
+        terminal_value:
+          gordon_growth: |
+            TV = FCF_n * (1 + g) / (WACC - g)
+            
+            constraints:
+              g < WACC
+              g < GDP_growth_rate (long-term)
+          
+          exit_multiple: |
+            TV = EBITDA_n * EV/EBITDA_multiple
+            
+            multiple_selection:
+              peer_group_median: "同業他社中央値"
+              transaction_comps: "類似取引事例"
+        
+        wacc_calculation:
+          formula: |
+            WACC = (E/V) * Re + (D/V) * Rd * (1 - Tc)
+            
+            where:
+              E = Market value of equity
+              D = Market value of debt
+              V = E + D
+              Re = Cost of equity (CAPM)
+              Rd = Cost of debt
+              Tc = Corporate tax rate
+          
+          capm: |
+            Re = Rf + β * (Rm - Rf)
+            
+            beta_adjustment:
+              unlevered: β_u = β_l / (1 + (1-T) * (D/E))
+              relevered: β_l = β_u * (1 + (1-T) * (D/E))
+    
+    relative_valuation:
+      multiples:
+        equity_multiples:
+          - "P/E (Price/Earnings)"
+          - "P/B (Price/Book)"
+          - "PEG (P/E to Growth)"
+          
+        enterprise_multiples:
+          - "EV/EBITDA"
+          - "EV/Sales"
+          - "EV/EBIT"
+          
+        sector_specific:
+          banks: ["P/TBV", "P/PPOP"]
+          reits: ["P/FFO", "P/AFFO"]
+          tech: ["EV/ARR", "EV/Users"]
+      
+      adjustments:
+        size_premium: "小型株プレミアム"
+        liquidity_discount: "流動性ディスカウント"
+        control_premium: "支配権プレミアム"
+    
+    option_pricing:
+      black_scholes:
+        call_formula: |
+          C = S*N(d1) - K*e^(-rT)*N(d2)
+          
+          where:
+            d1 = (ln(S/K) + (r + σ²/2)*T) / (σ*√T)
+            d2 = d1 - σ*√T
+            N() = cumulative normal distribution
+        
+        inputs:
+          S: "現在の株価"
+          K: "権利行使価格"
+          r: "リスクフリーレート"
+          T: "満期までの時間"
+          σ: "ボラティリティ"
+      
+      binomial_model:
+        parameters:
+          u: "上昇率 = e^(σ*√Δt)"
+          d: "下降率 = 1/u"
+          p: "リスク中立確率"
+      
+      monte_carlo:
+        paths: 10000
+        time_steps: 252  # 営業日数
+        
+        variance_reduction:
+          - "Antithetic variates"
+          - "Control variates"
+          - "Importance sampling"
+
+risk_management_framework:
+  # 市場リスク
+  market_risk:
+    value_at_risk:
+      methods:
+        historical_var:
+          lookback_period: "1-2年"
+          confidence_levels: [95%, 99%]
+          
+          calculation: |
+            VaR_95 = percentile(returns, 5)
+            VaR_99 = percentile(returns, 1)
+        
+        parametric_var:
+          assumptions: "正規分布"
+          
+          formula: |
+            VaR = μ - σ * z_α
+            
+            where:
+              μ = expected return
+              σ = standard deviation
+              z_α = normal quantile
+        
+        monte_carlo_var:
+          simulations: 10000
+          
+          correlation_matrix: "過去データから推定"
+          
+      backtesting:
+        kupiec_test: "例外数の検定"
+        christoffersen_test: "独立性検定"
+        
+        violation_limits:
+          95%_var: "年間12.7回以下"
+          99%_var: "年間2.5回以下"
+    
+    stress_testing:
+      scenarios:
+        historical:
+          - "2008年金融危機"
+          - "2020年COVIDショック"
+          - "1997年アジア通貨危機"
+          
+        hypothetical:
+          - "金利200bp上昇"
+          - "株価30%下落"
+          - "為替20%変動"
+          
+        reverse_stress:
+          description: "破綻に至るシナリオ逆算"
+      
+      sensitivity_analysis:
+        greeks:
+          delta: "原資産価格感応度"
+          gamma: "デルタの変化率"
+          vega: "ボラティリティ感応度"
+          theta: "時間経過感応度"
+          rho: "金利感応度"
+    
+    portfolio_optimization:
+      markowitz_model:
+        objective: |
+          min σ_p² = w'Σw
+          
+          subject to:
+            w'μ = μ_target
+            w'1 = 1
+            w ≥ 0 (if no short selling)
+        
+        efficient_frontier:
+          calculation: "各リターン水準での最小リスク"
+          
+      risk_parity:
+        principle: "リスク貢献度均等化"
+        
+        formula: |
+          RC_i = w_i * (Σw)_i / σ_p
+          
+          target: RC_i = 1/n for all i
+      
+      black_litterman:
+        inputs:
+          market_equilibrium: "CAPM均衡リターン"
+          views: "アナリスト予想"
+          uncertainty: "予想の確信度"
+  
+  # 信用リスク
+  credit_risk:
+    probability_of_default:
+      merton_model:
+        formula: |
+          PD = N(-DD)
+          
+          where:
+            DD = (ln(V/D) + (μ - σ²/2)*T) / (σ*√T)
+            V = asset value
+            D = debt face value
+      
+      credit_scoring:
+        altman_z_score: |
+          Z = 1.2*WC/TA + 1.4*RE/TA + 3.3*EBIT/TA + 0.6*MVE/BVD + 1.0*S/TA
+          
+          interpretation:
+            Z > 2.99: "Safe"
+            1.81 < Z < 2.99: "Grey Zone"
+            Z < 1.81: "Distress"
+      
+      transition_matrix:
+        rating_grades: ["AAA", "AA", "A", "BBB", "BB", "B", "CCC", "D"]
+        time_horizon: "1年"
+    
+    expected_loss:
+      formula: |
+        EL = PD * LGD * EAD
+        
+        where:
+          PD = Probability of Default
+          LGD = Loss Given Default
+          EAD = Exposure at Default
+      
+      lgd_estimation:
+        secured: "担保回収率考慮"
+        unsecured: "過去実績ベース"
+        
+      ead_calculation:
+        on_balance: "現在のエクスポージャー"
+        off_balance: "CCF * コミットメント額"
+
+regulatory_compliance:
+  # バーゼルIII
+  basel_iii:
+    capital_requirements:
+      tier1_capital:
+        minimum: 6.0%
+        buffer: 2.5%
+        
+        components:
+          common_equity: "普通株式 + 内部留保"
+          additional_tier1: "優先株式等"
+      
+      total_capital:
+        minimum: 8.0%
+        
+        calculation: |
+          CAR = (Tier1 + Tier2) / RWA
+          
+          where:
+            RWA = Risk Weighted Assets
+    
+    liquidity_ratios:
+      lcr:
+        formula: |
+          LCR = HQLA / Net_Cash_Outflows_30days
+          
+          requirement: ≥ 100%
+        
+        hqla_categories:
+          level_1: "現金、中央銀行預金、国債"
+          level_2a: "高格付社債（haircut 15%）"
+          level_2b: "株式（haircut 50%）"
+      
+      nsfr:
+        formula: |
+          NSFR = Available_Stable_Funding / Required_Stable_Funding
+          
+          requirement: ≥ 100%
+    
+    leverage_ratio:
+      formula: |
+        Leverage_Ratio = Tier1_Capital / Total_Exposure
+        
+        requirement: ≥ 3%
+  
+  # IFRS
+  ifrs_reporting:
+    ifrs_9:
+      ecl_model:
+        stages:
+          stage_1: "12ヶ月ECL"
+          stage_2: "全期間ECL（信用リスク増大）"
+          stage_3: "全期間ECL（信用減損）"
+        
+        calculation: |
+          ECL = Σ(PD_t * LGD_t * EAD_t * DF_t)
+          
+          where:
+            t = time period
+            DF = discount factor
+      
+      hedge_accounting:
+        types: ["公正価値ヘッジ", "キャッシュフローヘッジ", "純投資ヘッジ"]
+        effectiveness: "80-125%ルール（IAS39）またはIFRS9の定性評価"
+    
+    ifrs_13:
+      fair_value_hierarchy:
+        level_1: "活発な市場の公表価格"
+        level_2: "観察可能なインプット"
+        level_3: "観察不能なインプット"
+      
+      valuation_techniques:
+        market_approach: "類似取引・倍率法"
+        income_approach: "DCF・オプションモデル"
+        cost_approach: "再調達原価"
+
+reporting_standards:
+  # レポート構成
+  report_structure:
+    executive_summary:
+      length: "1-2ページ"
+      
+      components:
+        - "主要な結論・推奨事項"
+        - "重要な前提条件"
+        - "主なリスク要因"
+        - "投資判断（Buy/Hold/Sell）"
+      
+      visual_elements:
+        - "主要指標ダッシュボード"
+        - "パフォーマンスサマリー"
+    
+    detailed_analysis:
+      sections:
+        market_overview:
+          - "マクロ経済環境"
+          - "業界動向"
+          - "競合分析"
+          
+        financial_analysis:
+          - "財務諸表分析"
+          - "比率分析"
+          - "トレンド分析"
+          
+        valuation:
+          - "評価手法の説明"
+          - "感度分析"
+          - "シナリオ分析"
+          
+        risk_assessment:
+          - "主要リスク要因"
+          - "リスク定量化"
+          - "ミティゲーション戦略"
+    
+    data_visualization:
+      chart_types:
+        time_series: "価格推移、ボラティリティ"
+        correlation: "ヒートマップ、散布図"
+        distribution: "ヒストグラム、箱ひげ図"
+        composition: "円グラフ、積み上げ棒グラフ"
+      
+      formatting_standards:
+        colors: "色覚バリアフリー対応"
+        labels: "明確な軸ラベル・単位"
+        source: "データソース明記"
+  
+  # 免責事項
+  disclaimers:
+    required_elements:
+      - "投資判断の自己責任"
+      - "将来予測の不確実性"
+      - "利益相反の開示"
+      - "規制上の制限"
+      
+    regulatory_disclaimers:
+      japan: "金融商品取引法に基づく表示"
+      us: "SEC規則遵守表示"
+      eu: "MiFID II要件"
+
+data_quality_management:
+  # データソース
+  data_sources:
+    market_data:
+      providers:
+        - "Bloomberg Terminal"
+        - "Refinitiv Eikon"
+        - "FactSet"
+        - "S&P Capital IQ"
+      
+      update_frequency:
+        real_time: "為替、主要株式"
+        delayed: "15-20分遅延"
+        end_of_day: "日次更新"
+    
+    alternative_data:
+      types:
+        - "衛星画像データ"
+        - "ソーシャルメディアセンチメント"
+        - "ウェブスクレイピング"
+        - "IoTセンサーデータ"
+      
+      validation: "従来データとのクロスチェック"
+  
+  # データ品質チェック
+  quality_controls:
+    completeness:
+      missing_data: "補完方法の文書化"
+      
+      imputation_methods:
+        - "線形補間"
+        - "前値保持"
+        - "平均値代入"
+        - "機械学習予測"
+    
+    accuracy:
+      outlier_detection:
+        methods: ["IQR", "Zスコア", "Isolation Forest"]
+        
+      cross_validation:
+        - "複数ソース照合"
+        - "過去データとの整合性"
+    
+    timeliness:
+      staleness_check: "最終更新時刻確認"
+      
+      alert_thresholds:
+        critical: "2時間以上の遅延"
+        warning: "30分以上の遅延"
+
+automation_integration:
+  # 自動レポート生成
+  report_automation:
+    templates:
+      dynamic_sections: "データ駆動型コンテンツ"
+      
+      variable_mapping:
+        - "計算結果の自動挿入"
+        - "グラフの自動更新"
+        - "条件付き文章生成"
+    
+    scheduling:
+      triggers:
+        - "時間ベース（定期実行）"
+        - "イベントベース（決算発表等）"
+        - "閾値ベース（大幅変動時）"
+    
+    distribution:
+      channels:
+        - "メール配信"
+        - "ポータルアップロード"
+        - "API配信"
+      
+      access_control:
+        - "役職別アクセス権"
+        - "地域別制限"
+        - "時限公開"
+  
+  # APIインテグレーション
+  system_integration:
+    input_apis:
+      market_data: "REST/WebSocket"
+      
+      authentication:
+        - "APIキー"
+        - "OAuth 2.0"
+        - "証明書認証"
+    
+    output_apis:
+      report_delivery:
+        formats: ["PDF", "Excel", "JSON", "XML"]
+        
+      real_time_updates:
+        protocols: ["WebSocket", "Server-Sent Events"]
+        
+      data_feeds:
+        - "計算結果ストリーミング"
+        - "アラート通知"
