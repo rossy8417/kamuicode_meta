@@ -1,0 +1,406 @@
+# ライブストリーミングワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    stream_title:
+      type: string
+      description: "配信タイトル"
+      example: "【生放送】新製品発表会 - 革新的なAI技術を公開"
+      validation: "max_length: 100"
+    
+    stream_type:
+      type: string
+      description: "配信タイプ"
+      enum: ["gaming", "music_live", "webinar", "sports", "education", "talk_show", "24_7_stream"]
+      default: "webinar"
+      impacts:
+        - "遅延プロファイル選択"
+        - "画質設定"
+        - "インタラクション機能"
+        - "録画設定"
+    
+    target_platforms:
+      type: array
+      description: "配信先プラットフォーム"
+      items:
+        type: string
+        enum: ["youtube", "twitch", "facebook", "twitter", "linkedin", "custom_rtmp"]
+      default: ["youtube"]
+      min_items: 1
+      max_items: 10
+    
+    duration_minutes:
+      type: integer
+      description: "予定配信時間（分）"
+      default: 60
+      range: [1, 1440]  # 最大24時間
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    quality_settings:
+      type: object
+      description: "配信品質設定"
+      properties:
+        video_resolution:
+          type: string
+          enum: ["4k", "1080p", "720p", "adaptive"]
+          default: "1080p"
+          
+        frame_rate:
+          type: integer
+          enum: [24, 25, 30, 50, 60]
+          default: 30
+          
+        bitrate_profile:
+          type: string
+          enum: ["premium", "standard", "economy", "custom"]
+          default: "standard"
+          
+        latency_mode:
+          type: string
+          enum: ["ultra_low", "low", "normal"]
+          default: "low"
+          impacts:
+            - "バッファサイズ"
+            - "セグメント長"
+            - "プロトコル選択"
+        
+        audio_quality:
+          type: string
+          enum: ["music_grade", "broadcast_grade", "voice_optimized"]
+          default: "broadcast_grade"
+    
+    interaction_settings:
+      type: object
+      description: "インタラクション設定"
+      properties:
+        chat_enabled:
+          type: boolean
+          default: true
+          
+        moderation_level:
+          type: string
+          enum: ["off", "low", "medium", "high", "custom"]
+          default: "medium"
+          
+        monetization:
+          type: object
+          properties:
+            super_chat:
+              type: boolean
+              default: false
+              
+            subscriptions:
+              type: boolean
+              default: false
+              
+            donations:
+              type: boolean
+              default: false
+        
+        interactive_features:
+          type: array
+          items:
+            type: string
+            enum: ["polls", "q_and_a", "games", "giveaways"]
+          default: ["q_and_a"]
+    
+    production_setup:
+      type: object
+      description: "配信セットアップ"
+      properties:
+        camera_count:
+          type: integer
+          description: "カメラ台数"
+          default: 1
+          range: [1, 16]
+          
+        camera_switching:
+          type: string
+          enum: ["manual", "auto_ai", "preset_sequence"]
+          default: "manual"
+          
+        graphics_overlays:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: ["lower_third", "logo", "ticker", "countdown", "custom"]
+              
+              position:
+                type: string
+                enum: ["top_left", "top_right", "bottom_left", "bottom_right", "custom"]
+          
+        scene_presets:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+                example: "メインカメラ"
+              
+              layout:
+                type: string
+                enum: ["full_screen", "pip", "side_by_side", "grid", "custom"]
+    
+    redundancy_config:
+      type: object
+      description: "冗長性・信頼性設定"
+      properties:
+        backup_stream:
+          type: boolean
+          default: true
+          description: "バックアップストリーム有効化"
+          
+        recording_enabled:
+          type: boolean
+          default: true
+          
+        recording_quality:
+          type: string
+          enum: ["master", "high", "standard"]
+          default: "high"
+          
+        cdn_distribution:
+          type: string
+          enum: ["global", "regional", "local"]
+          default: "regional"
+          
+        failover_mode:
+          type: string
+          enum: ["auto", "manual", "disabled"]
+          default: "auto"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_encoding:
+      type: object
+      description: "高度なエンコード設定"
+      properties:
+        video_codec:
+          type: string
+          enum: ["h264", "h265", "av1", "vp9"]
+          default: "h264"
+          
+        codec_profile:
+          type: string
+          enum: ["baseline", "main", "high"]
+          default: "main"
+          
+        rate_control:
+          type: string
+          enum: ["cbr", "vbr", "crf"]
+          default: "cbr"
+          
+        keyframe_interval:
+          type: integer
+          description: "キーフレーム間隔（秒）"
+          default: 2
+          range: [1, 4]
+        
+        b_frames:
+          type: integer
+          default: 2
+          range: [0, 3]
+    
+    automation_rules:
+      type: object
+      description: "自動化ルール"
+      properties:
+        pre_stream:
+          type: object
+          properties:
+            countdown_minutes:
+              type: integer
+              default: 5
+              
+            waiting_screen:
+              type: string
+              description: "待機画面URL"
+              
+            background_music:
+              type: string
+              description: "BGM URL"
+        
+        during_stream:
+          type: array
+          items:
+            type: object
+            properties:
+              trigger:
+                type: string
+                enum: ["time", "donation", "follower_count", "keyword", "manual"]
+              
+              action:
+                type: string
+                enum: ["scene_change", "play_sound", "show_animation", "send_message"]
+              
+              parameters:
+                type: object
+                description: "アクション固有のパラメータ"
+        
+        post_stream:
+          type: object
+          properties:
+            end_screen_duration:
+              type: integer
+              default: 30
+              description: "終了画面表示時間（秒）"
+              
+            auto_raid:
+              type: boolean
+              default: false
+              
+            auto_host:
+              type: boolean
+              default: false
+    
+    analytics_tracking:
+      type: object
+      description: "分析・追跡設定"
+      properties:
+        viewer_analytics:
+          type: boolean
+          default: true
+          
+        engagement_tracking:
+          type: array
+          items:
+            type: string
+            enum: ["chat_rate", "viewer_retention", "peak_moments", "interaction_rate"]
+          default: ["viewer_retention", "peak_moments"]
+        
+        revenue_tracking:
+          type: boolean
+          default: false
+          
+        custom_events:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              
+              type:
+                type: string
+                enum: ["click", "conversion", "milestone", "custom"]
+    
+    multi_language:
+      type: object
+      description: "多言語対応"
+      properties:
+        primary_language:
+          type: string
+          default: "ja"
+          
+        subtitle_languages:
+          type: array
+          items:
+            type: string
+          example: ["en", "zh", "ko"]
+          
+        auto_translation:
+          type: boolean
+          default: false
+          
+        live_interpretation:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            
+            audio_channels:
+              type: array
+              items:
+                type: object
+                properties:
+                  language:
+                    type: string
+                  
+                  interpreter_feed:
+                    type: string
+                    description: "通訳音声フィードURL"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  bandwidth_requirements:
+    formula: |
+      # アップロード帯域計算
+      video_bitrate = resolution_bitrate_map[resolution] * motion_factor
+      audio_bitrate = audio_quality_map[audio_quality]
+      
+      per_platform_bandwidth = video_bitrate + audio_bitrate + overhead(20%)
+      total_upload = per_platform_bandwidth * platform_count
+      
+      recommended_bandwidth = total_upload * 2  # 安全マージン
+      
+      resolution_bitrate_map:
+        4k: 25000
+        1080p: 6000
+        720p: 3000
+  
+  storage_requirements:
+    formula: |
+      # 録画ストレージ計算
+      recording_bitrate = max(platform_bitrates) * 1.1
+      storage_gb = (recording_bitrate / 8000) * duration_seconds
+      
+      with_redundancy = storage_gb * (1 + backup_copies)
+      
+      # マルチカメラの場合
+      if camera_count > 1:
+        isolated_feeds_storage = storage_gb * camera_count * 0.5
+        total_storage = with_redundancy + isolated_feeds_storage
+  
+  server_requirements:
+    formula: |
+      # エンコーディングサーバー要件
+      cpu_cores = ceil(camera_count * 2 + platform_count)
+      
+      gpu_needed = video_resolution in ["4k", "1080p60"]
+      
+      ram_gb = 8 + (camera_count * 2) + (platform_count * 1)
+      
+      # トランスコーディングサーバー（ABR用）
+      if adaptive_bitrate:
+        transcode_servers = ceil(ladder_count / 4)
+  
+  viewer_capacity:
+    formula: |
+      # CDN容量計算
+      edge_servers = ceil(expected_viewers / 10000)
+      
+      total_bandwidth_gbps = (expected_viewers * avg_bitrate_mbps) / 1000
+      
+      chat_servers = ceil(expected_viewers / 50000)
+      
+      # 地域分散
+      regions_needed = ceil(log(expected_viewers) / log(10))
+
+# バリデーションルール
+validation_rules:
+  - name: "platform_bitrate_limits"
+    rule: |
+      if "twitch" in platforms and bitrate > 6000:
+        error: "Twitchの最大ビットレートは6000kbpsです"
+  
+  - name: "ultra_low_latency_requirements"
+    rule: |
+      if latency_mode == "ultra_low" and platform in ["facebook", "linkedin"]:
+        warning: "選択されたプラットフォームは超低遅延をサポートしていません"
+  
+  - name: "bandwidth_feasibility"
+    rule: |
+      if total_upload_bandwidth > 100:
+        warning: "100Mbps以上のアップロード帯域が必要です。専用回線を推奨"
+  
+  - name: "recording_storage"
+    rule: |
+      if duration > 240 and recording_quality == "master":
+        info: "4時間以上のマスター品質録画には100GB以上のストレージが必要です"

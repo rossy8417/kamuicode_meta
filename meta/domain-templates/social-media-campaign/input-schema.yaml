@@ -1,0 +1,534 @@
+# ソーシャルメディアキャンペーンワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    campaign_name:
+      type: string
+      description: "キャンペーン名"
+      example: "2024夏の新商品ローンチ #SummerVibes"
+      validation: "max_length: 100"
+    
+    campaign_type:
+      type: string
+      description: "キャンペーンタイプ"
+      enum: ["product_launch", "brand_awareness", "ugc_contest", "influencer_collab", "social_commerce", "crisis_management"]
+      default: "brand_awareness"
+      impacts:
+        - "コンテンツ戦略"
+        - "プラットフォーム選択"
+        - "KPI設定"
+        - "予算配分"
+    
+    target_platforms:
+      type: array
+      description: "配信プラットフォーム"
+      items:
+        type: string
+        enum: ["instagram", "twitter_x", "tiktok", "youtube", "linkedin", "facebook", "pinterest", "snapchat"]
+      default: ["instagram", "twitter_x", "tiktok"]
+      min_items: 1
+      max_items: 8
+    
+    campaign_duration_days:
+      type: integer
+      description: "キャンペーン期間（日）"
+      default: 30
+      range: [1, 365]
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    target_audience:
+      type: object
+      description: "ターゲットオーディエンス"
+      properties:
+        demographics:
+          type: object
+          properties:
+            age_range:
+              type: string
+              enum: ["13-17", "18-24", "25-34", "35-44", "45-54", "55+", "all"]
+              default: "18-34"
+              
+            gender:
+              type: array
+              items:
+                type: string
+                enum: ["male", "female", "non_binary", "all"]
+              default: ["all"]
+              
+            location:
+              type: array
+              items:
+                type: string
+              example: ["東京", "大阪", "全国"]
+              
+            language:
+              type: array
+              items:
+                type: string
+              default: ["ja"]
+        
+        psychographics:
+          type: object
+          properties:
+            interests:
+              type: array
+              items:
+                type: string
+              example: ["ファッション", "テクノロジー", "旅行", "フィットネス"]
+              
+            values:
+              type: array
+              items:
+                type: string
+              example: ["サステナビリティ", "イノベーション", "コミュニティ"]
+              
+            lifestyle:
+              type: array
+              items:
+                type: string
+                enum: ["active", "creative", "professional", "student", "parent"]
+        
+        behavior:
+          type: object
+          properties:
+            purchase_frequency:
+              type: string
+              enum: ["daily", "weekly", "monthly", "seasonal", "yearly"]
+              default: "monthly"
+              
+            device_usage:
+              type: array
+              items:
+                type: string
+                enum: ["mobile", "desktop", "tablet"]
+              default: ["mobile"]
+              
+            social_media_usage:
+              type: string
+              enum: ["heavy", "moderate", "light"]
+              default: "moderate"
+    
+    content_strategy:
+      type: object
+      description: "コンテンツ戦略"
+      properties:
+        content_pillars:
+          type: array
+          items:
+            type: object
+            properties:
+              theme:
+                type: string
+                example: "製品紹介"
+                
+              percentage:
+                type: integer
+                description: "コンテンツ比率（%）"
+                range: [0, 100]
+          
+          default:
+            - { theme: "educational", percentage: 40 }
+            - { theme: "entertaining", percentage: 30 }
+            - { theme: "promotional", percentage: 20 }
+            - { theme: "user_generated", percentage: 10 }
+        
+        posting_schedule:
+          type: object
+          properties:
+            frequency_per_platform:
+              type: object
+              additionalProperties:
+                type: string
+              example:
+                instagram: "2/日"
+                twitter_x: "4/日"
+                tiktok: "1/日"
+            
+            optimal_times:
+              type: array
+              items:
+                type: string
+              default: ["9:00", "12:00", "19:00", "21:00"]
+        
+        content_formats:
+          type: array
+          items:
+            type: string
+            enum: ["image", "video", "carousel", "story", "reel", "live", "poll", "quiz"]
+          default: ["image", "video", "story"]
+        
+        hashtag_strategy:
+          type: object
+          properties:
+            branded_hashtags:
+              type: array
+              items:
+                type: string
+              example: ["#ブランド名2024", "#夏の新作"]
+              
+            campaign_hashtags:
+              type: array
+              items:
+                type: string
+              example: ["#SummerVibes", "#新商品"]
+              
+            trending_hashtags:
+              type: integer
+              description: "トレンドハッシュタグ使用数"
+              default: 3
+              range: [0, 10]
+    
+    budget_allocation:
+      type: object
+      description: "予算配分"
+      properties:
+        total_budget:
+          type: integer
+          description: "総予算（円）"
+          example: 5000000
+          
+        breakdown:
+          type: object
+          properties:
+            content_creation:
+              type: integer
+              description: "コンテンツ制作費（%）"
+              default: 30
+              
+            paid_promotion:
+              type: integer
+              description: "広告費（%）"
+              default: 40
+              
+            influencer_fees:
+              type: integer
+              description: "インフルエンサー費用（%）"
+              default: 20
+              
+            tools_management:
+              type: integer
+              description: "ツール・管理費（%）"
+              default: 10
+        
+        platform_allocation:
+          type: object
+          description: "プラットフォーム別配分"
+          additionalProperties:
+            type: integer
+          example:
+            instagram: 40
+            tiktok: 30
+            twitter_x: 20
+            youtube: 10
+    
+    influencer_strategy:
+      type: object
+      description: "インフルエンサー戦略"
+      properties:
+        tier_mix:
+          type: object
+          properties:
+            nano:
+              type: integer
+              description: "ナノインフルエンサー（%）"
+              default: 30
+              
+            micro:
+              type: integer
+              description: "マイクロインフルエンサー（%）"
+              default: 50
+              
+            macro:
+              type: integer
+              description: "マクロインフルエンサー（%）"
+              default: 15
+              
+            mega:
+              type: integer
+              description: "メガインフルエンサー（%）"
+              default: 5
+        
+        collaboration_type:
+          type: array
+          items:
+            type: string
+            enum: ["sponsored_post", "product_review", "takeover", "ambassador", "affiliate"]
+          default: ["sponsored_post", "product_review"]
+        
+        content_requirements:
+          type: object
+          properties:
+            posts_per_influencer:
+              type: integer
+              default: 3
+              range: [1, 20]
+              
+            story_requirements:
+              type: integer
+              default: 5
+              range: [0, 50]
+              
+            usage_rights:
+              type: string
+              enum: ["limited", "perpetual", "exclusive"]
+              default: "limited"
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    advanced_targeting:
+      type: object
+      description: "高度なターゲティング"
+      properties:
+        lookalike_audiences:
+          type: object
+          properties:
+            source:
+              type: string
+              enum: ["customer_list", "website_visitors", "app_users", "engaged_users"]
+              
+            similarity_percentage:
+              type: integer
+              description: "類似度（%）"
+              default: 1
+              range: [1, 10]
+        
+        retargeting:
+          type: object
+          properties:
+            website_visitors:
+              type: boolean
+              default: false
+              
+            cart_abandoners:
+              type: boolean
+              default: false
+              
+            past_purchasers:
+              type: boolean
+              default: false
+              
+            engagement_custom:
+              type: object
+              properties:
+                video_viewers:
+                  type: string
+                  enum: ["25%", "50%", "75%", "95%"]
+                  
+                profile_visitors:
+                  type: boolean
+                  default: false
+        
+        exclusions:
+          type: array
+          items:
+            type: string
+          example: ["既存顧客", "従業員", "競合他社フォロワー"]
+    
+    performance_goals:
+      type: object
+      description: "パフォーマンス目標"
+      properties:
+        primary_kpi:
+          type: string
+          enum: ["reach", "engagement", "conversions", "sales", "brand_lift"]
+          default: "engagement"
+          
+        target_metrics:
+          type: object
+          properties:
+            reach:
+              type: integer
+              description: "目標リーチ数"
+              example: 1000000
+              
+            engagement_rate:
+              type: number
+              description: "目標エンゲージメント率（%）"
+              default: 5.0
+              range: [0.1, 20.0]
+              
+            conversion_rate:
+              type: number
+              description: "目標コンバージョン率（%）"
+              default: 2.0
+              range: [0.1, 10.0]
+              
+            roi_target:
+              type: number
+              description: "目標ROI（%）"
+              default: 200
+              range: [100, 1000]
+        
+        benchmark_comparison:
+          type: string
+          enum: ["industry_average", "previous_campaign", "competitor", "custom"]
+          default: "industry_average"
+    
+    crisis_preparedness:
+      type: object
+      description: "危機管理準備"
+      properties:
+        monitoring_keywords:
+          type: array
+          items:
+            type: string
+          example: ["ブランド名", "製品名", "CEO名", "ネガティブワード"]
+          
+        response_templates:
+          type: object
+          properties:
+            acknowledgment:
+              type: string
+              description: "問題認識テンプレート"
+              
+            apology:
+              type: string
+              description: "謝罪テンプレート"
+              
+            clarification:
+              type: string
+              description: "説明テンプレート"
+        
+        escalation_contacts:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                example: "PR責任者"
+                
+              contact:
+                type: string
+                example: "pr-lead@company.com"
+    
+    automation_settings:
+      type: object
+      description: "自動化設定"
+      properties:
+        scheduling_tool:
+          type: string
+          enum: ["hootsuite", "buffer", "sprout_social", "later", "custom"]
+          default: "buffer"
+          
+        auto_responses:
+          type: object
+          properties:
+            enable_chatbot:
+              type: boolean
+              default: false
+              
+            faq_responses:
+              type: array
+              items:
+                type: object
+                properties:
+                  trigger:
+                    type: string
+                    
+                  response:
+                    type: string
+            
+            response_time_target:
+              type: string
+              enum: ["< 1 hour", "< 4 hours", "< 24 hours"]
+              default: "< 4 hours"
+        
+        reporting_frequency:
+          type: string
+          enum: ["real_time", "daily", "weekly", "monthly"]
+          default: "weekly"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  content_volume_calculation:
+    formula: |
+      # プラットフォーム別投稿数
+      for platform in target_platforms:
+        daily_posts = posting_frequency[platform]
+        total_posts = daily_posts * campaign_duration_days
+        
+      total_content_pieces = sum(platform_posts)
+      
+      # コンテンツタイプ別
+      images_needed = total_content_pieces * 0.4
+      videos_needed = total_content_pieces * 0.3
+      stories_needed = total_content_pieces * 0.2
+      other_formats = total_content_pieces * 0.1
+  
+  influencer_requirements:
+    formula: |
+      # インフルエンサー数計算
+      target_reach = campaign_reach_goal
+      
+      nano_reach = 5000  # 平均リーチ
+      micro_reach = 50000
+      macro_reach = 500000
+      mega_reach = 5000000
+      
+      nano_count = (target_reach * tier_mix.nano) / nano_reach
+      micro_count = (target_reach * tier_mix.micro) / micro_reach
+      macro_count = (target_reach * tier_mix.macro) / macro_reach
+      mega_count = (target_reach * tier_mix.mega) / mega_reach
+      
+      total_influencers = ceil(nano_count + micro_count + macro_count + mega_count)
+  
+  budget_optimization:
+    formula: |
+      # CPM/CPC予測
+      platform_cpm = {
+        instagram: 800,
+        tiktok: 600,
+        twitter_x: 700,
+        youtube: 1000,
+        linkedin: 2000
+      }
+      
+      impressions_per_platform = (platform_budget / platform_cpm) * 1000
+      
+      # エンゲージメント予測
+      expected_engagement = impressions * industry_engagement_rate
+      
+      # コンバージョン予測
+      expected_conversions = expected_engagement * conversion_rate
+      
+      # ROI計算
+      revenue = expected_conversions * average_order_value
+      roi = ((revenue - total_budget) / total_budget) * 100
+  
+  posting_calendar_generation:
+    formula: |
+      # 最適投稿時間の自動生成
+      for day in campaign_duration:
+        for platform in target_platforms:
+          optimal_slots = get_platform_optimal_times(platform, target_audience)
+          
+          for slot in optimal_slots[:daily_frequency]:
+            schedule_post(day, slot, platform, content_type)
+      
+      # バッファ投稿の追加
+      buffer_posts = total_scheduled * 0.2  # 20%の予備
+
+# バリデーションルール
+validation_rules:
+  - name: "budget_allocation_sum"
+    rule: |
+      if sum(budget_breakdown.values()) != 100:
+        error: "予算配分の合計は100%である必要があります"
+  
+  - name: "platform_compatibility"
+    rule: |
+      if "linkedin" in platforms and target_audience.age_range == "13-17":
+        warning: "LinkedInは18歳以上のユーザー向けです"
+  
+  - name: "content_pillar_sum"
+    rule: |
+      if sum([pillar.percentage for pillar in content_pillars]) != 100:
+        error: "コンテンツピラーの合計は100%である必要があります"
+  
+  - name: "influencer_budget_check"
+    rule: |
+      if influencer_fees > 50 and campaign_type != "influencer_collab":
+        warning: "インフルエンサー費用が高額です。campaign_typeの見直しを推奨"

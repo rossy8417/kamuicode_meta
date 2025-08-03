@@ -1,0 +1,542 @@
+# 教育コンテンツワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    course_title:
+      type: string
+      description: "コース名"
+      example: "AI時代のデータ分析入門 - ビジネスパーソン向け実践講座"
+      validation: "max_length: 200"
+    
+    learning_format:
+      type: string
+      description: "学習形式"
+      enum: ["video_course", "interactive_tutorial", "microlearning", "blended_learning", "vr_ar_experience", "live_workshop"]
+      default: "video_course"
+      impacts:
+        - "コンテンツ構成"
+        - "インタラクション設計"
+        - "評価方法"
+        - "技術要件"
+    
+    target_audience:
+      type: object
+      description: "対象学習者"
+      properties:
+        level:
+          type: string
+          enum: ["beginner", "intermediate", "advanced", "mixed"]
+          default: "beginner"
+          
+        role:
+          type: array
+          items:
+            type: string
+          example: ["ビジネスアナリスト", "マーケター", "経営企画"]
+          
+        prerequisites:
+          type: array
+          items:
+            type: string
+          example: ["基本的なPC操作", "Excel基礎知識"]
+    
+    duration_hours:
+      type: number
+      description: "総学習時間（時間）"
+      default: 4
+      range: [0.5, 100]
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    learning_objectives:
+      type: object
+      description: "学習目標（ブルームの分類）"
+      properties:
+        knowledge:
+          type: array
+          items:
+            type: string
+          example: ["AIの基本概念を説明できる", "主要な分析手法を列挙できる"]
+          description: "記憶・理解レベル"
+          
+        skills:
+          type: array
+          items:
+            type: string
+          example: ["Pythonで基本的なデータ分析ができる", "結果を可視化できる"]
+          description: "応用・分析レベル"
+          
+        competencies:
+          type: array
+          items:
+            type: string
+          example: ["ビジネス課題に適切な分析手法を選択できる", "分析結果から戦略提言できる"]
+          description: "評価・創造レベル"
+    
+    instructional_design:
+      type: object
+      description: "教授設計"
+      properties:
+        learning_model:
+          type: string
+          enum: ["addie", "sam", "agile", "backward_design", "4c_id"]
+          default: "addie"
+          description: "採用する教授設計モデル"
+          
+        pedagogy_approach:
+          type: array
+          items:
+            type: string
+            enum: ["constructivist", "behaviorist", "cognitive", "connectivist", "experiential"]
+          default: ["constructivist", "experiential"]
+          
+        content_structure:
+          type: object
+          properties:
+            modules:
+              type: integer
+              description: "モジュール数"
+              default: 6
+              range: [1, 50]
+              
+            lessons_per_module:
+              type: integer
+              description: "モジュールあたりレッスン数"
+              default: 4
+              range: [1, 10]
+              
+            microlearning_units:
+              type: boolean
+              description: "マイクロラーニング分割"
+              default: true
+        
+        engagement_strategy:
+          type: object
+          properties:
+            interaction_frequency:
+              type: string
+              description: "インタラクション頻度"
+              enum: ["every_3min", "every_5min", "every_10min", "module_end"]
+              default: "every_5min"
+              
+            activity_types:
+              type: array
+              items:
+                type: string
+                enum: ["quiz", "simulation", "case_study", "discussion", "project", "peer_review"]
+              default: ["quiz", "case_study", "project"]
+              
+            gamification:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                  
+                elements:
+                  type: array
+                  items:
+                    type: string
+                    enum: ["points", "badges", "leaderboard", "levels", "challenges"]
+                  default: ["points", "badges", "levels"]
+    
+    content_specifications:
+      type: object
+      description: "コンテンツ仕様"
+      properties:
+        video_production:
+          type: object
+          properties:
+            style:
+              type: string
+              enum: ["talking_head", "screencast", "animation", "mixed", "documentary"]
+              default: "mixed"
+              
+            instructor_presence:
+              type: string
+              enum: ["always_visible", "introduction_only", "voice_only", "avatar"]
+              default: "always_visible"
+              
+            visual_aids:
+              type: array
+              items:
+                type: string
+                enum: ["slides", "infographics", "diagrams", "code_demos", "whiteboard"]
+              default: ["slides", "infographics", "code_demos"]
+              
+            production_quality:
+              type: string
+              enum: ["basic", "professional", "broadcast", "cinematic"]
+              default: "professional"
+        
+        supplementary_materials:
+          type: object
+          properties:
+            downloadables:
+              type: array
+              items:
+                type: string
+                enum: ["pdf_notes", "exercises", "templates", "cheat_sheets", "datasets"]
+              default: ["pdf_notes", "exercises", "templates"]
+              
+            interactive_elements:
+              type: array
+              items:
+                type: string
+                enum: ["jupyter_notebooks", "sandboxes", "simulators", "virtual_labs"]
+              default: ["jupyter_notebooks"]
+              
+            reference_materials:
+              type: boolean
+              default: true
+              description: "参考文献・追加リソース"
+    
+    assessment_strategy:
+      type: object
+      description: "評価戦略"
+      properties:
+        formative_assessment:
+          type: object
+          properties:
+            knowledge_checks:
+              type: object
+              properties:
+                frequency:
+                  type: string
+                  enum: ["per_lesson", "per_module", "adaptive"]
+                  default: "per_lesson"
+                  
+                question_count:
+                  type: integer
+                  default: 5
+                  range: [3, 10]
+                  
+                feedback_type:
+                  type: string
+                  enum: ["immediate", "delayed", "detailed", "hints"]
+                  default: "immediate"
+            
+            practice_activities:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: ["coding_exercise", "case_analysis", "simulation", "project"]
+                    
+                  difficulty:
+                    type: string
+                    enum: ["guided", "scaffolded", "independent"]
+        
+        summative_assessment:
+          type: object
+          properties:
+            final_exam:
+              type: boolean
+              default: true
+              
+            project_based:
+              type: boolean
+              default: true
+              
+            peer_assessment:
+              type: boolean
+              default: false
+              
+            certification_criteria:
+              type: object
+              properties:
+                passing_score:
+                  type: integer
+                  description: "合格点（%）"
+                  default: 80
+                  range: [60, 100]
+                  
+                completion_requirements:
+                  type: array
+                  items:
+                    type: string
+                  default: ["全モジュール完了", "最終試験合格", "プロジェクト提出"]
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    adaptive_learning:
+      type: object
+      description: "適応学習設定"
+      properties:
+        personalization_level:
+          type: string
+          enum: ["none", "basic", "advanced", "ai_driven"]
+          default: "basic"
+          
+        learner_profiling:
+          type: object
+          properties:
+            initial_assessment:
+              type: boolean
+              default: true
+              
+            learning_style_detection:
+              type: boolean
+              default: false
+              
+            continuous_adaptation:
+              type: boolean
+              default: true
+        
+        content_branching:
+          type: object
+          properties:
+            difficulty_paths:
+              type: integer
+              description: "難易度パス数"
+              default: 3
+              range: [1, 5]
+              
+            remediation_content:
+              type: boolean
+              default: true
+              
+            enrichment_content:
+              type: boolean
+              default: true
+        
+        ai_features:
+          type: object
+          properties:
+            intelligent_tutoring:
+              type: boolean
+              default: false
+              
+            predictive_analytics:
+              type: boolean
+              default: true
+              
+            personalized_recommendations:
+              type: boolean
+              default: true
+    
+    collaboration_features:
+      type: object
+      description: "協調学習機能"
+      properties:
+        discussion_forums:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+              
+            moderation:
+              type: string
+              enum: ["ai_assisted", "instructor", "peer", "combined"]
+              default: "combined"
+              
+            structure:
+              type: string
+              enum: ["open", "guided", "structured"]
+              default: "guided"
+        
+        group_projects:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+              
+            team_size:
+              type: integer
+              default: 4
+              range: [2, 8]
+              
+            formation_method:
+              type: string
+              enum: ["random", "skill_based", "self_selected", "instructor_assigned"]
+              default: "skill_based"
+        
+        peer_learning:
+          type: object
+          properties:
+            peer_review:
+              type: boolean
+              default: true
+              
+            study_groups:
+              type: boolean
+              default: false
+              
+            mentorship:
+              type: boolean
+              default: false
+    
+    analytics_configuration:
+      type: object
+      description: "学習分析設定"
+      properties:
+        tracking_granularity:
+          type: string
+          enum: ["basic", "detailed", "comprehensive"]
+          default: "detailed"
+          
+        metrics_tracked:
+          type: array
+          items:
+            type: string
+            enum: ["time_on_task", "completion_rate", "quiz_scores", "engagement_index", "help_seeking", "resource_access"]
+          default: ["time_on_task", "completion_rate", "quiz_scores", "engagement_index"]
+        
+        reporting:
+          type: object
+          properties:
+            learner_dashboard:
+              type: boolean
+              default: true
+              
+            instructor_analytics:
+              type: boolean
+              default: true
+              
+            organizational_insights:
+              type: boolean
+              default: false
+              
+            export_formats:
+              type: array
+              items:
+                type: string
+                enum: ["pdf", "excel", "api", "lrs"]
+              default: ["pdf", "excel"]
+    
+    accessibility_features:
+      type: object
+      description: "アクセシビリティ機能"
+      properties:
+        wcag_compliance:
+          type: string
+          enum: ["A", "AA", "AAA"]
+          default: "AA"
+          
+        features:
+          type: array
+          items:
+            type: string
+            enum: ["captions", "transcripts", "audio_descriptions", "sign_language", "easy_read", "screen_reader_optimized"]
+          default: ["captions", "transcripts", "screen_reader_optimized"]
+        
+        multi_language:
+          type: object
+          properties:
+            supported_languages:
+              type: array
+              items:
+                type: string
+              default: ["ja", "en"]
+              
+            auto_translation:
+              type: boolean
+              default: false
+              
+            cultural_adaptation:
+              type: boolean
+              default: false
+
+# 自動計算されるパラメータ
+computed_parameters:
+  content_breakdown:
+    formula: |
+      total_minutes = duration_hours * 60
+      
+      if learning_format == "microlearning":
+        unit_duration = 5
+        unit_count = ceil(total_minutes / unit_duration)
+      else:
+        module_duration = total_minutes / modules
+        lesson_duration = module_duration / lessons_per_module
+        
+      video_content = total_minutes * 0.6
+      practice_time = total_minutes * 0.3
+      assessment_time = total_minutes * 0.1
+  
+  production_timeline:
+    formula: |
+      # 制作時間の見積もり（1分の完成動画あたり）
+      production_ratios = {
+        "basic": 5,
+        "professional": 10,
+        "broadcast": 20,
+        "cinematic": 40
+      }
+      
+      video_hours = (total_minutes * production_ratios[production_quality]) / 60
+      
+      # 追加要素
+      interactive_hours = interaction_count * 2
+      assessment_hours = question_count * 0.5
+      
+      total_production_hours = video_hours + interactive_hours + assessment_hours
+      
+      # スケジュール
+      weeks_needed = ceil(total_production_hours / 40)  # 週40時間として
+  
+  engagement_prediction:
+    formula: |
+      # 完走率予測
+      base_completion_rate = 0.15  # 業界平均
+      
+      # 改善要因
+      if microlearning: base_completion_rate *= 2
+      if gamification: base_completion_rate *= 1.3
+      if social_learning: base_completion_rate *= 1.2
+      if adaptive_learning: base_completion_rate *= 1.4
+      
+      # 制限要因
+      if duration_hours > 10: base_completion_rate *= 0.7
+      if no_interaction: base_completion_rate *= 0.5
+      
+      predicted_completion = min(base_completion_rate, 0.85)
+  
+  cost_estimation:
+    formula: |
+      # コンテンツ制作コスト
+      video_cost = video_minutes * cost_per_minute[production_quality]
+      
+      cost_per_minute = {
+        "basic": 8000,
+        "professional": 30000,
+        "broadcast": 80000,
+        "cinematic": 150000
+      }
+      
+      # 追加コスト
+      lms_setup = 500000
+      assessment_development = question_count * 5000
+      interactive_development = interaction_count * 50000
+      
+      total_cost = video_cost + lms_setup + assessment_development + interactive_development
+      
+      # 学習者あたりコスト
+      cost_per_learner = total_cost / expected_learners
+
+# バリデーションルール
+validation_rules:
+  - name: "module_duration_check"
+    rule: |
+      if module_duration > 60:
+        warning: "モジュールが60分を超えています。学習者の集中力を考慮してください"
+  
+  - name: "microlearning_compatibility"
+    rule: |
+      if learning_format == "microlearning" and duration_hours > 10:
+        error: "マイクロラーニングには総時間10時間以下を推奨"
+  
+  - name: "interaction_frequency"
+    rule: |
+      if interaction_frequency == "none" and duration_hours > 2:
+        warning: "2時間以上のコンテンツにはインタラクションが必要です"
+  
+  - name: "assessment_balance"
+    rule: |
+      if final_exam and !practice_activities:
+        warning: "最終試験前に練習機会を提供することを推奨"

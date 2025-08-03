@@ -1,0 +1,479 @@
+# 機械学習デプロイメントワークフローの入力パラメータスキーマ
+
+inputs:
+  # 必須パラメータ
+  required:
+    model_name:
+      type: string
+      description: "モデル名"
+      example: "customer_churn_predictor"
+      validation: "max_length: 100"
+    
+    deployment_type:
+      type: string
+      description: "デプロイメントタイプ"
+      enum: ["real_time", "batch", "streaming", "edge", "hybrid"]
+      default: "real_time"
+      impacts:
+        - "インフラ選択"
+        - "最適化戦略"
+        - "モニタリング設定"
+        - "スケーリング方法"
+    
+    model_framework:
+      type: string
+      description: "MLフレームワーク"
+      enum: ["tensorflow", "pytorch", "scikit_learn", "xgboost", "lightgbm", "jax", "onnx", "custom"]
+      default: "tensorflow"
+    
+    expected_traffic:
+      type: object
+      description: "予想トラフィック"
+      properties:
+        requests_per_second:
+          type: integer
+          default: 100
+          range: [1, 1000000]
+        
+        peak_multiplier:
+          type: number
+          default: 3.0
+          description: "ピーク時の倍率"
+  
+  # 推奨パラメータ（プロ向け）
+  recommended:
+    model_specifications:
+      type: object
+      description: "モデル仕様"
+      properties:
+        model_size:
+          type: string
+          description: "モデルサイズ"
+          pattern: "^\\d+[MG]B$"
+          example: "500MB"
+        
+        input_shape:
+          type: object
+          properties:
+            batch_size:
+              type: integer
+              default: -1
+              description: "-1 for dynamic"
+            
+            dimensions:
+              type: array
+              items:
+                type: integer
+              example: [224, 224, 3]
+        
+        output_shape:
+          type: object
+          properties:
+            classes:
+              type: integer
+              description: "分類クラス数"
+            
+            output_type:
+              type: string
+              enum: ["classification", "regression", "segmentation", "generation", "embedding"]
+              default: "classification"
+        
+        preprocessing_required:
+          type: boolean
+          default: true
+          description: "前処理の必要性"
+    
+    performance_requirements:
+      type: object
+      description: "性能要件"
+      properties:
+        latency_sla:
+          type: object
+          properties:
+            p50:
+              type: string
+              default: "20ms"
+              pattern: "^\\d+ms$"
+            
+            p95:
+              type: string
+              default: "50ms"
+              pattern: "^\\d+ms$"
+            
+            p99:
+              type: string
+              default: "100ms"
+              pattern: "^\\d+ms$"
+        
+        throughput_target:
+          type: integer
+          description: "目標スループット（推論/秒）"
+          default: 1000
+        
+        accuracy_threshold:
+          type: number
+          description: "最低精度要件"
+          default: 0.95
+          range: [0.0, 1.0]
+        
+        availability_target:
+          type: string
+          enum: ["99%", "99.9%", "99.99%", "99.999%"]
+          default: "99.9%"
+    
+    deployment_strategy:
+      type: object
+      description: "デプロイ戦略"
+      properties:
+        rollout_strategy:
+          type: string
+          enum: ["blue_green", "canary", "shadow", "gradual", "instant"]
+          default: "canary"
+        
+        canary_config:
+          type: object
+          properties:
+            initial_traffic:
+              type: integer
+              description: "初期トラフィック割合（%）"
+              default: 5
+              range: [1, 50]
+            
+            increment:
+              type: integer
+              description: "増分（%）"
+              default: 10
+            
+            interval:
+              type: string
+              description: "増分間隔"
+              default: "1h"
+              pattern: "^\\d+[smhd]$"
+        
+        rollback_triggers:
+          type: array
+          items:
+            type: object
+            properties:
+              metric:
+                type: string
+                enum: ["accuracy", "latency", "error_rate", "custom"]
+              
+              threshold:
+                type: number
+              
+              comparison:
+                type: string
+                enum: ["less_than", "greater_than", "delta"]
+    
+    infrastructure_config:
+      type: object
+      description: "インフラ設定"
+      properties:
+        compute_type:
+          type: string
+          enum: ["cpu", "gpu", "tpu", "edge_device", "serverless"]
+          default: "cpu"
+        
+        gpu_config:
+          type: object
+          properties:
+            gpu_type:
+              type: string
+              enum: ["t4", "v100", "a100", "a10g", "h100"]
+              default: "t4"
+            
+            gpu_count:
+              type: integer
+              default: 1
+              range: [1, 8]
+        
+        auto_scaling:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: true
+            
+            min_replicas:
+              type: integer
+              default: 2
+              range: [1, 100]
+            
+            max_replicas:
+              type: integer
+              default: 10
+              range: [2, 1000]
+            
+            target_utilization:
+              type: integer
+              description: "目標使用率（%）"
+              default: 70
+              range: [50, 90]
+  
+  # オプションパラメータ（上級者向け）
+  optional:
+    optimization_settings:
+      type: object
+      description: "最適化設定"
+      properties:
+        quantization:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            
+            method:
+              type: string
+              enum: ["dynamic", "static", "qat", "post_training"]
+              default: "post_training"
+            
+            precision:
+              type: string
+              enum: ["int8", "fp16", "mixed"]
+              default: "int8"
+        
+        pruning:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              default: false
+            
+            sparsity:
+              type: number
+              description: "スパース性（%）"
+              default: 0.5
+              range: [0.1, 0.9]
+        
+        compilation:
+          type: object
+          properties:
+            backend:
+              type: string
+              enum: ["xla", "tensorrt", "openvino", "coreml", "none"]
+              default: "none"
+            
+            optimization_level:
+              type: integer
+              range: [0, 3]
+              default: 2
+    
+    monitoring_configuration:
+      type: object
+      description: "モニタリング設定"
+      properties:
+        metrics_collection:
+          type: object
+          properties:
+            performance_metrics:
+              type: boolean
+              default: true
+            
+            data_drift_detection:
+              type: boolean
+              default: true
+            
+            model_drift_detection:
+              type: boolean
+              default: true
+            
+            custom_metrics:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  
+                  type:
+                    type: string
+                    enum: ["counter", "gauge", "histogram"]
+                  
+                  aggregation:
+                    type: string
+                    enum: ["sum", "avg", "max", "min", "p50", "p95", "p99"]
+        
+        alerting:
+          type: object
+          properties:
+            channels:
+              type: array
+              items:
+                type: string
+                enum: ["email", "slack", "pagerduty", "webhook"]
+              default: ["email", "slack"]
+            
+            alert_rules:
+              type: array
+              items:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  
+                  condition:
+                    type: string
+                  
+                  severity:
+                    type: string
+                    enum: ["critical", "warning", "info"]
+        
+        logging:
+          type: object
+          properties:
+            prediction_logging:
+              type: boolean
+              default: true
+              description: "予測結果のロギング"
+            
+            feature_logging:
+              type: boolean
+              default: false
+              description: "入力特徴量のロギング"
+            
+            sampling_rate:
+              type: number
+              default: 0.01
+              range: [0.001, 1.0]
+    
+    feature_store_integration:
+      type: object
+      description: "特徴量ストア連携"
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        
+        provider:
+          type: string
+          enum: ["feast", "tecton", "sagemaker", "vertex_ai", "databricks", "custom"]
+        
+        feature_service:
+          type: string
+          description: "特徴量サービス名"
+        
+        feature_freshness:
+          type: object
+          properties:
+            online_features:
+              type: string
+              pattern: "^\\d+[smh]$"
+              default: "5m"
+            
+            batch_features:
+              type: string
+              pattern: "^\\d+[hdw]$"
+              default: "1d"
+    
+    experiment_tracking:
+      type: object
+      description: "実験管理"
+      properties:
+        platform:
+          type: string
+          enum: ["mlflow", "wandb", "neptune", "comet", "sagemaker", "vertex_ai"]
+          default: "mlflow"
+        
+        track_artifacts:
+          type: boolean
+          default: true
+        
+        track_metrics:
+          type: boolean
+          default: true
+        
+        model_registry:
+          type: boolean
+          default: true
+          description: "モデルレジストリ使用"
+
+# 自動計算されるパラメータ
+computed_parameters:
+  resource_requirements:
+    formula: |
+      # CPU要求量
+      cpu_cores = ceil(requests_per_second / throughput_per_core)
+      
+      throughput_per_core:
+        sklearn: 100
+        tensorflow_cpu: 50
+        pytorch_cpu: 60
+        gpu_inference: 500
+      
+      # メモリ要求量
+      memory_gb = model_size_gb * 2 + batch_size * feature_size_mb / 1000
+      
+      # GPU要求量
+      if compute_type == "gpu":
+        gpu_memory_gb = model_size_gb + batch_size * activation_memory_mb / 1000
+  
+  cost_estimation:
+    formula: |
+      # インスタンスコスト
+      instance_cost = instance_price_per_hour * replicas * 24 * 30
+      
+      # 推論コスト
+      inference_cost = (requests_per_month / 1000) * price_per_1k_inferences
+      
+      # ストレージコスト
+      storage_cost = model_size_gb * storage_price_per_gb
+      
+      # モニタリングコスト
+      monitoring_cost = metrics_count * metric_price + log_volume_gb * log_price
+      
+      total_monthly = instance_cost + inference_cost + storage_cost + monitoring_cost
+  
+  scaling_parameters:
+    formula: |
+      # 最小レプリカ数
+      min_replicas = ceil(baseline_rps / instance_capacity * availability_factor)
+      
+      availability_factors:
+        "99%": 1.5
+        "99.9%": 2.0
+        "99.99%": 3.0
+      
+      # 最大レプリカ数
+      max_replicas = ceil(peak_rps / instance_capacity * 1.2)
+      
+      # スケールアウト閾値
+      scale_out_threshold = target_utilization * 0.8
+      scale_in_threshold = target_utilization * 0.5
+  
+  monitoring_retention:
+    formula: |
+      # メトリクス保持期間
+      metrics_retention_days = 30
+      
+      # ログ保持期間
+      if compliance_required:
+        log_retention_days = 365
+      else:
+        log_retention_days = 90
+      
+      # 予測結果保持期間
+      prediction_retention_days = 180
+
+# バリデーションルール
+validation_rules:
+  - name: "gpu_framework_compatibility"
+    rule: |
+      if compute_type == "gpu" and framework == "scikit_learn":
+        warning: "scikit-learnはGPU最適化されていません"
+  
+  - name: "edge_deployment_size"
+    rule: |
+      if deployment_type == "edge" and model_size > "100MB":
+        error: "エッジデバイスには100MB以下のモデルが推奨されます"
+  
+  - name: "latency_feasibility"
+    rule: |
+      if latency_sla.p99 < "10ms" and model_size > "1GB":
+        warning: "大規模モデルでは10ms未満のレイテンシ達成が困難です"
+  
+  - name: "batch_size_optimization"
+    rule: |
+      if deployment_type == "batch" and batch_size < 32:
+        suggestion: "バッチ推論では大きなバッチサイズが効率的です"
