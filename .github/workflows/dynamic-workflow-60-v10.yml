@@ -1,0 +1,614 @@
+name: "🎯 Dynamic Workflow - Issue #60 (v5)"
+run-name: "📊 Dynamic v5 | rossy8417 | Issue #60"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Source issue number"
+        required: true
+        default: "60"
+      branch_name:
+        description: "Working branch name"
+        required: false
+        default: "issue-60"
+      topic:
+        description: "Topic for video generation"
+        required: true
+        default: "京都の食べ物トレンド"
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+  pull-requests: write
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  setup:
+    name: "🚀 Setup"
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      timestamp: ${{ steps.setup.outputs.timestamp }} 
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create Project Structure
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="projects/issue-60-$TIMESTAMP"
+          mkdir -p "$PROJECT_DIR"/{logs,metadata,temp,final,media}
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "✅ Project structure created: $PROJECT_DIR"
+
+  research_1:
+    name: "🔍 Research: web-search"
+    runs-on: ubuntu-latest
+    needs: setup
+    outputs:
+      completed: ${{ steps.execute.outputs.completed }}
+      summary_path: ${{ steps.execute.outputs.summary_path }}
+      sources_path: ${{ steps.execute.outputs.sources_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Create output directory
+        run: mkdir -p ${{ needs.setup.outputs.project_dir }}/metadata
+      
+      - name: Execute Web Search
+        id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          PROMPT="以下のクエリでWeb検索を実行してください：
+          
+          **検索クエリ**: ${{ inputs.topic }} 最新トレンド 2025年
+          **最大結果数**: 10
+          **言語**: japanese
+          
+          タスク：
+          1. WebSearchツールを使用して最新の情報を検索
+          2. 主要なポイントを要約して提供してください。
+          3. 検索結果を以下のファイルに保存：
+             - ${{ needs.setup.outputs.project_dir }}/metadata/search-summary.md（検索結果のまとめ）
+             - ${{ needs.setup.outputs.project_dir }}/metadata/sources.txt（参照したURLのリスト）
+             - ${{ needs.setup.outputs.project_dir }}/metadata/search-metadata.json（検索メタデータ：クエリ、実行日時、結果数など）
+          
+          注意事項：
+          - 信頼できるソースを優先してください
+          - 最新の情報を重視してください
+          - 検索言語に応じて適切な結果を選択してください
+          - 実際の検索結果であることを明確にするため、検索日時とソースURLを必ず記載してください"
+          
+          # Claude Code CLIの実行
+          npx @anthropic-ai/claude-code \
+            -p "$PROMPT" \
+            --allowedTools "WebSearch,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 出力の確認
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/search-summary.md" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "summary_path=${{ needs.setup.outputs.project_dir }}/metadata/search-summary.md" >> $GITHUB_OUTPUT
+            echo "sources_path=${{ needs.setup.outputs.project_dir }}/metadata/sources.txt" >> $GITHUB_OUTPUT
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Web search failed - no summary file found"
+            exit 1
+          fi
+      
+      - name: Upload Research Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  planning_1:
+    name: "📋 Planning: content-planning"
+    runs-on: ubuntu-latest
+    needs: [setup, research_1]
+    outputs:
+      completed: ${{ steps.execute.outputs.completed }}
+      video_plan_path: ${{ steps.execute.outputs.video_plan_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Download Research Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: research-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Create output directory
+        run: mkdir -p ${{ needs.setup.outputs.project_dir }}/metadata
+      
+      - name: Execute Planning Agent
+        id: execute
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # プロンプトの構築
+          PROMPT="あなたは動画制作の専門プランナーです。Web検索結果を基に、動画を生成するための詳細な計画を立ててください。
+
+          **検索結果**: ${{ needs.setup.outputs.project_dir }}/metadata/search-summary.md を参照
+          **テーマ**: ${{ inputs.topic }}の最新トレンド紹介動画
+          **生成する動画数**: 1
+
+          **タスク**:
+          1. 検索結果を読み込んで分析
+          2. ${{ inputs.topic }}の最新トレンドを紹介する動画コンセプトを企画
+          3. 動画用の高品質な画像生成プロンプトを作成（英語）
+          4. ナレーション原稿を作成（日本語、30秒程度）
+          5. 計画書を「${{ needs.setup.outputs.project_dir }}/metadata/video-plan.md」に保存
+          6. 以下のファイルを作成：
+             - ${{ needs.setup.outputs.project_dir }}/metadata/image-prompt-1.txt（画像生成プロンプト、英語、1行）
+             - ${{ needs.setup.outputs.project_dir }}/metadata/video-concept-1.txt（動画コンセプト）
+             - ${{ needs.setup.outputs.project_dir }}/metadata/narration-script-1.txt（ナレーション原稿）
+
+          **重要**: 
+          - 検索結果の最新トレンドを必ず反映させる
+          - 画像生成プロンプトは英語で作成
+          - ナレーションは自然で親しみやすい日本語で
+          - txtファイルは機械処理用（適切な改行で）"
+          
+          # Claude Code CLIの実行
+          npx @anthropic-ai/claude-code \
+            -p "$PROMPT" \
+            --allowedTools "Read,Write,Edit" \
+            --permission-mode "acceptEdits"
+          
+          # 出力の確認
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/video-plan.md" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "video_plan_path=${{ needs.setup.outputs.project_dir }}/metadata/video-plan.md" >> $GITHUB_OUTPUT
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Upload Planning Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  image_generation:
+    name: "🎨 image-generation"
+    runs-on: ubuntu-latest
+    needs: [setup, planning_1]
+    outputs:
+      completed: ${{ steps.generate.outputs.completed }}
+      image_path: ${{ steps.generate.outputs.image_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Download Planning Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Generate Image
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # プロンプトファイルを読み込む
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/image-prompt-1.txt" ]; then
+            IMAGE_PROMPT=$(cat "${{ needs.setup.outputs.project_dir }}/metadata/image-prompt-1.txt")
+          else
+            IMAGE_PROMPT="${{ inputs.topic }} trending food items, photorealistic, high quality"
+          fi
+          
+          # ディレクトリ作成
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media"
+          
+          # Claude Code CLIでMCP経由で画像生成
+          CLAUDE_PROMPT="Generate an image using t2i-google-imagen3 with the following requirements:
+          
+          **Prompt**: $IMAGE_PROMPT
+          **Aspect Ratio**: 16:9
+          **Quality**: high
+          
+          Steps:
+          1. Use mcp__t2i-google-imagen3__imagen_t2i to start image generation
+          2. Save the image URL to ${{ needs.setup.outputs.project_dir }}/media/image-url.txt
+          3. Download the image to ${{ needs.setup.outputs.project_dir }}/media/image.png using curl
+          
+          Important: Make sure to wait for the generation to complete before downloading."
+          
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認
+          if [ -f "${{ needs.setup.outputs.project_dir }}/media/image-url.txt" ]; then
+            IMAGE_URL=$(cat "${{ needs.setup.outputs.project_dir }}/media/image-url.txt")
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "image_path=${{ needs.setup.outputs.project_dir }}/media/image.png" >> $GITHUB_OUTPUT
+            echo "✅ Image generated successfully"
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Image generation failed"
+            exit 1
+          fi
+      
+      - name: Upload Image Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  text_to_speech:
+    name: "🎤 text-to-speech"
+    runs-on: ubuntu-latest
+    needs: [setup, planning_1]
+    outputs:
+      completed: ${{ steps.generate.outputs.completed }}
+      audio_path: ${{ steps.generate.outputs.audio_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Download Planning Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Generate Speech
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # ナレーション原稿を読み込む
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/narration-script-1.txt" ]; then
+            NARRATION_TEXT=$(cat "${{ needs.setup.outputs.project_dir }}/metadata/narration-script-1.txt")
+          else
+            NARRATION_TEXT="${{ inputs.topic }}の最新トレンドをご紹介します。"
+          fi
+          
+          # ディレクトリ作成
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media"
+          
+          # Claude Code CLIでMCP経由で音声生成
+          CLAUDE_PROMPT="Generate narration audio using Text-to-Speech:
+          
+          **Text**: $NARRATION_TEXT
+          **Voice**: Professional Japanese female voice (Wise_Woman or similar)
+          **Language**: Japanese
+          
+          Steps:
+          1. Use mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit to generate speech
+          2. Monitor status with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status
+          3. Get result with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result
+          4. Save the audio URL to ${{ needs.setup.outputs.project_dir }}/media/narration-url.txt
+          5. Download the audio to ${{ needs.setup.outputs.project_dir }}/media/narration.mp3 using curl
+          
+          Make sure to wait for generation to complete before downloading."
+          
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認
+          if [ -f "${{ needs.setup.outputs.project_dir }}/media/narration.mp3" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "audio_path=${{ needs.setup.outputs.project_dir }}/media/narration.mp3" >> $GITHUB_OUTPUT
+            echo "✅ Audio generated successfully"
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Audio generation failed"
+            exit 1
+          fi
+      
+      - name: Upload Audio Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  video_generation:
+    name: "🎬 video-generation"
+    runs-on: ubuntu-latest
+    needs: [setup, planning_1, image_generation]
+    outputs:
+      completed: ${{ steps.generate.outputs.completed }}
+      video_path: ${{ steps.generate.outputs.video_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+      
+      - name: Download Planning Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: planning-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      
+      - name: Download Image Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: image-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+      
+      - name: Generate Video
+        id: generate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # ビデオコンセプトを読み込む
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/video-concept-1.txt" ]; then
+            VIDEO_CONCEPT=$(cat "${{ needs.setup.outputs.project_dir }}/metadata/video-concept-1.txt")
+          else
+            VIDEO_CONCEPT="${{ inputs.topic }} trending showcase with dynamic camera movements"
+          fi
+          
+          # ディレクトリ作成
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media"
+          
+          # 生成された画像を確認
+          IMAGE_PATH="${{ needs.setup.outputs.project_dir }}/media/image.png"
+          if [ ! -f "$IMAGE_PATH" ]; then
+            echo "❌ Image not found at $IMAGE_PATH"
+            echo "Files in media directory:"
+            ls -la "${{ needs.setup.outputs.project_dir }}/media/"
+            exit 1
+          fi
+          
+          # 画像URLを読み込む
+          IMAGE_URL=""
+          if [ -f "${{ needs.setup.outputs.project_dir }}/media/image-url.txt" ]; then
+            IMAGE_URL=$(cat "${{ needs.setup.outputs.project_dir }}/media/image-url.txt")
+            echo "✅ Image URL found: $IMAGE_URL"
+          else
+            echo "❌ Image URL file not found"
+            exit 1
+          fi
+          
+          # Claude Code CLIでMCP経由で画像から動画生成（i2v）
+          CLAUDE_PROMPT="Generate a video from the image using i2v-fal-hailuo-02-pro:
+          
+          **Image URL**: $IMAGE_URL
+          **Motion Prompt**: $VIDEO_CONCEPT
+          
+          Steps:
+          1. Use mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit with:
+             - image_url: $IMAGE_URL
+             - prompt: $VIDEO_CONCEPT
+          2. Monitor status with mcp__i2v-fal-hailuo-02-pro__hailuo_02_status
+          3. Get result with mcp__i2v-fal-hailuo-02-pro__hailuo_02_result
+          4. Save video URL to ${{ needs.setup.outputs.project_dir }}/media/video-url.txt
+          5. Download the video file to ${{ needs.setup.outputs.project_dir }}/media/
+          6. After download, rename the file to video.mp4 if needed:
+             - Use 'mv' command to rename any downloaded video file to video.mp4
+             - Example: mv *.mp4 video.mp4
+          
+          IMPORTANT: The final video MUST be named video.mp4 in the media directory."
+          
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit,mcp__i2v-fal-hailuo-02-pro__hailuo_02_status,mcp__i2v-fal-hailuo-02-pro__hailuo_02_result,Bash,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認とファイル名修正
+          cd "${{ needs.setup.outputs.project_dir }}/media"
+          
+          # video.mp4が存在しない場合、他のmp4ファイルをリネーム
+          if [ ! -f "video.mp4" ]; then
+            # 最初に見つかったmp4ファイルをvideo.mp4にリネーム
+            for file in *.mp4; do
+              if [ -f "$file" ] && [ "$file" != "video.mp4" ]; then
+                mv "$file" "video.mp4"
+                echo "✅ Renamed $file to video.mp4"
+                break
+              fi
+            done
+          fi
+          
+          # 最終確認
+          if [ -f "video.mp4" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "video_path=${{ needs.setup.outputs.project_dir }}/media/video.mp4" >> $GITHUB_OUTPUT
+            echo "✅ Video generated successfully"
+            ls -la video.mp4
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Video generation failed - no video.mp4 found"
+            echo "Files in media directory:"
+            ls -la
+            exit 1
+          fi
+      
+      - name: Upload Video Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  post_production:
+    name: "🎞️ Post Production"
+    runs-on: ubuntu-latest
+    needs: [setup, text_to_speech, video_generation]
+    outputs:
+      completed: ${{ steps.lipsync.outputs.completed }}
+      final_video_path: ${{ steps.lipsync.outputs.final_video_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          npm init -y
+          npm install @anthropic-ai/claude-code
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      
+      - name: Download Audio Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: audio-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+      
+      - name: Download Video Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: video-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+      
+      - name: Apply Lipsync
+        id: lipsync
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          # ディレクトリ作成
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/final"
+          
+          # ファイルの存在確認
+          echo "Checking downloaded files..."
+          ls -la "${{ needs.setup.outputs.project_dir }}/media/"
+          
+          # Claude Code CLIでMCP経由でリップシンクと音声統合
+          CLAUDE_PROMPT="Create a final video with synchronized lip movements and audio:
+          
+          **Available Files**:
+          - Video: ${{ needs.setup.outputs.project_dir }}/media/video.mp4 (i2v generated)
+          - Audio: ${{ needs.setup.outputs.project_dir }}/media/narration.mp3 (TTS narration)
+          
+          **Task**:
+          1. Apply lipsync using mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_submit/status/result
+          2. Download the lipsync result
+          3. **CRITICAL**: Check if the lipsync output contains audio using ffprobe:
+             - Run: ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 [video_file]
+             - If output is empty, the video has NO AUDIO
+          4. If no audio track found:
+             - Use ffmpeg to merge the original narration.mp3 with the lipsync video:
+             - Command: ffmpeg -i [lipsync_video] -i ${{ needs.setup.outputs.project_dir }}/media/narration.mp3 -c:v copy -c:a aac -shortest final-video.mp4
+          5. Save the final video (WITH AUDIO) to ${{ needs.setup.outputs.project_dir }}/final/final-video.mp4
+          
+          **IMPORTANT**: The final output MUST contain both video and audio tracks. Always verify with ffprobe before finishing."
+          
+          npx @anthropic-ai/claude-code \
+            -p "$CLAUDE_PROMPT" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_submit,mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_status,mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_result,Bash,Write,Read" \
+            --permission-mode "acceptEdits"
+          
+          # 結果確認
+          if [ -f "${{ needs.setup.outputs.project_dir }}/final/final-video.mp4" ]; then
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "final_video_path=${{ needs.setup.outputs.project_dir }}/final/final-video.mp4" >> $GITHUB_OUTPUT
+            echo "✅ Final video created successfully"
+          else
+            echo "completed=false" >> $GITHUB_OUTPUT
+            echo "❌ Lipsync failed"
+            exit 1
+          fi
+      
+      - name: Upload Final Video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video
+          path: ${{ needs.setup.outputs.project_dir }}/final/
+
+  summary:
+    name: "📊 Summary"
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [setup, research_1, planning_1, image_generation, text_to_speech, video_generation, post_production]
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "# 🎯 Workflow Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue**: #${{ github.event.inputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Topic**: ${{ inputs.topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project**: ${{ needs.setup.outputs.project_dir }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Generated Assets" >> $GITHUB_STEP_SUMMARY
+          echo "- **Final Video**: ${{ needs.post_production.outputs.final_video_path }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image**: ${{ needs.image_generation.outputs.image_path }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Audio**: ${{ needs.text_to_speech.outputs.audio_path }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Raw Video**: ${{ needs.video_generation.outputs.video_path }}" >> $GITHUB_STEP_SUMMARY
