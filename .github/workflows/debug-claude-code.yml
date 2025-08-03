@@ -1,0 +1,57 @@
+name: "Debug Claude Code Execution"
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_prompt:
+        description: "Test prompt for Claude"
+        required: true
+        default: "Create a simple JSON file called test_output.json with just { \"status\": \"success\", \"message\": \"Hello from Claude!\" }"
+
+jobs:
+  debug-claude:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Test Claude Code Execution
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+        run: |
+          echo "Testing Claude Code execution..."
+          echo "Prompt: ${{ inputs.test_prompt }}"
+          
+          # Run Claude Code with basic prompt
+          npx @anthropic-ai/claude-code \
+            -p "${{ inputs.test_prompt }}" \
+            --allowedTools "Write" \
+            --permission-mode "acceptEdits" \
+            --autoApprove \
+            > claude_output.log 2>&1
+          
+          echo "Claude Code execution completed. Output:"
+          cat claude_output.log
+          
+          echo "Checking for generated files:"
+          find . -name "*.json" -type f -newer . -exec ls -la {} \;
+          
+          echo "Looking for test_output.json specifically:"
+          if [ -f "test_output.json" ]; then
+            echo "✅ Found test_output.json"
+            cat test_output.json
+          else
+            echo "❌ test_output.json not found"
+            echo "Files in current directory:"
+            ls -la
+          fi
