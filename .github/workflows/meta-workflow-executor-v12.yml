@@ -223,10 +223,49 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           pip install pyyaml
           
-      - name: Download Previous Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
+      - name: Download and Merge Previous Artifacts
+        run: |
+          echo "📥 Downloading artifacts from previous jobs..."
+          
+          # Download artifacts selectively
+          mkdir -p artifacts
+          
+          # Download issue-domain-data
+          echo "Downloading issue-domain-data..."
+          gh api "/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+            --jq '.artifacts[] | select(.name == "issue-domain-data") | .id' | \
+          while read -r artifact_id; do
+            gh api "/repos/${{ github.repository }}/actions/artifacts/${artifact_id}/zip" \
+              --header "Accept: application/vnd.github+json" \
+              > artifacts/issue-domain-data.zip
+            unzip -q -o artifacts/issue-domain-data.zip -d artifacts/issue-domain-data/
+            rm artifacts/issue-domain-data.zip
+          done
+          
+          # Download domain-template-data
+          echo "Downloading domain-template-data..."
+          gh api "/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
+            --jq '.artifacts[] | select(.name == "domain-template-data") | .id' | \
+          while read -r artifact_id; do
+            gh api "/repos/${{ github.repository }}/actions/artifacts/${artifact_id}/zip" \
+              --header "Accept: application/vnd.github+json" \
+              > artifacts/domain-template-data.zip
+            unzip -q -o artifacts/domain-template-data.zip -d artifacts/domain-template-data/
+            rm artifacts/domain-template-data.zip
+          done
+          
+          # Merge artifacts to flat structure
+          echo "Merging artifacts..."
+          find artifacts -type f -name "*.json" -o -name "*.txt" -o -name "*.yaml" | while read -r file; do
+            filename=$(basename "$file")
+            if [ ! -f "artifacts/$filename" ]; then
+              cp "$file" "artifacts/$filename"
+            fi
+          done
+          
+          echo "✅ Artifacts downloaded and merged"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Professional Task Decomposition with Domain Knowledge
         id: decompose

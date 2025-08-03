@@ -685,3 +685,21 @@ echo "[$(date +%Y-%m-%d_%H:%M:%S)] RESULT: $RESULT" >> error.log
 - Meta-workflow generates `uses: ./minimal-units/...` which doesn't work in GitHub Actions
 - Need to inline minimal unit implementations
 - WebSearch execution takes 1-2 minutes for simple queries
+
+### 5. Script Management Policy
+**CRITICAL**: Before creating any new script, follow the Script Management Policy:
+- **Policy Location**: `scripts/SCRIPT_MANAGEMENT_POLICY.md`
+- **Key Rule**: "Enhance existing scripts rather than creating new ones"
+- **Process**: 
+  1. Search existing scripts for similar functionality
+  2. If found, extend the existing script
+  3. Only create new if functionality is truly different direction
+  4. Always update SCRIPT_CATALOG.md after changes
+
+**Example**:
+```bash
+# Before creating download-smart.sh, check:
+grep -l "download" scripts/*.sh
+# Found: download-workflow-artifacts.sh
+# Action: Add smart features to existing script instead
+```
