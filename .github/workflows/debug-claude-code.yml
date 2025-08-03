@@ -32,19 +32,23 @@ jobs:
           echo "Testing Claude Code execution..."
           echo "Prompt: ${{ inputs.test_prompt }}"
           
-          # Run Claude Code with basic prompt
+          # Run Claude Code with basic prompt and capture return code
+          set +e  # Don't exit on failure
           npx @anthropic-ai/claude-code \
             -p "${{ inputs.test_prompt }}" \
             --allowedTools "Write" \
             --permission-mode "acceptEdits" \
             --autoApprove \
             > claude_output.log 2>&1
+          CLAUDE_EXIT_CODE=$?
+          set -e  # Re-enable exit on failure
           
-          echo "Claude Code execution completed. Output:"
-          cat claude_output.log
+          echo "Claude Code execution completed with exit code: $CLAUDE_EXIT_CODE"
+          echo "Claude Code output:"
+          cat claude_output.log || echo "No output file found"
           
           echo "Checking for generated files:"
-          find . -name "*.json" -type f -newer . -exec ls -la {} \;
+          find . -name "*.json" -type f -exec ls -la {} \; || echo "No JSON files found"
           
           echo "Looking for test_output.json specifically:"
           if [ -f "test_output.json" ]; then
@@ -54,4 +58,10 @@ jobs:
             echo "❌ test_output.json not found"
             echo "Files in current directory:"
             ls -la
+          fi
+          
+          # If Claude failed, we still want to see what happened
+          if [ $CLAUDE_EXIT_CODE -ne 0 ]; then
+            echo "⚠️ Claude Code failed with exit code $CLAUDE_EXIT_CODE"
+            echo "This is expected - we're debugging the issue"
           fi
