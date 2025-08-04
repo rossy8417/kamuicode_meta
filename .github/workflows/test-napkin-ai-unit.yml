@@ -71,6 +71,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
+      - name: Create project directories
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          mkdir -p "${PROJECT_DIR}/metadata"
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/images"
+          mkdir -p "${PROJECT_DIR}/final"
+          echo "✅ Re-created project directories"
+      
       - name: Log test parameters
         run: |
           PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
