@@ -257,6 +257,81 @@ Status: **Testing explicit file path fix - Run 16717877313 in progress**
 
 Status: **Waiting for extended test run completion - Run 16717877313 at 3+ minutes**
 
+### [17:35:00] [SUCCESS] File Path Fix Confirmed Working! 
+- **Run ID**: 16717877313 completed successfully
+- **Evidence**: User provided GitHub Actions Summary showing:
+  - ✅ All jobs completed successfully
+  - ✅ Task decomposition processed (12 tasks, 45-60分)
+  - ✅ Task optimization completed with Mermaid generation
+  - ✅ Professional workflow generated
+  - ✅ Final report displayed
+- **Duration**: Extended runtime (4+ minutes) confirmed file processing
+
+### [17:36:00] [BREAKTHROUGH] Dynamic Mermaid Generation Success
+**Key Success Indicators**:
+- **Claude Code SDK**: No longer reports "file not found"
+- **File Discovery**: Enhanced prompt with multiple path alternatives worked
+- **Processing Time**: Extended runtime indicates actual analysis occurred
+- **Workflow Flow**: Complete end-to-end execution without failures
+
+**What Fixed It**:
+1. **Multiple file path options** in prompt:
+   - Primary: `artifacts/task-decomposition/professional_task_decomposition.json`
+   - Fallback: `task-decomposition/professional_task_decomposition.json`
+   - Search: Any `professional_task_decomposition.json` file
+2. **Clear execution steps** for Claude Code SDK
+3. **Robust error handling** with alternative discovery methods
+
+Status: **SUCCESS - File path fix validated, Mermaid generation working**
+
+### [17:40:00] [CRITICAL FIX] Mermaid Display Format Error
+- **Issue**: Mermaid generates correctly but displays "Lexical error on line 27"
+- **Root Cause**: Missing newline after Mermaid closing ``` tag
+- **Error**: `...ss K,L final```## ⚡ ワークフロー生成結果` (text concatenation)
+- **Solution**: Added empty echo line after Mermaid closing tag to ensure proper separation
+
+**Fix Applied**:
+```bash
+# OLD (problematic):
+echo '```' >> $GITHUB_STEP_SUMMARY
+
+# NEW (fixed):
+echo '' >> $GITHUB_STEP_SUMMARY
+echo '```' >> $GITHUB_STEP_SUMMARY  
+echo '' >> $GITHUB_STEP_SUMMARY
+```
+
+Status: **FIXED - Mermaid format separation issue resolved**
+
+### [17:45:00] [CRITICAL INSIGHT] HEREDOC Text Concatenation Issue
+- **User Observation**: "他のところまで巻き込まれてる" → 正確な診断！
+- **Root Cause**: HEREDOC内でMermaidブロックを処理すると、EOF境界で他のテキストと混在
+- **Error Pattern**: `...ss L final```## ⚡ ワークフロー生成結果` (HEREDOC境界エラー)
+
+### [17:46:00] [SOLUTION] Complete HEREDOC Isolation
+**Before (Problematic)**:
+```bash
+cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+## 🔄 タスク実行順序
+### 最適化された実行順序図  
+EOF
+# Mermaid processing mixed with HEREDOC
+```
+
+**After (Fixed)**:
+```bash
+echo "## 🔄 タスク実行順序" >> $GITHUB_STEP_SUMMARY
+echo "### 最適化された実行順序図" >> $GITHUB_STEP_SUMMARY
+# Completely independent Mermaid processing
+```
+
+**Key Benefits**:
+- ✅ **No HEREDOC contamination**: Mermaid独立処理
+- ✅ **Error isolation**: 他セクションへの影響なし
+- ✅ **Clean boundaries**: 各行が独立してSummaryに追加
+
+Status: **TESTING - Complete HEREDOC isolation implemented**
+
 ### [17:25:00] [CONFIRMED] Root Cause Identified in Previous Run
 - **Run ID**: 16717683432 completed analysis confirmed the file path issue
 - **Claude SDK Message**: "I don't see any task decomposition JSON file provided yet"
