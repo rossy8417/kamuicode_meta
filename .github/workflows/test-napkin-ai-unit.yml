@@ -218,8 +218,9 @@ jobs:
             if [ "$STATUS" = "completed" ]; then
               echo "✅ Visual generation completed!"
               
-              # Extract URLs
-              VISUAL_URLS=$(echo "$STATUS_RESPONSE" | jq -c '.visuals')
+              # Extract URLs (using generated_files field)
+              VISUAL_URLS=$(echo "$STATUS_RESPONSE" | jq -c '.generated_files // []')
+              echo "Found $(echo "$VISUAL_URLS" | jq '. | length') files"
               
               # Save metadata
               echo "$STATUS_RESPONSE" > generation_metadata.json
@@ -256,30 +257,32 @@ jobs:
           
           # Download each visual
           echo "$VISUAL_URLS" | jq -c '.[]' | while read -r visual; do
-            # Extract URLs
-            SVG_URL=$(echo "$visual" | jq -r '.svg_url // empty')
-            PNG_URL=$(echo "$visual" | jq -r '.png_url // empty')
+            # Extract URL and metadata
+            FILE_URL=$(echo "$visual" | jq -r '.url // empty')
+            VISUAL_ID=$(echo "$visual" | jq -r '.visual_id // empty')
+            WIDTH=$(echo "$visual" | jq -r '.width // 0')
+            HEIGHT=$(echo "$visual" | jq -r '.height // 0')
             
             # Generate timestamp
             TIMESTAMP=$(date +%Y%m%d_%H%M%S)
             
-            # Download SVG
-            if [ -n "$SVG_URL" ]; then
-              SVG_FILENAME="generated_visuals/napkin_${TIMESTAMP}_${INDEX}.svg"
-              echo "📥 Downloading SVG ${INDEX}..."
-              curl -s -o "$SVG_FILENAME" "$SVG_URL"
-              if [ -f "$SVG_FILENAME" ]; then
-                echo "✅ Saved: $SVG_FILENAME ($(stat -c%s "$SVG_FILENAME") bytes)"
-              fi
-            fi
-            
-            # Download PNG
-            if [ -n "$PNG_URL" ]; then
-              PNG_FILENAME="generated_visuals/napkin_${TIMESTAMP}_${INDEX}.png"
-              echo "📥 Downloading PNG ${INDEX}..."
-              curl -s -o "$PNG_FILENAME" "$PNG_URL"
-              if [ -f "$PNG_FILENAME" ]; then
-                echo "✅ Saved: $PNG_FILENAME ($(stat -c%s "$PNG_FILENAME") bytes)"
+            # Download file (format was specified as PNG in request)
+            if [ -n "$FILE_URL" ]; then
+              FILENAME="generated_visuals/napkin_${TIMESTAMP}_${INDEX}.png"
+              echo "📥 Downloading visual ${INDEX}..."
+              echo "   URL: $FILE_URL"
+              echo "   Size: ${WIDTH}x${HEIGHT}"
+              
+              # Download with auth header
+              curl -s -L -o "$FILENAME" \
+                -H "Authorization: Bearer $NAPKIN_API_KEY" \
+                "$FILE_URL"
+              
+              if [ -f "$FILENAME" ]; then
+                FILE_SIZE=$(stat -c%s "$FILENAME" 2>/dev/null || echo "0")
+                echo "✅ Saved: $FILENAME (${FILE_SIZE} bytes)"
+              else
+                echo "❌ Failed to download file"
               fi
             fi
             
