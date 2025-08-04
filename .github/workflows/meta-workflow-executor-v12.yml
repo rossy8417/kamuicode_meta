@@ -451,6 +451,11 @@ jobs:
           - 依存関係を明確に矢印で表現
           - subgraphは使用しない（シンプルな構造を維持）
           - classDefでスタイルを定義可能
+          - 正しい構文例:
+            graph TD
+              Start[開始] --> T1[Task-1: 情報収集<br/>5分]
+              T1 --> T2[Task-2: 分析<br/>10分]
+              T2 --> End[終了]
           EOF
           
           npx @anthropic-ai/claude-code \
@@ -569,11 +574,14 @@ jobs:
           🚨 CRITICAL: When constructing YAML, always follow these guidelines:
           
           1. YAML Construction Guidelines: docs/YAML_CONSTRUCTION_GUIDELINES.md
-             - NEVER use HEREDOC (generate line by line with echo commands)
-             - Expand GitHub Actions variables before use
+             - NEVER use HEREDOC (cat > file << EOF) - use echo commands instead
+             - When creating files, use echo commands:
+               echo 'first line' > file.txt
+               echo 'second line' >> file.txt
+             - For GitHub Actions variables in strings:
+               echo "Status: ${{ github.workflow }}" >> file.txt
              - Data sharing between jobs MUST use artifacts
              - Define dependencies clearly with needs
-             - Consider URL expiration with rolling processing
           
           2. Minimal Unit Dependencies: docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
              - Check input/output specifications for each unit
@@ -585,6 +593,21 @@ jobs:
              - Required environment variables for CI/CD
              - Best practices for GitHub Actions usage
              - Select appropriate data sharing methods
+          
+          🚨 File Creation Pattern (CRITICAL):
+          When creating any file in the workflow, ALWAYS use echo commands:
+          
+          # Creating a markdown report
+          echo '# Report Title' > report.md
+          echo '' >> report.md
+          echo "Generated at: $(date)" >> report.md
+          echo "Status: ${{ github.workflow }}" >> report.md
+          
+          # Creating JSON
+          echo '{' > output.json
+          echo '  "status": "success",' >> output.json
+          echo '  "timestamp": "'$(date -Iseconds)'"' >> output.json
+          echo '}' >> output.json
           
           専門的な品質基準に従って、実務で使えるワークフローを生成してください。
           
