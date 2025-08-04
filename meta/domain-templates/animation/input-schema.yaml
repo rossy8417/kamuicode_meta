@@ -1,0 +1,85 @@
+# アニメーション制作の入力スキーマ
+
+input_parameters:
+  required:
+    content_description:
+      type: string
+      description: "アニメーション内容の説明"
+      example: "猫が空を飛ぶファンタジーアニメーション"
+    
+    duration:
+      type: string
+      description: "アニメーションの長さ"
+      enum: ["15s", "30s", "60s", "90s", "3min", "5min"]
+      default: "30s"
+    
+    animation_style:
+      type: string
+      description: "アニメーションスタイル"
+      enum: ["2d_cartoon", "3d_realistic", "anime", "motion_graphics", "stop_motion", "mixed_media"]
+      default: "2d_cartoon"
+  
+  optional:
+    target_audience:
+      type: string
+      description: "ターゲット層"
+      enum: ["kids", "teens", "adults", "general"]
+      default: "general"
+    
+    framerate:
+      type: string
+      description: "フレームレート"
+      enum: ["12fps", "24fps", "30fps", "60fps"]
+      default: "24fps"
+    
+    color_style:
+      type: string
+      description: "カラースタイル"
+      enum: ["vibrant", "pastel", "monochrome", "retro", "realistic"]
+      default: "vibrant"
+    
+    motion_intensity:
+      type: string
+      description: "動きの激しさ"
+      enum: ["slow", "moderate", "fast", "dynamic"]
+      default: "moderate"
+
+computed_values:
+  duration_seconds:
+    formula: "parse_duration(duration)"
+    description: "秒単位の長さ"
+  
+  total_scenes:
+    formula: "ceil(duration_seconds / 4.0) * 1.15"
+    description: "必要シーン数（15%バッファ含む）"
+  
+  scene_batches:
+    formula: "ceil(total_scenes / 3)"
+    description: "並列処理バッチ数"
+  
+  estimated_rendering_time:
+    formula: "total_scenes * 60"
+    description: "推定レンダリング時間（秒）"
+
+validation_rules:
+  - name: "scene_feasibility"
+    rule: |
+      if total_scenes > 50:
+        warning: "シーン数が多いため、処理に時間がかかります"
+  
+  - name: "style_compatibility"
+    rule: |
+      if animation_style == "3d_realistic" and duration > "3min":
+        warning: "3Dリアリスティックスタイルは長時間の場合、レンダリング負荷が高くなります"
+
+output_specifications:
+  video:
+    format: "mp4"
+    codec: "h264"
+    resolution: "1920x1080"
+    audio: "optional"
+  
+  metadata:
+    scene_list: "各シーンの開始・終了時間"
+    keyframes: "重要フレームのタイムスタンプ"
+    style_guide: "使用したスタイルパラメータ"

@@ -1,5 +1,44 @@
 # ライブストリーミングの制約条件と計算式
 
+# 🚨 重要: セグメント数計算は必須です
+# ライブ感のある配信体験を設計する重要要素
+streaming_segment_constraints:
+  # セグメント数計算 - 配信の構成管理
+  segment_calculation:
+    importance: "CRITICAL - 視聴者の注意維持とインタラクション促進に不可欠"
+    formula: |
+      # ライブ風動画の場合（事前収録）
+      content_segments = ceil(duration_seconds / 120)  # 2分ごとにトピック変更
+      
+      # ハイライト動画の場合
+      highlight_scenes = ceil(duration_seconds / 10)  # 10秒ごとのハイライト
+      
+      # バーチャル配信の場合
+      scene_variations = base_scenes + interaction_points
+      
+      where:
+        - duration_seconds: 配信の長さ
+        - base_scenes: 基本シーン数（背景、アングル）
+        - interaction_points: インタラクションポイント数
+    
+    segment_types:
+      opening: "オープニング（30-60秒）"
+      main_segments: "メインコンテンツ（各2-3分）"
+      interaction: "視聴者インタラクション（各1分）"
+      transition: "トランジション（各10-15秒）"
+      closing: "エンディング（30-60秒）"
+    
+    examples:
+      - "10分配信 → 5セグメント（OP1、メイン3、ED1）"
+      - "30分配信 → 15セグメント（トピック切り替え含む）"
+      - "60分配信 → 30セグメント（休憩・Q&A含む）"
+  
+  # ライブ感演出の要素
+  live_feeling_elements:
+    camera_angles: "最低3アングル（メイン、サブ、俯瞰）"
+    scene_switching: "30秒-2分ごとにアングル変更"
+    overlay_updates: "リアルタイム情報の更新"
+
 streaming_technical_constraints:
   # 配信遅延管理
   latency_profiles:
