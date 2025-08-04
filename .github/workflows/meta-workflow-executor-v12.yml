@@ -731,7 +731,12 @@ jobs:
           
       - name: Update Issue
         run: |
-          ISSUE_NUMBER="${{ needs.validate-and-detect.outputs.issue_number }}"
+          # Use input parameter for workflow_dispatch, or job output for issue_comment
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ISSUE_NUMBER="${{ inputs.issue_number }}"
+          else
+            ISSUE_NUMBER="${{ needs.validate-and-detect.outputs.issue_number }}"
+          fi
           WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
           DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
           
