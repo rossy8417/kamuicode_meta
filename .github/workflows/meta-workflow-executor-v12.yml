@@ -533,9 +533,17 @@ jobs:
           PRIMARY_DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           
-          # Create generation directory
-          PROJECT_DIR="projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}"
+          # Create generation directory with absolute path
+          # Use GITHUB_WORKSPACE for consistency across jobs
+          if [ -n "$GITHUB_WORKSPACE" ]; then
+            BASE_DIR="$GITHUB_WORKSPACE"
+          else
+            BASE_DIR="$(pwd)"
+          fi
+          PROJECT_DIR="${BASE_DIR}/projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}"
           mkdir -p "$PROJECT_DIR/generated-workflow"
+          
+          echo "📁 Project directory: $PROJECT_DIR"
           
           # Load template chunks progressively
           CHUNKS=$(jq -r '.chunks[].id' artifacts/domain-template-data/template_chunks.json)
@@ -550,10 +558,13 @@ jobs:
           
           ワークフロー生成の要件：
           1. uses: でローカルファイルを参照しない（インライン実装）
-          2. 全てのパスは${{ needs.setup.outputs.project_dir }}を使用
+          2. PROJECT_DIRは各ジョブで明示的に設定：
+             PROJECT_DIR="\${GITHUB_WORKSPACE}/projects/\${PROJECT_NAME}-\${TIMESTAMP}"
+             mkdir -p "\${PROJECT_DIR}"
           3. MCP使用時は--mcp-configを必ず含める
           4. ジョブ間のファイル共有はartifactsを使用
           5. 各ステップは21000文字以内
+          6. 全ての出力は\${PROJECT_DIR}配下に整理
           
           🚨 CRITICAL: When constructing YAML, always follow these guidelines:
           

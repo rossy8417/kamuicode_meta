@@ -220,9 +220,37 @@
 - `NOTION_API_KEY`: Notion統合トークン
 
 ### **設定方法**
+
+#### **方法1: 一括設定スクリプト（推奨）**
+```bash
+# 1. .envファイルを編集（必要なAPIキーを設定）
+cp .env.example .env  # まだない場合
+nano .env  # 実際のAPIキーに置き換える
+
+# 2. スクリプトで一括設定
+./scripts/env-to-secrets.sh .env
+
+# または、コメント行を除いて直接設定
+grep -v '^#' .env | grep -v '^$' | while IFS='=' read -r key value; do 
+  gh secret set "$key" -b "$value" -R rossy8417/kamuicode_meta
+done
+```
+
+#### **方法2: GitHub CLIで個別設定**
+```bash
+# 例：OpenAI APIキーを設定
+gh secret set OPENAI_API_KEY -b "sk-your-api-key-here"
+```
+
+#### **方法3: GitHub Web UIで手動設定**
 1. GitHub リポジトリの Settings → Secrets and variables → Actions
 2. 「New repository secret」をクリック
 3. Name と Secret value を入力して保存
+
+### **便利ツール**
+- `.env`: サンプル環境変数ファイル（モックデータ付き）
+- `scripts/env-to-secrets.sh`: .envファイルから一括設定するスクリプト
+- `scripts/setup-github-secrets.sh`: 対話型セットアップスクリプト
 
 ## 📝 バージョン履歴
 
