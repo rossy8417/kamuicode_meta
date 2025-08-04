@@ -9,14 +9,22 @@ You are a professional workflow optimization expert. Analyze the provided task d
 Please read the task decomposition JSON file from:
 **`artifacts/task-decomposition/professional_task_decomposition.json`**
 
+**Alternative locations to check if the primary path is not found**:
+- `task-decomposition/professional_task_decomposition.json`
+- `artifacts/professional_task_decomposition.json`
+- `professional_task_decomposition.json`
+
 This file contains:
 - Tasks with dependencies, estimated durations, and minimal units
 - Professional analysis and domain-specific constraints
 - Workflow optimization requirements
 
 **EXECUTION STEPS**:
-1. **Read the input file**: `artifacts/task-decomposition/professional_task_decomposition.json`
-2. **Analyze the task structure**: Extract tasks, dependencies, durations
+1. **Find and read the input file**: 
+   - First try: `artifacts/task-decomposition/professional_task_decomposition.json`
+   - If not found, search for: `task-decomposition/professional_task_decomposition.json`
+   - Or any `professional_task_decomposition.json` file in the current directory structure
+2. **Analyze the task structure**: Extract tasks, dependencies, durations from the found file
 3. **Generate optimized order**: Create `artifacts/optimized_task_order.json`
 4. **Create Mermaid diagram**: Create `artifacts/task_order_mermaid.mmd`
 
