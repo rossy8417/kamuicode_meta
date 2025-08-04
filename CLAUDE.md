@@ -701,3 +701,39 @@ echo "[$(date +%Y-%m-%d_%H:%M:%S)] RESULT: $RESULT" >> error.log
 - **Policy Location**: `scripts/SCRIPT_MANAGEMENT_POLICY.md`
 - **Key Rule**: "Enhance existing scripts rather than creating new ones"
 - Always search existing scripts first, extend rather than duplicate
+
+### 6. 📦 GitHub Actions Artifact Download Rules
+
+**🚨 MANDATORY**: Never download artifacts to root directory - files will scatter!
+
+#### ✅ Correct Method (Use Existing Script)
+```bash
+# Use the dedicated organized download script
+./scripts/download-workflow-artifacts.sh <run-id>
+
+# Or specify custom output directory
+./scripts/download-workflow-artifacts.sh -o projects/issue-66-analysis <run-id>
+```
+
+#### ❌ NEVER Use Manual Download in Root
+```bash
+# This scatters files everywhere - FORBIDDEN
+gh run download <run-id>
+```
+
+#### 🔧 Manual Download (If Script Unavailable)
+```bash
+# Create project directory first
+mkdir -p projects/issue-{number}-run-{run-id}
+cd projects/issue-{number}-run-{run-id}
+gh run download {run-id}
+```
+
+**Result Structure**:
+```
+projects/issue-{number}-{timestamp}/
+├── generated-workflow/
+├── metadata/           # domain templates
+├── analysis/          # task decomposition  
+└── artifacts/         # other files
+```
