@@ -8,8 +8,9 @@ This document provides essential guidelines for YAML construction that Meta Work
 2. **Safely handle GitHub Actions variables**
 3. **ALWAYS use artifacts for data sharing between jobs**
 4. **Clearly define dependencies**
-5. **ALWAYS end multi-line commands with backslash (\) on each continuation line**
+5. **NEVER use backslash (\) line continuation in YAML strings - use YAML literal block scalars (|) or folded scalars (>) instead**
 6. **Handle trigger-specific inputs correctly (workflow_dispatch vs issue_comment)**
+7. **Use proper YAML multiline string syntax for complex prompts**
 
 ## 📋 YAML Construction Checklist
 
