@@ -406,13 +406,107 @@ jobs:
           path: artifacts/professional_task_decomposition.json
 
   # ===========================================
-  # PHASE 4: CONSTRAINT-AWARE WORKFLOW GENERATION
+  # PHASE 4: TASK ORDER OPTIMIZATION
+  # ===========================================
+  
+  optimize-task-order:
+    name: "🔄 Optimize Task Execution Order"
+    runs-on: ubuntu-latest
+    needs: ['professional-task-decomposition']
+    outputs:
+      optimized_order: ${{ steps.optimize.outputs.order }}
+      mermaid_diagram: ${{ steps.optimize.outputs.diagram }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Download Task Decomposition
+        uses: actions/download-artifact@v4
+        with:
+          name: task-decomposition
+          path: artifacts/
+          
+      - name: Analyze and Optimize Task Order
+        id: optimize
+        run: |
+          echo "🔄 タスク実行順序の最適化..."
+          
+          # タスク順序最適化のプロンプト
+          cat > optimize_prompt.txt << 'EOF'
+          artifacts/professional_task_decomposition.jsonを読み込んで、タスクの実行順序を最適化してください。
+          
+          以下の観点で分析してください：
+          1. タスク間の依存関係
+          2. 並列実行可能なタスクのグループ化
+          3. リソース効率の最大化
+          4. URL有効期限などの時間制約
+          
+          出力形式：
+          1. artifacts/optimized_task_order.json に最適化された実行順序
+          2. artifacts/task_order_mermaid.mmd にMermaid図
+          
+          Mermaid図の例：
+          ```mermaid
+          graph TD
+              A[タスク1] --> B[タスク2]
+              A --> C[タスク3]
+              B --> D[タスク4]
+              C --> D
+          ```
+          EOF
+          
+          npx @anthropic-ai/claude-code \
+            -p "$(cat optimize_prompt.txt)" \
+            --allowedTools "Read,Write" \
+            --permission-mode "acceptEdits"
+          
+          # 結果を確認
+          if [ -f "artifacts/optimized_task_order.json" ]; then
+            echo "order=true" >> $GITHUB_OUTPUT
+            
+            # Mermaid図を環境変数に保存（改行をエスケープ）
+            if [ -f "artifacts/task_order_mermaid.mmd" ]; then
+              DIAGRAM=$(cat artifacts/task_order_mermaid.mmd | sed ':a;N;$!ba;s/\n/\\n/g')
+              echo "diagram<<EOF" >> $GITHUB_OUTPUT
+              echo "$DIAGRAM" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "order=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Display Task Order Summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🔄 タスク実行順序の最適化結果
+          
+          ### 📊 依存関係図
+          ```mermaid
+          ${{ steps.optimize.outputs.diagram }}
+          ```
+          
+          ### 📋 最適化のポイント
+          - 依存関係に基づく順序決定
+          - 並列実行可能なタスクの特定
+          - リソース効率の最大化
+          EOF
+          
+      - name: Upload Optimized Order
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimized-task-order
+          path: |
+            artifacts/optimized_task_order.json
+            artifacts/task_order_mermaid.mmd
+
+  # ===========================================
+  # PHASE 5: CONSTRAINT-AWARE WORKFLOW GENERATION
   # ===========================================
   
   generate-professional-workflow:
     name: "⚡ Generate Professional Workflow"
     runs-on: ubuntu-latest
-    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition']
+    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'optimize-task-order']
     outputs:
       workflow_path: ${{ steps.generate.outputs.workflow_path }}
       workflow_name: ${{ steps.generate.outputs.workflow_name }}
@@ -499,8 +593,8 @@ jobs:
             projects/issue-${{ needs.validate-and-detect.outputs.issue_number }}-*
 
   # ===========================================
-  # PHASE 5: VALIDATION & DEPLOYMENT
-  # ===========================================
+  # PHASE 6: VALIDATION & DEPLOYMENT
+  # ==========================================
   
   validate-and-deploy:
     name: "✅ Validate & Deploy"
@@ -636,134 +730,152 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ===========================================
-  # PHASE 6: FINAL REPORT & DOWNLOAD
+  # PHASE 7: FINAL REPORT DISPLAY
   # ===========================================
   
-  generate-final-report:
-    name: "📊 Generate Final Report"
+  display-final-report:
+    name: "📊 最終レポート表示"
     runs-on: ubuntu-latest
-    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'generate-professional-workflow', 'validate-and-deploy']
+    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'optimize-task-order', 'generate-professional-workflow', 'validate-and-deploy']
     if: always()
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Setup Environment
-        run: |
-          npm install -g @anthropic-ai/claude-code
-          pip install pyyaml
-          
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
           
-      - name: Generate Comprehensive Report
+      - name: Generate and Display Final Report
         run: |
-          echo "📊 Generating final report..."
+          echo "📊 最終レポートを生成中..."
           
-          # Gather all information
+          # 基本情報
           ISSUE_NUMBER="${{ needs.validate-and-detect.outputs.issue_number }}"
           DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          DOMAIN_NAME="${{ needs.load-domain-templates.outputs.domain_name }}"
+          EXPERT_ROLE="${{ needs.load-domain-templates.outputs.expert_role }}"
           
-          # Find project directory
-          PROJECT_DIR=$(find projects -name "issue-${ISSUE_NUMBER}-*" -type d | head -1)
-          if [ -z "$PROJECT_DIR" ]; then
-            PROJECT_DIR="projects/issue-${ISSUE_NUMBER}-${TIMESTAMP}"
-            mkdir -p "$PROJECT_DIR"
-          fi
+          # GitHub Actions Summaryに直接表示
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 🎯 Meta Workflow v12 実行レポート
           
-          # Create final report directory
-          REPORT_DIR="${PROJECT_DIR}/final-report"
-          mkdir -p "$REPORT_DIR"
-          
-          # Generate report using Claude Code
-          cat > report_prompt.txt << 'EOF'
-          以下の情報を基に、詳細な実行レポートを生成してください。
-          
-          アーティファクトの場所：
-          - Issue情報: artifacts/issue-domain-data/
-          - ドメインテンプレート: artifacts/domain-template-data/
-          - タスク分解結果: artifacts/task-decomposition/
-          - 生成ワークフロー: artifacts/generated-workflow/
-          
-          レポートに含める内容：
-          1. 実行サマリー
-          2. ドメイン分析結果
-          3. タスク分解の詳細
-          4. 生成されたワークフローの概要
-          5. タスク依存関係のMermaid図
-          6. 実行時間の分析
-          7. 品質チェック結果
-          
-          出力ファイル:
-          - メインレポート: ${REPORT_DIR}/EXECUTION_REPORT.md
-          - Mermaid図: ${REPORT_DIR}/workflow_diagram.mmd
-          - 統計情報: ${REPORT_DIR}/statistics.json
+          ## 📋 実行概要
           EOF
           
-          npx @anthropic-ai/claude-code \
-            -p "$(cat report_prompt.txt)" \
-            --allowedTools "Read,Write" \
-            --permission-mode "acceptEdits"
+          echo "- **Issue番号**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
+          echo "- **検出ドメイン**: ${DOMAIN} (${DOMAIN_NAME})" >> $GITHUB_STEP_SUMMARY
+          echo "- **専門家役割**: ${EXPERT_ROLE}" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Copy all artifacts to project directory
-          echo "📦 Collecting all artifacts..."
-          cp -r artifacts/* "${PROJECT_DIR}/"
+          # ドメインテンプレート分析結果
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🔍 ドメインテンプレート分析結果
           
-          # Create download script (for local use)
-          cat > "${PROJECT_DIR}/download_artifacts.sh" << 'SCRIPT'
-          #!/bin/bash
-          # This script helps download artifacts when run locally
-          echo "📥 Downloading artifacts from GitHub..."
-          gh run download ${{ github.run_id }} --dir ./downloaded_artifacts
-          echo "✅ Download complete! Check ./downloaded_artifacts/"
-          SCRIPT
-          chmod +x "${PROJECT_DIR}/download_artifacts.sh"
+          ### 読み込まれたテンプレート情報
+          EOF
           
-          # Summary
-          echo "✅ Final report generated"
-          echo "📁 Location: $REPORT_DIR"
+          if [ -f "artifacts/domain-template-data/domain_decomposition_data.json" ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            jq '.domain_info' artifacts/domain-template-data/domain_decomposition_data.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "ドメイン情報の読み込みに失敗" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "### 推奨MCPサービス" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            jq '.implementation_resources.recommended_mcp_services' artifacts/domain-template-data/domain_decomposition_data.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "MCPサービス情報なし" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
           
-      - name: Upload Final Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: final-report
-          path: projects/issue-${{ needs.validate-and-detect.outputs.issue_number }}-*/final-report/
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-      - name: Create Execution Summary
-        run: |
-          # Create a summary for GitHub Actions
+          # タスク分解結果
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 📝 タスク分解結果
+          
+          ### 分解されたタスク一覧
+          EOF
+          
+          if [ -f "artifacts/task-decomposition/professional_task_decomposition.json" ]; then
+            # タスク数をカウント
+            TASK_COUNT=$(jq '.tasks | length' artifacts/task-decomposition/professional_task_decomposition.json 2>/dev/null || echo "0")
+            echo "**総タスク数**: ${TASK_COUNT}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # 各タスクの詳細
+            jq -r '.tasks[] | "#### \(.id): \(.name)\n- **説明**: \(.description)\n- **推定時間**: \(.estimated_duration)\n- **依存関係**: \(.dependencies | join(", ") // "なし")\n- **使用ユニット**: \(.minimal_units | join(", "))\n"' artifacts/task-decomposition/professional_task_decomposition.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "タスク詳細の読み込みに失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # タスク実行順序の最適化結果
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🔄 タスク実行順序
+          
+          ### 最適化された実行順序図
+          EOF
+          
+          if [ -f "artifacts/optimized-task-order/task_order_mermaid.mmd" ]; then
+            echo '```mermaid' >> $GITHUB_STEP_SUMMARY
+            cat artifacts/optimized-task-order/task_order_mermaid.mmd >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "*タスク順序図の生成に失敗しました*" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # ワークフロー生成結果
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## ⚡ ワークフロー生成結果
+          EOF
+          
+          WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
+          echo "- **ワークフロー名**: ${WORKFLOW_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "- **検証結果**: ${{ needs.validate-and-deploy.outputs.validation_passed == 'true' && '✅ 成功' || '❌ 失敗' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **保存場所**: projects/issue-${ISSUE_NUMBER}-*/final-workflow/" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # 実行フェーズサマリー
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          ## 🏗️ 実行フェーズ
+          
+          | フェーズ | 状態 | 説明 |
+          |---------|------|------|
+          | 1. Issue検証 & ドメイン検出 | ✅ | Issue内容からドメインを自動検出 |
+          | 2. ドメインテンプレート読み込み | ✅ | 専門知識とワークフローパターンを読み込み |
+          | 3. プロフェッショナルタスク分解 | ✅ | AIによる詳細なタスク分解 |
+          | 4. タスク順序最適化 | ✅ | 依存関係に基づく実行順序決定 |
+          | 5. ワークフロー生成 | ✅ | GitHub Actions形式でワークフロー生成 |
+          EOF
+          
+          echo "| 6. 検証 & 配置 | ${{ needs.validate-and-deploy.outputs.validation_passed == 'true' && '✅' || '❌' }} | YAMLバリデーションと保存 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 7. 最終レポート | ✅ | 実行結果の総合レポート |" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # ダウンロード情報
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          # Meta Workflow v12 Execution Summary
+          ## 📥 成果物のダウンロード
           
-          ## 📋 Overview
-          - **Issue**: #${{ needs.validate-and-detect.outputs.issue_number }}
-          - **Domain**: ${{ needs.validate-and-detect.outputs.primary_domain }}
-          - **Status**: ${{ needs.validate-and-deploy.outputs.validation_passed == 'true' && '✅ Success' || '❌ Failed' }}
+          ローカルで以下のコマンドを実行してください：
           
-          ## 🏗️ Execution Phases
-          1. Issue Validation & Domain Detection: ✅
-          2. Domain Template Loading: ✅
-          3. Professional Task Decomposition: ✅
-          4. Workflow Generation: ✅
-          5. Validation & Deployment: ${{ needs.validate-and-deploy.outputs.validation_passed == 'true' && '✅' || '❌' }}
-          6. Final Report Generation: ✅
-          
-          ## 📦 Artifacts Generated
-          - Issue & Domain Data
-          - Domain Template Data
-          - Task Decomposition
-          - Generated Workflow
-          - Final Report
-          
-          ## 📥 Download Instructions
           \`\`\`bash
+          # すべての成果物をダウンロード
           gh run download ${{ github.run_id }}
+          
+          # 特定の成果物のみダウンロード
+          gh run download ${{ github.run_id }} -n generated-workflow
           \`\`\`
           
-          ## 🔗 Links
-          - [View Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [Issue #${{ needs.validate-and-detect.outputs.issue_number }}](https://github.com/${{ github.repository }}/issues/${{ needs.validate-and-detect.outputs.issue_number }})
+          ## 🔗 関連リンク
+          - [実行詳細](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - [Issue #${ISSUE_NUMBER}](https://github.com/${{ github.repository }}/issues/${ISSUE_NUMBER})
+          - [ワークフロー定義](https://github.com/${{ github.repository }}/blob/main/.github/workflows/meta-workflow-executor-v12.yml)
+          
+          ---
+          *Generated by Meta Workflow v12 with Domain Templates*
           EOF
