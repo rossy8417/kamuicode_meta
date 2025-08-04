@@ -87,6 +87,24 @@ class DomainTemplateLoader:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return {"content": f.read()}
         
+        elif chunk_type == "expert-knowledge":
+            file_path = domain_path / "expert-knowledge.yaml"
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                
+            if section:
+                return data.get(section, {})
+            return data
+        
+        elif chunk_type == "workflow-patterns":
+            file_path = domain_path / "workflow-patterns.yaml"
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                
+            if section:
+                return data.get(section, {})
+            return data
+        
         else:
             raise ValueError(f"Unknown chunk type: {chunk_type}")
     
@@ -258,11 +276,120 @@ class DomainTemplateLoader:
                         key_info[f"{section_name}.{key}"] = value
         
         return key_info
+    
+    def get_domain_summary_for_task_decomposition(self, domain: str) -> Dict[str, Any]:
+        """タスク分解用に詳細な情報を保持したドメインサマリーを取得"""
+        
+        # 各YAMLファイルから完全な情報を読み込み
+        constraints = self.load_template_chunk(domain, "constraints")
+        expert_knowledge = self.load_template_chunk(domain, "expert-knowledge")
+        workflow_patterns = self.load_template_chunk(domain, "workflow-patterns")
+        
+        # ドメイン情報の取得
+        domain_info = self.index_data['domains'].get(domain, {})
+        
+        return {
+            # ドメイン基本情報
+            "domain_info": {
+                "domain": domain,
+                "name": domain_info.get('name', ''),
+                "expert": domain_info.get('expert', ''),
+                "keywords": domain_info.get('keywords', []),
+                "minimal_units": domain_info.get('minimal_units', [])
+            },
+            
+            # 専門家の知識（完全版）
+            "expert_context": {
+                "full_expert_knowledge": expert_knowledge,
+                "professional_insights": expert_knowledge.get('professional_insights', {}),
+                "workflow_optimization": expert_knowledge.get('workflow_optimization', {}),
+                "quality_control": expert_knowledge.get('quality_control', {}),
+                "platform_specific": expert_knowledge.get('platform_specific', {})
+            },
+            
+            # タスク分解支援情報（詳細版）
+            "task_decomposition_context": {
+                "workflow_patterns": workflow_patterns.get('workflow_patterns', {}),
+                "optimization_patterns": workflow_patterns.get('optimization_patterns', {}),
+                "conditional_patterns": workflow_patterns.get('conditional_patterns', {}),
+                "error_recovery_patterns": workflow_patterns.get('error_recovery_patterns', {})
+            },
+            
+            # 制約と要件（完全版）
+            "constraints_and_requirements": {
+                "full_constraints": constraints,
+                "timing_constraints": constraints.get('timing_constraints', {}),
+                "technical_constraints": constraints.get('technical_constraints', {}),
+                "parallel_processing": constraints.get('parallel_processing', {}),
+                "audio_video_sync": constraints.get('audio_video_sync', {}),
+                "quality_assurance": constraints.get('quality_assurance', {}),
+                "failure_recovery": constraints.get('failure_recovery', {})
+            },
+            
+            # 実装リソース情報
+            "implementation_resources": {
+                "minimal_units_list": domain_info.get('minimal_units', []),
+                "recommended_mcp_services": self._get_recommended_mcp_services(domain),
+                "external_apis": self._get_recommended_external_apis(domain)
+            },
+            
+            # 思考プロセスガイド
+            "complex_thinking_guide": {
+                "pre_production_thinking": f"{domain}ドメインでは、実装前に専門的な観点から要件を分析し、最適なワークフローを設計することが重要です。",
+                "quality_assurance_thinking": "品質保証の観点から、各タスクの出力が期待される基準を満たしているか継続的に確認します。",
+                "optimization_thinking": "効率化のために、依存関係のないタスクを特定し、適切な並列化を検討します。",
+                "error_handling_thinking": "各タスクで発生しうるエラーを予測し、適切なリカバリー戦略を事前に計画します。"
+            }
+        }
+    
+    def _get_recommended_mcp_services(self, domain: str) -> List[str]:
+        """ドメインに応じて推奨されるMCPサービスを返す"""
+        mcp_mapping = {
+            "video-production": ["t2i-google-imagen3", "i2v-fal-hailuo-02-pro", "t2s-fal-minimax-speech-02-turbo", "v2v-fal-creatify-lipsync"],
+            "3d-modeling": ["t2i-google-imagen3", "i2i3d-fal-hunyuan3d-v21"],
+            "audio-production": ["t2m-google-lyria", "t2s-fal-minimax-speech-02-turbo", "v2a-fal-thinksound"],
+            "image-generation": ["t2i-google-imagen3", "t2i-fal-imagen4-ultra", "i2i-fal-flux-kontext-max"],
+            "animation": ["t2v-fal-veo3-fast", "i2v-fal-bytedance-seedance-v1-lite", "r2v-fal-vidu-q1"],
+            "news-content": ["WebSearch", "t2i-google-imagen3", "t2s-fal-minimax-speech-02-turbo"],
+            "social-media": ["t2i-fal-imagen4-fast", "t2v-fal-veo3-fast", "t2s-fal-minimax-speech-02-turbo"],
+            "educational": ["t2i-google-imagen3", "t2s-google", "i2v-fal-hailuo-02-pro"],
+            "marketing": ["t2i-fal-imagen4-ultra", "t2v-fal-veo3-fast", "t2s-fal-minimax-speech-02-turbo"],
+            "technical-documentation": ["t2i-google-imagen3", "WebSearch"],
+            "data-visualization": ["t2i-google-imagen3", "WebSearch"],
+            "scientific-research": ["WebSearch", "t2i-google-imagen3"],
+            "creative-writing": ["t2i-google-imagen3", "t2m-google-lyria"],
+            "game-development": ["t2i-google-imagen3", "i2i3d-fal-hunyuan3d-v21", "t2m-google-lyria"],
+            "architectural-design": ["t2i-google-imagen3", "i2i3d-fal-hunyuan3d-v21"],
+            "fashion-design": ["t2i-fal-imagen4-ultra", "i2i-fal-flux-kontext-max"],
+            "music-production": ["t2m-google-lyria", "v2a-fal-thinksound"],
+            "podcast-production": ["t2s-fal-minimax-speech-02-turbo", "v2v-fal-minimax-voice-design"],
+            "live-streaming": ["t2s-fal-minimax-speech-02-turbo", "v2v-fal-creatify-lipsync"],
+            "vr-content": ["i2i3d-fal-hunyuan3d-v21", "t2v-fal-veo3-fast"],
+            "medical-visualization": ["t2i-google-imagen3", "i2i3d-fal-hunyuan3d-v21"],
+            "legal-documentation": ["WebSearch"],
+            "financial-reporting": ["WebSearch", "t2i-google-imagen3"]
+        }
+        return mcp_mapping.get(domain, ["t2i-google-imagen3", "WebSearch"])
+    
+    def _get_recommended_external_apis(self, domain: str) -> List[str]:
+        """ドメインに応じて推奨される外部APIを返す"""
+        api_mapping = {
+            "video-production": ["youtube", "openai"],
+            "news-content": ["newsapi", "openai", "twitter"],
+            "social-media": ["twitter", "instagram", "youtube"],
+            "marketing": ["google-sheets", "sendgrid", "slack"],
+            "data-visualization": ["google-sheets", "finnhub"],
+            "scientific-research": ["arxiv", "openai"],
+            "financial-reporting": ["finnhub", "google-sheets"],
+            "podcast-production": ["elevenlabs", "youtube"],
+            "live-streaming": ["youtube", "twitch"]
+        }
+        return api_mapping.get(domain, [])
 
 
 def main():
     parser = argparse.ArgumentParser(description='Domain Template Loader')
-    parser.add_argument('--action', choices=['detect', 'load', 'split', 'summary'], required=True,
+    parser.add_argument('--action', choices=['detect', 'load', 'split', 'summary', 'summary-for-decomposition'], required=True,
                         help='Action to perform')
     parser.add_argument('--issue', type=str, help='Issue content for domain detection')
     parser.add_argument('--domain', type=str, help='Domain name')
@@ -317,6 +444,13 @@ def main():
             sys.exit(1)
         
         result = loader.get_domain_summary(args.domain)
+    
+    elif args.action == 'summary-for-decomposition':
+        if not args.domain:
+            print("Error: --domain is required for summary-for-decomposition action")
+            sys.exit(1)
+        
+        result = loader.get_domain_summary_for_task_decomposition(args.domain)
     
     # 結果を出力
     if args.output:

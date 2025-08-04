@@ -23,6 +23,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **⚠️ Important**: Other docs (docs/, kamuicode-workflow/) are detailed technical references. Not needed for regular tasks.
 
+## 🎯 Task Execution Priority Guidelines
+
+### Before Starting Any Task
+1. **List all pending tasks** using TodoWrite tool
+2. **Analyze dependencies** between tasks to identify blocking issues
+3. **Consider execution order** to minimize rework and maximize efficiency
+4. **Present the plan** to user before execution when handling multiple tasks
+
+### Priority Decision Framework
+1. **🚨 Blocking Issues First**: Fix problems preventing other work
+   - Example: Fix envsubst JSON issue before testing meta-workflow
+   - Example: Create required methods before modifying callers
+
+2. **🏗️ Foundation Before Features**: Build infrastructure before implementation
+   - Example: Update domain-template-loader.py before meta-workflow changes
+   - Example: Fix file organization before adding new features
+
+3. **✅ Test Before Deploy**: Validate all changes before deployment
+   - Example: Test workflow locally before git push
+   - Example: Verify JSON structure before using in production
+
+4. **📝 Document After Changes**: Update documentation after code modifications
+   - Example: Update CLAUDE.md after system changes
+   - Example: Log execution results in workflow-execution-logs
+
+### Example Priority Analysis
+```
+Pending Tasks:
+1. Add new method to domain-template-loader.py
+2. Fix meta-workflow v12 task decomposition 
+3. Test meta-workflow v12
+4. Delete specific commands from settings.json
+5. Verify all 24 domain templates
+
+Optimal Order:
+1. First: Add method (others depend on this)
+2. Second: Fix meta-workflow (uses the new method)
+3. Third: Delete settings commands (clean environment)
+4. Fourth: Test meta-workflow (needs 1,2,3 complete)
+5. Last: Verify templates (can run independently)
+```
+
+### Common Task Dependencies
+- **Script changes** → **Workflow updates** → **Testing**
+- **Environment setup** → **Feature implementation** → **Validation**
+- **Error fixes** → **Retry execution** → **Log results**
+
 ## Project Status
 
 This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Code GitHub Actions integration. The system uses **template-based generation** with **staged deployment system** to generate high-quality, executable GitHub Actions workflows efficiently.
@@ -52,9 +99,9 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
 - **GitHub Actions**: Use `./generated/media/[type]/` or `./projects/project-name/`
 - **File Prefix**: CLI uses `claude_generated` or `claude_[type]` prefix
 
-## Current Architecture (v9.0)
+## Current Architecture (v12.0)
 
-### Minimal Unit Based Dual-Approach Meta Workflow System
+### Domain Template Enhanced Meta Workflow System
 - **Claude Code SDK Integration**: Dynamic task decomposition using Claude Code SDK
 - **80 Minimal Units**: Complete catalog of reusable workflow components
 - **Dual Workflow Generation**:
@@ -76,11 +123,11 @@ Claude Code may overwrite `.claude/settings.local.json` permissions. To restore:
   - 7 Utility units (local-save, git-pr-create, sns-publish, etc.)
   - 27 External API units (YouTube, OpenAI, Slack, Twitter, Google Sheets, GitHub, etc.)
   - And more...
-- **`.github/workflows/meta-workflow-executor-v9.yml`**: Dynamic meta workflow with enhanced features
+- **`.github/workflows/meta-workflow-executor-v12.yml`**: Domain template integrated meta workflow
 - **`meta/prompts/`**: Enhanced prompts for human-like task decomposition and dependency analysis
 - **`.github/workflows/generated/`**: Generated workflow deployment area
 
-### Key Principles (v9.0)
+### Key Principles
 1. **Task Dependencies First**: Every task must declare its prerequisites
 2. **Data Flow Tracking**: Outputs from one task become inputs for dependent tasks
 3. **Parallel Where Possible**: Only independent tasks run in parallel
@@ -335,10 +382,10 @@ meta/examples/           # 9 reference workflow templates - DO NOT modify existi
 └── blog-article-creation.yml (9 tasks, 35min)
 
 .github/workflows/
-├── meta-workflow-executor-v10.yml   # Main meta workflow (v10.0)
+├── meta-workflow-executor-v12.yml   # Current meta workflow with domain templates
 ├── auto-fix-deployment.yml          # Automated error recovery system
 ├── continuous-system-monitor.yml    # System health monitoring
-└── generated/                       # Simple generated workflow deployment
+└── generated/                       # Generated workflow deployment area
     └── *.yml                        # Generated workflows
 
 projects/                # ALL GitHub Actions outputs go here
@@ -528,64 +575,29 @@ projects/project-name/assets/result.png             # Project assets
 
 ### 🧹 **Cleanup and Organization Guidelines**
 
-For file deletion and directory organization tasks, refer to:
-**📋 `docs/analysis/CLEANUP_PROTOCOL.md`**
+For file deletion and directory organization, see: **`docs/analysis/CLEANUP_PROTOCOL.md`**
 
-This document contains:
-- **バルス Protocol**: Complete system reset guidelines
-- **整理整頓ガイドライン**: Directory organization standards and criteria
-- **判定基準**: Classification criteria for deletion/integration/preservation
-- **実行チェックリスト**: Pre/post organization verification steps
+### Workflow Generation Requirements
 
-**When asked to "整理整頓" or organize directories:**
-1. Review the guidelines in `CLEANUP_PROTOCOL.md`
-2. Apply the established criteria (プロジェクト中心主義, 重複解消原則, シンプル構造原則)
-3. Confirm with user before executing major changes
-4. Update relevant documentation after changes
-
-#### Ultra-Detailed Task Breakdown
 Each workflow must include:
-- **Human unconscious thought process simulation**
-- **GitHub Actions node design**
 - **Task dependencies and parallel groups**
-- **Implementation details with MCP/script/external API**
+- **Implementation with MCP/script/external API**
 - **Validation criteria and error handling**
 - **Duration estimates (5-60 minutes total)**
 
-#### Dual-Approach Workflow Generation Implementation
-The main workflow now uses:
-1. **Task Decomposition** → Ultra-detailed task breakdown using Claude Code SDK
-2. **Unit Selection** → Select from 55 minimal units based on task requirements
-3. **Parallel Workflow Generation**:
-   - **Original Approach**: Dynamic composition from minimal units
-   - **Orchestrator Approach**: Following kamuicode-workflow patterns
-4. **Comparison & Merge** → Analyze both workflows and select best elements
-5. **Final Composition** → Create hybrid workflow with best-of-both approach
-6. **Validation** → YAML syntax, GitHub Actions structure, dependency verification
-7. **Safe Deployment** → `.github/workflows/generated/` with .disabled extension
-
 ### Development Best Practices
 
-#### When Adding New Workflows
-1. **Reference kamuicode-workflow patterns** for orchestrator structure
-2. **Follow ultra-detailed task breakdown** with dependency management
-3. **Select appropriate minimal units** from 55 available units
-4. **Ensure proper task sequencing** based on data flow
-5. **Implement optimal parallelization** (3-5 way parallel)
-6. **Test deployment through staged system**
-
-#### When Modifying Main Workflow
-- **Maintain simplified staged deployment system**
-- **Keep validation scoring system (75+ points for pass)**
-- **Preserve template selection logic**
-- **Deploy to `.github/workflows/generated/` for generated workflows**
-- **Simple structure without complex subdirectories**
+#### When Working on Tasks
+1. **Follow task priority guidelines** (see Task Execution Priority section)
+2. **Check dependencies** before starting work
+3. **Test changes** before committing
+4. **Log results** in workflow-execution-logs
 
 #### Error Handling
-- **External API fallbacks** for missing MCP services
-- **Retry logic** with exponential backoff
-- **Comprehensive logging** to `.logs/` directories
-- **Graceful degradation** strategies
+- **Apply repair protocols** immediately for known issues
+- **Use retry logic** with exponential backoff
+- **Log all errors** to `projects/workflow-execution-logs/`
+- **Document solutions** for future reference
 
 ### Required Secrets & Configuration
 - **`CLAUDE_CODE_OAUTH_TOKEN`**: Claude Code authentication token
@@ -603,52 +615,16 @@ The main workflow now uses:
 
 ## Development Philosophy
 
-- **Quality over Speed**: Use simplified staged deployment for reliability
-- **Template-based Efficiency**: Leverage existing patterns instead of generating from scratch  
-- **MCP-First**: Integrate AI generation services as primary tools
-- **External API Fallback**: Handle missing services gracefully
-- **Ultra-detailed Decomposition**: Break down to AI/script/MCP executable granularity
-- **Parallel Execution**: Optimize performance with dependency management
-- **Safe Deployment**: Use .disabled extension for staging safety
-- **Manual Activation**: Ensure human oversight for workflow activation
+- **Priority-Driven Development**: Follow task priority guidelines for efficient execution
+- **Quality over Speed**: Test before deployment, log all results
+- **MCP-First**: Use AI generation services as primary tools
+- **Graceful Degradation**: Handle failures with fallback strategies
+- **Safe Deployment**: Validate workflows before production
 
 ## Custom Node Examples
 
-When existing minimal units cannot handle specific requirements, use **Custom Node Examples**:
-
-**📂 Available Categories** (`docs/examples/custom-nodes/`):
-- **media-processing/**: Multi-format generation, quality optimization
-- **data-processing/**: Batch processing, large dataset handling  
-- **external-integration/**: API aggregation, external service integration
-- **utilities/**: Health checking, system monitoring
-
-**🎯 Key Examples**:
-- `multi-format-generator.yml`: Generate image+video+audio simultaneously
-- `batch-processor.yml`: Process 25+ items with 5-way parallel execution
-- `api-aggregator.yml`: Collect data from news/social/market/technical APIs
-- `health-checker.yml`: System resource + MCP service availability check
-
-**📋 Usage Pattern**:
-```yaml
-custom-processing:
-  uses: ./docs/examples/custom-nodes/category/example.yml
-  needs: [prerequisite-jobs]
-  with:
-    custom_param: ${{ inputs.value }}
-```
-
-**🔄 Evolution Path**: Successful custom nodes should be converted to minimal units when they prove universally useful.
-
-## Notes for Claude Code Sessions
-
-- **This system is actively developed using Claude Code** - maintain development continuity
-- **All examples in `meta/examples/` represent production-ready templates**
-- **Custom node examples in `docs/examples/custom-nodes/` provide extension patterns**
-- **The main workflow uses template selection instead of complex task decomposition**
-- **Simplified staged deployment prevents broken workflows from reaching production**
-- **File path reference patterns are critical for workflow continuity**
-- **MCP services are limited to AI generation - use external APIs for other functions**
-- **Final workflows are deployed to `.github/workflows/generated/` in simple structure**
+When existing minimal units cannot handle specific requirements, see:
+**📂 `docs/examples/custom-nodes/`** for extension patterns
 
 ## 🚨 System Development Rules for Claude Code
 
@@ -681,25 +657,14 @@ echo "[$(date +%Y-%m-%d_%H:%M:%S)] SOLUTION: $SOLUTION" >> error.log
 echo "[$(date +%Y-%m-%d_%H:%M:%S)] RESULT: $RESULT" >> error.log
 ```
 
-### 4. System Issues to Track
+### 4. Known Issues to Track
 - Meta-workflow generates `uses: ./minimal-units/...` which doesn't work in GitHub Actions
 - Need to inline minimal unit implementations
+- Complex JSON in envsubst causes task decomposition failures
 - WebSearch execution takes 1-2 minutes for simple queries
 
 ### 5. Script Management Policy
 **CRITICAL**: Before creating any new script, follow the Script Management Policy:
 - **Policy Location**: `scripts/SCRIPT_MANAGEMENT_POLICY.md`
 - **Key Rule**: "Enhance existing scripts rather than creating new ones"
-- **Process**: 
-  1. Search existing scripts for similar functionality
-  2. If found, extend the existing script
-  3. Only create new if functionality is truly different direction
-  4. Always update SCRIPT_CATALOG.md after changes
-
-**Example**:
-```bash
-# Before creating download-smart.sh, check:
-grep -l "download" scripts/*.sh
-# Found: download-workflow-artifacts.sh
-# Action: Add smart features to existing script instead
-```
+- Always search existing scripts first, extend rather than duplicate
