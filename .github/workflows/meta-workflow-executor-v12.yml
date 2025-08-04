@@ -510,6 +510,7 @@ jobs:
     outputs:
       workflow_path: ${{ steps.generate.outputs.workflow_path }}
       workflow_name: ${{ steps.generate.outputs.workflow_name }}
+      project_dir: ${{ steps.generate.outputs.project_dir }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -578,6 +579,7 @@ jobs:
             
             echo "workflow_path=$WORKFLOW_PATH" >> $GITHUB_OUTPUT
             echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
+            echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
             
             echo "✅ Workflow generated: $WORKFLOW_NAME"
           else
@@ -654,8 +656,11 @@ jobs:
           fi
           WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
           
-          # Find the project directory
-          PROJECT_DIR=$(find projects -name "issue-${{ needs.validate-and-detect.outputs.issue_number }}-*" -type d | head -1)
+          # Use the project directory from previous job
+          PROJECT_DIR="${{ needs.generate-professional-workflow.outputs.project_dir }}"
+          
+          # Create project directory on this runner (it doesn't exist yet)
+          mkdir -p "$PROJECT_DIR"
           
           # Copy to final location in project directory
           FINAL_DIR="${PROJECT_DIR}/final-workflow"
@@ -696,8 +701,8 @@ jobs:
           WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
           DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
           
-          # Find the project directory for the issue link
-          PROJECT_DIR=$(find projects -name "issue-${ISSUE_NUMBER}-*" -type d | head -1)
+          # Get project directory from previous job
+          PROJECT_DIR="${{ needs.generate-professional-workflow.outputs.project_dir }}"
           PROJECT_NAME=$(basename "$PROJECT_DIR")
           
           gh issue comment $ISSUE_NUMBER --body "## ✅ Professional Workflow Generated!
