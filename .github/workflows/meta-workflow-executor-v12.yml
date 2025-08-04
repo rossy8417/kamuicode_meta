@@ -477,38 +477,36 @@ jobs:
               # フォールバック: タスク依存関係から左右フローMermaidを生成
               echo "📊 Generating fallback Mermaid diagram from task dependencies..."
               
-              # v10方式の左右フローMermaid生成
+              # フォールバック: タスク依存関係から左右フローMermaidを生成
               echo "diagram<<EOF" >> $GITHUB_OUTPUT
-              cat >> $GITHUB_OUTPUT << 'MERMAID_EOF'
-graph LR
-    Start["🏁 開始"] --> T1["T1: ニュース情報収集・分析 (3-5分)"]
-    T1 --> T2["T2: 構成・台本作成 (4-6分)"]
-    T2 --> T3["T3: ナレーション音声生成 (2-3分)"]
-    T2 --> T4["T4: 画像素材生成（バッチ1） (5-7分)"]
-    T2 --> T6["T6: 画像素材生成（バッチ2） (5-7分)"]
-    T2 --> T8["T8: エンディング画像生成 (3-4分)"]
-    T4 --> T5["T5: 動画変換（バッチ1） (8-10分)"]
-    T6 --> T7["T7: 動画変換（バッチ2） (8-10分)"]
-    T8 --> T9["T9: エンディング動画変換 (6-8分)"]
-    T3 --> T10["T10: BGM生成・選択 (3-4分)"]
-    T5 --> T11["T11: 動画統合・編集 (4-5分)"]
-    T7 --> T11
-    T9 --> T11
-    T10 --> T12["T12: 音声ミックス (3-4分)"]
-    T11 --> T12
-    T12 --> T13["T13: 品質検証・最終調整 (2-3分)"]
-    T13 --> End["🏁 完了"]
-
-    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000
-    classDef sequential fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
-    classDef parallel fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
-    classDef critical fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#000
-    
-    class Start,End startEnd
-    class T1,T2,T3,T10,T11,T12,T13 sequential
-    class T4,T6,T8 parallel
-    class T5,T7,T9,T11,T12,T13 critical
-MERMAID_EOF
+              echo "graph LR" >> $GITHUB_OUTPUT
+              echo '    Start["🏁 開始"] --> T1["T1: ニュース情報収集・分析 (3-5分)"]' >> $GITHUB_OUTPUT
+              echo '    T1 --> T2["T2: 構成・台本作成 (4-6分)"]' >> $GITHUB_OUTPUT
+              echo '    T2 --> T3["T3: ナレーション音声生成 (2-3分)"]' >> $GITHUB_OUTPUT
+              echo '    T2 --> T4["T4: 画像素材生成（バッチ1） (5-7分)"]' >> $GITHUB_OUTPUT
+              echo '    T2 --> T6["T6: 画像素材生成（バッチ2） (5-7分)"]' >> $GITHUB_OUTPUT
+              echo '    T2 --> T8["T8: エンディング画像生成 (3-4分)"]' >> $GITHUB_OUTPUT
+              echo '    T4 --> T5["T5: 動画変換（バッチ1） (8-10分)"]' >> $GITHUB_OUTPUT
+              echo '    T6 --> T7["T7: 動画変換（バッチ2） (8-10分)"]' >> $GITHUB_OUTPUT
+              echo '    T8 --> T9["T9: エンディング動画変換 (6-8分)"]' >> $GITHUB_OUTPUT
+              echo '    T3 --> T10["T10: BGM生成・選択 (3-4分)"]' >> $GITHUB_OUTPUT
+              echo '    T5 --> T11["T11: 動画統合・編集 (4-5分)"]' >> $GITHUB_OUTPUT
+              echo '    T7 --> T11' >> $GITHUB_OUTPUT
+              echo '    T9 --> T11' >> $GITHUB_OUTPUT
+              echo '    T10 --> T12["T12: 音声ミックス (3-4分)"]' >> $GITHUB_OUTPUT
+              echo '    T11 --> T12' >> $GITHUB_OUTPUT
+              echo '    T12 --> T13["T13: 品質検証・最終調整 (2-3分)"]' >> $GITHUB_OUTPUT
+              echo '    T13 --> End["🏁 完了"]' >> $GITHUB_OUTPUT
+              echo "" >> $GITHUB_OUTPUT
+              echo '    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000' >> $GITHUB_OUTPUT
+              echo '    classDef sequential fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000' >> $GITHUB_OUTPUT
+              echo '    classDef parallel fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000' >> $GITHUB_OUTPUT
+              echo '    classDef critical fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#000' >> $GITHUB_OUTPUT
+              echo "" >> $GITHUB_OUTPUT
+              echo '    class Start,End startEnd' >> $GITHUB_OUTPUT
+              echo '    class T1,T2,T3,T10,T11,T12,T13 sequential' >> $GITHUB_OUTPUT
+              echo '    class T4,T6,T8 parallel' >> $GITHUB_OUTPUT
+              echo '    class T5,T7,T9,T11,T12,T13 critical' >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
             fi
           else
