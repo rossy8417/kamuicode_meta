@@ -76,28 +76,28 @@ Save to: `artifacts/task_order_mermaid.mmd`
 - NO incomplete class definitions
 - Use proper styling classes for visual distinction
 
-**Required Mermaid Structure (SIMPLIFIED for GitHub Actions compatibility):**
+**Required Mermaid Structure (Based on kamuicode-workflow SUCCESS patterns):**
 ```mermaid
 graph LR
-    Start["開始"] --> T1["T1: タスク名 (5分)"]
-    T1 --> T2["T2: 次のタスク (3分)"]
-    T2 --> T3["T3: 並列タスクA (4分)"]
-    T2 --> T4["T4: 並列タスクB (4分)"]
-    T3 --> T5["T5: 最終タスク (2分)"]
-    T4 --> T5
-    T5 --> End["完成"]
-    
-    classDef task fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    class T1,T2,T3,T4,T5 task
+    A[🚀 開始<br/>情報収集フェーズ] --> B[📋 構成作成<br/>台本・企画]
+    B --> C[🎵 音声生成<br/>ナレーション]
+    B --> D[🎨 画像生成<br/>バッチ1]
+    D --> E[🎬 動画変換<br/>バッチ1]
+    E --> F[🎨 画像生成<br/>バッチ2]
+    F --> G[🎬 動画変換<br/>バッチ2]
+    C --> H[🎞️ 最終編集<br/>統合・完成]
+    G --> H
+    H --> I[✅ 完成]
 ```
 
-**CRITICAL: Keep it SIMPLE for GitHub Actions**
-- NO emojis in node names (🏁 🎯 etc.)
-- NO complex phase groupings
-- NO excessive styling classes
-- NO dotted arrows or complex decorations
-- Maximum 15 nodes total
-- Use simple Japanese text only
+**SUCCESS PATTERN (Based on kamuicode-workflow):**
+- ✅ USE emojis (🚀 📋 🎵 🎨 🎬 🎞️ ✅) - PROVEN to work
+- ✅ USE `<br/>` for line breaks in node labels  
+- ✅ USE simple A-B-C-D node IDs
+- ✅ USE Japanese text descriptions
+- ✅ NO complex classDef styling (keep it clean)
+- ✅ Maximum 8-10 nodes for readability
+- ✅ Focus on clear workflow progression
 
 ## 🎨 Visual Design Requirements
 
