@@ -179,7 +179,7 @@ jobs:
           fi
           
           # Extract request ID
-          REQUEST_ID=$(echo "$RESPONSE" | jq -r '.request_id')
+          REQUEST_ID=$(echo "$RESPONSE" | jq -r '.id // .request_id')
           
           if [ -z "$REQUEST_ID" ] || [ "$REQUEST_ID" = "null" ]; then
             echo "❌ Error: Failed to get request ID"
@@ -201,7 +201,7 @@ jobs:
             # Check status
             STATUS_RESPONSE=$(curl -s -X GET \
               -H "Authorization: Bearer $NAPKIN_API_KEY" \
-              "https://api.napkin.ai/v1/visual/${REQUEST_ID}/status")
+              "https://api.napkin.ai/v1/visual/${REQUEST_ID}")
             
             # Save latest response
             echo "$STATUS_RESPONSE" > status_response.json
