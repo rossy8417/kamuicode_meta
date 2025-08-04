@@ -1,0 +1,71 @@
+name: planning-ccsdk
+description: |
+  AI-powered planning unit using Claude Code SDK
+  Generic planning unit that can create plans for any type of content
+
+required_capabilities:
+  - Read
+  - Write
+  - Edit
+  - planning-ccsdk
+
+inputs:
+  - name: planning_target
+    description: What to plan (e.g., "video", "presentation", "article", "campaign")
+    required: true
+  - name: user_concept
+    description: User's concept or requirements
+    required: true
+  - name: output_count
+    description: Number of outputs to plan
+    required: false
+    default: "1"
+  - name: output_format
+    description: Expected output format description
+    required: false
+    default: "detailed plan with actionable items"
+  - name: domain_context
+    description: Domain-specific context or constraints
+    required: false
+    default: ""
+
+outputs:
+  - planning_report.md
+  - output_specifications_{number}.json
+  - implementation_prompts_{number}.txt
+
+estimated_duration: "3-5 minutes"
+
+implementation_command: |
+  # Build the planning prompt dynamically
+  PLANNING_PROMPT="You are a professional planner specializing in ${planning_target} creation.
+  
+  **User Requirements**: ${user_concept}
+  **Number of ${planning_target}s to plan**: ${output_count}
+  ${domain_context:+**Domain Context**: ${domain_context}}
+  
+  **Your Tasks**:
+  1. Analyze the user's requirements for creating ${output_count} ${planning_target}(s)
+  2. Create detailed specifications for each ${planning_target}
+  3. Generate implementation prompts or instructions
+  4. Consider quality, feasibility, and user expectations
+  5. Save outputs as:
+     - planning_report.md: Comprehensive planning document
+     - output_specifications_{number}.json: Structured specs for each output
+     - implementation_prompts_{number}.txt: Ready-to-use prompts/instructions
+  
+  **Output Format**: ${output_format}
+  
+  Ensure all ${output_count} items are fully planned with actionable details."
+  
+  # Execute Claude Code SDK
+  npx @anthropic-ai/claude-code \
+    -p "$PLANNING_PROMPT" \
+    --allowedTools "Read,Write,Edit" \
+    --permission-mode "acceptEdits"
+
+implementation_notes:
+  - Planning target is parameterized - no hardcoded content types
+  - Output count is flexible
+  - Domain context can be injected for specialized planning
+  - All content-specific terms use variables

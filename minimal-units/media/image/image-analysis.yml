@@ -4,6 +4,11 @@ description: 画像分析の最小単位ユニット
 on:
   workflow_call:
     inputs:
+      analysis_target:
+        description: '分析対象タイプ（image, photo, artwork, diagram, etc.）'
+        required: false
+        type: string
+        default: 'image'
       image_path:
         description: '分析する画像パス'
         required: true
@@ -63,16 +68,18 @@ jobs:
           mkdir -p "${{ inputs.output_dir }}"
           
           # 分析プロンプトの構築
-          ANALYSIS_PROMPT="Analyze the image at '${{ inputs.image_path }}' with the following requirements:
+          ANALYSIS_TARGET="${{ inputs.analysis_target }}"
+          
+          ANALYSIS_PROMPT="Analyze the ${ANALYSIS_TARGET} at '${{ inputs.image_path }}' with the following requirements:
 
           Analysis Type: ${{ inputs.analysis_type }}
           Detail Level: ${{ inputs.detail_level }}
 
           Please provide:
-          1. Overall description of the image
+          1. Overall description of the ${ANALYSIS_TARGET}
           2. Key visual elements and their positions
           3. Colors, lighting, and composition
-          4. Detected objects or subjects
+          4. Detected objects or subjects in the ${ANALYSIS_TARGET}
           5. Technical quality assessment
           6. Suggested improvements or observations
 

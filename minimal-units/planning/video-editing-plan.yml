@@ -1,0 +1,136 @@
+name: video-editing-plan
+description: |
+  動画編集計画の作成 - 生成された素材を分析し、最適な編集プランを策定
+  FFmpeg実行前に、全ての素材（動画、音声、BGM）を確認し、
+  タイミング、トランジション、エフェクトなどの編集指示を生成
+
+required_capabilities:
+  - Read
+  - Write
+  - planning-ccsdk
+
+inputs:
+  - name: video_files_dir
+    description: 動画ファイルが格納されているディレクトリパス
+    required: true
+  - name: audio_files_dir
+    description: 音声ファイル（ナレーション、BGM）のディレクトリパス
+    required: true
+  - name: script_file
+    description: スクリプト・台本ファイルのパス
+    required: true
+  - name: target_duration
+    description: 目標動画長（秒）
+    required: true
+    default: 60
+
+outputs:
+  - editing_plan.json
+  - ffmpeg_commands.sh
+  - timeline_visualization.md
+
+estimated_duration: "2-3分"
+
+implementation_command: |
+  # Create editing plan prompt
+  EDITING_PROMPT="Create a comprehensive editing plan for ${content_type:-video} production.
+  
+  Input materials:
+  - ${content_type:-Video} files: ${video_files_dir}
+  - Audio files: ${audio_files_dir}
+  - Script: ${script_file}
+  - Target duration: ${target_duration} seconds
+  
+  Analyze the materials and create a detailed editing plan:"
+  
+  # Execute with Claude Code SDK
+  npx @anthropic-ai/claude-code \
+    -p "$EDITING_PROMPT" \
+    --allowedTools "Read,Write,Bash" \
+    --permission-mode "acceptEdits"
+
+prompt_structure: |
+  Create a comprehensive editing plan for ${content_type:-video} production.
+  
+  Input materials:
+  - ${content_type:-Video} files: ${video_files_dir}
+  - Audio files: ${audio_files_dir}
+  - Script: ${script_file}
+  - Target duration: ${target_duration} seconds
+  
+  Analyze and plan the following:
+  
+  1. 素材分析
+     - 各動画クリップの長さと内容を確認
+     - 音声ファイル（ナレーション、BGM）の長さを確認
+     - スクリプトとの対応関係を分析
+  
+  2. タイムライン設計
+     - 各シーンの開始・終了時刻を決定
+     - ナレーションとシーンの同期ポイントを設定
+     - BGMのフェードイン/アウトタイミングを計画
+  
+  3. トランジション計画
+     - シーン間のトランジション種類を選択
+     - トランジション時間を設定（0.5-1秒推奨）
+  
+  4. 音声ミックス計画
+     - ナレーション音量レベル（0dB基準）
+     - BGM音量レベル（-20dB推奨）
+     - 音声のフェード処理
+  
+  5. 品質設定
+     - 出力解像度（1920x1080推奨）
+     - フレームレート（30fps）
+     - ビットレート設定
+  
+  出力形式:
+  
+  1. editing_plan.json:
+  {
+    "timeline": [
+      {
+        "scene_id": 1,
+        "video_file": "scene_01.mp4",
+        "start_time": 0,
+        "end_time": 6.5,
+        "narration_sync": 0.5,
+        "transition": {
+          "type": "fade",
+          "duration": 0.5
+        }
+      }
+    ],
+    "audio_mix": {
+      "narration": {
+        "file": "narration.mp3",
+        "volume": 0,
+        "fade_in": 0.5,
+        "fade_out": 0.5
+      },
+      "bgm": {
+        "file": "bgm.mp3",
+        "volume": -20,
+        "fade_in": 2,
+        "fade_out": 3
+      }
+    },
+    "output_settings": {
+      "resolution": "1920x1080",
+      "fps": 30,
+      "video_bitrate": "5M",
+      "audio_bitrate": "192k"
+    }
+  }
+  
+  2. ffmpeg_commands.sh:
+  実行可能なFFmpegコマンドスクリプト
+  
+  3. timeline_visualization.md:
+  視覚的なタイムライン表現（Markdown形式）
+
+implementation_notes:
+  - 動画ファイルの実際の長さをffprobeで確認することを推奨
+  - 音声同期は0.1秒単位で調整
+  - トランジションは控えめに使用（過度な演出は避ける）
+  - BGMは重要な音声部分で自動的に音量を下げる（ダッキング）

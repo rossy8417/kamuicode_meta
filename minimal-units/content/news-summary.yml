@@ -4,6 +4,11 @@ description: ニュース要約の最小単位ユニット
 on:
   workflow_call:
     inputs:
+      content_type:
+        description: 'コンテンツタイプ（news, report, article, etc.）'
+        required: false
+        type: string
+        default: 'news'
       sources_path:
         description: 'ニュースソースファイルパス'
         required: true
@@ -68,18 +73,21 @@ jobs:
           mkdir -p "${{ inputs.output_dir }}"
           
           # プロンプトの構築
-          PROMPT="Summarize the news content from '${{ inputs.sources_path }}' with the following requirements:
+          CONTENT_TYPE="${{ inputs.content_type }}"
+          OUTPUT_FILE="${{ inputs.output_dir }}/${CONTENT_TYPE}_summary.json"
+          
+          PROMPT="Summarize the ${CONTENT_TYPE} content from '${{ inputs.sources_path }}' with the following requirements:
 
           Summary Length: ${{ inputs.summary_length }} words
           Include Quotes: ${{ inputs.include_quotes }}
           Language: ${{ inputs.language }}
 
           Tasks:
-          1. Read and analyze the news sources
+          1. Read and analyze the ${CONTENT_TYPE} sources
           2. Extract key information and facts
           3. Create a concise summary
           4. Identify important quotes if requested
-          5. Save the summary to '${{ inputs.output_dir }}/news_summary.json'
+          5. Save the summary to '${OUTPUT_FILE}'
 
           Output format:
           {
@@ -119,18 +127,18 @@ jobs:
             -p "$PROMPT"
           
           # 結果確認
-          if [ -f "${{ inputs.output_dir }}/news_summary.json" ]; then
-            SUMMARY=$(cat "${{ inputs.output_dir }}/news_summary.json")
+          if [ -f "${OUTPUT_FILE}" ]; then
+            SUMMARY=$(cat "${OUTPUT_FILE}")
             SUMMARY_TEXT=$(echo "$SUMMARY" | jq -r '.summary // "No summary"' | tr '\n' ' ')
             KEY_POINTS=$(echo "$SUMMARY" | jq -c '.key_points // []')
             
-            echo "summary_path=${{ inputs.output_dir }}/news_summary.json" >> $GITHUB_OUTPUT
+            echo "summary_path=${OUTPUT_FILE}" >> $GITHUB_OUTPUT
             echo "summary_text=$SUMMARY_TEXT" >> $GITHUB_OUTPUT
             echo "key_points=$KEY_POINTS" >> $GITHUB_OUTPUT
           else
             # フォールバック
-            echo "{\"error\": \"Summarization failed\"}" > "${{ inputs.output_dir }}/news_summary.json"
-            echo "summary_path=${{ inputs.output_dir }}/news_summary.json" >> $GITHUB_OUTPUT
+            echo "{\"error\": \"Summarization failed\"}" > "${OUTPUT_FILE}"
+            echo "summary_path=${OUTPUT_FILE}" >> $GITHUB_OUTPUT
             echo "summary_text=Summarization failed" >> $GITHUB_OUTPUT
             echo "key_points=[]" >> $GITHUB_OUTPUT
           fi

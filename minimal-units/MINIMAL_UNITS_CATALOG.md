@@ -42,8 +42,9 @@ Comprehensive catalog of minimal units. The meta-workflow system references this
 #### 🎭 3D Generation (1 unit)
 - **i2i3d-hunyuan**: Image-to-3D with Hunyuan (minimal-units/media/3d/i2i3d-hunyuan.yml)
 
-### 📋 Planning & Analysis (8 units)
+### 📋 Planning & Analysis (9 units)
 - **planning-ccsdk**: Planning with Claude Code SDK (minimal-units/planning/planning-ccsdk.yml)
+- **video-editing-plan**: ✅ Video editing plan creation before FFmpeg execution (minimal-units/planning/video-editing-plan.yml)
 - **banner-planning**: Banner planning (minimal-units/planning/banner-planning.yml)
 - **news-planning**: News planning (minimal-units/planning/news-planning.yml)
 - **web-search-claude**: ✅ Web search using Claude Code WebSearch tool (minimal-units/planning/web-search-claude.yml)

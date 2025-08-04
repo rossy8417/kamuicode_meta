@@ -365,6 +365,39 @@ When meta-workflow generates workflows, it MUST check:
 - Jobs sharing files have artifact upload/download
 - File existence checks with error handling
 
+### Workflow Design Best Practices
+
+#### 1. Task Minimization
+- Keep individual tasks small and focused (single responsibility)
+- Each task should complete within 5 minutes
+- Split large operations into multiple smaller tasks
+- This reduces failure impact and improves debuggability
+
+#### 2. Data Sharing Considerations
+- Be careful with job dependencies - each job runs on a separate machine
+- Use artifacts for file sharing between jobs
+- For small data (< 1KB), use GitHub Outputs
+- For medium data (< 100KB), use base64 encoded outputs
+- For large data (> 100KB), always use artifacts
+
+#### 3. Video Workflow Specific Patterns
+- **Add video-editing-plan unit** before final FFmpeg concatenation
+- This analyzes all generated materials (video, audio, BGM)
+- Creates optimal editing instructions and timing
+- Ensures professional quality output
+
+#### 4. YAML Construction Guidelines
+- **Refer to docs/YAML_CONSTRUCTION_GUIDELINES.md** for detailed patterns
+- NEVER use HEREDOC in GitHub Actions
+- Always use echo commands for line-by-line generation
+- Handle GitHub Actions variables safely
+
+#### 5. Dependency Management
+- **Refer to docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md** for unit I/O specs
+- Understand data flow between minimal units
+- Identify parallelizable tasks
+- Handle URL expiration with rolling processing
+
 ## Development Guidelines for Claude Code
 
 ### File Structure to Respect

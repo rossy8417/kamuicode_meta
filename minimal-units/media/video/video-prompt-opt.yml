@@ -4,6 +4,11 @@ description: 動画プロンプト最適化の最小単位ユニット
 on:
   workflow_call:
     inputs:
+      content_type:
+        description: 'コンテンツタイプ（video, animation, motion graphic, etc.）'
+        required: false
+        type: string
+        default: 'video'
       concept:
         description: 'ユーザーのコンセプト'
         required: true
@@ -57,17 +62,19 @@ jobs:
           mkdir -p "${{ inputs.output_dir }}"
           
           # プロンプトの構築
-          PROMPT="You are a video generation expert. Analyze the image and create an optimized prompt for video generation.
+          CONTENT_TYPE="${{ inputs.content_type }}"
+          
+          PROMPT="You are a ${CONTENT_TYPE} generation expert. Analyze the image and create an optimized prompt for ${CONTENT_TYPE} generation.
 
           **User Concept**: ${{ inputs.concept }}
-          **Video Concept**: ${{ inputs.video_concept }}
+          **${CONTENT_TYPE} Concept**: ${{ inputs.video_concept }}
           **Reference Image**: ${{ inputs.image_path }}
 
           Tasks:
           1. Analyze the image content in detail
           2. Identify visual elements (colors, composition, objects, style)
-          3. Create an optimized video generation prompt (30-80 words)
-          4. Save the prompt to '${{ inputs.output_dir }}/video-prompt.txt'
+          3. Create an optimized ${CONTENT_TYPE} generation prompt (30-80 words)
+          4. Save the prompt to '${{ inputs.output_dir }}/${CONTENT_TYPE}-prompt.txt'
           5. Save analysis to '${{ inputs.output_dir }}/analysis.md'
 
           Focus on:
@@ -84,8 +91,9 @@ jobs:
             -p "$PROMPT"
           
           # 結果確認
-          if [ -f "${{ inputs.output_dir }}/video-prompt.txt" ]; then
-            OPTIMIZED_PROMPT=$(cat "${{ inputs.output_dir }}/video-prompt.txt" | tr '\n' ' ')
+          OUTPUT_FILE="${{ inputs.output_dir }}/${CONTENT_TYPE}-prompt.txt"
+          if [ -f "$OUTPUT_FILE" ]; then
+            OPTIMIZED_PROMPT=$(cat "$OUTPUT_FILE" | tr '\n' ' ')
             echo "optimized_prompt=$OPTIMIZED_PROMPT" >> $GITHUB_OUTPUT
             echo "analysis_path=${{ inputs.output_dir }}/analysis.md" >> $GITHUB_OUTPUT
           else

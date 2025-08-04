@@ -1,0 +1,133 @@
+name: "OpenAI GPT Text Generation (MCP)"
+description: "Generate text using OpenAI GPT via MCP Server"
+category: "external"
+estimated_time: "1-2 minutes"
+tags: ["openai", "gpt", "ai", "mcp", "text"]
+
+inputs:
+  prompt:
+    description: "Text prompt for generation"
+    required: true
+    type: "string"
+  system_message:
+    description: "System message to set context"
+    required: false
+    type: "string"
+    default: "You are a helpful assistant."
+  model:
+    description: "GPT model to use"
+    required: false
+    type: "string"
+    default: "gpt-3.5-turbo"
+  max_tokens:
+    description: "Maximum tokens to generate"
+    required: false
+    type: "integer"
+    default: 1000
+  temperature:
+    description: "Sampling temperature (0.0-2.0)"
+    required: false
+    type: "float"
+    default: 0.7
+  response_format:
+    description: "Response format (text, json_object)"
+    required: false
+    type: "string"
+    default: "text"
+
+outputs:
+  generated_text:
+    description: "Generated text content"
+    type: "string"
+  output_file:
+    description: "Path to file containing generated text"
+    type: "string"
+  tokens_used:
+    description: "Number of tokens used"
+    type: "integer"
+  model_used:
+    description: "Model that was used"
+    type: "string"
+
+workflow:
+  - name: "Check environment"
+    run: |
+      if [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+        echo "Error: OPENAI_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Generate text using OpenAI MCP"
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CLAUDE_CODE_CI_MODE: "true"
+      CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
+    run: |
+      # Create project directory
+      PROJECT_DIR="${{ needs.setup.outputs.project_dir || './projects/current-session' }}"
+      mkdir -p "$PROJECT_DIR/openai"
+      cd "$PROJECT_DIR/openai"
+      
+      # Prepare the prompt with system message
+      FULL_PROMPT="${{ inputs.system_message }}
+      
+      ${{ inputs.prompt }}"
+      
+      # Generate text using MCP
+      echo "Generating text with OpenAI GPT via MCP..."
+      
+      npx @anthropic-ai/claude-code \
+        --mcp-config "${{ github.workspace }}/.claude/mcp-kamuicode.json" \
+        --allowedTools "mcp-openai,Write,Bash" \
+        --permission-mode "acceptEdits" \
+        -p "Using the mcp-openai tool, generate text with the following parameters:
+      - Model: ${{ inputs.model }}
+      - Max tokens: ${{ inputs.max_tokens }}
+      - Temperature: ${{ inputs.temperature }}
+      - Response format: ${{ inputs.response_format }}
+      
+      Prompt: $FULL_PROMPT
+      
+      Save the generated text to 'generated_output.txt' and create a JSON summary file 'generation_summary.json' with the generated text, tokens used, and model used."
+      
+      # Check if files were created
+      if [ ! -f "generated_output.txt" ]; then
+        echo "Error: Text generation failed - output file not created"
+        exit 1
+      fi
+      
+      # Read output
+      GENERATED_TEXT=$(cat generated_output.txt)
+      
+      # Extract metadata if available
+      if [ -f "generation_summary.json" ]; then
+        TOKENS_USED=$(jq -r '.tokens_used // 0' generation_summary.json)
+        MODEL_USED=$(jq -r '.model_used // "${{ inputs.model }}"' generation_summary.json)
+      else
+        TOKENS_USED="0"
+        MODEL_USED="${{ inputs.model }}"
+      fi
+      
+      # Set outputs
+      echo "generated_text<<EOF" >> $GITHUB_OUTPUT
+      echo "$GENERATED_TEXT" >> $GITHUB_OUTPUT
+      echo "EOF" >> $GITHUB_OUTPUT
+      echo "output_file=$PROJECT_DIR/openai/generated_output.txt" >> $GITHUB_OUTPUT
+      echo "tokens_used=${TOKENS_USED}" >> $GITHUB_OUTPUT
+      echo "model_used=${MODEL_USED}" >> $GITHUB_OUTPUT
+      
+      echo "Text generated successfully"
+
+dependencies:
+  - name: "OpenAI API Key"
+    type: "secret"
+    required: true
+    description: "OpenAI API key"
+  - name: "Claude Code CLI"
+    type: "system"
+    required: true
+    description: "Claude Code command-line interface"
+  - name: "MCP Configuration"
+    type: "file"
+    required: true
+    description: ".claude/mcp-kamuicode.json with mcp-openai server"

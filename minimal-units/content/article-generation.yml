@@ -4,6 +4,11 @@ description: 記事生成の最小単位ユニット
 on:
   workflow_call:
     inputs:
+      content_type:
+        description: 'コンテンツタイプ（article, report, guide, etc.）'
+        required: false
+        type: string
+        default: 'article'
       verified_script:
         description: '検証済みスクリプト/コンテンツ'
         required: true
@@ -59,21 +64,24 @@ jobs:
           mkdir -p "${{ inputs.output_dir }}"
           
           # プロンプト構築
-          PROMPT="Generate a well-structured article based on the following content:
+          CONTENT_TYPE="${{ inputs.content_type }}"
+          OUTPUT_FILE="${{ inputs.output_dir }}/${CONTENT_TYPE}.md"
+          
+          PROMPT="Generate a well-structured ${CONTENT_TYPE} based on the following content:
 
           **Verified Content**: ${{ inputs.verified_script }}
           **Style**: ${{ inputs.style }}
           **Target Length**: ${{ inputs.target_length }} words
           
           Requirements:
-          1. Create an engaging title
+          1. Create an engaging title for the ${CONTENT_TYPE}
           2. Write a compelling introduction
           3. Structure the content with clear sections
           4. Include relevant examples and explanations
           5. Add a conclusion
-          6. Save as Markdown to ${{ inputs.output_dir }}/article.md
+          6. Save as Markdown to ${OUTPUT_FILE}
           
-          The article should be:
+          The ${CONTENT_TYPE} should be:
           - Well-researched and factual
           - Easy to read and understand
           - Properly formatted with headers
@@ -87,11 +95,11 @@ jobs:
             -p "$PROMPT"
           
           # 結果確認と単語数カウント
-          if [ -f "${{ inputs.output_dir }}/article.md" ]; then
-            WORD_COUNT=$(wc -w < "${{ inputs.output_dir }}/article.md")
-            echo "article_path=${{ inputs.output_dir }}/article.md" >> $GITHUB_OUTPUT
+          if [ -f "${OUTPUT_FILE}" ]; then
+            WORD_COUNT=$(wc -w < "${OUTPUT_FILE}")
+            echo "article_path=${OUTPUT_FILE}" >> $GITHUB_OUTPUT
             echo "word_count=$WORD_COUNT" >> $GITHUB_OUTPUT
           else
-            echo "❌ Article generation failed"
+            echo "❌ ${CONTENT_TYPE} generation failed"
             exit 1
           fi

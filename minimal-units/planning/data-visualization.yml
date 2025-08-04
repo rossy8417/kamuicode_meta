@@ -4,6 +4,11 @@ description: データ可視化の最小単位ユニット
 on:
   workflow_call:
     inputs:
+      visualization_target:
+        description: '可視化対象タイプ（data, metrics, statistics, etc.）'
+        required: false
+        type: string
+        default: 'data'
       data_path:
         description: 'データファイルパス（CSV/JSON）'
         required: true
@@ -37,6 +42,10 @@ on:
       html_report:
         description: 'HTMLレポートパス'
         value: ${{ jobs.visualize.outputs.html_report }}
+    secrets:
+      anthropic_api_key:
+        description: 'Anthropic API Key'
+        required: true
 
 jobs:
   visualize:
@@ -55,6 +64,49 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pandas matplotlib seaborn plotly bokeh
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Claude Code SDK
+        run: npm install @anthropic-ai/claude-code
+      
+      - name: Analyze Data for Visualization
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic_api_key }}
+        run: |
+          # Analyze data to determine best visualizations
+          VISUALIZATION_TARGET="${{ inputs.visualization_target }}"
+          
+          ANALYSIS_PROMPT="Analyze the ${VISUALIZATION_TARGET} file at '${{ inputs.data_path }}' to determine optimal visualizations.
+          
+          Tasks:
+          1. Read and understand the ${VISUALIZATION_TARGET} structure
+          2. Identify key metrics and relationships
+          3. Recommend appropriate chart types
+          4. Create a visualization plan
+          5. Save recommendations to '${{ inputs.output_dir }}/visualization_plan.json'
+          
+          Plan format:
+          {
+            \"data_summary\": \"Brief overview of the ${VISUALIZATION_TARGET}\",
+            \"recommended_charts\": [
+              {
+                \"type\": \"chart type\",
+                \"purpose\": \"what it shows\",
+                \"columns\": [\"column names\"]
+              }
+            ],
+            \"insights\": [\"key findings\"]
+          }"
+          
+          # Execute Claude Code SDK for analysis
+          npx @anthropic-ai/claude-code \
+            -p "$ANALYSIS_PROMPT" \
+            --allowedTools "Read,Write" \
+            --permission-mode "acceptEdits"
       
       - name: Create Visualizations
         id: execute

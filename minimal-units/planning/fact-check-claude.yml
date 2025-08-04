@@ -4,6 +4,11 @@ description: Claude Code WebSearchを使用したファクトチェックの最�
 on:
   workflow_call:
     inputs:
+      check_target:
+        description: '検証対象タイプ（fact, claim, information, data, etc.）'
+        required: false
+        type: string
+        default: 'fact'
       fact_to_check:
         description: '検証したい事実・情報'
         required: true
@@ -90,9 +95,11 @@ jobs:
             SOURCE_INSTRUCTION="情報源の詳細は省略して、検証結果のみを記載してください。"
           fi
           
-          PROMPT="以下の情報についてファクトチェックを実行してください：
+          CHECK_TARGET="${{ inputs.check_target }}"
           
-          **検証対象**: ${{ inputs.fact_to_check }}
+          PROMPT="以下の${CHECK_TARGET}についてファクトチェックを実行してください：
+          
+          **検証対象${CHECK_TARGET}**: ${{ inputs.fact_to_check }}
           **検証項目**: ${{ inputs.check_items }}
           
           タスク：

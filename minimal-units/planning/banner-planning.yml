@@ -4,6 +4,11 @@ description: バナー制作計画立案の最小単位ユニット
 on:
   workflow_call:
     inputs:
+      design_target:
+        description: 'デザイン対象タイプ（banner, ad, poster, graphic, etc.）'
+        required: false
+        type: string
+        default: 'banner'
       concept:
         description: 'バナーコンセプト'
         required: true
@@ -63,7 +68,9 @@ jobs:
           mkdir -p "${{ inputs.output_dir }}"
           
           # プロンプトの構築
-          PROMPT="Create a comprehensive banner design plan for:
+          DESIGN_TARGET="${{ inputs.design_target }}"
+          
+          PROMPT="Create a comprehensive ${DESIGN_TARGET} design plan for:
 
           Concept: ${{ inputs.concept }}
           Purpose: ${{ inputs.purpose }}
@@ -71,10 +78,10 @@ jobs:
 
           Tasks:
           1. Analyze the concept and purpose
-          2. Create design specifications
+          2. Create design specifications for the ${DESIGN_TARGET}
           3. Write compelling copy text
           4. Define visual hierarchy
-          5. Save the plan to '${{ inputs.output_dir }}/banner_plan.json'
+          5. Save the plan to '${{ inputs.output_dir }}/${DESIGN_TARGET}_plan.json'
 
           Plan structure:
           {
@@ -116,18 +123,19 @@ jobs:
             -p "$PROMPT"
           
           # 結果確認
-          if [ -f "${{ inputs.output_dir }}/banner_plan.json" ]; then
-            PLAN=$(cat "${{ inputs.output_dir }}/banner_plan.json")
+          OUTPUT_FILE="${{ inputs.output_dir }}/${DESIGN_TARGET}_plan.json"
+          if [ -f "$OUTPUT_FILE" ]; then
+            PLAN=$(cat "$OUTPUT_FILE")
             DESIGN_SPECS=$(echo "$PLAN" | jq -c '.design_specs // {}')
             COPY_TEXT=$(echo "$PLAN" | jq -r '.copy.headline // "No headline"')
             
-            echo "plan_path=${{ inputs.output_dir }}/banner_plan.json" >> $GITHUB_OUTPUT
+            echo "plan_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
             echo "design_specs=$DESIGN_SPECS" >> $GITHUB_OUTPUT
             echo "copy_text=$COPY_TEXT" >> $GITHUB_OUTPUT
           else
             # フォールバック
-            echo "{\"error\": \"Planning failed\"}" > "${{ inputs.output_dir }}/banner_plan.json"
-            echo "plan_path=${{ inputs.output_dir }}/banner_plan.json" >> $GITHUB_OUTPUT
+            echo "{\"error\": \"Planning failed\"}" > "$OUTPUT_FILE"
+            echo "plan_path=$OUTPUT_FILE" >> $GITHUB_OUTPUT
             echo "design_specs={}" >> $GITHUB_OUTPUT
             echo "copy_text=Planning failed" >> $GITHUB_OUTPUT
           fi
