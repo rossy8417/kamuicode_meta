@@ -6,7 +6,7 @@
 
 このシステムは、ユーザーのリクエストに基づいて完全なワークフローを自動生成するメタワークフロージェネレーターです。**ミニマルユニットベース動的構築**と**段階的デプロイシステム**により、高品質で実行可能なGitHub Actionsワークフローを効率的に生成します。
 
-## 🏗️ アーキテクチャ v10.0
+## 🏗️ アーキテクチャ v12.0
 
 ### **ミニマルユニットベース・デュアルアプローチシステム**
 - **Claude Code SDK中心**: ユーザー要求を分析し、タスクを動的に分解
@@ -22,9 +22,9 @@
 - **品質検証**: YAML構文、GitHub Actions構造、MCP参照、依存関係チェック
 
 ### **核心コンポーネント**
-- **`minimal-units/`**: 80個の再利用可能なワークフロー部品（画像、動画、音声、企画、外部API等）
+- **`minimal-units/`**: 88個の再利用可能なワークフロー部品（画像、動画、音声、企画、外部API等）
 - **`kamuicode-workflow/`**: 参考となるオーケストレーター・モジュールパターン
-- **`.github/workflows/meta-workflow-executor-v10.yml`**: Claude Code SDKベースの動的メタワークフロー
+- **`.github/workflows/meta-workflow-executor-v12.yml`**: Claude Code SDKベースの動的メタワークフロー
 - **`.github/workflows/auto-fix-deployment.yml`**: 自動デプロイ・エラー回復システム
 - **`.github/workflows/continuous-system-monitor.yml`**: システム健全性監視
 - **`meta/prompts/`**: タスク分解、ユニット選択、ワークフロー生成用プロンプト
@@ -34,7 +34,7 @@
 ```
 📦 Kamui Rossy
 ├── 🤖 .github/workflows/
-│   ├── meta-workflow-executor-v10.yml         # 動的メタワークフロー v10.0
+│   ├── meta-workflow-executor-v12.yml         # 動的メタワークフロー v12.0
 │   ├── auto-fix-deployment.yml                # 自動修復システム
 │   ├── continuous-system-monitor.yml          # 連続監視システム
 │   └── generated/                             # 生成ワークフロー配置
@@ -169,19 +169,21 @@
 
 ## 📊 システム状況
 
-- **アーキテクチャ**: v10.0（ミニマルユニットベース動的生成 + 外部API統合）
-- **ミニマルユニット**: 80個
-  - 画像: 5個
-  - 動画: 7個
+- **アーキテクチャ**: v12.0（ドメインテンプレート統合型メタワークフロー）
+- **ミニマルユニット**: 88個
+  - 外部API: 31個
+  - 後処理: 12個
   - 音声: 10個
+  - 企画: 10個
+  - 動画: 7個
+  - 画像: 5個
+  - コンテンツ: 5個
+  - ユーティリティ: 3個
+  - Git操作: 2個
   - バナー: 1個
   - 3D: 1個
-  - 企画: 6個
-  - コンテンツ: 5個
-  - 後処理: 12個
-  - ユーティリティ: 7個
-  - **外部API: 27個** ⭐NEW
-- **MCP サービス**: 44個以上（AI生成24個 + 外部API 20個以上）
+  - ワークフロー: 1個
+- **MCP サービス**: 52個（AI生成 + 外部API統合）
 - **参考パターン**: kamuicode-workflowオーケストレーター
 - **CLI環境**: アクティブ（2025-07-28 17:22）
 
@@ -254,6 +256,13 @@ gh secret set OPENAI_API_KEY -b "sk-your-api-key-here"
 
 ## 📝 バージョン履歴
 
+### v12.0 (2025-08-04) - ドメインテンプレート統合
+- **ドメインテンプレート統合**: 専門領域別のテンプレートシステム導入
+- **専門的タスク分解**: ドメイン知識に基づく高度なタスク分解
+- **ミニマルユニット拡張**: 80個 → 88個に増加
+- **MCPサービス拡張**: 52個に統合・整理
+- **GitHub Actions Secretsの一括設定**: スクリプトによる簡易設定対応
+
 ### v10.0 (2025-08-02) - 外部API統合
 - **外部API統合**: 27個の外部APIミニマルユニットを追加
 - **ミニマルユニット拡張**: 53個 → 80個に増加
@@ -277,9 +286,9 @@ gh secret set OPENAI_API_KEY -b "sk-your-api-key-here"
 ---
 
 **🤖 Kamui Rossy Meta Workflow Generator System**  
-**⚡ Version: v10.0**  
-**📅 Last Updated: 2025-08-02**  
-**🔄 Status: ミニマルユニットベース動的生成 + 外部API統合 + kamuicode-workflowパターン採用**
+**⚡ Version: v12.0**  
+**📅 Last Updated: 2025-08-04**  
+**🔄 Status: ドメインテンプレート統合型メタワークフロー + ミニマルユニット88個 + MCP52個**
 ## Video Production v8 - Run #16
 - **Concept**: テスト：静かな森と朝の光
 - **Video URL**: local://projects/video-production-v8-16/final/final_video.mp4
