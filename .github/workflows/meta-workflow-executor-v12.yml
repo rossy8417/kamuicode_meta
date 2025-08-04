@@ -826,7 +826,11 @@ jobs:
           # 実行完了サマリーを追加
           echo "## 🎉 実行完了" >> $GITHUB_STEP_SUMMARY
           echo "- **完了時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
-          echo "- **全体実行結果**: ${VALIDATION_STATUS == 'true' && '✅ 成功' || '⚠️ 一部エラーあり'}" >> $GITHUB_STEP_SUMMARY
+          if [ "$VALIDATION_STATUS" = "true" ]; then
+            echo "- **全体実行結果**: ✅ 成功" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **全体実行結果**: ⚠️ 一部エラーあり" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # ダウンロード情報

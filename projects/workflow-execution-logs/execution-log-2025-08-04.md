@@ -332,6 +332,29 @@ echo "### 最適化された実行順序図" >> $GITHUB_STEP_SUMMARY
 
 Status: **TESTING - Complete HEREDOC isolation implemented**
 
+### [17:50:00] [ROOT CAUSE IDENTIFIED] YAML Construction Guidelines Error
+- **Critical Discovery**: YAML Construction Guidelines推奨の**バックスラッシュ行継続**がYAML構文エラーの原因
+- **Failed Run**: 16718096383 - YAML parser error on line 94-99
+- **Error**: `SEARCH_PROMPT="...prompt\<newline>continuation\"` (バックスラッシュがYAML文字列値内で問題)
+- **Success Run**: 16718011831 - proper YAML structure without backslash continuation
+
+### [17:51:00] [SOLUTION] Dynamic Text Diagrams + YAML Guidelines Fix
+**1. Mermaid Replacement (Dynamic)**:
+- ❌ Removed: Hardcoded Mermaid diagrams
+- ✅ Added: JSON-based dynamic text flow generation
+- ✅ Feature: Reads `optimized_task_order.json` and generates task-specific flow diagrams
+
+**2. YAML Guidelines Correction**:
+- ❌ Removed: "ALWAYS end multi-line commands with backslash (\)"
+- ✅ Added: "NEVER use backslash (\) line continuation in YAML string values"
+- ✅ Added: Proper YAML multiline examples (literal block scalars, folded scalars)
+
+**Key Difference Analysis**:
+- **Success**: Normal YAML structure
+- **Failure**: Backslash continuation in YAML string values (line 94-99)
+
+Status: **FIXED - Dynamic diagrams implemented, YAML guidelines corrected**
+
 ### [17:25:00] [CONFIRMED] Root Cause Identified in Previous Run
 - **Run ID**: 16717683432 completed analysis confirmed the file path issue
 - **Claude SDK Message**: "I don't see any task decomposition JSON file provided yet"
