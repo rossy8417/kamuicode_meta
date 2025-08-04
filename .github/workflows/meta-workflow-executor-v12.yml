@@ -431,35 +431,13 @@ jobs:
         run: |
           echo "🔄 タスク実行順序の最適化..."
           
-          # タスク順序最適化のプロンプト
-          cat > optimize_prompt.txt << 'EOF'
-          artifacts/professional_task_decomposition.jsonを読み込んで、タスクの実行順序を最適化してください。
+          # Create artifacts directory
+          mkdir -p artifacts
           
-          以下の観点で分析してください：
-          1. タスク間の依存関係
-          2. 並列実行可能なタスクのグループ化
-          3. リソース効率の最大化
-          4. URL有効期限などの時間制約
-          
-          出力形式：
-          1. artifacts/optimized_task_order.json に最適化された実行順序
-          2. artifacts/task_order_mermaid.mmd にMermaid図
-          
-          Mermaid図の要件：
-          - graph LR形式を使用（左から右のフロー）
-          - タスク名は引用符で囲む: ["T1: 情報収集 (5分)"]
-          - 依存関係を明確に矢印で表現
-          - 並列実行は縦に並べて同レベルに配置
-          - 色分けスタイルを使用してタスクタイプを区別
-          - 正しい構文例:
-            graph LR
-              Start["🏁 開始"] --> T1["T1: 情報収集 (5分)"]
-              T1 --> T2["T2: 分析 (10分)"]
-              T2 --> End["🏁 終了"]
-          EOF
-          
+          # Run Claude Code SDK with specialized prompt file for reliable Mermaid generation
           npx @anthropic-ai/claude-code \
-            -p "$(cat optimize_prompt.txt)" \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            -p "$(cat meta/prompts/task-order-optimization-with-mermaid.md)" \
             --allowedTools "Read,Write" \
             --permission-mode "acceptEdits"
           
@@ -478,18 +456,7 @@ jobs:
             echo "order=false" >> $GITHUB_OUTPUT
           fi
           
-      - name: Display Task Order Summary
-        run: |
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 🔄 タスク実行順序の最適化結果
-          
-          ### 📋 最適化のポイント
-          - 依存関係に基づく順序決定
-          - 並列実行可能なタスクの特定
-          - リソース効率の最大化
-          
-          *📊 詳細なMermaid依存関係図は最終レポートで表示されます*
-          EOF
+      # Summary display moved to final report for better organization
           
       - name: Upload Optimized Order
         uses: actions/upload-artifact@v4
