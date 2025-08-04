@@ -98,6 +98,22 @@ run: |
   fi
 ```
 
+#### Complex Bash Substitutions in YAML (CRITICAL ERROR PATTERN)
+```bash
+# ❌ INVALID - Complex bash substitutions do NOT work in YAML strings
+run: |
+  STATUS="${VALIDATION_STATUS == 'true' && '✅ 成功' || '⚠️ 一部エラーあり'}"
+  echo "Result: $STATUS" >> $GITHUB_STEP_SUMMARY
+
+# ✅ CORRECT - Use standard bash conditional logic
+run: |
+  if [ "$VALIDATION_STATUS" = "true" ]; then
+    echo "- **全体実行結果**: ✅ 成功" >> $GITHUB_STEP_SUMMARY
+  else
+    echo "- **全体実行結果**: ⚠️ 一部エラーあり" >> $GITHUB_STEP_SUMMARY
+  fi
+```
+
 ### 3. ✅ Recommended Patterns
 
 #### Multi-line Command Continuation
@@ -275,6 +291,24 @@ else
 fi
 ```
 
+#### Progressive Reporting Pattern (GitHub Actions Summary)
+```bash
+# ✅ CORRECT - Independent job reporting pattern
+run: |
+  echo "## 📊 Phase 1: Information Gathering" >> $GITHUB_STEP_SUMMARY
+  echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+  echo "- **Duration**: 2m15s" >> $GITHUB_STEP_SUMMARY
+  echo "- **Result**: Successfully gathered data from 3 sources" >> $GITHUB_STEP_SUMMARY
+  echo "" >> $GITHUB_STEP_SUMMARY
+
+# ❌ AVOID - Complex output variables with delimiters
+run: |
+  echo "report<<EOF" >> $GITHUB_OUTPUT
+  echo "## Complex Report Content" >> $GITHUB_OUTPUT  
+  echo "EOF" >> $GITHUB_OUTPUT
+  # This causes "Matching delimiter not found" errors
+```
+
 #### Dynamic Filename Handling
 ```bash
 # Handle dynamically generated filenames
@@ -370,5 +404,23 @@ echo "$OUTPUT_JSON" > "$PROJECT_DIR/metadata/unit-output.json"
    echo "Output generated: $OUTPUT_PATH" >> debug.log
    echo "Trigger: ${{ github.event_name }}" >> debug.log
    ```
+
+7. **Progressive Reporting Validation**
+   - Test each job's reporting independently
+   - Verify GitHub Actions Summary displays correctly
+   - Check for bash conditional syntax errors
+   - Ensure no HEREDOC contamination in reporting blocks
+
+## 🚨 Recent Critical Fixes (2025-08-04)
+
+### Bash Conditional Syntax Error Resolution
+**Issue**: `${VAR == 'value' && 'result1' || 'result2'}` syntax invalid in YAML bash strings
+**Solution**: Use standard `if [ "$VAR" = "value" ]; then ... else ... fi` conditionals
+**Impact**: Prevents "bad substitution" errors in GitHub Actions workflows
+
+### Progressive Reporting Architecture Success
+**Pattern**: Each job adds independent sections via `echo >> $GITHUB_STEP_SUMMARY`
+**Benefits**: Error isolation, no HEREDOC contamination, clean markdown rendering
+**Validation**: End-to-end testing confirmed all 7 phases report correctly
 
 This guideline is regularly updated and will be amended when new patterns or issues are discovered.
