@@ -1,0 +1,320 @@
+name: "Napkin AI Visual Generation"
+description: "Generate professional visuals and graphics from text using Napkin AI"
+category: "external"
+estimated_time: "2-3 minutes"
+tags: ["napkin", "visual", "graphics", "diagram", "api", "external", "ai", "design"]
+
+inputs:
+  text:
+    description: "Text content to convert into visual"
+    required: true
+    type: "string"
+  style:
+    description: |
+      Visual style to apply. Available styles:
+      - colorful: Vibrant, modern style with multiple colors
+      - casual: Relaxed, friendly visual style
+      - hand-drawn: Sketch-like, informal appearance
+      - formal: Professional, business-appropriate style
+      - monochrome: Single color, minimalist design
+      - blueprint: Technical drawing style
+      - vintage: Retro, classic design aesthetic
+      - minimalist: Clean, simple design
+      - watercolor: Artistic watercolor effect
+      - comic: Comic book style
+      - neon: Bright neon-style graphics
+      - isometric: 3D isometric perspective
+      - flat: Flat design style
+      - gradient: Modern gradient effects
+      - doodle: Fun doodle style
+    required: false
+    type: "string"
+    default: "colorful"
+    enum: ["colorful", "casual", "hand-drawn", "formal", "monochrome", "blueprint", "vintage", "minimalist", "watercolor", "comic", "neon", "isometric", "flat", "gradient", "doodle"]
+  variations:
+    description: "Number of visual variations to generate (1-4)"
+    required: false
+    type: "integer"
+    default: 2
+  export_format:
+    description: "Export format (svg, png, both)"
+    required: false
+    type: "string"
+    default: "both"
+  title:
+    description: "Optional title for the visual"
+    required: false
+    type: "string"
+  language:
+    description: "Language for the visual (en, ja, etc.)"
+    required: false
+    type: "string"
+    default: "en"
+
+outputs:
+  request_id:
+    description: "Napkin AI request ID"
+    type: "string"
+  visual_urls:
+    description: "URLs of generated visuals"
+    type: "array"
+  svg_files:
+    description: "Paths to downloaded SVG files"
+    type: "array"
+  png_files:
+    description: "Paths to downloaded PNG files"
+    type: "array"
+  generation_time:
+    description: "Time taken to generate visuals"
+    type: "float"
+  metadata:
+    description: "Visual generation metadata"
+    type: "object"
+
+workflow:
+  - name: "Check Napkin AI credentials"
+    run: |
+      if [ -z "${{ secrets.NAPKIN_API_KEY }}" ]; then
+        echo "Error: NAPKIN_API_KEY not set"
+        exit 1
+      fi
+      
+  - name: "Create visual generation request"
+    id: create-request
+    run: |
+      # Create output directory
+      mkdir -p generated_visuals
+      
+      # Validate style selection
+      VALID_STYLES="colorful casual hand-drawn formal monochrome blueprint vintage minimalist watercolor comic neon isometric flat gradient doodle"
+      if ! echo "$VALID_STYLES" | grep -qw "${{ inputs.style }}"; then
+        echo "Warning: Unknown style '${{ inputs.style }}', using default 'colorful'"
+        STYLE="colorful"
+      else
+        STYLE="${{ inputs.style }}"
+      fi
+      
+      # Prepare request payload
+      cat > napkin_request.json << EOF
+      {
+        "text": "${{ inputs.text }}",
+        "style": "$STYLE",
+        "variations": ${{ inputs.variations }}
+      }
+      EOF
+      
+      # Add optional fields
+      if [ -n "${{ inputs.title }}" ]; then
+        jq '. + {"title": "${{ inputs.title }}"}' napkin_request.json > temp.json
+        mv temp.json napkin_request.json
+      fi
+      
+      if [ -n "${{ inputs.language }}" ]; then
+        jq '. + {"language": "${{ inputs.language }}"}' napkin_request.json > temp.json
+        mv temp.json napkin_request.json
+      fi
+      
+      # Record start time
+      START_TIME=$(date +%s.%N)
+      
+      # Create visual request
+      echo "Creating visual generation request..."
+      echo "Text: ${{ inputs.text }}"
+      echo "Style: $STYLE"
+      echo "Variations: ${{ inputs.variations }}"
+      echo "Language: ${{ inputs.language }}"
+      
+      RESPONSE=$(curl -s -X POST \
+        -H "Authorization: Bearer ${{ secrets.NAPKIN_API_KEY }}" \
+        -H "Content-Type: application/json" \
+        -d @napkin_request.json \
+        https://api.napkin.ai/v1/visual)
+      
+      # Save response
+      echo "$RESPONSE" > create_response.json
+      
+      # Check for errors
+      if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        echo "Error: Napkin AI request failed"
+        echo "$RESPONSE" | jq '.error'
+        exit 1
+      fi
+      
+      # Extract request ID
+      REQUEST_ID=$(echo "$RESPONSE" | jq -r '.request_id')
+      
+      if [ -z "$REQUEST_ID" ] || [ "$REQUEST_ID" = "null" ]; then
+        echo "Error: Failed to get request ID"
+        echo "$RESPONSE"
+        exit 1
+      fi
+      
+      echo "Request created successfully"
+      echo "Request ID: $REQUEST_ID"
+      echo "request_id=$REQUEST_ID" >> $GITHUB_OUTPUT
+      echo "start_time=$START_TIME" >> $GITHUB_OUTPUT
+      
+  - name: "Poll for generation status"
+    id: poll-status
+    run: |
+      REQUEST_ID="${{ steps.create-request.outputs.request_id }}"
+      MAX_ATTEMPTS=60  # 3 minutes max (3 second intervals)
+      ATTEMPT=0
+      
+      echo "Polling for visual generation status..."
+      
+      while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+        # Check status
+        STATUS_RESPONSE=$(curl -s -X GET \
+          -H "Authorization: Bearer ${{ secrets.NAPKIN_API_KEY }}" \
+          "https://api.napkin.ai/v1/visual/${REQUEST_ID}/status")
+        
+        # Save latest response
+        echo "$STATUS_RESPONSE" > status_response.json
+        
+        # Extract status
+        STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
+        
+        echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS - Status: $STATUS"
+        
+        if [ "$STATUS" = "completed" ]; then
+          echo "Visual generation completed!"
+          
+          # Extract URLs
+          VISUAL_URLS=$(echo "$STATUS_RESPONSE" | jq -c '.visuals')
+          echo "visual_urls=$VISUAL_URLS" >> $GITHUB_OUTPUT
+          
+          # Save metadata
+          echo "$STATUS_RESPONSE" > generation_metadata.json
+          
+          break
+        elif [ "$STATUS" = "failed" ]; then
+          echo "Error: Visual generation failed"
+          echo "$STATUS_RESPONSE" | jq '.error // .message // .'
+          exit 1
+        fi
+        
+        # Wait before next attempt
+        sleep 3
+        ATTEMPT=$((ATTEMPT + 1))
+      done
+      
+      if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+        echo "Error: Timeout waiting for visual generation"
+        exit 1
+      fi
+      
+      # Calculate generation time
+      END_TIME=$(date +%s.%N)
+      START_TIME="${{ steps.create-request.outputs.start_time }}"
+      GENERATION_TIME=$(echo "$END_TIME - $START_TIME" | bc)
+      
+      echo "Generation completed in ${GENERATION_TIME}s"
+      echo "generation_time=$GENERATION_TIME" >> $GITHUB_OUTPUT
+      
+  - name: "Download generated visuals"
+    run: |
+      # Parse visual URLs
+      VISUAL_URLS='${{ steps.poll-status.outputs.visual_urls }}'
+      
+      SVG_FILES="[]"
+      PNG_FILES="[]"
+      INDEX=0
+      
+      # Download each visual
+      echo "$VISUAL_URLS" | jq -c '.[]' | while read -r visual; do
+        # Extract URLs
+        SVG_URL=$(echo "$visual" | jq -r '.svg_url // empty')
+        PNG_URL=$(echo "$visual" | jq -r '.png_url // empty')
+        VISUAL_ID=$(echo "$visual" | jq -r '.id // empty')
+        
+        # Generate timestamp
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        
+        # Download SVG if requested
+        if [ -n "$SVG_URL" ] && [ "${{ inputs.export_format }}" != "png" ]; then
+          SVG_FILENAME="generated_visuals/napkin_${TIMESTAMP}_${INDEX}.svg"
+          echo "Downloading SVG ${INDEX}..."
+          curl -s -o "$SVG_FILENAME" "$SVG_URL"
+          
+          # Update SVG files list
+          SVG_FILES=$(echo "$SVG_FILES" | jq ". + [\"$SVG_FILENAME\"]")
+        fi
+        
+        # Download PNG if requested
+        if [ -n "$PNG_URL" ] && [ "${{ inputs.export_format }}" != "svg" ]; then
+          PNG_FILENAME="generated_visuals/napkin_${TIMESTAMP}_${INDEX}.png"
+          echo "Downloading PNG ${INDEX}..."
+          curl -s -o "$PNG_FILENAME" "$PNG_URL"
+          
+          # Update PNG files list
+          PNG_FILES=$(echo "$PNG_FILES" | jq ". + [\"$PNG_FILENAME\"]")
+        fi
+        
+        INDEX=$((INDEX + 1))
+      done
+      
+      echo "svg_files=$SVG_FILES" >> $GITHUB_OUTPUT
+      echo "png_files=$PNG_FILES" >> $GITHUB_OUTPUT
+      
+      # Display download summary
+      echo ""
+      echo "Download completed:"
+      echo "- SVG files: $(echo "$SVG_FILES" | jq '. | length')"
+      echo "- PNG files: $(echo "$PNG_FILES" | jq '. | length')"
+      
+  - name: "Generate summary report"
+    run: |
+      # Load metadata
+      METADATA=$(cat generation_metadata.json)
+      
+      # Create summary report
+      cat > generation_report.md << EOF
+      ## Napkin AI Visual Generation Report
+      
+      ### Request Details
+      - **Request ID:** ${{ steps.create-request.outputs.request_id }}
+      - **Text:** ${{ inputs.text }}
+      - **Style:** ${{ inputs.style }}
+      - **Variations:** ${{ inputs.variations }}
+      - **Language:** ${{ inputs.language }}
+      - **Generation Time:** ${{ steps.poll-status.outputs.generation_time }}s
+      
+      ### Generated Files
+      - **Export Format:** ${{ inputs.export_format }}
+      - **Total Visuals:** $(echo "$METADATA" | jq '.visuals | length')
+      
+      ### Visual Details
+      EOF
+      
+      # Add visual details
+      echo "$METADATA" | jq -r '.visuals[] | "
+      #### Visual \(.id)
+      - Style: \(.style // "N/A")
+      - Format: \(.format // "N/A")
+      "' >> generation_report.md
+      
+      echo "Report generated: generation_report.md"
+      
+      # Output metadata for other jobs
+      echo "metadata<<EOF" >> $GITHUB_OUTPUT
+      echo "$METADATA" >> $GITHUB_OUTPUT
+      echo "EOF" >> $GITHUB_OUTPUT
+
+dependencies:
+  - name: "Napkin API Key"
+    type: "secret"
+    required: true
+    description: "Napkin AI API key"
+  - name: "curl"
+    type: "system"
+    required: true
+    description: "HTTP client"
+  - name: "jq"
+    type: "system"
+    required: true
+    description: "JSON processor"
+  - name: "bc"
+    type: "system"
+    required: true
+    description: "Basic calculator for time calculation"
