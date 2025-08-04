@@ -1,0 +1,328 @@
+name: "Test Napkin AI Visual Generation Unit"
+on:
+  workflow_dispatch:
+    inputs:
+      test_text:
+        description: "Text to convert to visual"
+        required: true
+        default: "Create a visual showing the workflow of a CI/CD pipeline with stages: Build -> Test -> Deploy"
+      test_style:
+        description: "Visual style to test"
+        required: false
+        default: "colorful"
+        type: choice
+        options:
+          - colorful
+          - casual
+          - hand-drawn
+          - formal
+          - monochrome
+          - blueprint
+          - vintage
+          - minimalist
+          - watercolor
+          - comic
+          - neon
+          - isometric
+          - flat
+          - gradient
+          - doodle
+      variations:
+        description: "Number of variations to generate"
+        required: false
+        default: "2"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.create_dirs.outputs.project_dir }}
+      timestamp: ${{ steps.create_dirs.outputs.timestamp }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Create project directories
+        id: create_dirs
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          PROJECT_DIR="projects/test-napkin-ai-${TIMESTAMP}"
+          
+          mkdir -p "${PROJECT_DIR}/metadata"
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/images"
+          mkdir -p "${PROJECT_DIR}/final"
+          
+          echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          
+          echo "📁 Created project directory: ${PROJECT_DIR}"
+
+  test-napkin-generation:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Log test parameters
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          cat > "${PROJECT_DIR}/metadata/test_params.json" << EOF
+          {
+            "test_text": "${{ inputs.test_text }}",
+            "test_style": "${{ inputs.test_style }}",
+            "variations": ${{ inputs.variations }},
+            "timestamp": "${{ needs.setup.outputs.timestamp }}",
+            "workflow": "test-napkin-ai-unit"
+          }
+          EOF
+          
+          echo "🧪 Test Parameters:"
+          echo "- Text: ${{ inputs.test_text }}"
+          echo "- Style: ${{ inputs.test_style }}"
+          echo "- Variations: ${{ inputs.variations }}"
+      
+      - name: Test Napkin AI Visual Generation
+        id: napkin-test
+        env:
+          NAPKIN_API_KEY: ${{ secrets.NAPKIN_API_KEY }}
+        run: |
+          set -e
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          echo "🎨 Testing Napkin AI Visual Generation..."
+          echo "================================================"
+          
+          # Change to project directory for output
+          cd "${PROJECT_DIR}"
+          
+          # Execute the minimal unit workflow steps
+          echo "Step 1: Checking Napkin AI credentials..."
+          if [ -z "$NAPKIN_API_KEY" ]; then
+            echo "❌ Error: NAPKIN_API_KEY not set"
+            exit 1
+          fi
+          echo "✅ API key verified"
+          
+          # Create visual generation request
+          echo -e "\nStep 2: Creating visual generation request..."
+          
+          # Create output directory
+          mkdir -p generated_visuals
+          
+          # Validate style
+          VALID_STYLES="colorful casual hand-drawn formal monochrome blueprint vintage minimalist watercolor comic neon isometric flat gradient doodle"
+          if ! echo "$VALID_STYLES" | grep -qw "${{ inputs.test_style }}"; then
+            echo "⚠️ Warning: Unknown style '${{ inputs.test_style }}', using default 'colorful'"
+            STYLE="colorful"
+          else
+            STYLE="${{ inputs.test_style }}"
+          fi
+          
+          # Create request payload
+          cat > napkin_request.json << 'EOF'
+          {
+            "text": "${{ inputs.test_text }}",
+            "style": "'"$STYLE"'",
+            "variations": ${{ inputs.variations }}
+          }
+          EOF
+          
+          # Log request details
+          echo "📋 Request payload:"
+          cat napkin_request.json | jq '.'
+          
+          # Record start time
+          START_TIME=$(date +%s.%N)
+          
+          # Create visual request
+          echo -e "\n📡 Sending request to Napkin AI..."
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer $NAPKIN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @napkin_request.json \
+            https://api.napkin.ai/v1/visual)
+          
+          # Save response
+          echo "$RESPONSE" > create_response.json
+          
+          # Check for errors
+          if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+            echo "❌ Error: Napkin AI request failed"
+            echo "$RESPONSE" | jq '.error'
+            exit 1
+          fi
+          
+          # Extract request ID
+          REQUEST_ID=$(echo "$RESPONSE" | jq -r '.request_id')
+          
+          if [ -z "$REQUEST_ID" ] || [ "$REQUEST_ID" = "null" ]; then
+            echo "❌ Error: Failed to get request ID"
+            echo "Response:"
+            echo "$RESPONSE" | jq '.'
+            exit 1
+          fi
+          
+          echo "✅ Request created successfully"
+          echo "📝 Request ID: $REQUEST_ID"
+          echo "request_id=$REQUEST_ID" >> $GITHUB_OUTPUT
+          
+          # Poll for generation status
+          echo -e "\nStep 3: Polling for generation status..."
+          MAX_ATTEMPTS=60  # 3 minutes max
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            # Check status
+            STATUS_RESPONSE=$(curl -s -X GET \
+              -H "Authorization: Bearer $NAPKIN_API_KEY" \
+              "https://api.napkin.ai/v1/visual/${REQUEST_ID}/status")
+            
+            # Save latest response
+            echo "$STATUS_RESPONSE" > status_response.json
+            
+            # Extract status
+            STATUS=$(echo "$STATUS_RESPONSE" | jq -r '.status')
+            
+            echo "🔄 Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS - Status: $STATUS"
+            
+            if [ "$STATUS" = "completed" ]; then
+              echo "✅ Visual generation completed!"
+              
+              # Extract URLs
+              VISUAL_URLS=$(echo "$STATUS_RESPONSE" | jq -c '.visuals')
+              
+              # Save metadata
+              echo "$STATUS_RESPONSE" > generation_metadata.json
+              
+              break
+            elif [ "$STATUS" = "failed" ]; then
+              echo "❌ Error: Visual generation failed"
+              echo "$STATUS_RESPONSE" | jq '.error // .message // .'
+              exit 1
+            fi
+            
+            # Wait before next attempt
+            sleep 3
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Error: Timeout waiting for visual generation"
+            exit 1
+          fi
+          
+          # Calculate generation time
+          END_TIME=$(date +%s.%N)
+          GENERATION_TIME=$(echo "$END_TIME - $START_TIME" | bc)
+          
+          echo "⏱️ Generation completed in ${GENERATION_TIME}s"
+          
+          # Download generated visuals
+          echo -e "\nStep 4: Downloading generated visuals..."
+          
+          SVG_COUNT=0
+          PNG_COUNT=0
+          INDEX=0
+          
+          # Download each visual
+          echo "$VISUAL_URLS" | jq -c '.[]' | while read -r visual; do
+            # Extract URLs
+            SVG_URL=$(echo "$visual" | jq -r '.svg_url // empty')
+            PNG_URL=$(echo "$visual" | jq -r '.png_url // empty')
+            
+            # Generate timestamp
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            
+            # Download SVG
+            if [ -n "$SVG_URL" ]; then
+              SVG_FILENAME="generated_visuals/napkin_${TIMESTAMP}_${INDEX}.svg"
+              echo "📥 Downloading SVG ${INDEX}..."
+              curl -s -o "$SVG_FILENAME" "$SVG_URL"
+              if [ -f "$SVG_FILENAME" ]; then
+                echo "✅ Saved: $SVG_FILENAME ($(stat -c%s "$SVG_FILENAME") bytes)"
+              fi
+            fi
+            
+            # Download PNG
+            if [ -n "$PNG_URL" ]; then
+              PNG_FILENAME="generated_visuals/napkin_${TIMESTAMP}_${INDEX}.png"
+              echo "📥 Downloading PNG ${INDEX}..."
+              curl -s -o "$PNG_FILENAME" "$PNG_URL"
+              if [ -f "$PNG_FILENAME" ]; then
+                echo "✅ Saved: $PNG_FILENAME ($(stat -c%s "$PNG_FILENAME") bytes)"
+              fi
+            fi
+            
+            INDEX=$((INDEX + 1))
+          done
+          
+          # List downloaded files
+          echo -e "\n📊 Download Summary:"
+          echo "Generated visuals:"
+          ls -la generated_visuals/
+          
+          # Generate test report
+          echo -e "\nStep 5: Generating test report..."
+          cat > test_report.md << EOF
+          # Napkin AI Visual Generation Test Report
+          
+          ## Test Information
+          - **Date:** $(date)
+          - **Request ID:** $REQUEST_ID
+          - **Generation Time:** ${GENERATION_TIME}s
+          
+          ## Test Parameters
+          - **Text:** ${{ inputs.test_text }}
+          - **Style:** ${{ inputs.test_style }}
+          - **Variations:** ${{ inputs.variations }}
+          
+          ## Results
+          - **Status:** ✅ Success
+          - **Files Generated:** $(ls generated_visuals/ | wc -l)
+          
+          ## Generated Files
+          $(ls -la generated_visuals/)
+          
+          ## API Response Metadata
+          \`\`\`json
+          $(cat generation_metadata.json | jq '.')
+          \`\`\`
+          EOF
+          
+          echo "✅ Test completed successfully!"
+          echo "📄 Report saved to: test_report.md"
+      
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: napkin-ai-test-results
+          path: |
+            ${{ needs.setup.outputs.project_dir }}/generated_visuals/
+            ${{ needs.setup.outputs.project_dir }}/*.json
+            ${{ needs.setup.outputs.project_dir }}/*.md
+      
+      - name: Display test summary
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          echo "================================================"
+          echo "🎉 Napkin AI Unit Test Completed Successfully!"
+          echo "================================================"
+          echo ""
+          echo "📊 Test Summary:"
+          echo "- Style tested: ${{ inputs.test_style }}"
+          echo "- Variations requested: ${{ inputs.variations }}"
+          echo "- Files generated: $(ls ${PROJECT_DIR}/generated_visuals/ | wc -l)"
+          echo ""
+          echo "📁 Output location: ${PROJECT_DIR}"
+          echo ""
+          echo "✅ All tests passed!"
