@@ -76,37 +76,28 @@ Save to: `artifacts/task_order_mermaid.mmd`
 - NO incomplete class definitions
 - Use proper styling classes for visual distinction
 
-**Required Mermaid Structure:**
+**Required Mermaid Structure (SIMPLIFIED for GitHub Actions compatibility):**
 ```mermaid
 graph LR
-    Start["🏁 ワークフロー開始"] --> Phase1["📋 Phase 1: Foundation"]
+    Start["開始"] --> T1["T1: タスク名 (5分)"]
+    T1 --> T2["T2: 次のタスク (3分)"]
+    T2 --> T3["T3: 並列タスクA (4分)"]
+    T2 --> T4["T4: 並列タスクB (4分)"]
+    T3 --> T5["T5: 最終タスク (2分)"]
+    T4 --> T5
+    T5 --> End["完成"]
     
-    Phase1 --> T1["T1: Task Name (5min)"]
-    T1 --> T2["T2: Next Task (3min)"]
-    
-    T2 --> Phase2["⚡ Phase 2: Parallel Execution"]
-    Phase2 --> T3["T3: Parallel Task A (4min)"]
-    Phase2 --> T4["T4: Parallel Task B (4min)"]
-    Phase2 --> T5["T5: Parallel Task C (4min)"]
-    
-    T3 --> Phase3["🎬 Phase 3: Integration"]
-    T4 --> Phase3
-    T5 --> Phase3
-    
-    Phase3 --> T6["T6: Final Task (2min)"]
-    T6 --> End["🎯 完成"]
-    
-    %% Styling (REQUIRED)
-    classDef sequential fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef parallel fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef phase fill:#fff3e0,stroke:#e65100,stroke-width:3px
-    classDef critical fill:#fff9c4,stroke:#f57f17,stroke-width:2px
-    
-    class T1,T2,T6 sequential
-    class T3,T4,T5 parallel
-    class Phase1,Phase2,Phase3 phase
-    class Start,End critical
+    classDef task fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    class T1,T2,T3,T4,T5 task
 ```
+
+**CRITICAL: Keep it SIMPLE for GitHub Actions**
+- NO emojis in node names (🏁 🎯 etc.)
+- NO complex phase groupings
+- NO excessive styling classes
+- NO dotted arrows or complex decorations
+- Maximum 15 nodes total
+- Use simple Japanese text only
 
 ## 🎨 Visual Design Requirements
 
