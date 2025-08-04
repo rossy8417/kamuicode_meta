@@ -76,28 +76,42 @@ Save to: `artifacts/task_order_mermaid.mmd`
 - NO incomplete class definitions
 - Use proper styling classes for visual distinction
 
-**Required Mermaid Structure (Based on kamuicode-workflow SUCCESS patterns):**
+**Dynamic Mermaid Generation Requirements:**
+
+**⚠️ CRITICAL: NO HARDCODING - Generate from actual task data**
+
+Analyze the provided task decomposition JSON and dynamically create a Mermaid diagram that reflects the ACTUAL tasks and dependencies.
+
+**Dynamic Structure Guidelines:**
+1. **Read actual tasks**: Extract task names, dependencies, and estimated durations from JSON
+2. **Map dependencies**: Create arrows based on actual task.dependencies arrays
+3. **Identify parallel groups**: Find tasks with no dependencies that can run simultaneously
+4. **Choose appropriate emojis**: Select emojis based on task types (not hardcoded)
+   - Data/Research tasks: 🔍 📊 📋 📈
+   - Content creation: ✍️ 🎨 📝 🎵
+   - Generation tasks: 🎬 🖼️ 🎞️ 📹
+   - Processing: ⚙️ 🔄 ⏳ 🛠️
+   - Final steps: ✅ 🎯 📦 🚀
+
+**Technical Requirements (Based on kamuicode-workflow success patterns):**
+- ✅ USE simple node IDs (A, B, C, D, E...)
+- ✅ USE `<br/>` for line breaks in node labels
+- ✅ USE appropriate emojis based on task type
+- ✅ NO complex classDef styling
+- ✅ Maximum 10 nodes for GitHub Actions compatibility
+- ✅ Focus on actual workflow dependencies from JSON data
+
+**Example Dynamic Approach:**
 ```mermaid
 graph LR
-    A[🚀 開始<br/>情報収集フェーズ] --> B[📋 構成作成<br/>台本・企画]
-    B --> C[🎵 音声生成<br/>ナレーション]
-    B --> D[🎨 画像生成<br/>バッチ1]
-    D --> E[🎬 動画変換<br/>バッチ1]
-    E --> F[🎨 画像生成<br/>バッチ2]
-    F --> G[🎬 動画変換<br/>バッチ2]
-    C --> H[🎞️ 最終編集<br/>統合・完成]
-    G --> H
-    H --> I[✅ 完成]
+    A[{emoji} {task-name}<br/>{duration}] --> B[{emoji} {next-task}<br/>{duration}]
+    B --> C[{emoji} {parallel-task-1}<br/>{duration}]
+    B --> D[{emoji} {parallel-task-2}<br/>{duration}]
+    C --> E[{emoji} {final-task}<br/>{duration}]
+    D --> E
 ```
 
-**SUCCESS PATTERN (Based on kamuicode-workflow):**
-- ✅ USE emojis (🚀 📋 🎵 🎨 🎬 🎞️ ✅) - PROVEN to work
-- ✅ USE `<br/>` for line breaks in node labels  
-- ✅ USE simple A-B-C-D node IDs
-- ✅ USE Japanese text descriptions
-- ✅ NO complex classDef styling (keep it clean)
-- ✅ Maximum 8-10 nodes for readability
-- ✅ Focus on clear workflow progression
+Where {emoji}, {task-name}, {duration} are dynamically extracted from the actual task JSON data.
 
 ## 🎨 Visual Design Requirements
 
