@@ -49,15 +49,15 @@ npx @anthropic-ai/claude-code \
 - name: Upload Artifacts
   uses: actions/upload-artifact@v4
   with:
-    name: 識別可能な名前-artifacts
-    path: ${{ needs.setup.outputs.project_dir }}/対象ディレクトリ/
+    name: descriptive-name-artifacts
+    path: ${{ needs.setup.outputs.project_dir }}/target-directory/
 
-# 使用するジョブの最初に必ず追加
+# ALWAYS add at the beginning of consuming jobs
 - name: Download Artifacts
   uses: actions/download-artifact@v4
   with:
-    name: 識別可能な名前-artifacts
-    path: ${{ needs.setup.outputs.project_dir }}/対象ディレクトリ/
+    name: descriptive-name-artifacts
+    path: ${{ needs.setup.outputs.project_dir }}/target-directory/
 ```
 
 ### 5. ✅ ファイル名の柔軟な処理

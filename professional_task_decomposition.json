@@ -1,0 +1,191 @@
+{
+  "professional_analysis": {
+    "understanding": "このリクエストは最新ニュースを素材とした60秒程度の動画制作ワークフローです。映画監督・プロデューサーの専門知識を活用し、ニュース番組スタイルのプロフェッショナルな動画生成を目指します。workflow_dispatch inputsによる動的なトピック指定、信頼性の高い情報収集、視聴者の注意を引く構成が求められます。",
+    "considerations": [
+      "視聴者心理：最初の3秒で注意を引き、8秒でコミットを得る必要がある",
+      "ニュース動画特有の信頼性：情報源の明記と事実の正確性",
+      "60秒という短時間での効果的な情報伝達",
+      "複数情報源からの情報統合と選別プロセス",
+      "プロフェッショナルなビジュアル品質の確保",
+      "URL期限切れ対策：画像生成→即座にi2v変換のローリング方式採用"
+    ],
+    "thinking_process": "1. ニュース番組の構造分析：オープニング→メインコンテンツ→まとめ→クロージングの流れを60秒に圧縮。2. 視聴者心理の考慮：最初の3秒で視覚的インパクト、8秒で信頼性確立。3. 情報の階層化：重要度順に情報を配置し、限られた時間で最大の価値提供。4. シーン数計算：60秒÷6.5秒=約9シーン+20%バッファ=11シーンを想定。5. 並列処理最適化：情報収集フェーズと音声生成フェーズの並列化で効率向上。"
+  },
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "ニューストピック情報収集・分析",
+      "description": "指定されたトピックに関する最新ニュースを複数の信頼できる情報源から収集し、重要度・信頼性・関連性に基づいて選別・分析を行う",
+      "reasoning": "ニュース動画の品質は素材となる情報の質に大きく依存するため、最初に徹底的な情報収集と分析が必要",
+      "minimal_units": ["web-search-claude", "data-analysis"],
+      "dependencies": [],
+      "estimated_duration": "3-5分",
+      "professional_notes": "複数検索キーワードでの並列検索により情報の網羅性を確保。信頼性スコアリングにより情報の質を保証",
+      "quality_criteria": "最低3つの独立した情報源からの情報取得、信頼性スコア70%以上の情報のみ採用"
+    },
+    {
+      "id": "task-2", 
+      "name": "ストーリー構成・台本作成",
+      "description": "収集した情報を60秒の動画に最適化された構成に編集し、視聴者の注意を引くナレーション台本を作成する",
+      "reasoning": "限られた時間で効果的な情報伝達を行うため、プロフェッショナルな構成と台本が不可欠",
+      "minimal_units": ["planning-ccsdk"],
+      "dependencies": ["task-1"],
+      "estimated_duration": "4-6分",
+      "professional_notes": "3秒フック、8秒コミット、30秒エンゲージメントの視聴者心理を考慮した構成。情報の重要度順配置",
+      "quality_criteria": "導入3秒以内での視覚的インパクト確保、メインメッセージの明確性、情報源の適切な明記"
+    },
+    {
+      "id": "task-3",
+      "name": "ナレーション音声生成",
+      "description": "作成した台本を基に、プロフェッショナルな日本語ナレーション音声を生成する",
+      "reasoning": "ニュース動画では音声の品質と信頼感が重要。早期生成により後続のリップシンク処理時間を確保",
+      "minimal_units": ["t2s-fal-minimax-speech-02-turbo"],
+      "dependencies": ["task-2"],
+      "estimated_duration": "2-3分",
+      "professional_notes": "ニュースアナウンサー風の落ち着いた音調、適切な間の取り方で信頼感を演出",
+      "quality_criteria": "音声の明瞭性、適切な発話速度（1分間150-180語）、感情的中立性の維持"
+    },
+    {
+      "id": "task-4",
+      "name": "BGM選択・生成",
+      "description": "ニュース番組に適したプロフェッショナルなBGMを生成し、ナレーションとの音響バランスを調整する",
+      "reasoning": "適切なBGMはニュース動画の信頼性と視聴体験を向上させる重要な要素",
+      "minimal_units": ["bgm-generate-mcp"],
+      "dependencies": ["task-3"],
+      "estimated_duration": "2-3分",
+      "professional_notes": "ニュース番組らしい落ち着いた楽曲、ナレーションを妨げない音量レベル",
+      "quality_criteria": "ナレーションとの音響バランス（BGM: -20dB以下）、ジャンルの適切性"
+    },
+    {
+      "id": "task-5",
+      "name": "オープニングタイトル生成",
+      "description": "ニュース番組らしいプロフェッショナルなオープニングタイトル画像を生成する",
+      "reasoning": "最初の3秒での視覚的インパクトを確保し、コンテンツの性質を即座に伝達するため",
+      "minimal_units": ["t2i-google-imagen3"],
+      "dependencies": ["task-2"],
+      "estimated_duration": "2-3分",
+      "professional_notes": "ニュース番組の権威性を表現するデザイン、トピック名の視認性確保",
+      "quality_criteria": "高解像度（1920x1080）、読みやすいタイポグラフィ、ブランディング要素の統一"
+    },
+    {
+      "id": "task-6",
+      "name": "メインコンテンツ画像生成（バッチ1）",
+      "description": "ニュース内容に関連する画像を第1バッチ（5枚）として並列生成し、URL期限切れ対策のため即座に次工程へ移行する",
+      "reasoning": "URL期限切れリスクを最小化しつつ、コンテンツの視覚的説得力を確保するため",
+      "minimal_units": ["t2i-google-imagen3"],
+      "dependencies": ["task-2"],
+      "estimated_duration": "3-4分",
+      "professional_notes": "ジャストインタイム生成方式採用、ニュース価値の高い要素の視覚化",
+      "quality_criteria": "内容との関連性、視覚的説得力、統一されたスタイル"
+    },
+    {
+      "id": "task-7",
+      "name": "第1バッチ動画変換",
+      "description": "生成された第1バッチの画像を即座に動画に変換し、URL期限切れを防ぐ",
+      "reasoning": "画像URL期限（15分）内での処理完了を確実にするため",
+      "minimal_units": ["i2v-fal-hailuo-02-pro"],
+      "dependencies": ["task-6"],
+      "estimated_duration": "4-5分",
+      "professional_notes": "ローリング処理方式で効率化、各シーン6.5秒想定でカメラワーク追加",
+      "quality_criteria": "画像品質の維持、適切なカメラワーク、シーン長の統一"
+    },
+    {
+      "id": "task-8",
+      "name": "メインコンテンツ画像生成（バッチ2）",
+      "description": "残りのメインコンテンツ画像を第2バッチとして生成する",
+      "reasoning": "バッチ処理によりリソース効率を最適化しつつ、コンテンツの完全性を確保",
+      "minimal_units": ["t2i-google-imagen3"],
+      "dependencies": ["task-7"],
+      "estimated_duration": "3-4分",
+      "professional_notes": "第1バッチとのスタイル一貫性維持、補完的な視覚情報の提供",
+      "quality_criteria": "スタイル統一性、内容の補完性、視覚的バランス"
+    },
+    {
+      "id": "task-9",
+      "name": "第2バッチ動画変換",
+      "description": "第2バッチの画像を動画に変換し、全素材の準備を完了する",
+      "reasoning": "全ての視覚素材を動画形式で統一し、最終編集工程への準備を整える",
+      "minimal_units": ["i2v-fal-hailuo-02-pro"],
+      "dependencies": ["task-8"],
+      "estimated_duration": "4-5分",
+      "professional_notes": "第1バッチとの整合性確保、トランジション用素材の考慮",
+      "quality_criteria": "品質統一、シーン長の整合性、トランジション対応"
+    },
+    {
+      "id": "task-10",
+      "name": "エンディング・クレジット生成",
+      "description": "情報源クレジットと番組エンディングを含む締めくくり映像を生成する",
+      "reasoning": "ニュース動画では情報源の明記が信頼性確保に必須、適切なクロージングで完結感を演出",
+      "minimal_units": ["t2i-google-imagen3", "i2v-fal-hailuo-02-pro"],
+      "dependencies": ["task-1"],
+      "estimated_duration": "3-4分",
+      "professional_notes": "情報源の適切なクレジット表示、プロフェッショナルなエンディング演出",
+      "quality_criteria": "クレジットの読みやすさ、情報源の完全性、統一されたブランディング"
+    },
+    {
+      "id": "task-11",
+      "name": "動画結合・編集",
+      "description": "オープニング、メインコンテンツ、エンディングを適切な順序で結合し、60秒の完成動画を作成する",
+      "reasoning": "各セクションを論理的に結合し、流れの良い完成作品に仕上げる",
+      "minimal_units": ["video-concat"],
+      "dependencies": ["task-5", "task-7", "task-9", "task-10"],
+      "estimated_duration": "3-4分",
+      "professional_notes": "シーン間のスムーズなトランジション、全体の時間調整（60秒±5秒）",
+      "quality_criteria": "シーン間の自然な流れ、時間の正確性、解像度・フレームレートの統一"
+    },
+    {
+      "id": "task-12",
+      "name": "音声統合・最終調整",
+      "description": "ナレーション、BGM、効果音を適切にミックスし、音響品質を最終調整する",
+      "reasoning": "プロフェッショナルな音響品質により動画の完成度と信頼性を向上させる",
+      "minimal_units": ["bgm-overlay"],
+      "dependencies": ["task-3", "task-4", "task-11"],
+      "estimated_duration": "2-3分",
+      "professional_notes": "ニュース番組標準（-14 LUFS）での音声レベル調整、クリアな音声品質確保",
+      "quality_criteria": "音声レベルの適切性（-14 LUFS）、音響バランス、ノイズレス品質"
+    },
+    {
+      "id": "task-13",
+      "name": "最終品質チェック・出力",
+      "description": "完成した動画の技術的品質と内容品質を最終確認し、配信用フォーマットで出力する",
+      "reasoning": "プロフェッショナルな動画として配信前の最終品質保証が不可欠",
+      "minimal_units": ["local-save"],
+      "dependencies": ["task-12"],
+      "estimated_duration": "2-3分",
+      "professional_notes": "技術仕様（1920x1080, 30fps, H.264）での出力、メタデータ設定",
+      "quality_criteria": "技術仕様の適合性、内容の正確性、配信準備完了状態"
+    }
+  ],
+  "workflow_optimization": {
+    "parallel_groups": [
+      {
+        "group_id": "preparation_phase",
+        "tasks": ["task-3", "task-4", "task-5"],
+        "rationale": "ナレーション、BGM、オープニングタイトルは独立して並列処理可能"
+      },
+      {
+        "group_id": "rolling_production_batch1",
+        "tasks": ["task-6", "task-7"],
+        "rationale": "URL期限対策のため、画像生成後即座に動画変換を実行"
+      },
+      {
+        "group_id": "rolling_production_batch2", 
+        "tasks": ["task-8", "task-9"],
+        "rationale": "第2バッチも同様のローリング方式で処理"
+      }
+    ],
+    "critical_path": ["task-1", "task-2", "task-6", "task-7", "task-8", "task-9", "task-11", "task-12", "task-13"],
+    "optimization_rationale": "URL期限切れリスクを最小化するため、画像生成→動画変換のローリング方式を採用。情報収集→構成作成が全体のペースを決定するクリティカルパス。音声・BGM・タイトルの並列処理により効率向上。"
+  },
+  "total_estimated_duration": "42-55分",
+  "domain_specific_constraints": [
+    "シーン数計算: 60秒÷6.5秒=約9シーン+20%バッファ=11シーン想定",
+    "URL期限対策: 画像生成→即座にi2v変換のローリング方式必須",
+    "音響品質: ニュース番組標準-14 LUFSでの音声レベル調整",
+    "視聴者心理: 最初3秒での視覚的インパクト、8秒でのコミット確保",
+    "情報信頼性: 最低3つの独立情報源、信頼性スコア70%以上",
+    "技術仕様: 1920x1080, 30fps, H.264での出力必須",
+    "プラットフォーム最適化: YouTube向け（視聴時間最重要指標）",
+    "並列処理制限: 最大5並列でAPI制限遵守"
+  ]
+}
