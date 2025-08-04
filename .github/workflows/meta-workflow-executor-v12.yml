@@ -571,17 +571,12 @@ jobs:
           5. 各ステップは21000文字以内
           6. 全ての出力は\${PROJECT_DIR}配下に整理
           
-          🚨 CRITICAL: When constructing YAML, always follow these guidelines:
+          🚨 CRITICAL: You MUST read and follow these guidelines:
           
           1. YAML Construction Guidelines: docs/YAML_CONSTRUCTION_GUIDELINES.md
-             - NEVER use HEREDOC (cat > file << EOF) - use echo commands instead
-             - When creating files, use echo commands:
-               echo 'first line' > file.txt
-               echo 'second line' >> file.txt
-             - For GitHub Actions variables in strings:
-               echo "Status: ${{ github.workflow }}" >> file.txt
-             - Data sharing between jobs MUST use artifacts
-             - Define dependencies clearly with needs
+             - Contains all patterns to avoid (especially HEREDOC)
+             - Provides correct file creation examples
+             - MANDATORY: Read this file and apply ALL rules
           
           2. Minimal Unit Dependencies: docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
              - Check input/output specifications for each unit
@@ -594,22 +589,9 @@ jobs:
              - Best practices for GitHub Actions usage
              - Select appropriate data sharing methods
           
-          🚨 File Creation Pattern (CRITICAL):
-          When creating any file in the workflow, ALWAYS use echo commands:
-          
-          # Creating a markdown report
-          echo '# Report Title' > report.md
-          echo '' >> report.md
-          echo "Generated at: $(date)" >> report.md
-          echo "Status: ${{ github.workflow }}" >> report.md
-          
-          # Creating JSON
-          echo '{' > output.json
-          echo '  "status": "success",' >> output.json
-          echo '  "timestamp": "'$(date -Iseconds)'"' >> output.json
-          echo '}' >> output.json
-          
           専門的な品質基準に従って、実務で使えるワークフローを生成してください。
+          
+          重要: ファイル作成時は必ずYAML Construction Guidelinesのパターンに従ってください。
           
           出力ファイル: projects/issue-66-20250804-004120/generated-workflow/workflow.yml
           EOF
