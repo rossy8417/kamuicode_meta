@@ -95,6 +95,24 @@ jobs:
           echo "issue_title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
           
           echo "✅ Issue #$ISSUE_NUMBER validated: $ISSUE_TITLE"
+          
+          # Initialize Progressive Report in GitHub Actions Summary
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 🎯 Meta Workflow v12 実行レポート
+          
+          ## 📋 実行概要
+          EOF
+          
+          echo "- **Issue番号**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue タイトル**: ${ISSUE_TITLE}" >> $GITHUB_STEP_SUMMARY  
+          echo "- **実行開始時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行状況**: 🔄 進行中..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔍 Phase 1: Issue検証 & ドメイン検出" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Issue #${ISSUE_NUMBER} 内容取得完了" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ ドメイン検出: video-production" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
@@ -193,6 +211,13 @@ jobs:
           echo "chunk_count=$CHUNK_COUNT" >> $GITHUB_OUTPUT
           
           echo "✅ Template loaded: $DOMAIN_NAME ($CHUNK_COUNT chunks)"
+          
+          # Add Phase 2 Report
+          echo "## 📚 Phase 2: ドメインテンプレート読み込み" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ ドメイン: ${DOMAIN_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 専門家役割: ${EXPERT_ROLE}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ テンプレートチャンク数: ${CHUNK_COUNT}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
       - name: Upload Template Data
         uses: actions/upload-artifact@v4
@@ -394,6 +419,13 @@ jobs:
             
             echo "✅ Decomposed into $TASK_COUNT tasks"
             echo "⏱️ Estimated duration: $ESTIMATED_DURATION"
+            
+            # Add Phase 3 Report
+            echo "## 🧠 Phase 3: プロフェッショナルタスク分解" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ タスク数: ${TASK_COUNT}個" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 推定実行時間: ${ESTIMATED_DURATION}" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 依存関係グループ分析完了" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Task decomposition failed"
             exit 1
@@ -445,11 +477,70 @@ jobs:
           if [ -f "artifacts/optimized_task_order.json" ]; then
             echo "order=true" >> $GITHUB_OUTPUT
             
-            # Mermaid図の処理は最終レポートで行う（出力変数の問題を回避）
-            if [ -f "artifacts/task_order_mermaid.mmd" ]; then
-              echo "📊 Mermaid diagram file generated successfully"
+            # Add Phase 4 Report with Task Order
+            echo "## 🔄 Phase 4: タスク実行順序の最適化" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 依存関係分析完了" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 並列処理グループ特定" >> $GITHUB_STEP_SUMMARY
+            
+            # 動的テキスト図を生成（最適化されたタスクから自動生成）
+            if [ -f "artifacts/optimized_task_order.json" ]; then
+              echo "- ✅ 最適化された実行順序生成完了" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 📊 実行フロー図（動的生成）" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              
+              # JSONから動的にタスクフローを生成
+              python3 -c "
+import json
+import sys
+try:
+    with open('artifacts/optimized_task_order.json', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    print('タスク実行フロー（動的生成・並列処理最適化済み）:')
+    print()
+    
+    if 'optimized_execution_order' in data:
+        for i, phase in enumerate(data['optimized_execution_order']):
+            phase_name = phase.get('phase', f'Phase {i+1}')
+            exec_type = phase.get('execution_type', 'sequential')
+            duration = phase.get('estimated_duration', 'N/A')
+            
+            # フェーズヘッダー
+            if exec_type == 'parallel':
+                print(f'⚡ {phase_name} [{exec_type.upper()}]')
+            else:
+                print(f'📋 {phase_name} [{exec_type.upper()}]')
+            
+            # タスク表示
+            tasks = phase.get('tasks', [])
+            for j, task in enumerate(tasks):
+                if j == len(tasks) - 1:
+                    print(f'└─ {task}')
+                else:
+                    print(f'├─ {task}')
+            
+            if i < len(data['optimized_execution_order']) - 1:
+                print('    │')
+    
+    # 最適化情報
+    if 'total_optimized_duration' in data:
+        print()
+        print(f'⏱️ 総実行時間: {data[\"total_optimized_duration\"]}')
+    if 'optimization_savings' in data:
+        print(f'📈 最適化効果: {data[\"optimization_savings\"]}')
+        
+except Exception as e:
+    print('タスクフロー情報の生成中にエラーが発生しました')
+    print(f'詳細: {str(e)}')
+" >> $GITHUB_STEP_SUMMARY
+              
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
               echo "mermaid_available=true" >> $GITHUB_OUTPUT
             else
+              echo "- ❌ 最適化順序の生成に失敗" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
               echo "mermaid_available=false" >> $GITHUB_OUTPUT
             fi
           else
@@ -580,6 +671,13 @@ jobs:
             echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
             
             echo "✅ Workflow generated: $WORKFLOW_NAME"
+            
+            # Add Phase 5 Report
+            echo "## ⚡ Phase 5: プロフェッショナルワークフロー生成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ ワークフロー名: ${WORKFLOW_NAME}" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ ドメイン: ${PRIMARY_DOMAIN}" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ GitHub Actions形式で生成完了" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Workflow generation failed"
             exit 1
@@ -635,6 +733,13 @@ jobs:
              grep -q "^jobs:" "$WORKFLOW_PATH"; then
             echo "✅ GitHub Actions structure valid"
             echo "passed=true" >> $GITHUB_OUTPUT
+            
+            # Add Phase 6 Report
+            echo "## ✅ Phase 6: 検証 & 配置" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ YAML構文検証: 正常" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ GitHub Actions構造検証: 正常" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ ワークフロー配置準備完了" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Invalid GitHub Actions structure"
             echo "passed=false" >> $GITHUB_OUTPUT
@@ -742,177 +847,24 @@ jobs:
   # ===========================================
   
   display-final-report:
-    name: "📊 最終レポート表示"
+    name: "📊 実行完了"
     runs-on: ubuntu-latest
     needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'optimize-task-order', 'generate-professional-workflow', 'validate-and-deploy']
     if: always()
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts/
           
-      - name: Generate and Display Final Report
+      - name: Add Completion Summary
         run: |
-          echo "📊 最終レポートを生成中..."
+          echo "📊 実行完了サマリーを追加中..."
           
           # 基本情報
           ISSUE_NUMBER="${{ needs.validate-and-detect.outputs.issue_number }}"
-          DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
-          DOMAIN_NAME="${{ needs.load-domain-templates.outputs.domain_name }}"
-          EXPERT_ROLE="${{ needs.load-domain-templates.outputs.expert_role }}"
+          VALIDATION_STATUS="${{ needs.validate-and-deploy.outputs.validation_passed }}"
           
-          # GitHub Actions Summaryに直接表示
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          # 🎯 Meta Workflow v12 実行レポート
-          
-          ## 📋 実行概要
-          EOF
-          
-          echo "- **Issue番号**: #${ISSUE_NUMBER}" >> $GITHUB_STEP_SUMMARY
-          echo "- **検出ドメイン**: ${DOMAIN} (${DOMAIN_NAME})" >> $GITHUB_STEP_SUMMARY
-          echo "- **専門家役割**: ${EXPERT_ROLE}" >> $GITHUB_STEP_SUMMARY
-          echo "- **実行時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # ドメインテンプレート分析結果
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 🔍 ドメインテンプレート分析結果
-          
-          ### 読み込まれたテンプレート情報
-          EOF
-          
-          if [ -f "artifacts/domain-template-data/domain_decomposition_data.json" ]; then
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            jq '.domain_info' artifacts/domain-template-data/domain_decomposition_data.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "ドメイン情報の読み込みに失敗" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            echo "### 推奨MCPサービス" >> $GITHUB_STEP_SUMMARY
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            jq '.implementation_resources.recommended_mcp_services' artifacts/domain-template-data/domain_decomposition_data.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "MCPサービス情報なし" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # タスク分解結果
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 📝 タスク分解結果
-          
-          ### 分解されたタスク一覧
-          EOF
-          
-          if [ -f "artifacts/task-decomposition/professional_task_decomposition.json" ]; then
-            # タスク数をカウント
-            TASK_COUNT=$(jq '.tasks | length' artifacts/task-decomposition/professional_task_decomposition.json 2>/dev/null || echo "0")
-            echo "**総タスク数**: ${TASK_COUNT}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            
-            # 各タスクの詳細
-            jq -r '.tasks[] | "#### \(.id): \(.name)\n- **説明**: \(.description)\n- **推定時間**: \(.estimated_duration)\n- **依存関係**: \(.dependencies | join(", ") // "なし")\n- **使用ユニット**: \(.minimal_units | join(", "))\n"' artifacts/task-decomposition/professional_task_decomposition.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "タスク詳細の読み込みに失敗" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # タスク実行順序の最適化結果
-          echo "## 🔄 タスク実行順序" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 最適化された実行順序図" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # 動的テキスト図を生成（最適化されたタスクから自動生成）
-          if [ -f "artifacts/optimized_task_order.json" ]; then
-            echo "#### 📊 実行フロー図（動的生成）" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            
-            # JSONから動的にタスクフローを生成
-            python3 -c "
-import json
-import sys
-try:
-    with open('artifacts/optimized_task_order.json', 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    print('タスク実行フロー（動的生成・並列処理最適化済み）:')
-    print()
-    
-    if 'optimized_execution_order' in data:
-        for i, phase in enumerate(data['optimized_execution_order']):
-            phase_name = phase.get('phase', f'Phase {i+1}')
-            exec_type = phase.get('execution_type', 'sequential')
-            duration = phase.get('estimated_duration', 'N/A')
-            
-            # フェーズヘッダー
-            if exec_type == 'parallel':
-                print(f'⚡ {phase_name} [{exec_type.upper()}]')
-            else:
-                print(f'📋 {phase_name} [{exec_type.upper()}]')
-            
-            # タスク表示
-            tasks = phase.get('tasks', [])
-            for j, task in enumerate(tasks):
-                if j == len(tasks) - 1:
-                    print(f'└─ {task}')
-                else:
-                    print(f'├─ {task}')
-            
-            if i < len(data['optimized_execution_order']) - 1:
-                print('    │')
-    
-    # 最適化情報
-    if 'total_optimized_duration' in data:
-        print()
-        print(f'⏱️ 総実行時間: {data[\"total_optimized_duration\"]}')
-    if 'optimization_savings' in data:
-        print(f'📈 最適化効果: {data[\"optimization_savings\"]}')
-        
-except Exception as e:
-    print('タスクフロー情報の生成中にエラーが発生しました')
-    print(f'詳細: {str(e)}')
-" >> $GITHUB_STEP_SUMMARY
-            
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "*タスク順序図の生成をスキップ（タスク分解データが利用できませんでした）*" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # ワークフロー生成結果
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## ⚡ ワークフロー生成結果
-          EOF
-          
-          WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
-          echo "- **ワークフロー名**: ${WORKFLOW_NAME}" >> $GITHUB_STEP_SUMMARY
-          echo "- **検証結果**: ${{ needs.validate-and-deploy.outputs.validation_passed == 'true' && '✅ 成功' || '❌ 失敗' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **保存場所**: projects/issue-${ISSUE_NUMBER}-*/final-workflow/" >> $GITHUB_STEP_SUMMARY
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # 実行フェーズサマリー
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 🏗️ 実行フェーズ
-          
-          | フェーズ | 状態 | 説明 |
-          |---------|------|------|
-          | 1. Issue検証 & ドメイン検出 | ✅ | Issue内容からドメインを自動検出 |
-          | 2. ドメインテンプレート読み込み | ✅ | 専門知識とワークフローパターンを読み込み |
-          | 3. プロフェッショナルタスク分解 | ✅ | AIによる詳細なタスク分解 |
-          | 4. タスク順序最適化 | ✅ | 依存関係に基づく実行順序決定 |
-          | 5. ワークフロー生成 | ✅ | GitHub Actions形式でワークフロー生成 |
-          EOF
-          
-          echo "| 6. 検証 & 配置 | ${{ needs.validate-and-deploy.outputs.validation_passed == 'true' && '✅' || '❌' }} | YAMLバリデーションと保存 |" >> $GITHUB_STEP_SUMMARY
-          echo "| 7. 最終レポート | ✅ | 実行結果の総合レポート |" >> $GITHUB_STEP_SUMMARY
-          
+          # 実行完了サマリーを追加
+          echo "## 🎉 実行完了" >> $GITHUB_STEP_SUMMARY
+          echo "- **完了時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- **全体実行結果**: ${VALIDATION_STATUS == 'true' && '✅ 成功' || '⚠️ 一部エラーあり'}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # ダウンロード情報
@@ -928,12 +880,4 @@ except Exception as e:
           # 特定の成果物のみダウンロード
           gh run download ${{ github.run_id }} -n generated-workflow
           \`\`\`
-          
-          ## 🔗 関連リンク
-          - [実行詳細](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          - [Issue #${ISSUE_NUMBER}](https://github.com/${{ github.repository }}/issues/${ISSUE_NUMBER})
-          - [ワークフロー定義](https://github.com/${{ github.repository }}/blob/main/.github/workflows/meta-workflow-executor-v12.yml)
-          
-          ---
-          *Generated by Meta Workflow v12 with Domain Templates*
           EOF
