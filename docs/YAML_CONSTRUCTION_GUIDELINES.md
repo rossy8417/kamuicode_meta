@@ -9,6 +9,7 @@ This document provides essential guidelines for YAML construction that Meta Work
 3. **ALWAYS use artifacts for data sharing between jobs**
 4. **Clearly define dependencies**
 5. **ALWAYS end multi-line commands with backslash (\) on each continuation line**
+6. **Handle trigger-specific inputs correctly (workflow_dispatch vs issue_comment)**
 
 ## 📋 YAML Construction Checklist
 
@@ -80,6 +81,22 @@ run: |
     -p "$PROMPT"
 ```
 
+#### Incorrect GitHub Actions Variable Usage
+```bash
+# ❌ Wrong - Using job outputs when inputs should be used
+run: |
+  ISSUE_NUMBER="${{ needs.some-job.outputs.issue_number }}"
+  # Results in empty value for workflow_dispatch triggers
+
+# ✅ Correct - Handle different trigger types appropriately
+run: |
+  if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+    ISSUE_NUMBER="${{ inputs.issue_number }}"
+  else
+    ISSUE_NUMBER="${{ needs.some-job.outputs.issue_number }}"
+  fi
+```
+
 ### 3. ✅ Recommended Patterns
 
 #### Multi-line Command Continuation
@@ -102,6 +119,26 @@ npx @anthropic-ai/claude-code \
 
 # ✅ ALTERNATIVE - Single line (for shorter commands)
 npx @anthropic-ai/claude-code --mcp-config ".claude/mcp-kamuicode.json" --allowedTools "WebSearch,Write" -p "$PROMPT"
+```
+
+#### Trigger-Specific Variable Handling
+```bash
+# Handle different trigger types correctly
+run: |
+  # Method 1: Direct conditional assignment
+  if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+    ISSUE_NUMBER="${{ inputs.issue_number }}"
+    TOPIC="${{ inputs.topic }}"
+  elif [ "${{ github.event_name }}" == "issue_comment" ]; then
+    ISSUE_NUMBER="${{ github.event.issue.number }}"
+    TOPIC="${{ needs.extract-job.outputs.topic }}"
+  fi
+  
+  # Method 2: Using job outputs with fallback
+  ISSUE_NUMBER="${{ needs.validation-job.outputs.issue_number }}"
+  if [ -z "$ISSUE_NUMBER" ] || [ "$ISSUE_NUMBER" == "null" ]; then
+    ISSUE_NUMBER="${{ inputs.issue_number }}"
+  fi
 ```
 
 #### File Generation (echo method)
@@ -315,11 +352,22 @@ echo "$OUTPUT_JSON" > "$PROJECT_DIR/metadata/unit-output.json"
    - Move to next process immediately after generation
    - Rolling processing preferred over batch processing
 
-4. **Debug Information Logging**
+4. **Trigger-Specific Input Validation**
+   - Always validate trigger type before using inputs
+   - Provide fallbacks for missing or null values
+   - Test both workflow_dispatch and issue_comment scenarios
+
+5. **Multi-line Command Validation**
+   - Check that all continuation lines end with backslash
+   - Validate command structure before deployment
+   - Test YAML parsing with python yaml.safe_load()
+
+6. **Debug Information Logging**
    ```bash
    echo "[$(date)] Job: ${{ github.job }}, Step: ${{ github.action }}" >> debug.log
    echo "Input received: $INPUT_DATA" >> debug.log
    echo "Output generated: $OUTPUT_PATH" >> debug.log
+   echo "Trigger: ${{ github.event_name }}" >> debug.log
    ```
 
 This guideline is regularly updated and will be amended when new patterns or issues are discovered.
