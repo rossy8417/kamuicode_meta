@@ -542,27 +542,27 @@ jobs:
           CHUNKS=$(jq -r '.chunks[].id' artifacts/domain-template-data/template_chunks.json)
           
           # Create comprehensive generation prompt
-          cat > generation_prompt.txt << EOF
+          cat > generation_prompt.txt << 'EOF'
           プロフェッショナルなGitHub Actionsワークフローを生成してください。
           
-          タスク分解結果：
-          ```json
-          $(cat artifacts/task-decomposition/professional_task_decomposition.json)
-          ```
+          以下のファイルから情報を読み込んでください：
+          1. タスク分解結果: artifacts/task-decomposition/professional_task_decomposition.json
+          2. 最適化されたタスク順序: artifacts/optimized-task-order/optimized_task_order.json (存在する場合)
           
-          ドメイン: $PRIMARY_DOMAIN
-          
-          重要な制約:
-          1. uses: でローカルファイルを参照しない
-          2. 全てのパスは\${{ needs.setup.outputs.project_dir }}を使用
+          ワークフロー生成の要件：
+          1. uses: でローカルファイルを参照しない（インライン実装）
+          2. 全てのパスは${{ needs.setup.outputs.project_dir }}を使用
           3. MCP使用時は--mcp-configを必ず含める
           4. ジョブ間のファイル共有はartifactsを使用
           5. 各ステップは21000文字以内
           
           専門的な品質基準に従って、実務で使えるワークフローを生成してください。
           
-          出力ファイル: $PROJECT_DIR/generated-workflow/workflow.yml
+          出力ファイル: projects/issue-66-20250804-004120/generated-workflow/workflow.yml
           EOF
+          
+          # Replace project directory in prompt
+          sed -i "s|projects/issue-66-20250804-004120|$PROJECT_DIR|g" generation_prompt.txt
           
           # Execute workflow generation
           npx @anthropic-ai/claude-code \
