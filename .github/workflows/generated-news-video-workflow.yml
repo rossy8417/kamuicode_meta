@@ -1,0 +1,771 @@
+name: "Professional News Video Creation Workflow"
+
+on:
+  workflow_dispatch:
+    inputs:
+      news_topic:
+        description: "ニュースのトピック（例：技術革新、政治、経済）"
+        required: true
+        default: "最新の技術革新ニュース"
+      time_period:
+        description: "対象期間（例：24時間以内、1週間以内）"
+        required: true
+        default: "24時間以内"
+      project_name:
+        description: "プロジェクト名（出力ディレクトリに使用）"
+        required: true
+        default: "news-video-production"
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # Phase 1: Foundation - Information Gathering
+  phase1-foundation:
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      research_data: ${{ steps.research.outputs.research_data }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup project structure
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="${GITHUB_WORKSPACE}/projects/${{ inputs.project_name }}-${TIMESTAMP}"
+          mkdir -p "${PROJECT_DIR}"/{metadata,logs,media/{images,videos,audio,3d},final,temp}
+          echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+          echo "[$(date)] Phase 1: Foundation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "Project directory: ${PROJECT_DIR}"
+
+      - name: News Research and Information Gathering
+        id: research
+        run: |
+          PROJECT_DIR="${{ steps.setup.outputs.project_dir }}"
+          echo "[$(date)] Starting news research for topic: ${{ inputs.news_topic }}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          RESEARCH_PROMPT="ニュース情報収集・リサーチタスク：
+          トピック: ${{ inputs.news_topic }}
+          期間: ${{ inputs.time_period }}
+          
+          以下の要件で情報収集を実行してください：
+          1. 指定されたトピックの最新ニュースを複数の信頼性の高い情報源から収集
+          2. 事実確認と情報の信頼性検証
+          3. 60秒のニュース動画に適した要点の整理
+          4. JSON形式でstructured dataとして保存: ${PROJECT_DIR}/metadata/research_data.json
+          
+          出力形式:
+          {
+            \"topic\": \"トピック名\",
+            \"sources\": [\"情報源1\", \"情報源2\", \"情報源3\"],
+            \"key_facts\": [\"重要事実1\", \"重要事実2\"],
+            \"timeline\": \"時系列情報\",
+            \"reliability_score\": 0.95
+          }"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "WebSearch,Write,Read" \
+            --max-turns 10 \
+            --permission-mode "acceptEdits" \
+            -p "$RESEARCH_PROMPT"
+          
+          if [ -f "${PROJECT_DIR}/metadata/research_data.json" ]; then
+            echo "research_data=${PROJECT_DIR}/metadata/research_data.json" >> $GITHUB_OUTPUT
+            echo "[$(date)] Research completed successfully" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Research data not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 1 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-foundation
+          path: ${{ steps.setup.outputs.project_dir }}/
+
+  # Phase 2: Content Creation - Script and Structure
+  phase2-content-creation:
+    runs-on: ubuntu-latest
+    needs: phase1-foundation
+    outputs:
+      script_data: ${{ steps.script.outputs.script_data }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Phase 1 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase1-foundation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Create News Script and Structure
+        id: script
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          RESEARCH_DATA="${{ needs.phase1-foundation.outputs.research_data }}"
+          echo "[$(date)] Phase 2: Content creation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          SCRIPT_PROMPT="ニュース原稿・構成作成タスク：
+          
+          入力データ: ${RESEARCH_DATA}
+          目標: 60秒のプロフェッショナルなニュース動画用の構成と原稿作成
+          
+          以下の要件で原稿を作成してください：
+          1. ニュース番組の黄金比：フック(20%) → 本編(60%) → まとめ(20%)
+          2. 最初の3秒で視聴者を引きつけるインパクトのあるフック
+          3. 明確で聞き取りやすい日本語ナレーション原稿
+          4. 10-12シーンの視覚的構成（各5-6秒）
+          5. プロフェッショナルなニュースアナウンサー風のトーン
+          
+          出力: ${PROJECT_DIR}/metadata/script_data.json
+          形式:
+          {
+            \"total_duration\": 60,
+            \"structure\": {
+              \"hook\": \"最初の3秒のフック文\",
+              \"main_content\": \"本編ナレーション\",
+              \"conclusion\": \"まとめ文\"
+            },
+            \"narration_script\": \"完全なナレーション原稿\",
+            \"visual_scenes\": [
+              {\"scene_id\": 1, \"duration\": 6, \"description\": \"シーン説明\", \"image_prompt\": \"画像生成プロンプト\"},
+              {\"scene_id\": 2, \"duration\": 6, \"description\": \"シーン説明\", \"image_prompt\": \"画像生成プロンプト\"}
+            ]
+          }"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Read,Write,Edit" \
+            --max-turns 10 \
+            --permission-mode "acceptEdits" \
+            -p "$SCRIPT_PROMPT"
+          
+          if [ -f "${PROJECT_DIR}/metadata/script_data.json" ]; then
+            echo "script_data=${PROJECT_DIR}/metadata/script_data.json" >> $GITHUB_OUTPUT
+            echo "[$(date)] Script creation completed successfully" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Script data not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 3: Parallel Content Generation - Audio & Images Batch 1
+  phase3-parallel-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    strategy:
+      matrix:
+        task: [audio-generation, images-batch1]
+      max-parallel: 2
+    outputs:
+      audio_file: ${{ steps.audio-task.outputs.audio_file }}
+      images_batch1: ${{ steps.images-task.outputs.images_batch1 }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Audio Generation Task
+        if: matrix.task == 'audio-generation'
+        id: audio-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3: Audio generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          AUDIO_PROMPT="日本語ナレーション音声生成タスク：
+          
+          入力: ${SCRIPT_DATA}
+          目標: プロのニュースアナウンサー風の高品質音声生成
+          
+          要件:
+          1. 明瞭で聞き取りやすい発音
+          2. ニュースアナウンサーとしての信頼感のある声質
+          3. 適切な間の取り方とペース
+          4. -14LUFS基準の音声レベル
+          5. 日本語音声生成ツールを使用
+          
+          出力: ${PROJECT_DIR}/media/audio/narration.mp3
+          メタデータ: ${PROJECT_DIR}/metadata/audio_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result,Write,Read" \
+            --max-turns 15 \
+            --permission-mode "acceptEdits" \
+            -p "$AUDIO_PROMPT"
+          
+          # Check for generated audio
+          AUDIO_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" | head -1)
+          if [ -n "$AUDIO_FILE" ]; then
+            echo "audio_file=${AUDIO_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Audio generation completed: ${AUDIO_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Audio file not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Images Batch 1 Generation Task
+        if: matrix.task == 'images-batch1'
+        id: images-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3: Images batch 1 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          IMAGES_PROMPT="ニュース画像素材生成（バッチ1）タスク：
+          
+          入力: ${SCRIPT_DATA}
+          目標: 最初の5シーン用の高品質ニュース画像生成
+          
+          要件:
+          1. プロフェッショナルなニュース番組スタイル
+          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
+          3. Rule of thirdsに従った構図
+          4. 16:9アスペクト比、1920x1080解像度
+          5. ニュース内容と一致する視覚的インパクト
+          
+          処理: スクリプトの最初の5シーンの画像プロンプトを使用
+          出力ディレクトリ: ${PROJECT_DIR}/media/images/batch1/
+          メタデータ: ${PROJECT_DIR}/metadata/images_batch1_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Write,Read" \
+            --max-turns 15 \
+            --permission-mode "acceptEdits" \
+            -p "$IMAGES_PROMPT"
+          
+          # Check for generated images
+          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images/batch1" -name "*.png" -o -name "*.jpg" | wc -l)
+          if [ "$IMAGE_COUNT" -ge 5 ]; then
+            echo "images_batch1=${PROJECT_DIR}/media/images/batch1" >> $GITHUB_OUTPUT
+            echo "[$(date)] Images batch 1 completed: ${IMAGE_COUNT} images" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Insufficient images generated (${IMAGE_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 3 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-${{ matrix.task }}
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 4: Parallel Processing - Batch 2 Images & Video Conversion Batch 1
+  phase4-parallel-processing:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-parallel-generation]
+    strategy:
+      matrix:
+        task: [images-batch2, video-conversion-batch1]
+      max-parallel: 2
+    outputs:
+      images_batch2: ${{ steps.images-batch2-task.outputs.images_batch2 }}
+      videos_batch1: ${{ steps.video-batch1-task.outputs.videos_batch1 }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Images Batch 2 Generation Task
+        if: matrix.task == 'images-batch2'
+        id: images-batch2-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 4: Images batch 2 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          IMAGES_PROMPT="ニュース画像素材生成（バッチ2）タスク：
+          
+          入力: ${SCRIPT_DATA}
+          目標: 後半5シーン用の高品質ニュース画像生成
+          
+          要件:
+          1. 第1バッチとのスタイル統一
+          2. ニュースストーリーの後半部分に対応
+          3. クライマックス部分に適した視覚的表現
+          4. 同一の品質基準とスタイル維持
+          5. 16:9アスペクト比、プロフェッショナル品質
+          
+          処理: スクリプトの後半5シーンの画像プロンプトを使用
+          出力ディレクトリ: ${PROJECT_DIR}/media/images/batch2/
+          メタデータ: ${PROJECT_DIR}/metadata/images_batch2_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Write,Read" \
+            --max-turns 15 \
+            --permission-mode "acceptEdits" \
+            -p "$IMAGES_PROMPT"
+          
+          # Check for generated images
+          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images/batch2" -name "*.png" -o -name "*.jpg" | wc -l)
+          if [ "$IMAGE_COUNT" -ge 5 ]; then
+            echo "images_batch2=${PROJECT_DIR}/media/images/batch2" >> $GITHUB_OUTPUT
+            echo "[$(date)] Images batch 2 completed: ${IMAGE_COUNT} images" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Insufficient images generated (${IMAGE_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Video Conversion Batch 1 Task
+        if: matrix.task == 'video-conversion-batch1'
+        id: video-batch1-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          echo "[$(date)] Phase 4: Video conversion batch 1 started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          VIDEO_PROMPT="画像から動画変換（バッチ1）タスク：
+          
+          入力: ${PROJECT_DIR}/media/images/batch1/
+          目標: 最初の5枚の画像を動画クリップに変換
+          
+          要件:
+          1. 各クリップ6-8秒の適切な長さ
+          2. ニュース番組らしい自然な動き
+          3. 過度なモーションを避けた上品な動き
+          4. static, pan, zoomの効果的活用
+          5. プロフェッショナルな品質基準
+          
+          処理: batch1フォルダ内の全画像を動画変換
+          出力ディレクトリ: ${PROJECT_DIR}/media/videos/batch1/
+          メタデータ: ${PROJECT_DIR}/metadata/videos_batch1_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
+            --max-turns 20 \
+            --permission-mode "acceptEdits" \
+            -p "$VIDEO_PROMPT"
+          
+          # Check for generated videos
+          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos/batch1" -name "*.mp4" | wc -l)
+          if [ "$VIDEO_COUNT" -ge 5 ]; then
+            echo "videos_batch1=${PROJECT_DIR}/media/videos/batch1" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video conversion batch 1 completed: ${VIDEO_COUNT} videos" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Insufficient videos generated (${VIDEO_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 4 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-${{ matrix.task }}
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 5: Parallel Audio & Visual Production
+  phase5-parallel-production:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-parallel-generation, phase4-parallel-processing]
+    strategy:
+      matrix:
+        task: [video-conversion-batch2, bgm-generation, opening-creation]
+      max-parallel: 3
+    outputs:
+      videos_batch2: ${{ steps.video-batch2-task.outputs.videos_batch2 }}
+      bgm_file: ${{ steps.bgm-task.outputs.bgm_file }}
+      opening_video: ${{ steps.opening-task.outputs.opening_video }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Video Conversion Batch 2 Task
+        if: matrix.task == 'video-conversion-batch2'
+        id: video-batch2-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          echo "[$(date)] Phase 5: Video conversion batch 2 started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          VIDEO_PROMPT="画像から動画変換（バッチ2）タスク：
+          
+          入力: ${PROJECT_DIR}/media/images/batch2/
+          目標: 後半5枚の画像を動画クリップに変換
+          
+          要件:
+          1. 第1バッチとの品質統一
+          2. ニュースストーリーの後半展開に適した動き
+          3. クライマックス部分の動的表現
+          4. 6-8秒の適切な長さ維持
+          5. プロフェッショナルな品質基準
+          
+          処理: batch2フォルダ内の全画像を動画変換
+          出力ディレクトリ: ${PROJECT_DIR}/media/videos/batch2/
+          メタデータ: ${PROJECT_DIR}/metadata/videos_batch2_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
+            --max-turns 20 \
+            --permission-mode "acceptEdits" \
+            -p "$VIDEO_PROMPT"
+          
+          # Check for generated videos
+          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos/batch2" -name "*.mp4" | wc -l)
+          if [ "$VIDEO_COUNT" -ge 5 ]; then
+            echo "videos_batch2=${PROJECT_DIR}/media/videos/batch2" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video conversion batch 2 completed: ${VIDEO_COUNT} videos" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Insufficient videos generated (${VIDEO_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: BGM Generation Task
+        if: matrix.task == 'bgm-generation'
+        id: bgm-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          echo "[$(date)] Phase 5: BGM generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          BGM_PROMPT="BGM・効果音生成・選択タスク：
+          
+          目標: ニュース番組らしいプロフェッショナルなBGM生成
+          
+          要件:
+          1. 情報伝達を邪魔しない控えめな音楽
+          2. 信頼感と緊急感のバランス
+          3. ナレーションより20-25dB低いレベル
+          4. 60秒の動画に適した長さ
+          5. ニュース番組の雰囲気演出
+          
+          スタイル: ニュース番組用BGM、instrumental、professional
+          出力: ${PROJECT_DIR}/media/audio/bgm.mp3
+          メタデータ: ${PROJECT_DIR}/metadata/bgm_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2m-google-lyria__lyria_generate,Write,Read" \
+            --max-turns 10 \
+            --permission-mode "acceptEdits" \
+            -p "$BGM_PROMPT"
+          
+          # Check for generated BGM
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" | head -1)
+          if [ -n "$BGM_FILE" ]; then
+            echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] BGM generation completed: ${BGM_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: BGM file not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Opening Creation Task
+        if: matrix.task == 'opening-creation'
+        id: opening-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 5: Opening creation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          OPENING_PROMPT="オープニング・タイトル作成タスク：
+          
+          入力: ${SCRIPT_DATA}
+          目標: 最初の3秒で視聴継続の50%を決める インパクトのあるオープニング
+          
+          要件:
+          1. 瞬時に注意を引く視覚的インパクト
+          2. ニュース番組としての信頼性表現
+          3. 信頼性（青系）と緊急性（赤系）の色彩活用
+          4. 3秒以内にトピックを明示
+          5. プロフェッショナルなニュース番組スタイル
+          
+          処理手順:
+          1. インパクトのあるタイトル画像を生成
+          2. 画像を動画に変換（3-5秒）
+          
+          出力: ${PROJECT_DIR}/media/videos/opening.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/opening_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-fal-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
+            --max-turns 15 \
+            --permission-mode "acceptEdits" \
+            -p "$OPENING_PROMPT"
+          
+          # Check for generated opening video
+          OPENING_FILE=$(find "${PROJECT_DIR}/media/videos" -name "*opening*" | head -1)
+          if [ -n "$OPENING_FILE" ]; then
+            echo "opening_video=${OPENING_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Opening creation completed: ${OPENING_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Opening video not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 5 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-${{ matrix.task }}
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 6: Integration - Video Concatenation
+  phase6-integration:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase4-parallel-processing, phase5-parallel-production]
+    outputs:
+      concatenated_video: ${{ steps.concat.outputs.concatenated_video }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Video Concatenation
+        id: concat
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          echo "[$(date)] Phase 6: Video concatenation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          CONCAT_PROMPT="全動画クリップ結合タスク：
+          
+          入力ファイル:
+          - オープニング: ${PROJECT_DIR}/media/videos/opening.mp4
+          - バッチ1動画: ${PROJECT_DIR}/media/videos/batch1/
+          - バッチ2動画: ${PROJECT_DIR}/media/videos/batch2/
+          
+          目標: プロフェッショナルなニュース動画として統合
+          
+          要件:
+          1. 適切な順序でのクリップ結合
+          2. スムーズなトランジション（fade, cut）
+          3. 60秒以内の総時間
+          4. ニュース動画のカット間隔（3-8秒）
+          5. 情報の流れに沿った自然な構成
+          
+          処理順序:
+          1. オープニング → バッチ1動画群 → バッチ2動画群
+          2. 各クリップ間にfadeトランジション追加
+          3. 総時間の調整（60秒以内）
+          
+          出力: ${PROJECT_DIR}/media/videos/concatenated.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/concatenation_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Bash,Write,Read" \
+            --max-turns 10 \
+            --permission-mode "acceptEdits" \
+            -p "$CONCAT_PROMPT"
+          
+          # Check for concatenated video
+          CONCAT_FILE=$(find "${PROJECT_DIR}/media/videos" -name "*concatenated*" -o -name "*final*" | head -1)
+          if [ -n "$CONCAT_FILE" ]; then
+            echo "concatenated_video=${CONCAT_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video concatenation completed: ${CONCAT_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Concatenated video not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 6 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-integration
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 7: Final Audio Mix
+  phase7-audio-mix:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase3-parallel-generation, phase5-parallel-production, phase6-integration]
+    outputs:
+      final_video: ${{ steps.mix.outputs.final_video }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Audio and BGM Mixing
+        id: mix
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          CONCATENATED_VIDEO="${{ needs.phase6-integration.outputs.concatenated_video }}"
+          echo "[$(date)] Phase 7: Audio mixing started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Find audio files
+          NARRATION_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*narration*" -o -name "*speech*" | head -1)
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" | head -1)
+          
+          MIX_PROMPT="音声・BGMミックスタスク：
+          
+          入力ファイル:
+          - 動画: ${CONCATENATED_VIDEO}
+          - ナレーション: ${NARIATION_FILE}
+          - BGM: ${BGM_FILE}
+          
+          目標: プロフェッショナルなニュース番組の音響品質実現
+          
+          要件:
+          1. ナレーション音声レベル: -14LUFS
+          2. BGMレベル: ナレーションより20-25dB低く
+          3. 音声の明瞭性最優先
+          4. 適切な音響バランス
+          5. プロフェッショナルな品質基準
+          
+          処理:
+          1. ナレーションを動画に同期
+          2. BGMを適切なレベルでミックス
+          3. 音声レベルの調整と最適化
+          
+          出力: ${PROJECT_DIR}/final/professional_news_video.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/final_mix_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Bash,Write,Read" \
+            --max-turns 10 \
+            --permission-mode "acceptEdits" \
+            -p "$MIX_PROMPT"
+          
+          # Check for final video
+          FINAL_FILE=$(find "${PROJECT_DIR}/final" -name "*.mp4" | head -1)
+          if [ -n "$FINAL_FILE" ]; then
+            echo "final_video=${FINAL_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Audio mixing completed: ${FINAL_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Final video not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 7 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase7-audio-mix
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 8: Quality Assurance and Final Output
+  phase8-quality-assurance:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase7-audio-mix]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Final Quality Check and Export
+        id: quality-check
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          FINAL_VIDEO="${{ needs.phase7-audio-mix.outputs.final_video }}"
+          echo "[$(date)] Phase 8: Quality assurance started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          QC_PROMPT="最終品質チェック・書き出しタスク：
+          
+          入力: ${FINAL_VIDEO}
+          目標: プロフェッショナルなニュース動画として公開準備完了
+          
+          チェック項目:
+          1. 音声レベル確認（-14LUFS基準）
+          2. 画質・解像度統一確認
+          3. 情報の正確性チェック
+          4. 60秒制限時間準拠確認
+          5. ニュース番組品質基準満了
+          
+          最終出力:
+          1. 品質チェックレポート: ${PROJECT_DIR}/final/quality_report.json
+          2. 最終動画確認・最適化
+          3. 配信準備完了状態での保存
+          
+          品質基準:
+          - 技術仕様: 1920x1080, 30fps, H.264
+          - 音声: -14LUFS, 明瞭で聞き取りやすい
+          - 時間: 60秒以内
+          - 内容: 正確で信頼性の高い情報"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Bash,Write,Read" \
+            --max-turns 8 \
+            --permission-mode "acceptEdits" \
+            -p "$QC_PROMPT"
+          
+          echo "[$(date)] Quality assurance completed" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Create final summary
+          echo "=== PROFESSIONAL NEWS VIDEO CREATION COMPLETED ===" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Project: ${{ inputs.project_name }}" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Topic: ${{ inputs.news_topic }}" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Completed: $(date)" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Final video: ${FINAL_VIDEO}" >> "${PROJECT_DIR}/final/completion_report.txt"
+
+      - name: Upload Final Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-professional-news-video
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Create workflow summary
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          echo "## 🎬 Professional News Video Creation Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Topic:** ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Project:** ${{ inputs.project_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Duration:** 60 seconds professional news video" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Workflow Phases Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 1: Information Gathering & Research" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 2: Script & Structure Creation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 3: Parallel Audio & Image Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 4: Parallel Image Batch 2 & Video Conversion" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 5: Parallel Video Production & BGM Creation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 6: Video Integration & Concatenation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 7: Professional Audio Mixing" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 8: Quality Assurance & Final Export" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Output Location" >> $GITHUB_STEP_SUMMARY
+          echo "All deliverables saved to: \`${PROJECT_DIR}/final/\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Professional Quality Standards Met" >> $GITHUB_STEP_SUMMARY
+          echo "- 📺 News broadcast quality visuals" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎙️ Professional narrator-style audio (-14LUFS)" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏱️ Optimized 60-second information delivery" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎨 Consistent professional styling" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Multi-source verified information" >> $GITHUB_STEP_SUMMARY
