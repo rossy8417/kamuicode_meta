@@ -489,51 +489,13 @@ jobs:
               echo "### 📊 実行フロー図（動的生成）" >> $GITHUB_STEP_SUMMARY
               echo '```' >> $GITHUB_STEP_SUMMARY
               
-              # JSONから動的にタスクフローを生成
-              python3 -c "
-import json
-import sys
-try:
-    with open('artifacts/optimized_task_order.json', 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    print('タスク実行フロー（動的生成・並列処理最適化済み）:')
-    print()
-    
-    if 'optimized_execution_order' in data:
-        for i, phase in enumerate(data['optimized_execution_order']):
-            phase_name = phase.get('phase', f'Phase {i+1}')
-            exec_type = phase.get('execution_type', 'sequential')
-            duration = phase.get('estimated_duration', 'N/A')
-            
-            # フェーズヘッダー
-            if exec_type == 'parallel':
-                print(f'⚡ {phase_name} [{exec_type.upper()}]')
-            else:
-                print(f'📋 {phase_name} [{exec_type.upper()}]')
-            
-            # タスク表示
-            tasks = phase.get('tasks', [])
-            for j, task in enumerate(tasks):
-                if j == len(tasks) - 1:
-                    print(f'└─ {task}')
-                else:
-                    print(f'├─ {task}')
-            
-            if i < len(data['optimized_execution_order']) - 1:
-                print('    │')
-    
-    # 最適化情報
-    if 'total_optimized_duration' in data:
-        print()
-        print(f'⏱️ 総実行時間: {data[\"total_optimized_duration\"]}')
-    if 'optimization_savings' in data:
-        print(f'📈 最適化効果: {data[\"optimization_savings\"]}')
-        
-except Exception as e:
-    print('タスクフロー情報の生成中にエラーが発生しました')
-    print(f'詳細: {str(e)}')
-" >> $GITHUB_STEP_SUMMARY
+              # JSONから動的にタスクフローを生成（単一行で実行）
+              if [ -f "artifacts/optimized_task_order.json" ]; then
+                python3 -c "import json; data=json.load(open('artifacts/optimized_task_order.json')); print('タスク実行フロー（動的生成・並列処理最適化済み）:'); print(); [print(f\"⚡ {phase.get('phase', f'Phase {i+1}')} [{phase.get('execution_type', 'sequential').upper()}]\") if phase.get('execution_type') == 'parallel' else print(f\"📋 {phase.get('phase', f'Phase {i+1}')} [{phase.get('execution_type', 'sequential').upper()}]\") for i, phase in enumerate(data.get('optimized_execution_order', []))]" >> $GITHUB_STEP_SUMMARY
+                echo "⏱️ 最適化により並列処理を活用した効率的な実行順序を生成" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "タスクフロー情報が利用できません" >> $GITHUB_STEP_SUMMARY
+              fi
               
               echo '```' >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
