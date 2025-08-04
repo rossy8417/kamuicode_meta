@@ -8,6 +8,7 @@ This document provides essential guidelines for YAML construction that Meta Work
 2. **Safely handle GitHub Actions variables**
 3. **ALWAYS use artifacts for data sharing between jobs**
 4. **Clearly define dependencies**
+5. **ALWAYS end multi-line commands with backslash (\) on each continuation line**
 
 ## 📋 YAML Construction Checklist
 
@@ -60,7 +61,48 @@ TOPIC="${{ inputs.topic }}"
 echo "Topic: $TOPIC" > summary.md
 ```
 
+#### Incomplete Multi-line Commands
+```bash
+# ❌ YAML Parser Error - Missing backslash
+run: |
+  npx @anthropic-ai/claude-code \
+    --mcp-config ".claude/mcp-kamuicode.json" \
+    --allowedTools "WebSearch,Write" \
+    --permission-mode "acceptEdits"
+    -p "$PROMPT"  # Error: This line is not part of the command!
+
+# ✅ Correct - Every continuation line ends with backslash
+run: |
+  npx @anthropic-ai/claude-code \
+    --mcp-config ".claude/mcp-kamuicode.json" \
+    --allowedTools "WebSearch,Write" \
+    --permission-mode "acceptEdits" \
+    -p "$PROMPT"
+```
+
 ### 3. ✅ Recommended Patterns
+
+#### Multi-line Command Continuation
+```bash
+# ❌ WRONG - Missing backslash causes YAML parsing error
+npx @anthropic-ai/claude-code \
+  --mcp-config ".claude/mcp-kamuicode.json" \
+  --allowedTools "WebSearch,Write" \
+  --max-turns 10 \
+  --permission-mode "acceptEdits"
+  # Next line is not part of the command!
+
+# ✅ CORRECT - All continuation lines must end with backslash
+npx @anthropic-ai/claude-code \
+  --mcp-config ".claude/mcp-kamuicode.json" \
+  --allowedTools "WebSearch,Write" \
+  --max-turns 10 \
+  --permission-mode "acceptEdits" \
+  -p "$PROMPT"
+
+# ✅ ALTERNATIVE - Single line (for shorter commands)
+npx @anthropic-ai/claude-code --mcp-config ".claude/mcp-kamuicode.json" --allowedTools "WebSearch,Write" -p "$PROMPT"
+```
 
 #### File Generation (echo method)
 ```bash
