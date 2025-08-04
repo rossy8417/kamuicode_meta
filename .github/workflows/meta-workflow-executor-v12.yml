@@ -446,16 +446,16 @@ jobs:
           2. artifacts/task_order_mermaid.mmd にMermaid図
           
           Mermaid図の要件：
-          - graph TD形式を使用
-          - 日本語のタスク名は[Task-1: 名前<br/>時間]形式
+          - graph LR形式を使用（左から右のフロー）
+          - タスク名は引用符で囲む: ["T1: 情報収集 (5分)"]
           - 依存関係を明確に矢印で表現
-          - subgraphは使用しない（シンプルな構造を維持）
-          - classDefでスタイルを定義可能
+          - 並列実行は縦に並べて同レベルに配置
+          - 色分けスタイルを使用してタスクタイプを区別
           - 正しい構文例:
-            graph TD
-              Start[開始] --> T1[Task-1: 情報収集<br/>5分]
-              T1 --> T2[Task-2: 分析<br/>10分]
-              T2 --> End[終了]
+            graph LR
+              Start["🏁 開始"] --> T1["T1: 情報収集 (5分)"]
+              T1 --> T2["T2: 分析 (10分)"]
+              T2 --> End["🏁 終了"]
           EOF
           
           npx @anthropic-ai/claude-code \
@@ -467,47 +467,13 @@ jobs:
           if [ -f "artifacts/optimized_task_order.json" ]; then
             echo "order=true" >> $GITHUB_OUTPUT
             
-            # Mermaid図の処理（v10方式 + フォールバック）
+            # Mermaid図の処理（シンプル・安全アプローチ）
             if [ -f "artifacts/task_order_mermaid.mmd" ]; then
-              # Claude Codeが生成したMermaidファイルを使用（v10方式）
-              echo "diagram<<EOF" >> $GITHUB_OUTPUT
+              # Claude Codeが生成したMermaidファイルを使用
+              echo "📊 Using Claude Code generated Mermaid diagram..."
+              echo "diagram<<MERMAID_END" >> $GITHUB_OUTPUT
               cat artifacts/task_order_mermaid.mmd >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-            elif [ -f "artifacts/professional_task_decomposition.json" ]; then
-              # フォールバック: タスク依存関係から左右フローMermaidを生成
-              echo "📊 Generating fallback Mermaid diagram from task dependencies..."
-              
-              # フォールバック: タスク依存関係から左右フローMermaidを生成
-              echo "diagram<<EOF" >> $GITHUB_OUTPUT
-              echo "graph LR" >> $GITHUB_OUTPUT
-              echo '    Start["🏁 開始"] --> T1["T1: ニュース情報収集・分析 (3-5分)"]' >> $GITHUB_OUTPUT
-              echo '    T1 --> T2["T2: 構成・台本作成 (4-6分)"]' >> $GITHUB_OUTPUT
-              echo '    T2 --> T3["T3: ナレーション音声生成 (2-3分)"]' >> $GITHUB_OUTPUT
-              echo '    T2 --> T4["T4: 画像素材生成（バッチ1） (5-7分)"]' >> $GITHUB_OUTPUT
-              echo '    T2 --> T6["T6: 画像素材生成（バッチ2） (5-7分)"]' >> $GITHUB_OUTPUT
-              echo '    T2 --> T8["T8: エンディング画像生成 (3-4分)"]' >> $GITHUB_OUTPUT
-              echo '    T4 --> T5["T5: 動画変換（バッチ1） (8-10分)"]' >> $GITHUB_OUTPUT
-              echo '    T6 --> T7["T7: 動画変換（バッチ2） (8-10分)"]' >> $GITHUB_OUTPUT
-              echo '    T8 --> T9["T9: エンディング動画変換 (6-8分)"]' >> $GITHUB_OUTPUT
-              echo '    T3 --> T10["T10: BGM生成・選択 (3-4分)"]' >> $GITHUB_OUTPUT
-              echo '    T5 --> T11["T11: 動画統合・編集 (4-5分)"]' >> $GITHUB_OUTPUT
-              echo '    T7 --> T11' >> $GITHUB_OUTPUT
-              echo '    T9 --> T11' >> $GITHUB_OUTPUT
-              echo '    T10 --> T12["T12: 音声ミックス (3-4分)"]' >> $GITHUB_OUTPUT
-              echo '    T11 --> T12' >> $GITHUB_OUTPUT
-              echo '    T12 --> T13["T13: 品質検証・最終調整 (2-3分)"]' >> $GITHUB_OUTPUT
-              echo '    T13 --> End["🏁 完了"]' >> $GITHUB_OUTPUT
-              echo "" >> $GITHUB_OUTPUT
-              echo '    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000' >> $GITHUB_OUTPUT
-              echo '    classDef sequential fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000' >> $GITHUB_OUTPUT
-              echo '    classDef parallel fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000' >> $GITHUB_OUTPUT
-              echo '    classDef critical fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#000' >> $GITHUB_OUTPUT
-              echo "" >> $GITHUB_OUTPUT
-              echo '    class Start,End startEnd' >> $GITHUB_OUTPUT
-              echo '    class T1,T2,T3,T10,T11,T12,T13 sequential' >> $GITHUB_OUTPUT
-              echo '    class T4,T6,T8 parallel' >> $GITHUB_OUTPUT
-              echo '    class T5,T7,T9,T11,T12,T13 critical' >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
+              echo "MERMAID_END" >> $GITHUB_OUTPUT
             fi
           else
             echo "order=false" >> $GITHUB_OUTPUT
