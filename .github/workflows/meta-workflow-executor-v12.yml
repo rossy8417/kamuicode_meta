@@ -467,11 +467,48 @@ jobs:
           if [ -f "artifacts/optimized_task_order.json" ]; then
             echo "order=true" >> $GITHUB_OUTPUT
             
-            # Mermaid図を環境変数に保存（改行をエスケープ）
+            # Mermaid図の処理（v10方式 + フォールバック）
             if [ -f "artifacts/task_order_mermaid.mmd" ]; then
-              DIAGRAM=$(cat artifacts/task_order_mermaid.mmd | sed ':a;N;$!ba;s/\n/\\n/g')
+              # Claude Codeが生成したMermaidファイルを使用（v10方式）
               echo "diagram<<EOF" >> $GITHUB_OUTPUT
-              echo "$DIAGRAM" >> $GITHUB_OUTPUT
+              cat artifacts/task_order_mermaid.mmd >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            elif [ -f "artifacts/professional_task_decomposition.json" ]; then
+              # フォールバック: タスク依存関係から左右フローMermaidを生成
+              echo "📊 Generating fallback Mermaid diagram from task dependencies..."
+              
+              # v10方式の左右フローMermaid生成
+              echo "diagram<<EOF" >> $GITHUB_OUTPUT
+              cat >> $GITHUB_OUTPUT << 'MERMAID_EOF'
+graph LR
+    Start["🏁 開始"] --> T1["T1: ニュース情報収集・分析 (3-5分)"]
+    T1 --> T2["T2: 構成・台本作成 (4-6分)"]
+    T2 --> T3["T3: ナレーション音声生成 (2-3分)"]
+    T2 --> T4["T4: 画像素材生成（バッチ1） (5-7分)"]
+    T2 --> T6["T6: 画像素材生成（バッチ2） (5-7分)"]
+    T2 --> T8["T8: エンディング画像生成 (3-4分)"]
+    T4 --> T5["T5: 動画変換（バッチ1） (8-10分)"]
+    T6 --> T7["T7: 動画変換（バッチ2） (8-10分)"]
+    T8 --> T9["T9: エンディング動画変換 (6-8分)"]
+    T3 --> T10["T10: BGM生成・選択 (3-4分)"]
+    T5 --> T11["T11: 動画統合・編集 (4-5分)"]
+    T7 --> T11
+    T9 --> T11
+    T10 --> T12["T12: 音声ミックス (3-4分)"]
+    T11 --> T12
+    T12 --> T13["T13: 品質検証・最終調整 (2-3分)"]
+    T13 --> End["🏁 完了"]
+
+    classDef startEnd fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px,color:#000
+    classDef sequential fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000
+    classDef parallel fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef critical fill:#ffebee,stroke:#d32f2f,stroke-width:2px,color:#000
+    
+    class Start,End startEnd
+    class T1,T2,T3,T10,T11,T12,T13 sequential
+    class T4,T6,T8 parallel
+    class T5,T7,T9,T11,T12,T13 critical
+MERMAID_EOF
               echo "EOF" >> $GITHUB_OUTPUT
             fi
           else
@@ -861,9 +898,11 @@ jobs:
           ### 最適化された実行順序図
           EOF
           
-          if [ -f "artifacts/optimized-task-order/task_order_mermaid.mmd" ]; then
+          # v10方式: 環境変数から直接Mermaidダイアグラムを表示
+          if [ -n "${{ needs.optimize-task-order.outputs.diagram }}" ]; then
+            echo "#### 📊 実行フロー図（左右フロー）" >> $GITHUB_STEP_SUMMARY
             echo '```mermaid' >> $GITHUB_STEP_SUMMARY
-            cat artifacts/optimized-task-order/task_order_mermaid.mmd >> $GITHUB_STEP_SUMMARY
+            echo "${{ needs.optimize-task-order.outputs.diagram }}" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo "*タスク順序図の生成に失敗しました*" >> $GITHUB_STEP_SUMMARY
