@@ -819,22 +819,22 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # タスク実行順序の最適化結果
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 🔄 タスク実行順序
+          echo "## 🔄 タスク実行順序" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 最適化された実行順序図" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          ### 最適化された実行順序図
-          EOF
-          
-          # Claude Codeが生成したMermaidファイルを直接表示（動的・タスク固有）
+          # Claude Codeが生成したMermaidファイルを独立したブロックとして表示
           if [ "${{ needs.optimize-task-order.outputs.mermaid_available }}" = "true" ] && [ -f "artifacts/optimized-task-order/task_order_mermaid.mmd" ]; then
             echo "#### 📊 実行フロー図（左右フロー）" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             echo '```mermaid' >> $GITHUB_STEP_SUMMARY
             cat artifacts/optimized-task-order/task_order_mermaid.mmd >> $GITHUB_STEP_SUMMARY
-            echo '' >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
-            echo '' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "*タスク順序図の生成をスキップ（Claude Codeによる動的生成が利用できませんでした）*" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
