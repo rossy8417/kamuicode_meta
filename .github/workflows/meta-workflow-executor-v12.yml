@@ -165,7 +165,13 @@ jobs:
           PRIMARY_DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
           echo "📚 Loading template for domain: $PRIMARY_DOMAIN"
           
-          # Get domain summary
+          # Get domain summary for task decomposition
+          python scripts/domain-template-loader.py \
+            --action summary-for-decomposition \
+            --domain "$PRIMARY_DOMAIN" \
+            --output artifacts/domain_decomposition_data.json
+          
+          # Also get standard summary for reference
           python scripts/domain-template-loader.py \
             --action summary \
             --domain "$PRIMARY_DOMAIN" \
@@ -177,14 +183,16 @@ jobs:
             --domain "$PRIMARY_DOMAIN" \
             --output artifacts/template_chunks.json
           
-          # Extract summary info
-          TEMPLATE_SUMMARY=$(jq -c '.' artifacts/domain_summary.json)
+          # Extract basic info only (not full JSON)
+          DOMAIN_NAME=$(jq -r '.domain_info.name' artifacts/domain_decomposition_data.json)
+          EXPERT_ROLE=$(jq -r '.domain_info.expert' artifacts/domain_decomposition_data.json)
           CHUNK_COUNT=$(jq '.total_chunks' artifacts/template_chunks.json)
           
-          echo "template_summary=$TEMPLATE_SUMMARY" >> $GITHUB_OUTPUT
+          echo "domain_name=$DOMAIN_NAME" >> $GITHUB_OUTPUT
+          echo "expert_role=$EXPERT_ROLE" >> $GITHUB_OUTPUT
           echo "chunk_count=$CHUNK_COUNT" >> $GITHUB_OUTPUT
           
-          echo "✅ Template loaded with $CHUNK_COUNT chunks"
+          echo "✅ Template loaded: $DOMAIN_NAME ($CHUNK_COUNT chunks)"
           
       - name: Upload Template Data
         uses: actions/upload-artifact@v4
@@ -272,82 +280,72 @@ jobs:
         run: |
           echo "🧠 Starting professional task decomposition..."
           
-          # Load domain summary
-          DOMAIN_SUMMARY=$(cat artifacts/domain-template-data/domain_summary.json)
-          ISSUE_CONTENT=$(cat artifacts/issue-domain-data/issue_content.txt)
-          
-          # Create decomposition prompt with domain expertise
+          # Create decomposition prompt using file references
           PRIMARY_DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
-          cat > decomposition_prompt.txt << EOF
-          あなたは${PRIMARY_DOMAIN}ドメインの専門家です。
+          EXPERT_ROLE="${{ needs.load-domain-templates.outputs.expert_role }}"
           
-          以下のドメイン情報を基に、プロフェッショナルな視点でタスクを分解してください：
+          cat > decomposition_prompt.txt << 'EOF'
+          専門的なタスク分解を実行してください。
           
-          ドメイン情報：
-          ```json
-          ${DOMAIN_SUMMARY}
-          ```
+          以下のファイルを読み込んでタスク分解を行ってください：
+          1. ドメイン専門知識: artifacts/domain-template-data/domain_decomposition_data.json
+          2. ユーザーリクエスト: artifacts/issue-domain-data/issue_content.txt
           
-          ユーザーのリクエスト：
-          ```
-          ${ISSUE_CONTENT}
-          ```
+          ドメイン専門知識ファイルには以下が含まれています：
+          - expert_context: 専門家の完全な知識
+          - task_decomposition_context: ワークフローパターンと最適化情報
+          - constraints_and_requirements: すべての制約事項
+          - implementation_resources: 利用可能なリソース
+          - complex_thinking_guide: 思考プロセスのガイド
           
-          以下の形式でタスクを分解してください：
+          タスク分解の手順：
+          1. domain_decomposition_data.jsonのexpert_contextを完全に理解
+          2. task_decomposition_contextのワークフローパターンを参照
+          3. constraints_and_requirementsのすべての制約を考慮
+          4. complex_thinking_guideに従って複雑な思考プロセスを実行
+          5. implementation_resourcesから最適なリソースを選択
           
-          1. 専門家視点での要求分析
-          2. 必要なタスクの洗い出し（プロの実務フローに基づく）
-          3. タスク間の依存関係（データフローベース）
-          4. 並列実行可能なタスクグループ
-          5. 各タスクの推定所要時間
-          6. 使用するミニマルユニット
-          7. 専門的な制約条件の考慮
+          出力をartifacts/professional_task_decomposition.jsonに保存してください。
           
           出力形式：
-          ```json
           {
-            "professional_analysis": "専門家視点での分析",
+            "professional_analysis": {
+              "understanding": "リクエストの専門的理解（詳細）",
+              "considerations": ["考慮事項のリスト"],
+              "thinking_process": "思考プロセスの詳細な記録"
+            },
             "tasks": [
               {
                 "id": "task-1",
                 "name": "タスク名",
-                "description": "詳細説明",
+                "description": "詳細な説明",
+                "reasoning": "なぜこのタスクが必要か",
                 "minimal_units": ["unit1", "unit2"],
                 "dependencies": [],
-                "estimated_duration": "5分",
-                "professional_notes": "専門的な注意点"
+                "estimated_duration": "5-10分",
+                "professional_notes": "専門的な注意点",
+                "quality_criteria": "品質基準"
               }
             ],
-            "dependency_groups": [
-              {
-                "group": 1,
-                "parallel_tasks": ["task-1", "task-2"],
-                "can_start": "immediately"
-              }
-            ],
+            "workflow_optimization": {
+              "parallel_groups": [],
+              "critical_path": [],
+              "optimization_rationale": "最適化の理由"
+            },
             "total_estimated_duration": "30分",
             "domain_specific_constraints": []
           }
-          ```
           EOF
           
-          # Replace variables in prompt
-          export DOMAIN_SUMMARY
-          export ISSUE_CONTENT
-          envsubst < decomposition_prompt.txt > final_prompt.txt
-          
-          # Create a specific prompt that instructs Claude to write to a specific file
-          PRIMARY_DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
-          echo "あなたは${PRIMARY_DOMAIN}ドメインの専門家です。" > final_prompt_with_path.txt
-          echo "" >> final_prompt_with_path.txt
-          echo "以下の内容をファイル 'artifacts/professional_task_decomposition.json' に書き込んでください。" >> final_prompt_with_path.txt
-          echo "" >> final_prompt_with_path.txt
-          cat final_prompt.txt >> final_prompt_with_path.txt
+          # Add expert role context
+          echo "あなたは${EXPERT_ROLE}です。" > final_prompt.txt
+          echo "" >> final_prompt.txt
+          cat decomposition_prompt.txt >> final_prompt.txt
           
           # Execute Claude Code for task decomposition
           npx @anthropic-ai/claude-code \
-            -p "$(cat final_prompt_with_path.txt)" \
-            --allowedTools "Write" \
+            -p "$(cat final_prompt.txt)" \
+            --allowedTools "Read,Write" \
             --permission-mode "acceptEdits" \
             > claude_output.log 2>&1
           
