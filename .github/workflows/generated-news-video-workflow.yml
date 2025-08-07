@@ -524,31 +524,32 @@ jobs:
           
           VIDEO1_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene1_video.mp4"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$VIDEO1_PROMPT"
-          
-          # Check for generated video with retry mechanism
-          for retry in 1 2; do
+          # 3-attempt retry logic for Video 1 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 1 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --max-turns 40 \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO1_PROMPT"
+            
+            # Success check with file size validation
             VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" | head -1)
-            if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ]; then
+            if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ -s "$VIDEO1_FILE" ]; then
+              echo "[$(date)] Video 1 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO1_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
-              echo "[$(date)] Video 1 completed: ${VIDEO1_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
               break
-            elif [ $retry -eq 1 ]; then
-              echo "[$(date)] Retry $retry: Video 1 not found, retrying with alternative service..." >> "${PROJECT_DIR}/logs/execution.log"
-              npx @anthropic-ai/claude-code \
-                --mcp-config ".claude/mcp-kamuicode.json" \
-                --allowedTools "i2v-kamui-hailuo-02-fast,Write,Read" \
-                --max-turns 40 \
-                --permission-mode "acceptEdits" \
-                -p "$VIDEO1_PROMPT"
             else
-              echo "[$(date)] WARNING: Video 1 not generated after retries, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
-              echo "video1_path=placeholder" >> $GITHUB_OUTPUT
+              echo "[$(date)] Video 1 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 1, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video1_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 1 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
             fi
           done
 
@@ -582,38 +583,36 @@ jobs:
           echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO2_PROMPT="単独画像→動画変換タスク（Video 2）：
+          VIDEO2_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene2_video.mp4"
           
-          入力画像: ${IMAGE2_PATH}
-          目標: シーン2の画像を6-8秒の動画クリップに変換
-          
-          要件:
-          1. ニュース番組らしい自然な動き
-          2. 過度なモーションを避けた上品な動き
-          3. static, pan, zoomの効果的活用
-          4. プロフェッショナルな品質基準
-          5. 16:9アスペクト比維持
-          
-          処理: Image 2から Video 2への即座変換（URL有効期限対策）
-          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4
-          メタデータ: ${PROJECT_DIR}/metadata/video2_metadata.json"
-          
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$VIDEO2_PROMPT"
-          
-          # Check for generated video
-          VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*" -o -name "*video2*" | head -1)
-          if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ]; then
-            echo "video2_path=${VIDEO2_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video 2 completed: ${VIDEO2_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] WARNING: Video 2 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
-            echo "video2_path=placeholder" >> $GITHUB_OUTPUT
-          fi
+          # 3-attempt retry logic for Video 2 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 2 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --max-turns 40 \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO2_PROMPT"
+            
+            # Success check with file size validation
+            VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*" -o -name "*video2*" | head -1)
+            if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ] && [ -s "$VIDEO2_FILE" ]; then
+              echo "[$(date)] Video 2 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO2_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video2_path=${VIDEO2_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 2 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video2_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 2 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
 
       - name: Upload Video 2 artifacts
         uses: actions/upload-artifact@v4
@@ -645,38 +644,36 @@ jobs:
           echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO3_PROMPT="単独画像→動画変換タスク（Video 3）：
+          VIDEO3_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene3_video.mp4"
           
-          入力画像: ${IMAGE3_PATH}
-          目標: シーン3の画像を6-8秒の動画クリップに変換
-          
-          要件:
-          1. ニュース番組らしい自然な動き
-          2. 過度なモーションを避けた上品な動き
-          3. static, pan, zoomの効果的活用
-          4. プロフェッショナルな品質基準
-          5. 16:9アスペクト比維持
-          
-          処理: Image 3から Video 3への即座変換（URL有効期限対策）
-          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4
-          メタデータ: ${PROJECT_DIR}/metadata/video3_metadata.json"
-          
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$VIDEO3_PROMPT"
-          
-          # Check for generated video
-          VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*" -o -name "*video3*" | head -1)
-          if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ]; then
-            echo "video3_path=${VIDEO3_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video 3 completed: ${VIDEO3_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] WARNING: Video 3 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
-            echo "video3_path=placeholder" >> $GITHUB_OUTPUT
-          fi
+          # 3-attempt retry logic for Video 3 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 3 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --max-turns 40 \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO3_PROMPT"
+            
+            # Success check with file size validation
+            VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*" -o -name "*video3*" | head -1)
+            if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ] && [ -s "$VIDEO3_FILE" ]; then
+              echo "[$(date)] Video 3 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO3_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video3_path=${VIDEO3_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 3 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video3_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 3 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
 
       - name: Upload Video 3 artifacts
         uses: actions/upload-artifact@v4
@@ -757,38 +754,36 @@ jobs:
           echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO5_PROMPT="単独画像→動画変換タスク（Video 5）：
+          VIDEO5_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene5_video.mp4"
           
-          入力画像: ${IMAGE5_PATH}
-          目標: シーン5の画像を6-8秒の動画クリップに変換
-          
-          要件:
-          1. ニュース番組らしい自然な動き
-          2. 過度なモーションを避けた上品な動き
-          3. static, pan, zoomの効果的活用
-          4. プロフェッショナルな品質基準
-          5. 16:9アスペクト比維持
-          
-          処理: Image 5から Video 5への即座変換（URL有効期限対策）
-          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4
-          メタデータ: ${PROJECT_DIR}/metadata/video5_metadata.json"
-          
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$VIDEO5_PROMPT"
-          
-          # Check for generated video
-          VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*" -o -name "*video5*" | head -1)
-          if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ]; then
-            echo "video5_path=${VIDEO5_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video 5 completed: ${VIDEO5_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] WARNING: Video 5 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
-            echo "video5_path=placeholder" >> $GITHUB_OUTPUT
-          fi
+          # 3-attempt retry logic for Video 5 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 5 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --max-turns 40 \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO5_PROMPT"
+            
+            # Success check with file size validation
+            VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*" -o -name "*video5*" | head -1)
+            if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ] && [ -s "$VIDEO5_FILE" ]; then
+              echo "[$(date)] Video 5 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO5_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video5_path=${VIDEO5_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 5 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video5_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 5 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
 
       - name: Upload Video 5 artifacts
         uses: actions/upload-artifact@v4
