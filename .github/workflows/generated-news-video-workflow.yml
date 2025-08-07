@@ -900,32 +900,7 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           echo "[$(date)] Phase 6: Video concatenation started [Fan-in Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
           
-          CONCAT_PROMPT="全動画クリップ結合タスク：
-          
-          入力ファイル (個別動画):
-          - オープニング: ${PROJECT_DIR}/media/videos/opening.mp4
-          - 個別動画1: ${{ needs.phase4-image1-to-video1.outputs.video1_path }}
-          - 個別動画2: ${{ needs.phase4-image2-to-video2.outputs.video2_path }}
-          - 個別動画3: ${{ needs.phase4-image3-to-video3.outputs.video3_path }}
-          - 個別動画4: ${{ needs.phase4-image4-to-video4.outputs.video4_path }}
-          - 個別動画5: ${{ needs.phase4-image5-to-video5.outputs.video5_path }}
-          
-          目標: プロフェッショナルなニュース動画として統合
-          
-          要件:
-          1. 適切な順序での個別クリップ結合
-          2. スムーズなトランジション（fade, cut）
-          3. 60秒以内の総時間
-          4. ニュース動画のカット間隔（3-8秒）
-          5. 情報の流れに沿った自然な構成
-          
-          処理順序:
-          1. オープニング → 個別動画1 → 個別動画2 → 個別動画3 → 個別動画4 → 個別動画5
-          2. 各クリップ間にfadeトランジション追加
-          3. 総時間の調整（60秒以内）
-          
-          出力: ${PROJECT_DIR}/media/videos/concatenated.mp4
-          メタデータ: ${PROJECT_DIR}/metadata/concatenation_metadata.json"
+          CONCAT_PROMPT="Concatenate video clips: Combine opening + 5 individual videos with smooth transitions, 60s max. Output: concatenated.mp4"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
