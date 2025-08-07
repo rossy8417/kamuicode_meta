@@ -60,7 +60,7 @@ mcp__${serverName}__${toolName}
 ```
 
 Examples:
-- `mcp__t2i-google-imagen3__imagen_t2i`
+- `mcp__t2i-kamui-imagen3__imagen_t2i`
 - `mcp__filesystem__read_file`
 - `mcp__web-search__search`
 
@@ -90,7 +90,7 @@ Examples:
     npx @anthropic-ai/claude-code \
       -p "Generate an image of a sunset" \
       --mcp-config ".claude/mcp-kamuicode.json" \
-      --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Write" \
+      --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write" \
       --permission-mode "acceptEdits"
 ```
 
@@ -138,7 +138,7 @@ Examples:
 
 ### Image Generation
 ```bash
---allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Write"
+--allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write"
 ```
 
 ### File System Operations

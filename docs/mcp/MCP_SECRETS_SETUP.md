@@ -26,15 +26,15 @@ Use GitHub Secrets with environment variable substitution in workflows.
    ```json
    {
      "mcpServers": {
-       "t2i-google-imagen3": {
+       "t2i-kamui-imagen3": {
          "type": "http",
          "url": "${MCP_T2I_IMAGEN3_URL}",
-         "description": "Google Imagen3 image generation"
+         "description": "Google Imagen3 image generation via Kamui Code"
        },
-       "t2v-fal-veo3-fast": {
+       "t2v-kamui-veo3-fast": {
          "type": "http", 
          "url": "${MCP_T2V_VEO3_URL}",
-         "description": "Fast text-to-video generation"
+         "description": "Fast text-to-video generation via Kamui Code"
        }
      }
    }
@@ -62,15 +62,15 @@ Generate the MCP configuration file dynamically in workflows.
     cat > .claude/mcp-kamuicode.json << 'EOF'
     {
       "mcpServers": {
-        "t2i-google-imagen3": {
+        "t2i-kamui-imagen3": {
           "type": "http",
           "url": "${{ secrets.MCP_T2I_IMAGEN3_URL }}",
-          "description": "Google Imagen3 image generation"
+          "description": "Google Imagen3 image generation via Kamui Code"
         },
-        "t2v-fal-veo3-fast": {
+        "t2v-kamui-veo3-fast": {
           "type": "http",
           "url": "${{ secrets.MCP_T2V_VEO3_URL }}",
-          "description": "Fast text-to-video generation"
+          "description": "Fast text-to-video generation via Kamui Code"
         }
       }
     }
@@ -90,9 +90,9 @@ Generate the MCP configuration file dynamically in workflows.
 MCP_{SERVICE_TYPE}_{PROVIDER}_{MODEL}_URL
 
 Examples:
-- MCP_T2I_GOOGLE_IMAGEN3_URL
-- MCP_T2V_FAL_VEO3_URL
-- MCP_I2V_FAL_HAILUO_URL
+- MCP_T2I_KAMUI_IMAGEN3_URL
+- MCP_T2V_KAMUI_VEO3_URL
+- MCP_I2V_KAMUI_HAILUO_URL
 ```
 
 ## Implementation Examples
@@ -115,10 +115,10 @@ jobs:
           cat > .claude/mcp-kamuicode.json << 'EOF'
           {
             "mcpServers": {
-              "t2i-google-imagen3": {
+              "t2i-kamui-imagen3": {
                 "type": "http",
                 "url": "${{ secrets.MCP_T2I_IMAGEN3_URL }}",
-                "description": "Google Imagen3 image generation"
+                "description": "Google Imagen3 image generation via Kamui Code"
               }
             }
           }
@@ -136,9 +136,9 @@ jobs:
           CLAUDE_CODE_AUTO_APPROVE_MCP: "true"
         with:
           mcp_config: ".claude/mcp-kamuicode.json"
-          allowed_tools: "mcp__t2i-google-imagen3__*"
+          allowed_tools: "mcp__t2i-kamui-imagen3__*"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: "Generate an image using t2i-google-imagen3"
+          prompt: "Generate an image using t2i-kamui-imagen3"
 ```
 
 ## Troubleshooting

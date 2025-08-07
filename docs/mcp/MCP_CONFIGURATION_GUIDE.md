@@ -22,31 +22,43 @@ This guide documents how to configure MCP (Model Control Protocol) services for 
 }
 ```
 
-## Available MCP Service Types (44+ Services Total)
+## Available MCP Service Types (50+ Services Total)
 
-### AI Generation Services (24 Services)
+### AI Generation Services (35+ Services via Kamui Code)
+
+⭐ **NEW**: All AI generation services are now unified under the `kamui-code.ai` domain for improved reliability and performance.
+
+#### Unified Service
+- `kamui-code`: 🚀 Unified MCP Server providing access to all AI models ⭐⭐⭐
 
 #### Text-to-Image (T2I) Services
 Services that generate images from text descriptions:
-- `t2i-google-imagen3`: Google's image generation model
-- `t2i-fal-imagen4-ultra`: High-quality image generation ⭐
-- `t2i-fal-imagen4-fast`: Speed-optimized image generation ⭐
-- `t2i-fal-flux-schnell`: Fast image generation ⭐
-- `t2i-fal-rundiffusion-photo-flux`: Photorealistic image generation ⭐
+- `t2i-kamui-imagen3`: Google Imagen 3 via Kamui Code ⭐
+- `t2i-kamui-imagen4-ultra`: Imagen4 Ultra (High Quality) via Kamui Code ⭐
+- `t2i-kamui-imagen4-fast`: Imagen4 Fast (Speed Optimized) via Kamui Code ⭐
+- `t2i-kamui-flux-schnell`: Flux-1 Schnell (Fast) via Kamui Code ⭐
+- `t2i-kamui-flux-krea-lora`: FLUX Krea LoRA via Kamui Code ⭐
+- `t2i-kamui-qwen-image`: Qwen-Image via Kamui Code ⭐
+- `t2i-kamui-wan-v2-2-a14b`: WAN v2.2-a14b Text-to-Image via Kamui Code ⭐
 
 ### Text-to-Video (T2V) Services
 Services that create videos from text prompts:
-- `t2v-fal-veo3-fast`: Fast text-to-video generation ⭐
-- `t2v-fal-wan-v2-2-a14b-t2v`: High-quality video with visual quality and motion diversity ⭐
+- `t2v-kamui-veo3-fast`: Veo3 Fast Text-to-Video via Kamui Code ⭐
+- `t2v-kamui-wan-v2-2-a14b`: WAN v2.2-a14b Text-to-Video via Kamui Code ⭐
+- `t2v-kamui-wan-v2-2-5b-fast`: WAN v2.2-5b FastVideo via Kamui Code ⭐
 
 ### Image-to-Video (I2V) Services
 Services that animate static images into videos:
-- `i2v-fal-hailuo-02-pro`: Professional image-to-video animation ⭐
-- `i2v-fal-bytedance-seedance-v1-lite`: Lightweight image animation ⭐
+- `i2v-kamui-hailuo-02-pro`: Hailuo-02 Pro Image-to-Video via Kamui Code ⭐
+- `i2v-kamui-hailuo-02-fast`: Hailuo-02 Fast Image-to-Video via Kamui Code ⭐
+- `i2v-kamui-veo3-fast`: Veo3 Fast Image-to-Video via Kamui Code ⭐
+- `i2v-kamui-seedance-v1-lite`: ByteDance Seedance V1 Lite via Kamui Code ⭐
+- `i2v-kamui-wan-v2-2-a14b`: WAN v2.2-a14b Image-to-Video via Kamui Code ⭐
+- `i2v-kamui-omnihuman`: ByteDance OmniHuman I2V via Kamui Code ⭐
 
 ### Text-to-Music (T2M) Services
 Services that compose music from text descriptions:
-- `t2m-google-lyria`: Google's music generation model ⭐
+- `t2m-kamui-lyria`: Google Lyria Text-to-Music via Kamui Code ⭐
 
 ### Text-to-Speech (T2S) Services
 Services that convert text to spoken audio:
@@ -190,12 +202,12 @@ jobs:
           # ... other API keys as needed
         with:
           prompt: |
-            Use t2i-google-imagen3 to generate an image.
+            Use t2i-kamui-imagen3 to generate an image.
             Save the result with full URL.
           system_prompt: |
             You are Claude Code in CI/CD. All MCP tools are pre-authorized.
           mcp_config: ".claude/mcp-kamuicode.json"  # ← Critical: This references the JSON file
-          allowed_tools: "View,mcp__t2i-google-imagen3__*,Bash,Write"
+          allowed_tools: "View,mcp__t2i-kamui-imagen3__*,Bash,Write"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
 
@@ -216,7 +228,7 @@ jobs:
 
 3. **Allowed Tools Pattern**:
    - Format: `mcp__service-name__*`
-   - Example: `mcp__t2i-google-imagen3__*`
+   - Example: `mcp__t2i-kamui-imagen3__*`
    - The service name MUST match exactly what's in the JSON file
 
 4. **System Prompt**:
@@ -243,7 +255,7 @@ jobs:
   with:
     prompt: |
       1. Read concept from generated/concept/plan.json
-      2. Generate 5 key scene images using t2i-google-imagen3
+      2. Generate 5 key scene images using t2i-kamui-imagen3
       3. Style: cinematic
       4. Download images using FULL URLs
       5. Save results to generated/images/results.json
@@ -251,7 +263,7 @@ jobs:
       You are Claude Code in CI/CD. All MCP tools are pre-authorized.
       Use FULL URLs from MCP responses!
     mcp_config: ".claude/mcp-kamuicode.json"
-    allowed_tools: "View,mcp__t2i-google-imagen3__*,Bash,Write,Read"
+    allowed_tools: "View,mcp__t2i-kamui-imagen3__*,Bash,Write,Read"
     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
     max_turns: "20"
 ```
@@ -298,8 +310,8 @@ jobs:
 
 3. **Verify service names match**:
    The service name in `allowed_tools` must exactly match the key in the JSON:
-   - JSON: `"t2i-google-imagen3": { ... }`
-   - Workflow: `allowed_tools: "mcp__t2i-google-imagen3__*"`
+   - JSON: `"t2i-kamui-imagen3": { ... }`
+   - Workflow: `allowed_tools: "mcp__t2i-kamui-imagen3__*"`
 
 ## External API Configuration
 

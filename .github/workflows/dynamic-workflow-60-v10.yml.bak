@@ -258,7 +258,7 @@ jobs:
           **Quality**: high
           
           Steps:
-          1. Use mcp__t2i-kamui-imagen3__imagen_t2i to start image generation
+          1. Use mcp__t2i-google-imagen3__imagen_t2i to start image generation
           2. Save the image URL to ${{ needs.setup.outputs.project_dir }}/media/image-url.txt
           3. Download the image to ${{ needs.setup.outputs.project_dir }}/media/image.png using curl
           
@@ -267,7 +267,7 @@ jobs:
           npx @anthropic-ai/claude-code \
             -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Bash,Write" \
+            --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Bash,Write" \
             --permission-mode "acceptEdits"
           
           # 結果確認
@@ -340,9 +340,9 @@ jobs:
           **Language**: Japanese
           
           Steps:
-          1. Use mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit to generate speech
-          2. Monitor status with mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status
-          3. Get result with mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result
+          1. Use mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit to generate speech
+          2. Monitor status with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status
+          3. Get result with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result
           4. Save the audio URL to ${{ needs.setup.outputs.project_dir }}/media/narration-url.txt
           5. Download the audio to ${{ needs.setup.outputs.project_dir }}/media/narration.mp3 using curl
           
@@ -351,7 +351,7 @@ jobs:
           npx @anthropic-ai/claude-code \
             -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result,Bash,Write" \
+            --allowedTools "mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result,Bash,Write" \
             --permission-mode "acceptEdits"
           
           # 結果確認
@@ -447,11 +447,11 @@ jobs:
           **Motion Prompt**: $VIDEO_CONCEPT
           
           Steps:
-          1. Use mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit with:
+          1. Use mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit with:
              - image_url: $IMAGE_URL
              - prompt: $VIDEO_CONCEPT
-          2. Monitor status with mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status
-          3. Get result with mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result
+          2. Monitor status with mcp__i2v-fal-hailuo-02-pro__hailuo_02_status
+          3. Get result with mcp__i2v-fal-hailuo-02-pro__hailuo_02_result
           4. Save video URL to ${{ needs.setup.outputs.project_dir }}/media/video-url.txt
           5. Download the video file to ${{ needs.setup.outputs.project_dir }}/media/
           6. After download, rename the file to video.mp4 if needed:
@@ -463,7 +463,7 @@ jobs:
           npx @anthropic-ai/claude-code \
             -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Bash,Write" \
+            --allowedTools "mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit,mcp__i2v-fal-hailuo-02-pro__hailuo_02_status,mcp__i2v-fal-hailuo-02-pro__hailuo_02_result,Bash,Write" \
             --permission-mode "acceptEdits"
           
           # 結果確認とファイル名修正
@@ -558,7 +558,7 @@ jobs:
           - Audio: ${{ needs.setup.outputs.project_dir }}/media/narration.mp3 (TTS narration)
           
           **Task**:
-          1. Apply lipsync using mcp__v2v-kamui-pixverse-lipsync__pixverse_lipsync_submit/status/result
+          1. Apply lipsync using mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_submit/status/result
           2. Download the lipsync result
           3. **CRITICAL**: Check if the lipsync output contains audio using ffprobe:
              - Run: ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 [video_file]
@@ -573,7 +573,7 @@ jobs:
           npx @anthropic-ai/claude-code \
             -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__v2v-kamui-pixverse-lipsync__pixverse_lipsync_submit,mcp__v2v-kamui-pixverse-lipsync__pixverse_lipsync_status,mcp__v2v-kamui-pixverse-lipsync__pixverse_lipsync_result,Bash,Write,Read" \
+            --allowedTools "mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_submit,mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_status,mcp__v2v-fal-pixverse-lipsync__pixverse_lipsync_result,Bash,Write,Read" \
             --permission-mode "acceptEdits"
           
           # 結果確認

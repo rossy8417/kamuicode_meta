@@ -304,19 +304,19 @@ jobs:
           case "${{ github.event.inputs.quality_setting }}" in
             ultra)
               MODEL="t2i-google-imagen3"
-              SUBMIT_TOOL="mcp__t2i-kamui-imagen3__imagen_t2i"
+              SUBMIT_TOOL="mcp__t2i-google-imagen3__imagen_t2i"
               ;;
             high)
               MODEL="t2i-fal-imagen4-ultra"
-              SUBMIT_TOOL="mcp__t2i-kamui-imagen4-ultra__imagen4_ultra_submit"
-              STATUS_TOOL="mcp__t2i-kamui-imagen4-ultra__imagen4_ultra_status"
-              RESULT_TOOL="mcp__t2i-kamui-imagen4-ultra__imagen4_ultra_result"
+              SUBMIT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit"
+              STATUS_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status"
+              RESULT_TOOL="mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result"
               ;;
             standard)
               MODEL="t2i-fal-imagen4-fast"
-              SUBMIT_TOOL="mcp__t2i-kamui-imagen4-fast__imagen4_fast_submit"
-              STATUS_TOOL="mcp__t2i-kamui-imagen4-fast__imagen4_fast_status"
-              RESULT_TOOL="mcp__t2i-kamui-imagen4-fast__imagen4_fast_result"
+              SUBMIT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_submit"
+              STATUS_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_status"
+              RESULT_TOOL="mcp__t2i-fal-imagen4-fast__imagen4_fast_result"
               ;;
           esac
           
@@ -467,7 +467,7 @@ jobs:
           **Tempo**: $TEMPO BPM
           
           Steps:
-          1. Use mcp__t2m-kamui-lyria__lyria_generate to generate music
+          1. Use mcp__t2m-google-lyria__lyria_generate to generate music
           2. Save the audio URL to ${{ env.PROJECT_DIR }}/audio/bgm-url.txt
           3. Download the audio to ${{ env.PROJECT_DIR }}/audio/bgm.mp3
           4. Create metadata file at ${{ env.PROJECT_DIR }}/audio/bgm_metadata.json with all parameters
@@ -478,7 +478,7 @@ jobs:
           npx @anthropic-ai/claude-code \
             -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2m-kamui-lyria__lyria_generate,Bash,Write" \
+            --allowedTools "mcp__t2m-google-lyria__lyria_generate,Bash,Write" \
             --permission-mode "acceptEdits"
           
           # フォールバック: BGMが生成されない場合は仮のBGMを作成
@@ -594,9 +594,9 @@ jobs:
           **Language**: Japanese
           
           Steps:
-          1. Use mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit to generate speech
-          2. Monitor status with mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status
-          3. Get result with mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result
+          1. Use mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit to generate speech
+          2. Monitor status with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status
+          3. Get result with mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result
           4. Save the audio URL to ${{ env.PROJECT_DIR }}/audio/narration-url.txt
           5. Download the audio to ${{ env.PROJECT_DIR }}/audio/narration.mp3 using curl
           6. Use ffprobe to get duration and save to ${{ env.PROJECT_DIR }}/audio/narration-duration.txt
@@ -607,7 +607,7 @@ jobs:
           npx @anthropic-ai/claude-code \
             -p "$CLAUDE_PROMPT" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result,Bash,Write" \
+            --allowedTools "mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_submit,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_status,mcp__t2s-fal-minimax-speech-02-turbo__minimax_speech_02_turbo_result,Bash,Write" \
             --permission-mode "acceptEdits" || true
           
           # 結果確認とフォールバック
@@ -733,15 +733,15 @@ jobs:
           case "${{ github.event.inputs.quality_setting }}" in
             ultra)
               MODEL="i2v-fal-hailuo-02-pro"
-              SUBMIT_TOOL="mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit"
-              STATUS_TOOL="mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status"
-              RESULT_TOOL="mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result"
+              SUBMIT_TOOL="mcp__i2v-fal-hailuo-02-pro__hailuo_02_submit"
+              STATUS_TOOL="mcp__i2v-fal-hailuo-02-pro__hailuo_02_status"
+              RESULT_TOOL="mcp__i2v-fal-hailuo-02-pro__hailuo_02_result"
               ;;
             *)
               MODEL="i2v-fal-bytedance-seedance-v1-lite"
-              SUBMIT_TOOL="mcp__i2v-kamui-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_submit"
-              STATUS_TOOL="mcp__i2v-kamui-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_status"
-              RESULT_TOOL="mcp__i2v-kamui-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_result"
+              SUBMIT_TOOL="mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_submit"
+              STATUS_TOOL="mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_status"
+              RESULT_TOOL="mcp__i2v-fal-bytedance-seedance-v1-lite__bytedance_seedance_v1_lite_i2v_result"
               ;;
           esac
           
