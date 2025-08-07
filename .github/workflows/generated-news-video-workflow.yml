@@ -181,7 +181,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 3: Audio generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3: Audio generation started [Fan-out Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
           
           AUDIO_PROMPT="Generate Japanese news narration: Professional announcer voice, clear pronunciation, -14LUFS level. Input: ${SCRIPT_DATA}. Output: narration.mp3"
           
@@ -229,24 +229,10 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 3B1: Image 1 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3B1: Image 1 generation started [Data Parallelism 1/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE1_PROMPT="単独画像生成タスク（Image 1）：
-          
-          入力: ${SCRIPT_DATA}
-          目標: シーン1用の単独高品質ニュース画像生成
-          
-          要件:
-          1. プロフェッショナルなニュース番組スタイル
-          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
-          3. Rule of thirdsに従った構図
-          4. 16:9アスペクト比、1920x1080解像度
-          5. ニュース内容と一致する視覚的インパクト
-          
-          処理: スクリプトのシーン1用の画像プロンプトを使用して1枚の画像生成
-          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene1.png
-          メタデータ: ${PROJECT_DIR}/metadata/image1_metadata.json"
+          IMAGE1_PROMPT="Generate scene 1 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene1.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -291,24 +277,10 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 3B2: Image 2 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3B2: Image 2 generation started [Data Parallelism 2/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE2_PROMPT="単独画像生成タスク（Image 2）：
-          
-          入力: ${SCRIPT_DATA}
-          目標: シーン2用の単独高品質ニュース画像生成
-          
-          要件:
-          1. プロフェッショナルなニュース番組スタイル
-          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
-          3. Rule of thirdsに従った構図
-          4. 16:9アスペクト比、1920x1080解像度
-          5. ニュース内容と一致する視覚的インパクト
-          
-          処理: スクリプトのシーン2用の画像プロンプトを使用して1枚の画像生成
-          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene2.png
-          メタデータ: ${PROJECT_DIR}/metadata/image2_metadata.json"
+          IMAGE2_PROMPT="Generate scene 2 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene2.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -353,7 +325,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 3B3: Image 3 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3B3: Image 3 generation started [Data Parallelism 3/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
           IMAGE3_PROMPT="Generate scene 3 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Output: scene3.png"
@@ -401,24 +373,10 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 3B4: Image 4 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3B4: Image 4 generation started [Data Parallelism 4/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE4_PROMPT="単独画像生成タスク（Image 4）：
-          
-          入力: ${SCRIPT_DATA}
-          目標: シーン4用の単独高品質ニュース画像生成
-          
-          要件:
-          1. プロフェッショナルなニュース番組スタイル
-          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
-          3. Rule of thirdsに従った構図
-          4. 16:9アスペクト比、1920x1080解像度
-          5. ニュース内容と一致する視覚的インパクト
-          
-          処理: スクリプトのシーン4用の画像プロンプトを使用して1枚の画像生成
-          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene4.png
-          メタデータ: ${PROJECT_DIR}/metadata/image4_metadata.json"
+          IMAGE4_PROMPT="Generate scene 4 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene4.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -463,24 +421,10 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 3B5: Image 5 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3B5: Image 5 generation started [Data Parallelism 5/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE5_PROMPT="単独画像生成タスク（Image 5）：
-          
-          入力: ${SCRIPT_DATA}
-          目標: シーン5用の単独高品質ニュース画像生成
-          
-          要件:
-          1. プロフェッショナルなニュース番組スタイル
-          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
-          3. Rule of thirdsに従った構図
-          4. 16:9アスペクト比、1920x1080解像度
-          5. ニュース内容と一致する視覚的インパクト
-          
-          処理: スクリプトのシーン5用の画像プロンプトを使用して1枚の画像生成
-          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene5.png
-          メタデータ: ${PROJECT_DIR}/metadata/image5_metadata.json"
+          IMAGE5_PROMPT="Generate scene 5 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene5.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -526,7 +470,7 @@ jobs:
         id: bgm
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          echo "[$(date)] Phase 3C: BGM generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3C: BGM generation started [Independent Task Parallelization]" >> "${PROJECT_DIR}/logs/execution.log"
           
           BGM_PROMPT="Generate professional news BGM: 60s instrumental, subtle, trust/urgency balance, -25dB below narration. Output: bgm.mp3"
           
@@ -575,7 +519,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE1_PATH="${{ needs.phase3-image1-generation.outputs.image1_path }}"
-          echo "[$(date)] Phase 4.1: Image 1 → Video 1 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 4.1: Image 1 → Video 1 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           VIDEO1_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene1_video.mp4"
@@ -635,7 +579,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE2_PATH="${{ needs.phase3-image2-generation.outputs.image2_path }}"
-          echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           VIDEO2_PROMPT="単独画像→動画変換タスク（Video 2）：
@@ -698,7 +642,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE3_PATH="${{ needs.phase3-image3-generation.outputs.image3_path }}"
-          echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           VIDEO3_PROMPT="単独画像→動画変換タスク（Video 3）：
@@ -761,7 +705,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE4_PATH="${{ needs.phase3-image4-generation.outputs.image4_path }}"
-          echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           VIDEO4_PROMPT="単独画像→動画変換タスク（Video 4）：
@@ -824,7 +768,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE5_PATH="${{ needs.phase3-image5-generation.outputs.image5_path }}"
-          echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           VIDEO5_PROMPT="単独画像→動画変換タスク（Video 5）：
@@ -954,7 +898,7 @@ jobs:
         id: concat
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          echo "[$(date)] Phase 6: Video concatenation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 6: Video concatenation started [Fan-in Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
           
           CONCAT_PROMPT="全動画クリップ結合タスク：
           
