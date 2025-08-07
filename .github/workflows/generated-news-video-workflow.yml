@@ -283,10 +283,71 @@ jobs:
           name: phase3-images-batch1
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
+  # Phase 3C: BGM Generation (Independent Job) - Relocated from Phase 5
+  phase3-bgm-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      bgm_file: ${{ steps.bgm.outputs.bgm_file }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: BGM Generation Task
+        id: bgm
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          echo "[$(date)] Phase 3C: BGM generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          BGM_PROMPT="BGM・効果音生成・選択タスク：
+          
+          目標: ニュース番組らしいプロフェッショナルなBGM生成
+          
+          要件:
+          1. 情報伝達を邪魔しない控えめな音楽
+          2. 信頼感と緊急感のバランス
+          3. ナレーションより20-25dB低いレベル
+          4. 60秒の動画に適した長さ
+          5. ニュース番組の雰囲気演出
+          
+          スタイル: ニュース番組用BGM、instrumental、professional
+          出力: ${PROJECT_DIR}/media/audio/bgm.mp3
+          メタデータ: ${PROJECT_DIR}/metadata/bgm_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "t2m-kamui-lyria,Write,Read" \
+            --max-turns 20 \
+            --permission-mode "acceptEdits" \
+            -p "$BGM_PROMPT"
+          
+          # Check for generated BGM
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" | head -1)
+          if [ -n "$BGM_FILE" ]; then
+            echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] BGM generation completed: ${BGM_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: BGM file not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload BGM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-bgm-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
   # Phase 4: Parallel Processing - Batch 2 Images & Video Conversion Batch 1
   phase4-parallel-processing:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-images-batch1]
+    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-images-batch1, phase3-bgm-generation]
     strategy:
       matrix:
         task: [images-batch2, video-conversion-batch1]
@@ -395,14 +456,13 @@ jobs:
   # Phase 5: Parallel Audio & Visual Production
   phase5-parallel-production:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-images-batch1, phase4-parallel-processing]
+    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-images-batch1, phase3-bgm-generation, phase4-parallel-processing]
     strategy:
       matrix:
-        task: [video-conversion-batch2, bgm-generation, opening-creation]
-      max-parallel: 3
+        task: [video-conversion-batch2, opening-creation]
+      max-parallel: 2
     outputs:
       videos_batch2: ${{ steps.video-batch2-task.outputs.videos_batch2 }}
-      bgm_file: ${{ steps.bgm-task.outputs.bgm_file }}
       opening_video: ${{ steps.opening-task.outputs.opening_video }}
     steps:
       - name: Checkout repository
@@ -455,44 +515,6 @@ jobs:
             exit 1
           fi
 
-      - name: BGM Generation Task
-        if: matrix.task == 'bgm-generation'
-        id: bgm-task
-        run: |
-          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          echo "[$(date)] Phase 5: BGM generation started" >> "${PROJECT_DIR}/logs/execution.log"
-          
-          BGM_PROMPT="BGM・効果音生成・選択タスク：
-          
-          目標: ニュース番組らしいプロフェッショナルなBGM生成
-          
-          要件:
-          1. 情報伝達を邪魔しない控えめな音楽
-          2. 信頼感と緊急感のバランス
-          3. ナレーションより20-25dB低いレベル
-          4. 60秒の動画に適した長さ
-          5. ニュース番組の雰囲気演出
-          
-          スタイル: ニュース番組用BGM、instrumental、professional
-          出力: ${PROJECT_DIR}/media/audio/bgm.mp3
-          メタデータ: ${PROJECT_DIR}/metadata/bgm_metadata.json"
-          
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2m-kamui-lyria,Write,Read" \
-            --max-turns 20 \
-            --permission-mode "acceptEdits" \
-            -p "$BGM_PROMPT"
-          
-          # Check for generated BGM
-          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" | head -1)
-          if [ -n "$BGM_FILE" ]; then
-            echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] BGM generation completed: ${BGM_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] ERROR: BGM file not generated" >> "${PROJECT_DIR}/logs/execution.log"
-            exit 1
-          fi
 
       - name: Opening Creation Task
         if: matrix.task == 'opening-creation'
@@ -547,7 +569,7 @@ jobs:
   # Phase 6: Integration - Video Concatenation
   phase6-integration:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase4-parallel-processing, phase5-parallel-production]
+    needs: [phase1-foundation, phase2-content-creation, phase3-bgm-generation, phase4-parallel-processing, phase5-parallel-production]
     outputs:
       concatenated_video: ${{ steps.concat.outputs.concatenated_video }}
     steps:
@@ -617,7 +639,7 @@ jobs:
   # Phase 7: Final Audio Mix
   phase7-audio-mix:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase3-audio-generation, phase5-parallel-production, phase6-integration]
+    needs: [phase1-foundation, phase3-audio-generation, phase3-bgm-generation, phase6-integration]
     outputs:
       final_video: ${{ steps.mix.outputs.final_video }}
     steps:
