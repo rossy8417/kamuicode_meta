@@ -533,7 +533,7 @@ jobs:
               --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
-              -p "$VIDEO1_PROMPT"
+              -p "$VIDEO1_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
             # Success check with file size validation
             VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" | head -1)
@@ -594,7 +594,7 @@ jobs:
               --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
-              -p "$VIDEO2_PROMPT"
+              -p "$VIDEO2_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
             # Success check with file size validation
             VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*" -o -name "*video2*" | head -1)
@@ -655,7 +655,7 @@ jobs:
               --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
-              -p "$VIDEO3_PROMPT"
+              -p "$VIDEO3_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
             # Success check with file size validation
             VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*" -o -name "*video3*" | head -1)
@@ -707,22 +707,34 @@ jobs:
           
           VIDEO4_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene4_video.mp4"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$VIDEO4_PROMPT"
-          
-          # Check for generated video
-          VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene4*" -o -name "*video4*" | head -1)
-          if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ]; then
-            echo "video4_path=${VIDEO4_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video 4 completed: ${VIDEO4_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] WARNING: Video 4 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
-            echo "video4_path=placeholder" >> $GITHUB_OUTPUT
-          fi
+          # 3-attempt retry logic for Video 4 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 4 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --max-turns 40 \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Success check with file size validation
+            VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene4*" -o -name "*video4*" | head -1)
+            if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ] && [ -s "$VIDEO4_FILE" ]; then
+              echo "[$(date)] Video 4 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO4_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video4_path=${VIDEO4_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 4 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video4_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 4 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
 
       - name: Upload Video 4 artifacts
         uses: actions/upload-artifact@v4
@@ -765,7 +777,7 @@ jobs:
               --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
-              -p "$VIDEO5_PROMPT"
+              -p "$VIDEO5_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
             # Success check with file size validation
             VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*" -o -name "*video5*" | head -1)
