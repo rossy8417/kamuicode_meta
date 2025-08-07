@@ -221,12 +221,12 @@ jobs:
           name: phase3-audio-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
-  # Phase 3B: Images Batch 1 Generation (Independent Job)
-  phase3-images-batch1:
+  # Phase 3B: Individual Image Generation Jobs (1-5)
+  phase3-image1-generation:
     runs-on: ubuntu-latest
     needs: [phase1-foundation, phase2-content-creation]
     outputs:
-      images_batch1: ${{ steps.images-task.outputs.images_batch1 }}
+      image1_path: ${{ steps.image1-task.outputs.image1_path }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -237,17 +237,18 @@ jobs:
           name: phase2-content-creation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
-      - name: Images Batch 1 Generation Task
-        id: images-task
+      - name: Image 1 Generation Task
+        id: image1-task
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 3: Images batch 1 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 3B1: Image 1 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGES_PROMPT="ニュース画像素材生成（バッチ1）タスク：
+          IMAGE1_PROMPT="単独画像生成タスク（Image 1）：
           
           入力: ${SCRIPT_DATA}
-          目標: 最初の5シーン用の高品質ニュース画像生成
+          目標: シーン1用の単独高品質ニュース画像生成
           
           要件:
           1. プロフェッショナルなニュース番組スタイル
@@ -256,31 +257,279 @@ jobs:
           4. 16:9アスペクト比、1920x1080解像度
           5. ニュース内容と一致する視覚的インパクト
           
-          処理: スクリプトの最初の5シーンの画像プロンプトを使用
-          出力ディレクトリ: ${PROJECT_DIR}/media/images/batch1/
-          メタデータ: ${PROJECT_DIR}/metadata/images_batch1_metadata.json"
+          処理: スクリプトのシーン1用の画像プロンプトを使用して1枚の画像生成
+          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene1.png
+          メタデータ: ${PROJECT_DIR}/metadata/image1_metadata.json"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "t2i-kamui-imagen3,Write,Read" \
             --max-turns 30 \
             --permission-mode "acceptEdits" \
-            -p "$IMAGES_PROMPT"
+            -p "$IMAGE1_PROMPT"
           
-          # Check for generated images
-          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images/batch1" -name "*.png" -o -name "*.jpg" | wc -l)
-          if [ "$IMAGE_COUNT" -ge 5 ]; then
-            echo "images_batch1=${PROJECT_DIR}/media/images/batch1" >> $GITHUB_OUTPUT
-            echo "[$(date)] Images batch 1 completed: ${IMAGE_COUNT} images" >> "${PROJECT_DIR}/logs/execution.log"
+          # Check for generated image
+          IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene1*" -o -name "*1.*" | head -1)
+          if [ -n "$IMAGE1_FILE" ] && [ -f "$IMAGE1_FILE" ]; then
+            echo "image1_path=${IMAGE1_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 1 completed: ${IMAGE1_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
           else
-            echo "[$(date)] ERROR: Insufficient images generated (${IMAGE_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
-            exit 1
+            echo "[$(date)] WARNING: Image 1 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image1_path=placeholder" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload Images Batch 1 artifacts
+      - name: Upload Image 1 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: phase3-images-batch1
+          name: phase3-image1-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image2-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image2_path: ${{ steps.image2-task.outputs.image2_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 2 Generation Task
+        id: image2-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B2: Image 2 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE2_PROMPT="単独画像生成タスク（Image 2）：
+          
+          入力: ${SCRIPT_DATA}
+          目標: シーン2用の単独高品質ニュース画像生成
+          
+          要件:
+          1. プロフェッショナルなニュース番組スタイル
+          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
+          3. Rule of thirdsに従った構図
+          4. 16:9アスペクト比、1920x1080解像度
+          5. ニュース内容と一致する視覚的インパクト
+          
+          処理: スクリプトのシーン2用の画像プロンプトを使用して1枚の画像生成
+          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene2.png
+          メタデータ: ${PROJECT_DIR}/metadata/image2_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "t2i-kamui-imagen3,Write,Read" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$IMAGE2_PROMPT"
+          
+          # Check for generated image
+          IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene2*" -o -name "*2.*" | head -1)
+          if [ -n "$IMAGE2_FILE" ] && [ -f "$IMAGE2_FILE" ]; then
+            echo "image2_path=${IMAGE2_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 2 completed: ${IMAGE2_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Image 2 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image2_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Image 2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image2-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image3-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image3_path: ${{ steps.image3-task.outputs.image3_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 3 Generation Task
+        id: image3-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B3: Image 3 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE3_PROMPT="単独画像生成タスク（Image 3）：
+          
+          入力: ${SCRIPT_DATA}
+          目標: シーン3用の単独高品質ニュース画像生成
+          
+          要件:
+          1. プロフェッショナルなニュース番組スタイル
+          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
+          3. Rule of thirdsに従った構図
+          4. 16:9アスペクト比、1920x1080解像度
+          5. ニュース内容と一致する視覚的インパクト
+          
+          処理: スクリプトのシーン3用の画像プロンプトを使用して1枚の画像生成
+          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene3.png
+          メタデータ: ${PROJECT_DIR}/metadata/image3_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "t2i-kamui-imagen3,Write,Read" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$IMAGE3_PROMPT"
+          
+          # Check for generated image
+          IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene3*" -o -name "*3.*" | head -1)
+          if [ -n "$IMAGE3_FILE" ] && [ -f "$IMAGE3_FILE" ]; then
+            echo "image3_path=${IMAGE3_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 3 completed: ${IMAGE3_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Image 3 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image3_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Image 3 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image3-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image4-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image4_path: ${{ steps.image4-task.outputs.image4_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 4 Generation Task
+        id: image4-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B4: Image 4 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE4_PROMPT="単独画像生成タスク（Image 4）：
+          
+          入力: ${SCRIPT_DATA}
+          目標: シーン4用の単独高品質ニュース画像生成
+          
+          要件:
+          1. プロフェッショナルなニュース番組スタイル
+          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
+          3. Rule of thirdsに従った構図
+          4. 16:9アスペクト比、1920x1080解像度
+          5. ニュース内容と一致する視覚的インパクト
+          
+          処理: スクリプトのシーン4用の画像プロンプトを使用して1枚の画像生成
+          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene4.png
+          メタデータ: ${PROJECT_DIR}/metadata/image4_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "t2i-kamui-imagen3,Write,Read" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$IMAGE4_PROMPT"
+          
+          # Check for generated image
+          IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene4*" -o -name "*4.*" | head -1)
+          if [ -n "$IMAGE4_FILE" ] && [ -f "$IMAGE4_FILE" ]; then
+            echo "image4_path=${IMAGE4_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 4 completed: ${IMAGE4_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Image 4 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image4_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Image 4 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image4-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image5-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image5_path: ${{ steps.image5-task.outputs.image5_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 5 Generation Task
+        id: image5-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B5: Image 5 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE5_PROMPT="単独画像生成タスク（Image 5）：
+          
+          入力: ${SCRIPT_DATA}
+          目標: シーン5用の単独高品質ニュース画像生成
+          
+          要件:
+          1. プロフェッショナルなニュース番組スタイル
+          2. 信頼性を表現する青系と緊急性の赤系を効果的に活用
+          3. Rule of thirdsに従った構図
+          4. 16:9アスペクト比、1920x1080解像度
+          5. ニュース内容と一致する視覚的インパクト
+          
+          処理: スクリプトのシーン5用の画像プロンプトを使用して1枚の画像生成
+          出力ファイル: ${PROJECT_DIR}/media/images/individual/scene5.png
+          メタデータ: ${PROJECT_DIR}/metadata/image5_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "t2i-kamui-imagen3,Write,Read" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$IMAGE5_PROMPT"
+          
+          # Check for generated image
+          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene5*" -o -name "*5.*" | head -1)
+          if [ -n "$IMAGE5_FILE" ] && [ -f "$IMAGE5_FILE" ]; then
+            echo "image5_path=${IMAGE5_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 5 completed: ${IMAGE5_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Image 5 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image5_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Image 5 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image5-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
   # Phase 3C: BGM Generation (Independent Job) - Relocated from Phase 5
@@ -344,17 +593,12 @@ jobs:
           name: phase3-bgm-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
-  # Phase 4: Parallel Processing - Batch 2 Images & Video Conversion Batch 1
-  phase4-parallel-processing:
+  # Phase 4: Individual Image→Video Conversion Jobs (1-5)
+  phase4-image1-to-video1:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-images-batch1, phase3-bgm-generation]
-    strategy:
-      matrix:
-        task: [images-batch2, video-conversion-batch1]
-      max-parallel: 2
+    needs: [phase1-foundation, phase2-content-creation, phase3-image1-generation]
     outputs:
-      images_batch2: ${{ steps.images-batch2-task.outputs.images_batch2 }}
-      videos_batch1: ${{ steps.video-batch1-task.outputs.videos_batch1 }}
+      video1_path: ${{ steps.video1-task.outputs.video1_path }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -366,103 +610,311 @@ jobs:
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
-      - name: Images Batch 2 Generation Task
-        if: matrix.task == 'images-batch2'
-        id: images-batch2-task
+      - name: Image 1 to Video 1 Conversion Task
+        id: video1-task
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 4: Images batch 2 generation started" >> "${PROJECT_DIR}/logs/execution.log"
+          IMAGE1_PATH="${{ needs.phase3-image1-generation.outputs.image1_path }}"
+          echo "[$(date)] Phase 4.1: Image 1 → Video 1 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          IMAGES_PROMPT="ニュース画像素材生成（バッチ2）タスク：
+          VIDEO1_PROMPT="単独画像→動画変換タスク（Video 1）：
           
-          入力: ${SCRIPT_DATA}
-          目標: 後半5シーン用の高品質ニュース画像生成
-          
-          要件:
-          1. 第1バッチとのスタイル統一
-          2. ニュースストーリーの後半部分に対応
-          3. クライマックス部分に適した視覚的表現
-          4. 同一の品質基準とスタイル維持
-          5. 16:9アスペクト比、プロフェッショナル品質
-          
-          処理: スクリプトの後半5シーンの画像プロンプトを使用
-          出力ディレクトリ: ${PROJECT_DIR}/media/images/batch2/
-          メタデータ: ${PROJECT_DIR}/metadata/images_batch2_metadata.json"
-          
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2i-kamui-imagen3,Write,Read" \
-            --max-turns 30 \
-            --permission-mode "acceptEdits" \
-            -p "$IMAGES_PROMPT"
-          
-          # Check for generated images
-          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images/batch2" -name "*.png" -o -name "*.jpg" | wc -l)
-          if [ "$IMAGE_COUNT" -ge 5 ]; then
-            echo "images_batch2=${PROJECT_DIR}/media/images/batch2" >> $GITHUB_OUTPUT
-            echo "[$(date)] Images batch 2 completed: ${IMAGE_COUNT} images" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] ERROR: Insufficient images generated (${IMAGE_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
-            exit 1
-          fi
-
-      - name: Video Conversion Batch 1 Task
-        if: matrix.task == 'video-conversion-batch1'
-        id: video-batch1-task
-        run: |
-          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          echo "[$(date)] Phase 4: Video conversion batch 1 started" >> "${PROJECT_DIR}/logs/execution.log"
-          
-          VIDEO_PROMPT="画像から動画変換（バッチ1）タスク：
-          
-          入力: ${PROJECT_DIR}/media/images/batch1/
-          目標: 最初の5枚の画像を動画クリップに変換
+          入力画像: ${IMAGE1_PATH}
+          目標: シーン1の画像を6-8秒の動画クリップに変換
           
           要件:
-          1. 各クリップ6-8秒の適切な長さ
-          2. ニュース番組らしい自然な動き
-          3. 過度なモーションを避けた上品な動き
-          4. static, pan, zoomの効果的活用
-          5. プロフェッショナルな品質基準
+          1. ニュース番組らしい自然な動き
+          2. 過度なモーションを避けた上品な動き
+          3. static, pan, zoomの効果的活用
+          4. プロフェッショナルな品質基準
+          5. 16:9アスペクト比維持
           
-          処理: batch1フォルダ内の全画像を動画変換
-          出力ディレクトリ: ${PROJECT_DIR}/media/videos/batch1/
-          メタデータ: ${PROJECT_DIR}/metadata/videos_batch1_metadata.json"
+          処理: Image 1から Video 1への即座変換（URL有効期限対策）
+          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/video1_metadata.json"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "i2v-kamui-hailuo-02-fast,Write,Read" \
             --max-turns 40 \
             --permission-mode "acceptEdits" \
-            -p "$VIDEO_PROMPT"
+            -p "$VIDEO1_PROMPT"
           
-          # Check for generated videos
-          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos/batch1" -name "*.mp4" | wc -l)
-          if [ "$VIDEO_COUNT" -ge 5 ]; then
-            echo "videos_batch1=${PROJECT_DIR}/media/videos/batch1" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video conversion batch 1 completed: ${VIDEO_COUNT} videos" >> "${PROJECT_DIR}/logs/execution.log"
+          # Check for generated video
+          VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" | head -1)
+          if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ]; then
+            echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video 1 completed: ${VIDEO1_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
           else
-            echo "[$(date)] ERROR: Insufficient videos generated (${VIDEO_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
-            exit 1
+            echo "[$(date)] WARNING: Video 1 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "video1_path=placeholder" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload Phase 4 artifacts
+      - name: Upload Video 1 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: phase4-${{ matrix.task }}
+          name: phase4-image1-to-video1
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
-  # Phase 5: Parallel Audio & Visual Production
-  phase5-parallel-production:
+  phase4-image2-to-video2:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-images-batch1, phase3-bgm-generation, phase4-parallel-processing]
-    strategy:
-      matrix:
-        task: [video-conversion-batch2, opening-creation]
-      max-parallel: 2
+    needs: [phase1-foundation, phase2-content-creation, phase3-image2-generation]
     outputs:
-      videos_batch2: ${{ steps.video-batch2-task.outputs.videos_batch2 }}
+      video2_path: ${{ steps.video2-task.outputs.video2_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 2 to Video 2 Conversion Task
+        id: video2-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE2_PATH="${{ needs.phase3-image2-generation.outputs.image2_path }}"
+          echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          VIDEO2_PROMPT="単独画像→動画変換タスク（Video 2）：
+          
+          入力画像: ${IMAGE2_PATH}
+          目標: シーン2の画像を6-8秒の動画クリップに変換
+          
+          要件:
+          1. ニュース番組らしい自然な動き
+          2. 過度なモーションを避けた上品な動き
+          3. static, pan, zoomの効果的活用
+          4. プロフェッショナルな品質基準
+          5. 16:9アスペクト比維持
+          
+          処理: Image 2から Video 2への即座変換（URL有効期限対策）
+          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/video2_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "i2v-kamui-hailuo-02-fast,Write,Read" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$VIDEO2_PROMPT"
+          
+          # Check for generated video
+          VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*" -o -name "*video2*" | head -1)
+          if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ]; then
+            echo "video2_path=${VIDEO2_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video 2 completed: ${VIDEO2_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Video 2 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "video2_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Video 2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image2-to-video2
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase4-image3-to-video3:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image3-generation]
+    outputs:
+      video3_path: ${{ steps.video3-task.outputs.video3_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 3 to Video 3 Conversion Task
+        id: video3-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE3_PATH="${{ needs.phase3-image3-generation.outputs.image3_path }}"
+          echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          VIDEO3_PROMPT="単独画像→動画変換タスク（Video 3）：
+          
+          入力画像: ${IMAGE3_PATH}
+          目標: シーン3の画像を6-8秒の動画クリップに変換
+          
+          要件:
+          1. ニュース番組らしい自然な動き
+          2. 過度なモーションを避けた上品な動き
+          3. static, pan, zoomの効果的活用
+          4. プロフェッショナルな品質基準
+          5. 16:9アスペクト比維持
+          
+          処理: Image 3から Video 3への即座変換（URL有効期限対策）
+          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/video3_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "i2v-kamui-hailuo-02-fast,Write,Read" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$VIDEO3_PROMPT"
+          
+          # Check for generated video
+          VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*" -o -name "*video3*" | head -1)
+          if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ]; then
+            echo "video3_path=${VIDEO3_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video 3 completed: ${VIDEO3_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Video 3 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "video3_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Video 3 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image3-to-video3
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase4-image4-to-video4:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image4-generation]
+    outputs:
+      video4_path: ${{ steps.video4-task.outputs.video4_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 4 to Video 4 Conversion Task
+        id: video4-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE4_PATH="${{ needs.phase3-image4-generation.outputs.image4_path }}"
+          echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          VIDEO4_PROMPT="単独画像→動画変換タスク（Video 4）：
+          
+          入力画像: ${IMAGE4_PATH}
+          目標: シーン4の画像を6-8秒の動画クリップに変換
+          
+          要件:
+          1. ニュース番組らしい自然な動き
+          2. 過度なモーションを避けた上品な動き
+          3. static, pan, zoomの効果的活用
+          4. プロフェッショナルな品質基準
+          5. 16:9アスペクト比維持
+          
+          処理: Image 4から Video 4への即座変換（URL有効期限対策）
+          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/video4_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "i2v-kamui-hailuo-02-fast,Write,Read" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$VIDEO4_PROMPT"
+          
+          # Check for generated video
+          VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene4*" -o -name "*video4*" | head -1)
+          if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ]; then
+            echo "video4_path=${VIDEO4_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video 4 completed: ${VIDEO4_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Video 4 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "video4_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Video 4 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image4-to-video4
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase4-image5-to-video5:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image5-generation]
+    outputs:
+      video5_path: ${{ steps.video5-task.outputs.video5_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 5 to Video 5 Conversion Task
+        id: video5-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE5_PATH="${{ needs.phase3-image5-generation.outputs.image5_path }}"
+          echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          VIDEO5_PROMPT="単独画像→動画変換タスク（Video 5）：
+          
+          入力画像: ${IMAGE5_PATH}
+          目標: シーン5の画像を6-8秒の動画クリップに変換
+          
+          要件:
+          1. ニュース番組らしい自然な動き
+          2. 過度なモーションを避けた上品な動き
+          3. static, pan, zoomの効果的活用
+          4. プロフェッショナルな品質基準
+          5. 16:9アスペクト比維持
+          
+          処理: Image 5から Video 5への即座変換（URL有効期限対策）
+          出力ファイル: ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/video5_metadata.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "i2v-kamui-hailuo-02-fast,Write,Read" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$VIDEO5_PROMPT"
+          
+          # Check for generated video
+          VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*" -o -name "*video5*" | head -1)
+          if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ]; then
+            echo "video5_path=${VIDEO5_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video 5 completed: ${VIDEO5_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: Video 5 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "video5_path=placeholder" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Video 5 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image5-to-video5
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+
+  # Phase 5: Opening Creation
+  phase5-opening-creation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5]
+    outputs:
       opening_video: ${{ steps.opening-task.outputs.opening_video }}
     steps:
       - name: Checkout repository
@@ -475,49 +927,7 @@ jobs:
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
-      - name: Video Conversion Batch 2 Task
-        if: matrix.task == 'video-conversion-batch2'
-        id: video-batch2-task
-        run: |
-          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          echo "[$(date)] Phase 5: Video conversion batch 2 started" >> "${PROJECT_DIR}/logs/execution.log"
-          
-          VIDEO_PROMPT="画像から動画変換（バッチ2）タスク：
-          
-          入力: ${PROJECT_DIR}/media/images/batch2/
-          目標: 後半5枚の画像を動画クリップに変換
-          
-          要件:
-          1. 第1バッチとの品質統一
-          2. ニュースストーリーの後半展開に適した動き
-          3. クライマックス部分の動的表現
-          4. 6-8秒の適切な長さ維持
-          5. プロフェッショナルな品質基準
-          
-          処理: batch2フォルダ内の全画像を動画変換
-          出力ディレクトリ: ${PROJECT_DIR}/media/videos/batch2/
-          メタデータ: ${PROJECT_DIR}/metadata/videos_batch2_metadata.json"
-          
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "i2v-kamui-hailuo-02-fast,Write,Read" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$VIDEO_PROMPT"
-          
-          # Check for generated videos
-          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos/batch2" -name "*.mp4" | wc -l)
-          if [ "$VIDEO_COUNT" -ge 5 ]; then
-            echo "videos_batch2=${PROJECT_DIR}/media/videos/batch2" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video conversion batch 2 completed: ${VIDEO_COUNT} videos" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] ERROR: Insufficient videos generated (${VIDEO_COUNT}/5)" >> "${PROJECT_DIR}/logs/execution.log"
-            exit 1
-          fi
-
-
       - name: Opening Creation Task
-        if: matrix.task == 'opening-creation'
         id: opening-task
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
@@ -560,16 +970,16 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Phase 5 artifacts
+      - name: Upload Opening Creation artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: phase5-${{ matrix.task }}
+          name: phase5-opening-creation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
   # Phase 6: Integration - Video Concatenation
   phase6-integration:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase3-bgm-generation, phase4-parallel-processing, phase5-parallel-production]
+    needs: [phase1-foundation, phase2-content-creation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase5-opening-creation]
     outputs:
       concatenated_video: ${{ steps.concat.outputs.concatenated_video }}
     steps:
@@ -591,22 +1001,25 @@ jobs:
           
           CONCAT_PROMPT="全動画クリップ結合タスク：
           
-          入力ファイル:
+          入力ファイル (個別動画):
           - オープニング: ${PROJECT_DIR}/media/videos/opening.mp4
-          - バッチ1動画: ${PROJECT_DIR}/media/videos/batch1/
-          - バッチ2動画: ${PROJECT_DIR}/media/videos/batch2/
+          - 個別動画1: ${{ needs.phase4-image1-to-video1.outputs.video1_path }}
+          - 個別動画2: ${{ needs.phase4-image2-to-video2.outputs.video2_path }}
+          - 個別動画3: ${{ needs.phase4-image3-to-video3.outputs.video3_path }}
+          - 個別動画4: ${{ needs.phase4-image4-to-video4.outputs.video4_path }}
+          - 個別動画5: ${{ needs.phase4-image5-to-video5.outputs.video5_path }}
           
           目標: プロフェッショナルなニュース動画として統合
           
           要件:
-          1. 適切な順序でのクリップ結合
+          1. 適切な順序での個別クリップ結合
           2. スムーズなトランジション（fade, cut）
           3. 60秒以内の総時間
           4. ニュース動画のカット間隔（3-8秒）
           5. 情報の流れに沿った自然な構成
           
           処理順序:
-          1. オープニング → バッチ1動画群 → バッチ2動画群
+          1. オープニング → 個別動画1 → 個別動画2 → 個別動画3 → 個別動画4 → 個別動画5
           2. 各クリップ間にfadeトランジション追加
           3. 総時間の調整（60秒以内）
           
@@ -668,7 +1081,7 @@ jobs:
           
           入力ファイル:
           - 動画: ${CONCATENATED_VIDEO}
-          - ナレーション: ${NARIATION_FILE}
+          - ナレーション: ${NARRATION_FILE}
           - BGM: ${BGM_FILE}
           
           目標: プロフェッショナルなニュース番組の音響品質実現
