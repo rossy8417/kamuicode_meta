@@ -319,12 +319,12 @@ path: ${{ needs.setup.outputs.project_dir }}/media/image.png
 #### 3. ✅ ALWAYS include MCP config for AI tools
 ```bash
 # ❌ WRONG - MCP tools won't work
-npx @anthropic-ai/claude-code --allowedTools "mcp__t2i-google-imagen3__imagen_t2i"
+npx @anthropic-ai/claude-code --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i"
 
 # ✅ CORRECT - Must include config
 npx @anthropic-ai/claude-code \
   --mcp-config ".claude/mcp-kamuicode.json" \
-  --allowedTools "mcp__t2i-google-imagen3__imagen_t2i,Bash,Write"
+  --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Bash,Write"
 ```
 
 #### 4. ✅ ALWAYS share files between jobs with artifacts
