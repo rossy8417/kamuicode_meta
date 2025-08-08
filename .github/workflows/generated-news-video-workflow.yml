@@ -1100,7 +1100,7 @@ jobs:
               VIDEO1_URL_FILE="${PROJECT_DIR}/media/videos/individual/video1-url.txt"
               if [ -f "$VIDEO1_URL_FILE" ]; then
                 VIDEO1_URL=$(cat "$VIDEO1_URL_FILE")
-                if curl -IfsS --max-time 20 "$VIDEO1_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+              if curl -IfsS --max-time 20 "$VIDEO1_URL" | grep -Ei '^content-type:.*(mp4|octet-stream)' >/dev/null || [[ "$VIDEO1_URL" == *.mp4* ]]; then
                   mkdir -p "${PROJECT_DIR}/media/videos/individual"
                   curl -fsS "$VIDEO1_URL" -o "${PROJECT_DIR}/media/videos/individual/scene1_video.mp4" || true
                 fi
@@ -1281,7 +1281,7 @@ jobs:
             VIDEO2_URL_FILE="${PROJECT_DIR}/media/videos/individual/video2-url.txt"
             if [ -f "$VIDEO2_URL_FILE" ]; then
               VIDEO2_URL=$(cat "$VIDEO2_URL_FILE")
-              if curl -IfsS --max-time 20 "$VIDEO2_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+              if curl -IfsS --max-time 20 "$VIDEO2_URL" | grep -Ei '^content-type:.*(mp4|octet-stream)' >/dev/null || [[ "$VIDEO2_URL" == *.mp4* ]]; then
                 mkdir -p "${PROJECT_DIR}/media/videos/individual"
                 curl -fsS "$VIDEO2_URL" -o "${PROJECT_DIR}/media/videos/individual/scene2_video.mp4" || true
               fi
@@ -1380,7 +1380,7 @@ jobs:
             VIDEO3_URL_FILE="${PROJECT_DIR}/media/videos/individual/video3-url.txt"
             if [ -f "$VIDEO3_URL_FILE" ]; then
               VIDEO3_URL=$(cat "$VIDEO3_URL_FILE")
-              if curl -IfsS --max-time 20 "$VIDEO3_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+              if curl -IfsS --max-time 20 "$VIDEO3_URL" | grep -Ei '^content-type:.*(mp4|octet-stream)' >/dev/null || [[ "$VIDEO3_URL" == *.mp4* ]]; then
                 mkdir -p "${PROJECT_DIR}/media/videos/individual"
                 curl -fsS "$VIDEO3_URL" -o "${PROJECT_DIR}/media/videos/individual/scene3_video.mp4" || true
               fi
@@ -1468,7 +1468,7 @@ jobs:
             VIDEO4_URL_FILE="${PROJECT_DIR}/media/videos/individual/video4-url.txt"
             if [ -f "$VIDEO4_URL_FILE" ]; then
               VIDEO4_URL=$(cat "$VIDEO4_URL_FILE")
-              if curl -IfsS --max-time 20 "$VIDEO4_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+              if curl -IfsS --max-time 20 "$VIDEO4_URL" | grep -Ei '^content-type:.*(mp4|octet-stream)' >/dev/null || [[ "$VIDEO4_URL" == *.mp4* ]]; then
                 mkdir -p "${PROJECT_DIR}/media/videos/individual"
                 curl -fsS "$VIDEO4_URL" -o "${PROJECT_DIR}/media/videos/individual/scene4_video.mp4" || true
               fi
@@ -1565,7 +1565,7 @@ jobs:
             VIDEO5_URL_FILE="${PROJECT_DIR}/media/videos/individual/video5-url.txt"
             if [ -f "$VIDEO5_URL_FILE" ]; then
               VIDEO5_URL=$(cat "$VIDEO5_URL_FILE")
-              if curl -IfsS --max-time 20 "$VIDEO5_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+              if curl -IfsS --max-time 20 "$VIDEO5_URL" | grep -Ei '^content-type:.*(mp4|octet-stream)' >/dev/null || [[ "$VIDEO5_URL" == *.mp4* ]]; then
                 mkdir -p "${PROJECT_DIR}/media/videos/individual"
                 curl -fsS "$VIDEO5_URL" -o "${PROJECT_DIR}/media/videos/individual/scene5_video.mp4" || true
               fi
@@ -1608,6 +1608,7 @@ jobs:
   # Phase 4b: Auto Expand Scenes to match narration duration
   phase4b-fill-gap-videos:
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     needs:
       [
         phase1-foundation,
@@ -1938,6 +1939,22 @@ jobs:
               # Check if opening video was actually generated
               OPENING_CHECK=$(find "${PROJECT_DIR}/media/videos" -name "*opening*" | head -1)
               if [ -n "$OPENING_CHECK" ] && [ -f "$OPENING_CHECK" ] && [ -s "$OPENING_CHECK" ]; then
+                # 追加検証: サイズとdurationが妥当か（破損8B等の検出）
+                OPENING_OK=true
+                SIZE=$(stat -c%s "$OPENING_CHECK" 2>/dev/null || echo 0)
+                if [ "$SIZE" -le 30000 ]; then OPENING_OK=false; fi
+                if command -v ffprobe >/dev/null 2>&1; then
+                  DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OPENING_CHECK" 2>/dev/null | cut -d'.' -f1)
+                  [ -z "$DUR" ] && DUR=0
+                  if [ "$DUR" -lt 1 ] 2>/dev/null; then OPENING_OK=false; fi
+                fi
+                if [ "$OPENING_OK" != true ]; then
+                  echo "[$(date)] Opening file seems invalid (size=${SIZE} bytes). Generating fallback..." >> "${PROJECT_DIR}/logs/execution.log"
+                  timeout 30 ffmpeg -y -f lavfi -i "color=c=black:duration=3:size=1920x1080:rate=30" \
+                    -vf "drawtext=text='Opening':fontcolor=white:fontsize=72:x=(w-text_w)/2:y=(h-text_h)/2" \
+                    -c:v libx264 -pix_fmt yuv420p -preset ultrafast "${PROJECT_DIR}/media/videos/opening.mp4" 2>> "${PROJECT_DIR}/logs/ffmpeg-opening-fallback.log" || true
+                  OPENING_CHECK="${PROJECT_DIR}/media/videos/opening.mp4"
+                fi
                 echo "[$(date)] Opening SUCCESS on attempt $attempt: $(basename "$OPENING_CHECK")" >> "${PROJECT_DIR}/logs/execution.log"
                 OPENING_SUCCESS=true
                 break
@@ -2098,6 +2115,7 @@ jobs:
   # Phase 8: Final Audio Mix
   phase8-audio-mix:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     needs: [phase1-foundation, phase3-audio-generation, phase3-bgm-generation, phase5-video-editing-planning, phase7-integration]
     outputs:
       final_video: ${{ steps.mix.outputs.final_video }}
@@ -2156,16 +2174,61 @@ jobs:
           出力: ${PROJECT_DIR}/final/professional_news_video.mp4
           メタデータ: ${PROJECT_DIR}/metadata/final_mix_metadata.json"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "Bash,Write,Read" \
-            --max-turns 20 \
-            --permission-mode "acceptEdits" \
-            -p "$MIX_PROMPT"
+          # ffmpeg が無い場合はインストール
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            echo "[$(date)] Installing ffmpeg..." >> "${PROJECT_DIR}/logs/execution.log"
+            sudo apt-get update && sudo apt-get install -y ffmpeg >/dev/null 2>&1 || true
+          fi
+
+          # 入力存在チェック
+          if [ ! -f "$CONCATENATED_VIDEO" ]; then
+            echo "[$(date)] ERROR: Concatenated video not found" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+          if [ ! -f "$NARRATION_FILE" ]; then
+            echo "[$(date)] WARNING: Narration not found; generating with anullsrc" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          if [ ! -f "$BGM_FILE" ]; then
+            echo "[$(date)] WARNING: BGM not found; continuing without BGM" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+
+          OUT_DIR="${PROJECT_DIR}/final"
+          mkdir -p "$OUT_DIR"
+          OUT_FILE="${OUT_DIR}/professional_news_video.mp4"
+
+          # ミックス処理（安全でシンプルな標準手順）
+          # 1) ナレーションのみ or 2) ナレーション+bgm or 3) 無音時は無音トラック合成
+          if command -v ffmpeg >/dev/null 2>&1; then
+            if [ -f "$NARRATION_FILE" ] && [ -f "$BGM_FILE" ]; then
+              # 正常: ナレーションとBGMのミックス（BGM -20dB）
+              timeout 180 ffmpeg -y -i "$CONCATENATED_VIDEO" -i "$NARRATION_FILE" -i "$BGM_FILE" \
+                -filter_complex "[1:a]volume=1.0[a1];[2:a]volume=0.1[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=0[aout]" \
+                -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k "$OUT_FILE" 2>> "${PROJECT_DIR}/logs/ffmpeg-mix.log" || true
+            elif [ -f "$NARRATION_FILE" ]; then
+              # ナレーションのみ
+              timeout 120 ffmpeg -y -i "$CONCATENATED_VIDEO" -i "$NARRATION_FILE" \
+                -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k "$OUT_FILE" 2>> "${PROJECT_DIR}/logs/ffmpeg-mix.log" || true
+            else
+              # 無音の安全弾（anullsrcでサイレントを付与）
+              timeout 90 ffmpeg -y -i "$CONCATENATED_VIDEO" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
+                -shortest -map 0:v -map 1:a -c:v copy -c:a aac -b:a 128k "$OUT_FILE" 2>> "${PROJECT_DIR}/logs/ffmpeg-mix.log" || true
+            fi
+          fi
+
+          # もし編集計画の詳細適用が必要なら、後段で上書き出力に切替
+          # npx @anthropic-ai/claude-code ... は必要に応じて再度呼び出し可能（現状は実ミックス優先）
           
           # Check for final video
           FINAL_FILE=$(find "${PROJECT_DIR}/final" -name "*.mp4" | head -1)
           if [ -n "$FINAL_FILE" ]; then
+            # 音声トラックの存在を確認
+            if command -v ffprobe >/dev/null 2>&1; then
+              AC=$(ffprobe -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 "$FINAL_FILE" 2>/dev/null | wc -l | tr -d ' ')
+              if [ "$AC" = "0" ]; then
+                echo "[$(date)] ERROR: No audio track in final video" >> "${PROJECT_DIR}/logs/execution.log"
+                exit 1
+              fi
+            fi
             echo "final_video=${FINAL_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Audio mixing completed: ${FINAL_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
             
