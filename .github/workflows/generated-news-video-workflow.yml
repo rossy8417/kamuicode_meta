@@ -1253,9 +1253,9 @@ jobs:
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns 40 \
+              --max-turns 80 \
               --permission-mode "acceptEdits" \
-              -p "$VIDEO2_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              -p "$VIDEO2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video2-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
             # Success check with file size validation
             VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*" -o -name "*video2*" | head -1)
@@ -1321,16 +1321,25 @@ jobs:
           for attempt in 1 2 3; do
             echo "[$(date)] Video 3 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
             
+            # 段階的待機時間（連続生成負荷対策）
+            if [ $attempt -eq 2 ]; then
+              echo "[$(date)] Waiting 30s for MCP recovery (Video 3)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 30
+            elif [ $attempt -eq 3 ]; then
+              echo "[$(date)] Waiting 60s for MCP recovery (Video 3)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 60
+            fi
+            
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns 40 \
+              --max-turns 80 \
               --permission-mode "acceptEdits" \
-              -p "$VIDEO3_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              -p "$VIDEO3_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video3-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
-            # Success check with file size validation
-            VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*" -o -name "*video3*" | head -1)
-            if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ] && [ -s "$VIDEO3_FILE" ]; then
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*.mp4" -o -name "*video3*.mp4" 2>/dev/null | head -1)
+            if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ] && [ $(stat -c%s "$VIDEO3_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
               echo "[$(date)] Video 3 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO3_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video3_path=${VIDEO3_FILE}" >> $GITHUB_OUTPUT
               break
@@ -1389,7 +1398,7 @@ jobs:
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns 40 \
+              --max-turns 80 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
@@ -1451,16 +1460,25 @@ jobs:
           for attempt in 1 2 3; do
             echo "[$(date)] Video 5 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
             
+            # 段階的待機時間（連続生成負荷対策）
+            if [ $attempt -eq 2 ]; then
+              echo "[$(date)] Waiting 30s for MCP recovery (Video 5)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 30
+            elif [ $attempt -eq 3 ]; then
+              echo "[$(date)] Waiting 60s for MCP recovery (Video 5)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 60
+            fi
+            
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns 40 \
+              --max-turns 80 \
               --permission-mode "acceptEdits" \
-              -p "$VIDEO5_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              -p "$VIDEO5_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video5-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
-            # Success check with file size validation
-            VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*" -o -name "*video5*" | head -1)
-            if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ] && [ -s "$VIDEO5_FILE" ]; then
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*.mp4" -o -name "*video5*.mp4" 2>/dev/null | head -1)
+            if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ] && [ $(stat -c%s "$VIDEO5_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
               echo "[$(date)] Video 5 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO5_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video5_path=${VIDEO5_FILE}" >> $GITHUB_OUTPUT
               break
@@ -1654,7 +1672,7 @@ jobs:
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
-              --max-turns 40 \
+              --max-turns 80 \
               --permission-mode "acceptEdits" \
               -p "$OPENING_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase6-opening-mcp.log"; then
               
