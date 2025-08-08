@@ -235,7 +235,7 @@ jobs:
           
           if [ -f "$AUDIO_FILE" ] && [ -s "$AUDIO_FILE" ]; then
             echo "audio_file=${AUDIO_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Audio generation completed: ${AUDIO_FILE} ($(stat -c%s "$AUDIO_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] Audio generation completed: ${AUDIO_FILE} ($(stat -c%s "$AUDIO_FILE" 2>/dev/null || wc -c < "$AUDIO_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
           else
             echo "[$(date)] ERROR: Failed to generate audio" >> "${PROJECT_DIR}/logs/execution.log"
             echo "audio_file=placeholder" >> $GITHUB_OUTPUT
@@ -365,9 +365,9 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
           echo "[$(date)] Phase 3B3: Image 3 generation started [Data Parallelism 3/5]" >> "${PROJECT_DIR}/logs/execution.log"
-          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          mkdir -p "${PROJECT_DIR}/media/images"
           
-          IMAGE3_PROMPT="Generate scene 3 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Output: scene3.png"
+          IMAGE3_PROMPT="Generate scene 3 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Output: ${PROJECT_DIR}/media/images/scene3.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -377,7 +377,7 @@ jobs:
             -p "$IMAGE3_PROMPT"
           
           # Check for generated image with graceful fallback
-          IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene3*" -o -name "*3.*" | head -1)
+          IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | head -1)
           if [ -n "$IMAGE3_FILE" ] && [ -f "$IMAGE3_FILE" ]; then
             echo "image3_path=${IMAGE3_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 3 completed: ${IMAGE3_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
@@ -553,7 +553,7 @@ jobs:
           
           if [ -f "$BGM_FILE" ] && [ -s "$BGM_FILE" ]; then
             echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] BGM generation completed: ${BGM_FILE} ($(stat -c%s "$BGM_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] BGM generation completed: ${BGM_FILE} ($(stat -c%s "$BGM_FILE" 2>/dev/null || wc -c < "$BGM_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
           else
             echo "[$(date)] WARNING: BGM generation failed completely" >> "${PROJECT_DIR}/logs/execution.log"
             echo "bgm_file=none" >> $GITHUB_OUTPUT
@@ -657,7 +657,7 @@ jobs:
           # Final output
           if [ -f "$VIDEO1_FILE" ] && [ -s "$VIDEO1_FILE" ]; then
             echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video 1 completed: ${VIDEO1_FILE} ($(stat -c%s "$VIDEO1_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] Video 1 completed: ${VIDEO1_FILE} ($(stat -c%s "$VIDEO1_FILE" 2>/dev/null || wc -c < "$VIDEO1_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
           else
             echo "[$(date)] ERROR: Failed to generate Video 1" >> "${PROJECT_DIR}/logs/execution.log"
             echo "video1_path=placeholder" >> $GITHUB_OUTPUT
