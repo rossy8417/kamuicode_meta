@@ -184,10 +184,10 @@ jobs:
           echo "[$(date)] Phase 3: Audio generation started [Fan-out Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
           
           # Check MCP connection time (15-minute safety window)
-          WORKFLOW_START="${{ github.run_started_at }}"
-          CURRENT_TIME=$(date +%s)
-          START_TIME=$(date -d "$WORKFLOW_START" +%s 2>/dev/null || echo $((CURRENT_TIME - 300)))
-          ELAPSED_MINUTES=$(( (CURRENT_TIME - START_TIME) / 60 ))
+          # GitHub Actions doesn't provide run_started_at, so we track from job start
+          JOB_START_TIME=$(date +%s)
+          echo "JOB_START_TIME=$JOB_START_TIME" >> $GITHUB_ENV
+          ELAPSED_MINUTES=0  # First job in phase 3, so assume fresh connection
           
           echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
           
@@ -281,7 +281,7 @@ jobs:
             -p "$IMAGE1_PROMPT"
           
           # Check for generated image
-          IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene1*" -o -name "*1.*" | head -1)
+          IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | head -1)
           if [ -n "$IMAGE1_FILE" ] && [ -f "$IMAGE1_FILE" ]; then
             echo "image1_path=${IMAGE1_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 1 completed: ${IMAGE1_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
@@ -329,7 +329,7 @@ jobs:
             -p "$IMAGE2_PROMPT"
           
           # Check for generated image
-          IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene2*" -o -name "*2.*" | head -1)
+          IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | head -1)
           if [ -n "$IMAGE2_FILE" ] && [ -f "$IMAGE2_FILE" ]; then
             echo "image2_path=${IMAGE2_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 2 completed: ${IMAGE2_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
@@ -425,7 +425,7 @@ jobs:
             -p "$IMAGE4_PROMPT"
           
           # Check for generated image
-          IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene4*" -o -name "*4.*" | head -1)
+          IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | head -1)
           if [ -n "$IMAGE4_FILE" ] && [ -f "$IMAGE4_FILE" ]; then
             echo "image4_path=${IMAGE4_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 4 completed: ${IMAGE4_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
@@ -473,7 +473,7 @@ jobs:
             -p "$IMAGE5_PROMPT"
           
           # Check for generated image
-          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images/individual" -name "*scene5*" -o -name "*5.*" | head -1)
+          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | head -1)
           if [ -n "$IMAGE5_FILE" ] && [ -f "$IMAGE5_FILE" ]; then
             echo "image5_path=${IMAGE5_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 5 completed: ${IMAGE5_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
@@ -512,27 +512,44 @@ jobs:
           echo "[$(date)] Phase 3C: BGM generation started [Independent Task Parallelization]" >> "${PROJECT_DIR}/logs/execution.log"
           
           # Check MCP connection time
-          WORKFLOW_START="${{ github.run_started_at }}"
+          # Use job start time from first phase3 job
+          JOB_START_TIME=${JOB_START_TIME:-$(date +%s)}
           CURRENT_TIME=$(date +%s)
-          START_TIME=$(date -d "$WORKFLOW_START" +%s 2>/dev/null || echo $((CURRENT_TIME - 300)))
-          ELAPSED_MINUTES=$(( (CURRENT_TIME - START_TIME) / 60 ))
+          ELAPSED_MINUTES=$(( (CURRENT_TIME - JOB_START_TIME) / 60 ))
           
           # Ensure audio directory exists
           mkdir -p "${PROJECT_DIR}/media/audio"
           
           if [ $ELAPSED_MINUTES -lt 12 ]; then
-            echo "[$(date)] MCP connection active, attempting BGM generation" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] MCP connection active, attempting BGM generation with retry" >> "${PROJECT_DIR}/logs/execution.log"
             
             BGM_PROMPT="Generate professional news BGM: 60s instrumental, subtle, trust/urgency balance, -25dB below narration. Output: ${PROJECT_DIR}/media/audio/bgm.mp3"
             
-            npx @anthropic-ai/claude-code \
-              --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__t2m-kamui-lyria__lyria_generate,Write,Read" \
-              --max-turns 20 \
-              --permission-mode "acceptEdits" \
-              -p "$BGM_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-bgm-mcp.log"
+            # 3回リトライロジック
+            for attempt in 1 2 3; do
+              echo "[$(date)] BGM generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+              
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__t2m-kamui-lyria__lyria_generate,Write,Read" \
+                --max-turns 20 \
+                --permission-mode "acceptEdits" \
+                -p "$BGM_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-bgm-mcp-attempt$attempt.log"
+              
+              # ファイル生成確認
+              BGM_CHECK=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" 2>/dev/null | head -1)
+              if [ -n "$BGM_CHECK" ] && [ -s "$BGM_CHECK" ]; then
+                echo "[$(date)] BGM generation successful on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                break
+              else
+                echo "[$(date)] BGM generation failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                if [ $attempt -lt 3 ]; then
+                  sleep 10
+                fi
+              fi
+            done
           else
-            echo "[$(date)] MCP timeout risk, using fallback" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] MCP timeout risk, skipping MCP attempts" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
           # Check for generated BGM
@@ -553,7 +570,8 @@ jobs:
           
           if [ -f "$BGM_FILE" ] && [ -s "$BGM_FILE" ]; then
             echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] BGM generation completed: ${BGM_FILE} ($(stat -c%s "$BGM_FILE" 2>/dev/null || wc -c < "$BGM_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            FILE_SIZE=$(stat -c%s "$BGM_FILE" 2>/dev/null || ls -l "$BGM_FILE" 2>/dev/null | awk '{print $5}' || echo "unknown")
+            echo "[$(date)] BGM generation completed: ${BGM_FILE} (${FILE_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
           else
             echo "[$(date)] WARNING: BGM generation failed completely" >> "${PROJECT_DIR}/logs/execution.log"
             echo "bgm_file=none" >> $GITHUB_OUTPUT
@@ -591,10 +609,10 @@ jobs:
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           # Check MCP connection time
-          WORKFLOW_START="${{ github.run_started_at }}"
+          # Use job start time from first phase3 job
+          JOB_START_TIME=${JOB_START_TIME:-$(date +%s)}
           CURRENT_TIME=$(date +%s)
-          START_TIME=$(date -d "$WORKFLOW_START" +%s 2>/dev/null || echo $((CURRENT_TIME - 300)))
-          ELAPSED_MINUTES=$(( (CURRENT_TIME - START_TIME) / 60 ))
+          ELAPSED_MINUTES=$(( (CURRENT_TIME - JOB_START_TIME) / 60 ))
           
           echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
           
