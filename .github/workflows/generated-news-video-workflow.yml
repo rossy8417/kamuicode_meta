@@ -664,10 +664,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all previous artifacts
+      - name: Download specific required artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: phase*
+          pattern: phase1-foundation|phase2-content-creation|phase3-image1-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
@@ -778,10 +778,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all previous artifacts
+      - name: Download specific required artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: phase*
+          pattern: phase1-foundation|phase2-content-creation|phase3-image2-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
@@ -849,10 +849,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all previous artifacts
+      - name: Download specific required artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: phase*
+          pattern: phase1-foundation|phase2-content-creation|phase3-image3-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
@@ -916,10 +916,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all previous artifacts
+      - name: Download specific required artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: phase*
+          pattern: phase1-foundation|phase2-content-creation|phase3-image4-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
@@ -977,10 +977,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download all previous artifacts
+      - name: Download specific required artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: phase*
+          pattern: phase1-foundation|phase2-content-creation|phase3-image5-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
@@ -1030,10 +1030,92 @@ jobs:
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
 
-  # Phase 5: Opening Creation
-  phase5-opening-creation:
+  # Phase 5: Video Editing Planning (Claude Code SDK)
+  phase5-video-editing-planning:
     runs-on: ubuntu-latest
     needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5]
+    outputs:
+      editing_plan: ${{ steps.editing-plan.outputs.editing_plan }}
+      timeline_config: ${{ steps.editing-plan.outputs.timeline_config }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Video Editing Plan Generation (Claude Code SDK)
+        id: editing-plan
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 5: Video editing planning started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          EDITING_PLAN_PROMPT="動画編集計画立案タスク（Claude Code SDK使用）：
+          
+          入力データ分析:
+          - スクリプトデータ: ${SCRIPT_DATA}
+          - 生成済み動画: scene1_video.mp4, scene2_video.mp4, scene3_video.mp4, scene4_video.mp4, scene5_video.mp4
+          - ナレーション音声: narration.mp3
+          - BGM音声: bgm.mp3
+          
+          編集計画要件:
+          1. プロフェッショナル品質の60秒ニュース動画
+          2. スムーズなシーン遷移と適切なタイミング調整
+          3. 音声レベル最適化とミックス比率
+          4. 視聴者エンゲージメント最大化
+          5. ニュース番組としての信頼性とインパクト
+          
+          出力要求:
+          1. 詳細な編集タイムライン: ${PROJECT_DIR}/metadata/editing_timeline.json
+          2. トランジション仕様: ${PROJECT_DIR}/metadata/transitions_config.json
+          3. 音声ミックス設計: ${PROJECT_DIR}/metadata/audio_mixing_plan.json
+          4. 最終品質チェックリスト: ${PROJECT_DIR}/metadata/quality_checklist.json
+          
+          タイムライン形式例:
+          {
+            \"total_duration\": 60,
+            \"segments\": [
+              {\"start\": 0, \"end\": 12, \"content\": \"opening\", \"video\": \"scene1_video.mp4\", \"transition\": \"fade_in\"},
+              {\"start\": 10, \"end\": 22, \"content\": \"main_story\", \"video\": \"scene2_video.mp4\", \"transition\": \"crossfade\"}
+            ],
+            \"audio_layers\": {
+              \"narration\": {\"level\": -6, \"duck_during\": []},
+              \"bgm\": {\"level\": -20, \"fade_points\": []}
+            }
+          }"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Read,Write,Bash" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$EDITING_PLAN_PROMPT"
+          
+          # Check for generated editing plan
+          if [ -f "${PROJECT_DIR}/metadata/editing_timeline.json" ]; then
+            echo "editing_plan=${PROJECT_DIR}/metadata/editing_timeline.json" >> $GITHUB_OUTPUT
+            echo "timeline_config=${PROJECT_DIR}/metadata/editing_timeline.json" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video editing plan completed" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Editing plan not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Video Editing Planning artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-video-editing-planning
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 6: Opening Creation
+  phase6-opening-creation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase5-video-editing-planning]
     outputs:
       opening_video: ${{ steps.opening-task.outputs.opening_video }}
     steps:
@@ -1052,7 +1134,7 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
-          echo "[$(date)] Phase 5: Opening creation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 6: Opening creation started" >> "${PROJECT_DIR}/logs/execution.log"
           
           OPENING_PROMPT="オープニング・タイトル作成タスク：
           
@@ -1093,13 +1175,13 @@ jobs:
       - name: Upload Opening Creation artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: phase5-opening-creation
+          name: phase6-opening-creation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
-  # Phase 6: Integration - Video Concatenation
-  phase6-integration:
+  # Phase 7: Integration - Video Concatenation
+  phase7-integration:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase5-opening-creation]
+    needs: [phase1-foundation, phase2-content-creation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase5-video-editing-planning, phase6-opening-creation]
     outputs:
       concatenated_video: ${{ steps.concat.outputs.concatenated_video }}
     steps:
@@ -1117,7 +1199,7 @@ jobs:
         id: concat
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          echo "[$(date)] Phase 6: Video concatenation started [Fan-in Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Phase 7: Video concatenation started [Fan-in Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
           
           CONCAT_PROMPT="Concatenate video clips: Combine opening + 5 individual videos with smooth transitions, 60s max. Output: concatenated.mp4"
           
@@ -1186,16 +1268,16 @@ jobs:
             echo "concatenated_video=${PROJECT_DIR}/media/videos/placeholder.mp4" >> $GITHUB_OUTPUT
           fi
 
-      - name: Upload Phase 6 artifacts
+      - name: Upload Phase 7 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: phase6-integration
+          name: phase7-integration
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
-  # Phase 7: Final Audio Mix
-  phase7-audio-mix:
+  # Phase 8: Final Audio Mix
+  phase8-audio-mix:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase3-audio-generation, phase3-bgm-generation, phase6-integration]
+    needs: [phase1-foundation, phase3-audio-generation, phase3-bgm-generation, phase7-integration]
     outputs:
       final_video: ${{ steps.mix.outputs.final_video }}
     steps:
@@ -1213,8 +1295,8 @@ jobs:
         id: mix
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          CONCATENATED_VIDEO="${{ needs.phase6-integration.outputs.concatenated_video }}"
-          echo "[$(date)] Phase 7: Audio mixing started" >> "${PROJECT_DIR}/logs/execution.log"
+          CONCATENATED_VIDEO="${{ needs.phase7-integration.outputs.concatenated_video }}"
+          echo "[$(date)] Phase 8: Audio mixing started" >> "${PROJECT_DIR}/logs/execution.log"
           
           # Find audio files
           NARRATION_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*narration*" -o -name "*speech*" | head -1)
@@ -1261,16 +1343,16 @@ jobs:
             exit 1
           fi
 
-      - name: Upload Phase 7 artifacts
+      - name: Upload Phase 8 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: phase7-audio-mix
+          name: phase8-audio-mix
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
-  # Phase 8: Quality Assurance and Final Output
-  phase8-quality-assurance:
+  # Phase 9: Quality Assurance and Final Output
+  phase9-quality-assurance:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase7-audio-mix]
+    needs: [phase1-foundation, phase8-audio-mix]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -1286,8 +1368,8 @@ jobs:
         id: quality-check
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          FINAL_VIDEO="${{ needs.phase7-audio-mix.outputs.final_video }}"
-          echo "[$(date)] Phase 8: Quality assurance started" >> "${PROJECT_DIR}/logs/execution.log"
+          FINAL_VIDEO="${{ needs.phase8-audio-mix.outputs.final_video }}"
+          echo "[$(date)] Phase 9: Quality assurance started" >> "${PROJECT_DIR}/logs/execution.log"
           
           QC_PROMPT="最終品質チェック・書き出しタスク：
           
@@ -1348,10 +1430,11 @@ jobs:
           echo "- ✅ Phase 2: Script & Structure Creation" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Phase 3: Parallel Audio & Image Generation" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Phase 4: Parallel Image Batch 2 & Video Conversion" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Phase 5: Parallel Video Production & BGM Creation" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Phase 6: Video Integration & Concatenation" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Phase 7: Professional Audio Mixing" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Phase 8: Quality Assurance & Final Export" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 5: Video Editing Planning (Claude Code SDK)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 6: Opening Creation" >> $GITHUB_STEP_SUMMARY  
+          echo "- ✅ Phase 7: Video Integration & Concatenation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 8: Professional Audio Mixing" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 9: Quality Assurance & Final Export" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📁 Output Location" >> $GITHUB_STEP_SUMMARY
           echo "All deliverables saved to: \`${PROJECT_DIR}/final/\`" >> $GITHUB_STEP_SUMMARY
