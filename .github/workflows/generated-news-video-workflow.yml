@@ -1096,9 +1096,9 @@ jobs:
                 --permission-mode "acceptEdits" \
                 -p "$VIDEO1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video1-mcp.log"
               
-              # Success check with file size validation
-              VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" 2>/dev/null | head -1)
-              if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ $(stat -c%s "$VIDEO1_FILE" 2>/dev/null || echo 0) -gt 10000 ]; then
+              # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+              VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*.mp4" -o -name "*video1*.mp4" 2>/dev/null | head -1)
+              if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ $(stat -c%s "$VIDEO1_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
                 echo "[$(date)] Video 1 MCP SUCCESS on attempt $attempt: $(ls -lh "$VIDEO1_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
                 VIDEO_GENERATED=true
                 break
@@ -1158,8 +1158,8 @@ jobs:
           echo "## 🎬 Phase 4 Video 1 I2V Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # Check generated video files and create direct links
-          VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" 2>/dev/null | head -1)
+          # Check generated video files and create direct links（統一判定）
+          VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*.mp4" -o -name "*video1*.mp4" 2>/dev/null | head -1)
           if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ]; then
             VIDEO1_SIZE=$(ls -lh "$VIDEO1_FILE" | awk '{print $5}')
             VIDEO1_BASENAME=$(basename "$VIDEO1_FILE")
@@ -1257,9 +1257,9 @@ jobs:
               --permission-mode "acceptEdits" \
               -p "$VIDEO2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video2-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
-            # Success check with file size validation
-            VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*" -o -name "*video2*" | head -1)
-            if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ] && [ -s "$VIDEO2_FILE" ]; then
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*.mp4" -o -name "*video2*.mp4" 2>/dev/null | head -1)
+            if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ] && [ $(stat -c%s "$VIDEO2_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
               echo "[$(date)] Video 2 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO2_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video2_path=${VIDEO2_FILE}" >> $GITHUB_OUTPUT
               break
@@ -1402,9 +1402,9 @@ jobs:
               --permission-mode "acceptEdits" \
               -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
-            # Success check with file size validation
-            VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene4*" -o -name "*video4*" | head -1)
-            if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ] && [ -s "$VIDEO4_FILE" ]; then
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene4*.mp4" -o -name "*video4*.mp4" 2>/dev/null | head -1)
+            if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ] && [ $(stat -c%s "$VIDEO4_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
               echo "[$(date)] Video 4 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO4_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video4_path=${VIDEO4_FILE}" >> $GITHUB_OUTPUT
               break
