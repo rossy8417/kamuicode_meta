@@ -1195,13 +1195,30 @@ jobs:
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
-      - name: Video Concatenation with Retry Logic
+      - name: Video Concatenation with Editing Plan Integration
         id: concat
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          EDITING_PLAN="${{ needs.phase5-video-editing-planning.outputs.editing_plan }}"
           echo "[$(date)] Phase 7: Video concatenation started [Fan-in Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Using editing plan: ${EDITING_PLAN}" >> "${PROJECT_DIR}/logs/execution.log"
           
-          CONCAT_PROMPT="Concatenate video clips: Combine opening + 5 individual videos with smooth transitions, 60s max. Output: concatenated.mp4"
+          CONCAT_PROMPT="動画結合タスク（編集計画に基づく）：
+          
+          編集計画ファイル: ${EDITING_PLAN}
+          
+          要求:
+          1. 編集計画のタイムライン仕様に従って動画を結合
+          2. 指定されたトランジション効果を適用
+          3. セグメント開始・終了時間の正確な実装
+          4. プロフェッショナル品質の60秒ニュース動画
+          
+          処理手順:
+          1. ${EDITING_PLAN}を読み込み、タイムライン構成を解析
+          2. セグメント順序とトランジション仕様を適用
+          3. 最終的な動画を${PROJECT_DIR}/media/videos/concatenated.mp4として出力
+          
+          注意: 編集計画が存在しない場合のみ、基本的な結合を実行"
           
           # 3回リトライロジック実装
           CONCAT_SUCCESS=false
@@ -1277,7 +1294,7 @@ jobs:
   # Phase 8: Final Audio Mix
   phase8-audio-mix:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase3-audio-generation, phase3-bgm-generation, phase7-integration]
+    needs: [phase1-foundation, phase3-audio-generation, phase3-bgm-generation, phase5-video-editing-planning, phase7-integration]
     outputs:
       final_video: ${{ steps.mix.outputs.final_video }}
     steps:
@@ -1291,27 +1308,36 @@ jobs:
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
           merge-multiple: true
 
-      - name: Audio and BGM Mixing
+      - name: Audio and BGM Mixing with Editing Plan Integration
         id: mix
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           CONCATENATED_VIDEO="${{ needs.phase7-integration.outputs.concatenated_video }}"
+          EDITING_PLAN="${{ needs.phase5-video-editing-planning.outputs.editing_plan }}"
           echo "[$(date)] Phase 8: Audio mixing started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Using editing plan: ${EDITING_PLAN}" >> "${PROJECT_DIR}/logs/execution.log"
           
           # Find audio files
           NARRATION_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*narration*" -o -name "*speech*" | head -1)
           BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" | head -1)
           
-          MIX_PROMPT="音声・BGMミックスタスク：
+          MIX_PROMPT="音声・BGMミックスタスク（編集計画に基づく）：
+          
+          編集計画ファイル: ${EDITING_PLAN}
+          音声ミックス設計: ${PROJECT_DIR}/metadata/audio_mixing_plan.json
           
           入力ファイル:
           - 動画: ${CONCATENATED_VIDEO}
           - ナレーション: ${NARRATION_FILE}
           - BGM: ${BGM_FILE}
           
-          目標: プロフェッショナルなニュース番組の音響品質実現
+          処理手順:
+          1. audio_mixing_plan.jsonを読み込み、音声レベル設定を取得
+          2. 編集計画で指定されたduck_during（BGM音量調整）ポイントを適用
+          3. fade_pointsで指定されたBGMフェード処理を実行
+          4. プロフェッショナル品質の音響バランス実現
           
-          要件:
+          フォールバック要件（計画ファイルが無い場合）:
           1. ナレーション音声レベル: -14LUFS
           2. BGMレベル: ナレーションより20-25dB低く
           3. 音声の明瞭性最優先
