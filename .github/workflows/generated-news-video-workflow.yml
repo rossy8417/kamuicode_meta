@@ -1605,10 +1605,135 @@ jobs:
           fi
 
 
+  # Phase 4b: Auto Expand Scenes to match narration duration
+  phase4b-fill-gap-videos:
+    runs-on: ubuntu-latest
+    needs:
+      [
+        phase1-foundation,
+        phase2-content-creation,
+        phase3-audio-generation,
+        phase3-image1-generation,
+        phase3-image2-generation,
+        phase3-image3-generation,
+        phase3-image4-generation,
+        phase3-image5-generation,
+        phase4-image1-to-video1,
+        phase4-image2-to-video2,
+        phase4-image3-to-video3,
+        phase4-image4-to-video4,
+        phase4-image5-to-video5
+      ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Generate filler videos to match narration length
+        run: |
+          set -euo pipefail
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCENE_DIR="${PROJECT_DIR}/media/videos/individual"
+          IMG1="${{ needs.phase3-image1-generation.outputs.image1_path }}"
+          IMG2="${{ needs.phase3-image2-generation.outputs.image2_path }}"
+          IMG3="${{ needs.phase3-image3-generation.outputs.image3_path }}"
+          IMG4="${{ needs.phase3-image4-generation.outputs.image4_path }}"
+          IMG5="${{ needs.phase3-image5-generation.outputs.image5_path }}"
+          NARRATION_FILE="${PROJECT_DIR}/media/audio/narration.mp3"
+          mkdir -p "$SCENE_DIR" "${PROJECT_DIR}/logs"
+
+          # 目標: ナレーション長。取得失敗時は60秒
+          TARGET=60
+          if command -v ffprobe >/dev/null 2>&1 && [ -f "$NARRATION_FILE" ]; then
+            D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$NARRATION_FILE" 2>/dev/null | cut -d'.' -f1)
+            if [ -n "$D" ] && [ "$D" -gt 0 ] 2>/dev/null; then TARGET="$D"; fi
+          fi
+
+          # 現在の合計尺を算出
+          total=0
+          if command -v ffprobe >/dev/null 2>&1; then
+            while IFS= read -r f; do
+              [ -f "$f" ] || continue
+              dur=$(ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "$f" 2>/dev/null | cut -d'.' -f1)
+              if [ -z "$dur" ]; then
+                dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" 2>/dev/null | cut -d'.' -f1)
+              fi
+              [ -n "$dur" ] || dur=0
+              total=$(( total + dur ))
+            done < <(find "$SCENE_DIR" -type f -name "scene*_video.mp4" | sort -V)
+          fi
+
+          echo "[$(date)] Current total video duration: ${total}s / target ${TARGET}s" >> "${PROJECT_DIR}/logs/execution.log"
+
+          gap=$(( TARGET - total ))
+          if [ "$gap" -le 2 ]; then
+            echo "[$(date)] No filler needed (gap=${gap}s)" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 0
+          fi
+
+          # 既存最大シーン番号を取得
+          maxn=0
+          while IFS= read -r f; do
+            bn=$(basename "$f")
+            n=$(echo "$bn" | sed -n 's/^scene\([0-9]\+\)_video\.mp4$/\1/p')
+            [ -n "$n" ] && [ "$n" -gt "$maxn" ] 2>/dev/null && maxn="$n"
+          done < <(find "$SCENE_DIR" -type f -name "scene*_video.mp4")
+
+          # 画像候補の配列
+          imgs=()
+          for p in "$IMG1" "$IMG2" "$IMG3" "$IMG4" "$IMG5"; do
+            [ -f "$p" ] && imgs+=("$p") || true
+          done
+
+          idx=0
+          while [ "$gap" -gt 0 ]; do
+            chunk=8
+            if [ "$gap" -lt 8 ]; then chunk="$gap"; fi
+            maxn=$(( maxn + 1 ))
+            out="$SCENE_DIR/scene${maxn}_video.mp4"
+
+            src=""
+            if [ "${#imgs[@]}" -gt 0 ]; then
+              src="${imgs[$(( idx % ${#imgs[@]} ))]}"
+            fi
+
+            if [ -n "$src" ] && [ -f "$src" ]; then
+              ffmpeg -y -loop 1 -t "$chunk" -i "$src" \
+                -vf "scale=1920:1080,zoompan=z='min(zoom+0.0015,1.1)':d=$((chunk*30)):s=1920x1080:fps=30" \
+                -c:v libx264 -pix_fmt yuv420p "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
+            else
+              ffmpeg -y -f lavfi -i "testsrc=duration=${chunk}:size=1920x1080:rate=30" \
+                -vf "drawtext=text='Filler ${maxn}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
+                -c:v libx264 -pix_fmt yuv420p "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
+            fi
+
+            echo "[$(date)] Created filler: $(basename "$out") (${chunk}s)" >> "${PROJECT_DIR}/logs/execution.log"
+            gap=$(( gap - chunk ))
+            idx=$(( idx + 1 ))
+          done
+
+      - name: Upload filler artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4b-fill-gap-videos
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+
   # Phase 5: Video Editing Planning (Claude Code SDK)
   phase5-video-editing-planning:
     runs-on: ubuntu-latest
-    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5]
+    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase4b-fill-gap-videos]
     outputs:
       editing_plan: ${{ steps.editing-plan.outputs.editing_plan }}
       timeline_config: ${{ steps.editing-plan.outputs.timeline_config }}
@@ -1630,16 +1755,34 @@ jobs:
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
           echo "[$(date)] Phase 5: Video editing planning started" >> "${PROJECT_DIR}/logs/execution.log"
           
+          # 動的：利用可能なシーン一覧とナレーション長の収集
+          NARRATION_FILE="${PROJECT_DIR}/media/audio/narration.mp3"
+          TARGET_DURATION=60
+          if command -v ffprobe > /dev/null 2>&1 && [ -f "$NARRATION_FILE" ]; then
+            NARR_SEC=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$NARRATION_FILE" 2>/dev/null | cut -d'.' -f1)
+            if [ -n "$NARR_SEC" ] && [ "$NARR_SEC" -gt 0 ] 2>/dev/null; then
+              TARGET_DURATION="$NARR_SEC"
+            fi
+          fi
+          SCENE_DIR="${PROJECT_DIR}/media/videos/individual"
+          mkdir -p "$SCENE_DIR"
+          VIDEOS_FOUND=$(find "$SCENE_DIR" -type f -name "scene*_video.mp4" 2>/dev/null | sort -V)
+          if command -v jq > /dev/null 2>&1; then
+            VIDEOS_JSON=$(printf '%s\n' $VIDEOS_FOUND | jq -R . | jq -s .)
+          else
+            VIDEOS_JSON="[]"
+          fi
+
           EDITING_PLAN_PROMPT="動画編集計画立案タスク（Claude Code SDK使用）：
           
           入力データ分析:
           - スクリプトデータ: ${SCRIPT_DATA}
-          - 生成済み動画: scene1_video.mp4, scene2_video.mp4, scene3_video.mp4, scene4_video.mp4, scene5_video.mp4
-          - ナレーション音声: narration.mp3
+          - 利用可能なシーン動画一覧: ${VIDEOS_JSON}
+          - ナレーション音声: narration.mp3（目標合計時間: ${TARGET_DURATION}秒）
           - BGM音声: bgm.mp3
           
           編集計画要件:
-          1. プロフェッショナル品質の60秒ニュース動画
+          1. プロフェッショナル品質の${TARGET_DURATION}秒前後のニュース動画（ナレーションに極力合わせる）
           2. スムーズなシーン遷移と適切なタイミング調整
           3. 音声レベル最適化とミックス比率
           4. 視聴者エンゲージメント最大化
@@ -1651,9 +1794,14 @@ jobs:
           3. 音声ミックス設計: ${PROJECT_DIR}/metadata/audio_mixing_plan.json
           4. 最終品質チェックリスト: ${PROJECT_DIR}/metadata/quality_checklist.json
           
+          充足条件と補足:
+          - 利用可能なシーンが少なく全長に満たない場合、シーン再利用やB-roll（静止画のパン/ズーム）で時間を満たす。
+          - 各シーンの標準長は6-10秒目安。全体の流れが自然になるよう調整すること。
+          - 利用可能なファイル名（scene*_video.mp4）とタイムラインの対応関係を明示。
+          
           タイムライン形式例:
           {
-            \"total_duration\": 60,
+            \"total_duration\": ${TARGET_DURATION},
             \"segments\": [
               {\"start\": 0, \"end\": 12, \"content\": \"opening\", \"video\": \"scene1_video.mp4\", \"transition\": \"fade_in\"},
               {\"start\": 10, \"end\": 22, \"content\": \"main_story\", \"video\": \"scene2_video.mp4\", \"transition\": \"crossfade\"}
