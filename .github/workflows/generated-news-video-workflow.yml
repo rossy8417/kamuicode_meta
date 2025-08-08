@@ -617,7 +617,22 @@ jobs:
           
           echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
           
-          VIDEO1_PROMPT="Convert image ${IMAGE1_PATH} to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          # Prepare clear i2v instruction
+          VIDEO1_PROMPT=$(cat << EOF
+IMPORTANT: This is an Image-to-Video (i2v) task.
+
+1. Read the image file at: ${IMAGE1_PATH}
+2. Use the mcp__i2v-kamui-veo3-fast tool to convert it to video
+3. Parameters for the MCP tool:
+   - image_url: ${IMAGE1_PATH} (read this file and provide as input)
+   - prompt: "Professional news video segment with subtle motion, 8 seconds duration"
+   - duration: "8s"
+   - aspect_ratio: "16:9"
+4. Save the resulting video to: ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4
+
+This is a simple i2v conversion. The image is the main input, the prompt is supplementary.
+EOF
+          )
           
           # Try MCP generation if within time window
           VIDEO_GENERATED=false
@@ -713,7 +728,7 @@ jobs:
           echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO2_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene2_video.mp4"
+          VIDEO2_PROMPT="Read image at ${IMAGE2_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE2_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
           
           # 3-attempt retry logic for Video 2 generation
           for attempt in 1 2 3; do
@@ -774,7 +789,7 @@ jobs:
           echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO3_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene3_video.mp4"
+          VIDEO3_PROMPT="Read image at ${IMAGE3_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE3_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4"
           
           # 3-attempt retry logic for Video 3 generation
           for attempt in 1 2 3; do
@@ -835,7 +850,7 @@ jobs:
           echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO4_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene4_video.mp4"
+          VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
           
           # 3-attempt retry logic for Video 4 generation
           for attempt in 1 2 3; do
@@ -896,7 +911,7 @@ jobs:
           echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO5_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene5_video.mp4"
+          VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
           
           # 3-attempt retry logic for Video 5 generation
           for attempt in 1 2 3; do
