@@ -63,6 +63,105 @@ inputs:
       default: "female_professional"
       includes_accent: ["us", "uk", "au", "jp"]
     
+    # 人間要素パラメータ（動画制作の演者・キャスト）
+    presenter_config:
+      type: object
+      description: "動画に登場する人間要素の設定"
+      properties:
+        presenter_count:
+          type: integer
+          description: "登場人物数"
+          range: [0, 10]
+          default: 1
+          note: "0の場合は音声のみ、1以上でビジュアル要素が必要"
+        
+        presenter_type:
+          type: string
+          description: "メインプレゼンタータイプ"
+          enum: ["news_anchor", "documentary_narrator", "educational_instructor", "vlog_creator", "corporate_presenter", "entertainer", "animated_character", "none"]
+          default: "news_anchor"
+          content_mapping:
+            news: "news_anchor"
+            educational: "educational_instructor"
+            entertainment: "entertainer"
+            documentary: "documentary_narrator"
+            promotional: "corporate_presenter"
+        
+        character_design:
+          type: object
+          description: "キャラクター・演者の外観設定"
+          properties:
+            age_range:
+              type: string
+              enum: ["child", "teenager", "young_adult", "middle_aged", "elderly"]
+              default: "young_adult"
+            
+            gender:
+              type: string
+              enum: ["male", "female", "non_binary", "not_specified"]
+              default: "not_specified"
+            
+            ethnicity:
+              type: string
+              enum: ["asian", "caucasian", "african", "hispanic", "middle_eastern", "mixed", "not_specified"]
+              default: "not_specified"
+            
+            appearance_style:
+              type: string
+              enum: ["professional", "casual", "formal", "creative", "sporty", "artistic"]
+              default: "professional"
+            
+            outfit_type:
+              type: string
+              enum: ["business_suit", "casual_wear", "formal_dress", "uniform", "creative_outfit", "traditional_wear", "auto_select"]
+              default: "auto_select"
+        
+        lipsync_requirements:
+          type: object
+          description: "リップシンク要件"
+          properties:
+            enable_lipsync:
+              type: boolean
+              default: true
+              note: "presenter_countが1以上の場合は自動でtrue"
+            
+            sync_precision:
+              type: string
+              enum: ["loose", "standard", "precise", "professional"]
+              default: "standard"
+              timing_tolerance:
+                loose: "±100ms"
+                standard: "±50ms"
+                precise: "±25ms"
+                professional: "±10ms"
+            
+            mouth_shape_detail:
+              type: string
+              enum: ["basic", "detailed", "ultra_detailed"]
+              default: "detailed"
+        
+        presenter_roles:
+          type: array
+          description: "複数登場人物の役割分担"
+          items:
+            type: object
+            properties:
+              role_name:
+                type: string
+                enum: ["main_anchor", "co_anchor", "field_reporter", "expert_guest", "narrator", "interviewer", "interviewee", "moderator"]
+              
+              screen_time_percentage:
+                type: integer
+                range: [1, 100]
+                description: "全体に占める出演時間の割合"
+              
+              voice_characteristics:
+                type: object
+                properties:
+                  pitch: {type: string, enum: ["low", "medium", "high"]}
+                  speed: {type: string, enum: ["slow", "normal", "fast"]}
+                  tone: {type: string, enum: ["authoritative", "friendly", "casual", "professional", "energetic"]}
+    
     color_grading:
       type: string
       description: "カラーグレーディング"
@@ -139,6 +238,12 @@ inputs:
           type: boolean
           default: true
           description: "低解像度プレビュー版の生成"
+        
+        generate_character_sheets:
+          type: boolean
+          default: false
+          description: "キャラクターデザインシート生成"
+          note: "複数登場人物がいる場合の一貫性確保用"
     
     performance_mode:
       type: string
@@ -165,6 +270,28 @@ inputs:
         font_family:
           type: string
           description: "字幕・テロップ用フォント"
+
+# 人間要素関連の自動判定ルール
+human_element_automation:
+  auto_presenter_inference:
+    description: "コンテンツタイプから最適な演者タイプを推測"
+    rules:
+      - if: "content_type == 'news'"
+        then: "presenter_type = 'news_anchor', character_design.appearance_style = 'professional'"
+      - if: "content_type == 'educational'"
+        then: "presenter_type = 'educational_instructor', character_design.appearance_style = 'professional'"
+      - if: "content_type == 'entertainment'"
+        then: "presenter_type = 'entertainer', character_design.appearance_style = 'creative'"
+      - if: "content_type == 'documentary'"
+        then: "presenter_type = 'documentary_narrator', character_design.appearance_style = 'casual'"
+      - if: "target_platform in ['tiktok', 'instagram']"
+        then: "character_design.age_range = 'young_adult', character_design.appearance_style = 'casual'"
+  
+  lipsync_auto_enable:
+    rule: "if presenter_config.presenter_count > 0 then lipsync_requirements.enable_lipsync = true"
+  
+  multi_presenter_validation:
+    rule: "if len(presenter_config.presenter_roles) > 1 then sum(screen_time_percentage) must equal 100"
 
 # 自動計算されるパラメータ
 computed_parameters:

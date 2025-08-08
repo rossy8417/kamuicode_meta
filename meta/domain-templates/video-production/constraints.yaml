@@ -33,6 +33,30 @@ timing_constraints:
         if total_time > (url_limit - safety_margin):
           reduce_parallel_count or split_workflow
 
+# 人間要素特化制約
+human_element_technical_constraints:
+  # キャラクター生成技術制約
+  character_generation:
+    face_resolution_minimum: "512x512  # 顔部分の最低解像度"
+    face_detection_confidence: "0.85  # 顔認識精度闾値"
+    expression_frame_rate: "15fps  # 表情変化のスムーズさ"
+    
+    clothing_consistency:
+      texture_resolution: "1024x1024"
+      color_tolerance: "5%  # RGB値の許容誕差"
+      pattern_alignment: "required  # 柄の連続性"
+  
+  # リップシンク技術制約
+  lipsync_technical:
+    phoneme_accuracy: ">90%  # 音素認識精度"
+    mouth_shape_frames: "24fps  # 口の形状フレームレート"
+    sync_drift_tolerance: "100ms per minute  # 時間経過によるズレ許容"
+    
+    multi_speaker_handling:
+      speaker_identification: "required  # 話者特定必須"
+      voice_overlap_resolution: "priority_based  # 主話者優先"
+      cross_talk_detection: "enabled  # 同時発話検出"
+
 technical_constraints:
   # 解像度とアスペクト比
   resolution:
@@ -100,6 +124,42 @@ audio_video_sync:
       - 音素解析
       - 口形状マッピング
       - タイミング調整（±50ms許容）
+  
+  # 人間要素同期制約新追加
+  human_element_sync:
+    # キャラクター一貫性制約
+    character_consistency:
+      importance: "CRITICAL - キャラクターの一貫性は視聴体験に直結"
+      constraints:
+        same_character_seed: "true  # 同一キャラは同じseed値使用必須"
+        color_palette_lock: "true  # 肤の色、髪の色、服の色を固定"
+        facial_features_lock: "true  # 顔の特徴（目、鼻、輪郭）を固定"
+        pose_reference: "maintain  # 姿勢・表情のベースライン保持"
+    
+    # 複数人物出演時の制約
+    multi_presenter_constraints:
+      max_simultaneous: 3  # 同時出演人数上限
+      screen_composition:
+        two_people: "split_screen or interview_setup"
+        three_people: "panel_discussion or main_with_guests"
+        four_plus: "group_shot or sequential_appearance"
+      
+      interaction_rules:
+        eye_contact: "speakers should make appropriate eye contact"
+        gesture_sync: "avoid simultaneous large gestures"
+        voice_overlap: "max 200ms overlap allowed"
+    
+    # 音声キャラクター連携
+    voice_character_mapping:
+      consistency_requirement: |
+        - 同じキャラは同じ音声パラメータ使用
+        - 音声と外観の違和感チェック（年齢・性別・体格）
+        - キャラ特性と音声特性のマッチング
+      
+      voice_separation:
+        minimum_pitch_difference: "3 semitones  # 複数話者の聴き分け用"
+        speaking_pace_variation: "allow  # 個性を出すための速度差"
+        accent_consistency: "per_character  # キャラ毎のアクセント統一"
 
 quality_assurance:
   # 品質チェックポイント
@@ -123,7 +183,42 @@ quality_assurance:
         - "エンコード品質"
 
 failure_recovery:
-  # 失敗時リカバリー戦略
+  # 人間要素関連失敗リカバリー
+  human_element_recovery:
+    - error: "キャラ不一致"
+      detection: |
+        - 顔特徴を数値化して比較（SSIM < 0.7）
+        - 色彩ヒストグラムでカラーパレット確認
+        - ポーズ・表情の一貫性チェック
+      recovery: |
+        1. ベースキャラクターを基準として設定
+        2. seed値とプロンプトを統一
+        3. 不一致シーンのみ再生成
+        4. ポストプロセシングで色補正
+    
+    - error: "リップシンク失敗"
+      detection: |
+        - 音声タイミングと口の動きのズレ > 200ms
+        - 音素と口形の不一致率 > 30%
+        - 音声のない時間帯での口の動き
+      recovery: |
+        1. 音素解析を再実行（精度向上）
+        2. 音声速度を微調整（±5%範囲）
+        3. 手動でキーフレーム指定
+        4. フォールバック：シンプルリップシンクモード
+    
+    - error: "複数登場人物の競合"
+      detection: |
+        - 同時に複数話者の口が動く
+        - 話者以外の人物が意図せず話している
+        - 音声重なりが不自然
+      recovery: |
+        1. 話者優先度を明確化
+        2. 非話者の口を閉じた状態で再生成
+        3. シークエンシャル音声処理に切替
+        4. 複数カメラアングルで個別撮影
+  
+  # 従来の失敗リカバリー戦略
   strategies:
     - error: "URL期限切れ"
       recovery: |

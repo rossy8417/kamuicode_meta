@@ -17,12 +17,15 @@ workflow_patterns:
         tasks:
           - narration_generation: "音声生成"
           - scene_images: "シーン画像生成（並列5）"
+          - character_generation: "キャラクター・プレゼンター生成"
           - bgm_selection: "BGM生成/選択"
       
       3_video_production:
         parallel: true
         tasks:
           - i2v_conversion: "画像→動画変換（並列5）"
+          - character_animation: "キャラクター動画生成・アニメーション"
+          - lipsync_preparation: "リップシンク用データ準備"
           - title_card: "タイトルカード作成"
           - end_card: "エンドカード作成"
       
@@ -39,7 +42,8 @@ workflow_patterns:
         tasks:
           - video_concat: "動画結合"
           - audio_mixing: "音声ミックス"
-          - lipsync: "リップシンク（必要時）"
+          - character_lipsync: "キャラクターリップシンク適用"
+          - multi_presenter_sync: "複数登場人物の同期調整"
           - subtitle_overlay: "字幕追加"
           - final_export: "最終出力"
   
@@ -138,12 +142,127 @@ optimization_patterns:
       - batch_api_calls: "APIコールのバッチ化"
       - fallback_to_local: "ローカル処理へのフォールバック"
 
+# 演者・キャラクター特化ワークフローパターン
+character_focused_patterns:
+  # ニュースキャスターパターン
+  news_anchor_pattern:
+    description: "ニュースキャスター中心の動画制作"
+    human_elements:
+      - primary_anchor: "メインキャスター（画面中央）"
+      - optional_co_anchor: "サブキャスター（画面右側）"
+      - background_staff: "背景のニューズルーム"
+    stages:
+      1_anchor_setup:
+        tasks:
+          - anchor_character_design: "キャスターキャラ設定"
+          - newsroom_environment: "ニューズルーム背景"
+          - professional_attire: "プロフェッショナル服装"
+      
+      2_anchor_generation:
+        tasks:
+          - anchor_base_image: "キャスター基本画像"
+          - multiple_expressions: "複数表情バリエーション"
+          - consistent_lighting: "一貫したライティング"
+      
+      3_anchor_animation:
+        tasks:
+          - speaking_animation: "話しているアニメーション"
+          - gesture_sync: "ジェスチャー同期"
+          - eye_contact_maintenance: "視線の維持"
+  
+  # 教育・プレゼンパターン
+  educational_presenter_pattern:
+    description: "教育・解説動画のプレゼンター"
+    human_elements:
+      - main_instructor: "メイン講師"
+      - visual_aids: "視覚的補助資料"
+      - interactive_elements: "インタラクティブ要素"
+    stages:
+      1_instructor_setup:
+        tasks:
+          - instructor_persona: "講師ペルソナ設定"
+          - teaching_environment: "教育環境設定"
+          - casual_professional_style: "カジュアル・プロフェッショナル"
+      
+      2_educational_content:
+        tasks:
+          - explanation_gestures: "説明ジェスチャー"
+          - point_and_explain: "指差し・解説動作"
+          - engagement_techniques: "視聴者エンゲージメント"
+  
+  # エンターテインメント・Vlogパターン
+  entertainment_creator_pattern:
+    description: "エンターテインメント・Vlog制作者"
+    human_elements:
+      - charismatic_host: "カリスマ性のあるホスト"
+      - dynamic_expressions: "ダイナミックな表情"
+      - casual_setting: "カジュアルな環境"
+    stages:
+      1_personality_setup:
+        tasks:
+          - unique_character_traits: "独特なキャラクター特性"
+          - signature_style: "シグネチャースタイル"
+          - brand_consistency: "ブランド一貫性"
+      
+      2_dynamic_content:
+        tasks:
+          - energetic_movements: "エネルギッシュな動き"
+          - reaction_variations: "リアクションバリエーション"
+          - audience_interaction: "視聴者とのインタラクション"
+  
+  # 複数登場人物パターン
+  multi_character_pattern:
+    description: "複数キャラクターが登場する動画"
+    human_elements:
+      - character_hierarchy: "キャラクター階層"
+      - interaction_dynamics: "相互作用ダイナミクス"
+      - consistent_world: "一貫した世界観"
+    stages:
+      1_ensemble_planning:
+        tasks:
+          - character_relationship_map: "キャラクター関係図"
+          - screen_time_allocation: "スクリーンタイム配分"
+          - interaction_choreography: "相互作用振付"
+      
+      2_multi_character_sync:
+        tasks:
+          - conversation_flow: "会話フロー管理"
+          - eye_contact_patterns: "視線パターン"
+          - group_dynamics: "グループダイナミクス"
+      
+      3_ensemble_integration:
+        tasks:
+          - seamless_transitions: "シームレス転換"
+          - character_consistency_check: "キャラクター一貫性チェック"
+          - group_scene_composition: "グループシーン構成"
+
 conditional_patterns:
   # 条件分岐パターン
+  has_human_presenter:
+    condition: "presenter_config.presenter_count > 0"
+    then_pattern: "character_focused_workflow"
+    else_pattern: "standard_workflow"
+  
   has_speaker:
     condition: "narration_voice != 'none'"
     then_pattern: "lipsync_workflow"
     else_pattern: "standard_workflow"
+  
+  multiple_characters:
+    condition: "presenter_config.presenter_count > 1"
+    then_pattern: "multi_character_pattern"
+    else_pattern: "single_character_pattern"
+  
+  presenter_type_selection:
+    news_content:
+      condition: "content_type == 'news'"
+      pattern: "news_anchor_pattern"
+    educational_content:
+      condition: "content_type == 'educational'"
+      pattern: "educational_presenter_pattern"
+    entertainment_content:
+      condition: "content_type == 'entertainment'"
+      pattern: "entertainment_creator_pattern"
   
   is_short_form:
     condition: "duration <= 60s"
@@ -154,6 +273,50 @@ conditional_patterns:
     condition: "content_type == 'live_archive'"
     then_pattern: "live_style_pattern"
     else_pattern: "basic_video_workflow"
+
+# キャラクター・演者特化エラーリカバリー
+character_error_recovery_patterns:
+  # キャラクター不一致リカバリー
+  character_inconsistency_recovery:
+    description: "キャラクターの見た目が一貫していない場合"
+    detection_criteria:
+      - "facial_feature_similarity < 0.8"
+      - "color_palette_difference > 15%"
+      - "style_coherence_score < 0.7"
+    recovery_steps:
+      1: "基準キャラクター画像の特定（最も品質の高いもの）"
+      2: "不一致シーンの抽出とマーキング"
+      3: "基準キャラクターのseed値・プロンプトで再生成"
+      4: "色彩・ライティングのポストプロセス統一"
+      5: "最終一貫性検証"
+  
+  # リップシンク失敗リカバリー
+  lipsync_failure_recovery:
+    description: "リップシンクが正常に動作しない場合"
+    detection_criteria:
+      - "audio_visual_sync_offset > 200ms"
+      - "mouth_movement_accuracy < 0.7"
+      - "phoneme_matching_rate < 0.8"
+    recovery_steps:
+      1: "音声ファイルの再解析（高精度モード）"
+      2: "口の動き検出精度向上"
+      3: "手動キーフレーム補正"
+      4: "フォールバック：シンプルリップシンクモード"
+      5: "最終的フォールバック：静止画＋音声"
+  
+  # 複数キャラクター競合リカバリー
+  multi_character_conflict_recovery:
+    description: "複数キャラクターが同時に話す・動く競合"
+    detection_criteria:
+      - "simultaneous_mouth_movement_detected"
+      - "overlapping_gesture_conflicts"
+      - "attention_focus_ambiguity"
+    recovery_steps:
+      1: "話者優先度の明確化"
+      2: "非話者キャラクターの待機ポーズ設定"
+      3: "音声重なり部分のフェード処理"
+      4: "視線・身体向きの調整"
+      5: "必要時：シーケンシャル処理への切替"
 
 error_recovery_patterns:
   # エラーリカバリーパターン
