@@ -235,7 +235,8 @@ jobs:
           
           if [ -f "$AUDIO_FILE" ] && [ -s "$AUDIO_FILE" ]; then
             echo "audio_file=${AUDIO_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Audio generation completed: ${AUDIO_FILE} ($(stat -c%s "$AUDIO_FILE" 2>/dev/null || wc -c < "$AUDIO_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            AUDIO_SIZE=$(stat -c%s "$AUDIO_FILE" 2>/dev/null || ls -l "$AUDIO_FILE" 2>/dev/null | awk '{print $5}' || echo "0")
+            echo "[$(date)] Audio generation completed: ${AUDIO_FILE} (${AUDIO_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
           else
             echo "[$(date)] ERROR: Failed to generate audio" >> "${PROJECT_DIR}/logs/execution.log"
             echo "audio_file=placeholder" >> $GITHUB_OUTPUT
@@ -675,7 +676,8 @@ jobs:
           # Final output
           if [ -f "$VIDEO1_FILE" ] && [ -s "$VIDEO1_FILE" ]; then
             echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Video 1 completed: ${VIDEO1_FILE} ($(stat -c%s "$VIDEO1_FILE" 2>/dev/null || wc -c < "$VIDEO1_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO1_SIZE=$(stat -c%s "$VIDEO1_FILE" 2>/dev/null || ls -l "$VIDEO1_FILE" 2>/dev/null | awk '{print $5}' || echo "0")
+            echo "[$(date)] Video 1 completed: ${VIDEO1_FILE} (${VIDEO1_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
           else
             echo "[$(date)] ERROR: Failed to generate Video 1" >> "${PROJECT_DIR}/logs/execution.log"
             echo "video1_path=placeholder" >> $GITHUB_OUTPUT
