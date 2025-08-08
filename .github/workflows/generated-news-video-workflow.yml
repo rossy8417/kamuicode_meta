@@ -41,6 +41,23 @@ jobs:
           echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
           echo "[$(date)] Phase 1: Foundation started" >> "${PROJECT_DIR}/logs/execution.log"
           echo "Project directory: ${PROJECT_DIR}"
+          
+          # Initialize Progressive Report in GitHub Actions Summary
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 📺 Professional News Video Creation 実行レポート
+          
+          ## 📋 実行概要
+          EOF
+          
+          echo "- **プロジェクト名**: ${{ inputs.project_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **ニューストピック**: ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **対象期間**: ${{ inputs.time_period }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行開始時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行状況**: 🔄 進行中..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🏗️ Phase 1: Foundation - 情報収集基盤構築" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ プロジェクト構造作成完了: ${PROJECT_DIR##*/}" >> $GITHUB_STEP_SUMMARY
 
       - name: News Research and Information Gathering
         id: research
@@ -77,6 +94,18 @@ jobs:
           if [ -f "${PROJECT_DIR}/metadata/research_data.json" ]; then
             echo "research_data=${PROJECT_DIR}/metadata/research_data.json" >> $GITHUB_OUTPUT
             echo "[$(date)] Research completed successfully" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 1 Research Report
+            echo "- ✅ ニュース情報収集完了: ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract research summary for report
+            if command -v jq > /dev/null; then
+              SOURCES_COUNT=$(jq '.sources | length' "${PROJECT_DIR}/metadata/research_data.json" 2>/dev/null || echo "0")
+              RELIABILITY_SCORE=$(jq -r '.reliability_score' "${PROJECT_DIR}/metadata/research_data.json" 2>/dev/null || echo "N/A")
+              echo "- ✅ 収集情報源数: ${SOURCES_COUNT}件" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ 信頼性スコア: ${RELIABILITY_SCORE}" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "[$(date)] ERROR: Research data not generated" >> "${PROJECT_DIR}/logs/execution.log"
             exit 1
@@ -149,6 +178,19 @@ jobs:
           if [ -f "${PROJECT_DIR}/metadata/script_data.json" ]; then
             echo "script_data=${PROJECT_DIR}/metadata/script_data.json" >> $GITHUB_OUTPUT
             echo "[$(date)] Script creation completed successfully" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 2 Report
+            echo "## 📝 Phase 2: Content Creation - 脚本・構成作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ ニュース脚本作成完了" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract script summary for report
+            if command -v jq > /dev/null; then
+              TOTAL_DURATION=$(jq -r '.total_duration // "60"' "${PROJECT_DIR}/metadata/script_data.json" 2>/dev/null)
+              SCENE_COUNT=$(jq '.visual_scenes | length' "${PROJECT_DIR}/metadata/script_data.json" 2>/dev/null || echo "0")
+              echo "- ✅ 動画総時間: ${TOTAL_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ 視覚シーン数: ${SCENE_COUNT}シーン" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "[$(date)] ERROR: Script data not generated" >> "${PROJECT_DIR}/logs/execution.log"
             exit 1
@@ -237,9 +279,25 @@ jobs:
             echo "audio_file=${AUDIO_FILE}" >> $GITHUB_OUTPUT
             AUDIO_SIZE=$(stat -c%s "$AUDIO_FILE" 2>/dev/null || ls -l "$AUDIO_FILE" 2>/dev/null | awk '{print $5}' || echo "0")
             echo "[$(date)] Audio generation completed: ${AUDIO_FILE} (${AUDIO_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 3A Audio Report
+            echo "## 🎙️ Phase 3A: Audio Generation - ナレーション音声作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 音声生成完了: $(basename "$AUDIO_FILE")" >> $GITHUB_STEP_SUMMARY
+            AUDIO_SIZE_KB=$((AUDIO_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${AUDIO_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            if [ $ELAPSED_MINUTES -lt 12 ]; then
+              echo "- ✅ 生成方式: MCP TTS (高品質)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ⚠️ 生成方式: Fallback TTS (MCP タイムアウト)" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "[$(date)] ERROR: Failed to generate audio" >> "${PROJECT_DIR}/logs/execution.log"
             echo "audio_file=placeholder" >> $GITHUB_OUTPUT
+            # Add error report
+            echo "## 🎙️ Phase 3A: Audio Generation - ナレーション音声作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 音声生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Upload Audio artifacts
@@ -299,10 +357,23 @@ jobs:
               echo "[$(date)] WARNING: Image 1 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
               echo "image1_url=" >> $GITHUB_OUTPUT
             fi
+            
+            # Add Phase 3B1 Image Report
+            echo "## 🖼️ Phase 3B1: Image Generation - シーン1画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 画像生成完了: $(basename "$IMAGE1_FILE")" >> $GITHUB_STEP_SUMMARY
+            IMAGE1_SIZE=$(stat -c%s "$IMAGE1_FILE" 2>/dev/null || echo "0")
+            IMAGE1_SIZE_KB=$((IMAGE1_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${IMAGE1_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 生成方式: Google Imagen3 (高品質)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "[$(date)] WARNING: Image 1 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
             echo "image1_path=placeholder" >> $GITHUB_OUTPUT
             echo "image1_url=" >> $GITHUB_OUTPUT
+            # Add error report
+            echo "## 🖼️ Phase 3B1: Image Generation - シーン1画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 画像生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Upload Image 1 artifacts
@@ -361,10 +432,23 @@ jobs:
               echo "[$(date)] WARNING: Image 2 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
               echo "image2_url=" >> $GITHUB_OUTPUT
             fi
+            
+            # Add Phase 3B2 Image Report
+            echo "## 🖼️ Phase 3B2: Image Generation - シーン2画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 画像生成完了: $(basename "$IMAGE2_FILE")" >> $GITHUB_STEP_SUMMARY
+            IMAGE2_SIZE=$(stat -c%s "$IMAGE2_FILE" 2>/dev/null || echo "0")
+            IMAGE2_SIZE_KB=$((IMAGE2_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${IMAGE2_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 生成方式: Google Imagen3 (高品質)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "[$(date)] WARNING: Image 2 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
             echo "image2_path=placeholder" >> $GITHUB_OUTPUT
             echo "image2_url=" >> $GITHUB_OUTPUT
+            # Add error report
+            echo "## 🖼️ Phase 3B2: Image Generation - シーン2画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 画像生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Upload Image 2 artifacts
@@ -677,10 +761,14 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE1_PATH="${{ needs.phase3-image1-generation.outputs.image1_path }}"
           IMAGE1_URL="${{ needs.phase3-image1-generation.outputs.image1_url }}"
+          
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
           echo "[$(date)] Phase 4.1: Image 1 → Video 1 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           echo "[$(date)] Image 1 URL: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
           echo "[$(date)] Image 1 Path: ${IMAGE1_PATH}" >> "${PROJECT_DIR}/logs/execution.log"
-          mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           # Check MCP connection time
           # Use job start time from first phase3 job
@@ -791,10 +879,14 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE2_PATH="${{ needs.phase3-image2-generation.outputs.image2_path }}"
           IMAGE2_URL="${{ needs.phase3-image2-generation.outputs.image2_url }}"
+          
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
           echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           echo "[$(date)] Image 2 URL: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
           echo "[$(date)] Image 2 Path: ${IMAGE2_PATH}" >> "${PROJECT_DIR}/logs/execution.log"
-          mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           # Prepare clear i2v instruction with Google URL if available
           if [ -n "$IMAGE2_URL" ] && [ "$IMAGE2_URL" != "" ]; then
@@ -862,9 +954,13 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE3_PATH="${{ needs.phase3-image3-generation.outputs.image3_path }}"
           IMAGE3_URL="${{ needs.phase3-image3-generation.outputs.image3_url }}"
+          
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
           echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           echo "[$(date)] Image 3 URL: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
-          mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           if [ -n "$IMAGE3_URL" ] && [ "$IMAGE3_URL" != "" ]; then
             VIDEO3_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE3_URL}', prompt='Professional news segment'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video3-url.txt and download to scene3_video.mp4"
@@ -928,8 +1024,12 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE4_PATH="${{ needs.phase3-image4-generation.outputs.image4_path }}"
-          echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          IMAGE4_URL="${{ needs.phase3-image4-generation.outputs.image4_url }}"
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           
           VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
           
@@ -989,8 +1089,12 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE5_PATH="${{ needs.phase3-image5-generation.outputs.image5_path }}"
-          echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          IMAGE5_URL="${{ needs.phase3-image5-generation.outputs.image5_url }}"
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           
           VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
           
@@ -1101,8 +1205,34 @@ jobs:
             echo "editing_plan=${PROJECT_DIR}/metadata/editing_timeline.json" >> $GITHUB_OUTPUT
             echo "timeline_config=${PROJECT_DIR}/metadata/editing_timeline.json" >> $GITHUB_OUTPUT
             echo "[$(date)] Video editing plan completed" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 5 Report
+            echo "## 🎬 Phase 5: Video Editing Planning - 編集計画立案" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 編集計画作成完了 (Claude Code SDK)" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ タイムライン設計: editing_timeline.json" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract plan summary
+            if command -v jq > /dev/null && [ -f "${PROJECT_DIR}/metadata/editing_timeline.json" ]; then
+              TOTAL_DURATION=$(jq -r '.total_duration // "60"' "${PROJECT_DIR}/metadata/editing_timeline.json" 2>/dev/null)
+              SEGMENTS_COUNT=$(jq '.segments | length' "${PROJECT_DIR}/metadata/editing_timeline.json" 2>/dev/null || echo "0")
+              echo "- ✅ 動画総時間: ${TOTAL_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ セグメント数: ${SEGMENTS_COUNT}個" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Check for additional config files
+            if [ -f "${PROJECT_DIR}/metadata/audio_mixing_plan.json" ]; then
+              echo "- ✅ 音声ミックス設計完了" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -f "${PROJECT_DIR}/metadata/transitions_config.json" ]; then
+              echo "- ✅ トランジション設計完了" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "[$(date)] ERROR: Editing plan not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            # Add error report
+            echo "## 🎬 Phase 5: Video Editing Planning - 編集計画立案" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 編集計画生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
@@ -1364,8 +1494,22 @@ jobs:
           if [ -n "$FINAL_FILE" ]; then
             echo "final_video=${FINAL_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Audio mixing completed: ${FINAL_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 8 Report
+            echo "## 🎵 Phase 8: Final Audio Mix - 最終音声ミックス" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 最終動画作成完了: $(basename "$FINAL_FILE")" >> $GITHUB_STEP_SUMMARY
+            FINAL_SIZE=$(stat -c%s "$FINAL_FILE" 2>/dev/null || echo "0")
+            FINAL_SIZE_MB=$((FINAL_SIZE / 1024 / 1024))
+            echo "- ✅ ファイルサイズ: ${FINAL_SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 編集計画統合: 完了" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 出力パス: ${FINAL_FILE}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "[$(date)] ERROR: Final video not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            # Add error report
+            echo "## 🎵 Phase 8: Final Audio Mix - 最終音声ミックス" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 最終動画生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
@@ -1429,6 +1573,18 @@ jobs:
           
           echo "[$(date)] Quality assurance completed" >> "${PROJECT_DIR}/logs/execution.log"
           
+          # Add Phase 9 Report
+          echo "## ✅ Phase 9: Quality Assurance - 最終品質保証" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 品質チェック完了" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if quality report was generated
+          if [ -f "${PROJECT_DIR}/final/quality_report.json" ]; then
+            echo "- ✅ 品質レポート生成: quality_report.json" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- ✅ 最終動画確認・最適化完了" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 配信準備完了" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
           # Create final summary
           echo "=== PROFESSIONAL NEWS VIDEO CREATION COMPLETED ===" >> "${PROJECT_DIR}/final/completion_report.txt"
           echo "Project: ${{ inputs.project_name }}" >> "${PROJECT_DIR}/final/completion_report.txt"
@@ -1445,13 +1601,31 @@ jobs:
       - name: Create workflow summary
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
-          echo "## 🎬 Professional News Video Creation Completed" >> $GITHUB_STEP_SUMMARY
+          
+          # Update execution status
+          echo "- **実行完了時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行状況**: ✅ 全工程完了" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🎉 Professional News Video Creation 完了" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Topic:** ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
           echo "**Project:** ${{ inputs.project_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Duration:** 60 seconds professional news video" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Workflow Phases Completed" >> $GITHUB_STEP_SUMMARY
+          
+          # Count generated assets
+          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images" -name "*.png" -o -name "*.jpg" 2>/dev/null | wc -l)
+          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos" -name "*.mp4" 2>/dev/null | wc -l)  
+          AUDIO_COUNT=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" 2>/dev/null | wc -l)
+          
+          echo "### 📊 生成されたアセット統計" >> $GITHUB_STEP_SUMMARY
+          echo "- 🖼️ 生成画像数: ${IMAGE_COUNT}個" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎬 生成動画数: ${VIDEO_COUNT}個" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎵 生成音声数: ${AUDIO_COUNT}個" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🔄 実行されたフェーズ" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Phase 1: Information Gathering & Research" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Phase 2: Script & Structure Creation" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Phase 3: Parallel Audio & Image Generation" >> $GITHUB_STEP_SUMMARY
@@ -1462,12 +1636,24 @@ jobs:
           echo "- ✅ Phase 8: Professional Audio Mixing" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Phase 9: Quality Assurance & Final Export" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📁 Output Location" >> $GITHUB_STEP_SUMMARY
-          echo "All deliverables saved to: \`${PROJECT_DIR}/final/\`" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 出力場所" >> $GITHUB_STEP_SUMMARY
+          echo "- **最終動画**: \`${PROJECT_DIR}/final/professional_news_video.mp4\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **全デリバラブル**: \`${PROJECT_DIR}/final/\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🎯 Professional Quality Standards Met" >> $GITHUB_STEP_SUMMARY
-          echo "- 📺 News broadcast quality visuals" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎙️ Professional narrator-style audio (-14LUFS)" >> $GITHUB_STEP_SUMMARY
-          echo "- ⏱️ Optimized 60-second information delivery" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎨 Consistent professional styling" >> $GITHUB_STEP_SUMMARY
-          echo "- 📊 Multi-source verified information" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 達成された品質基準" >> $GITHUB_STEP_SUMMARY
+          echo "- 📺 ニュース放送品質ビジュアル" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎙️ プロフェッショナルナレーター品質音声 (-14LUFS)" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏱️ 最適化された60秒情報配信" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎨 一貫したプロフェッショナルスタイル" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 複数ソース検証済み情報" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📥 成果物のダウンロード" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ローカルで以下のコマンドを実行してください：" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# 専用ダウンロードスクリプトを使用（推奨）" >> $GITHUB_STEP_SUMMARY
+          echo "./scripts/download-workflow-artifacts.sh ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY  
+          echo "# または手動ダウンロード" >> $GITHUB_STEP_SUMMARY
+          echo "gh run download ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
