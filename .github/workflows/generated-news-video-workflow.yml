@@ -1096,8 +1096,17 @@ jobs:
                 --permission-mode "acceptEdits" \
                 -p "$VIDEO1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video1-mcp.log"
               
+              # 生成後に直接URLからのダウンロードも試行（MCPがURLのみ保存するケース）
+              VIDEO1_URL_FILE="${PROJECT_DIR}/media/videos/individual/video1-url.txt"
+              if [ -f "$VIDEO1_URL_FILE" ]; then
+                VIDEO1_URL=$(cat "$VIDEO1_URL_FILE")
+                if curl -IfsS --max-time 20 "$VIDEO1_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+                  mkdir -p "${PROJECT_DIR}/media/videos/individual"
+                  curl -fsS "$VIDEO1_URL" -o "${PROJECT_DIR}/media/videos/individual/scene1_video.mp4" || true
+                fi
+              fi
               # 確実なMP4ファイル成功判定（URL txtファイルを除外）
-              VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*.mp4" -o -name "*video1*.mp4" 2>/dev/null | head -1)
+              VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene1*.mp4" -o -name "*video1*.mp4" \) 2>/dev/null | head -1)
               if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ $(stat -c%s "$VIDEO1_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
                 echo "[$(date)] Video 1 MCP SUCCESS on attempt $attempt: $(ls -lh "$VIDEO1_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
                 VIDEO_GENERATED=true
@@ -1142,22 +1151,32 @@ jobs:
             else
               echo "[$(date)] ERROR: Failed to generate Video 1" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video1_path=placeholder" >> $GITHUB_OUTPUT
-              exit 1
             fi
 
       - name: Upload Video 1 artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase4-image1-to-video1
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
       - name: Add Phase 4 Video 1 I2V Report with Direct Links
+        if: always()
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           
           # Add Phase 4 Video 1 I2V Report to GitHub Summary
           echo "## 🎬 Phase 4 Video 1 I2V Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Finalize Video 1 status
+        if: always()
+        run: |
+          FILE="${{ steps.video1-task.outputs.video1_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 1 verification failed::File invalid or missing"
+            exit 1
+          fi
           
           # Check generated video files and create direct links（統一判定）
           VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*.mp4" -o -name "*video1*.mp4" 2>/dev/null | head -1)
@@ -1258,8 +1277,17 @@ jobs:
               --permission-mode "acceptEdits" \
               -p "$VIDEO2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video2-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO2_URL_FILE="${PROJECT_DIR}/media/videos/individual/video2-url.txt"
+            if [ -f "$VIDEO2_URL_FILE" ]; then
+              VIDEO2_URL=$(cat "$VIDEO2_URL_FILE")
+              if curl -IfsS --max-time 20 "$VIDEO2_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+                mkdir -p "${PROJECT_DIR}/media/videos/individual"
+                curl -fsS "$VIDEO2_URL" -o "${PROJECT_DIR}/media/videos/individual/scene2_video.mp4" || true
+              fi
+            fi
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
-            VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*.mp4" -o -name "*video2*.mp4" 2>/dev/null | head -1)
+            VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene2*.mp4" -o -name "*video2*.mp4" \) 2>/dev/null | head -1)
             if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ] && [ $(stat -c%s "$VIDEO2_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 2 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO2_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video2_path=${VIDEO2_FILE}" >> $GITHUB_OUTPUT
@@ -1269,7 +1297,6 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video2_path=placeholder" >> $GITHUB_OUTPUT
-                exit 1
               else
                 echo "[$(date)] Retrying Video 2 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
@@ -1278,10 +1305,20 @@ jobs:
           done
 
       - name: Upload Video 2 artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase4-image2-to-video2
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 2 status
+        if: always()
+        run: |
+          FILE="${{ steps.video2-task.outputs.video2_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 2 verification failed::File invalid or missing"
+            exit 1
+          fi
 
   phase4-image3-to-video3:
     runs-on: ubuntu-latest
@@ -1339,8 +1376,17 @@ jobs:
               --permission-mode "acceptEdits" \
               -p "$VIDEO3_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video3-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO3_URL_FILE="${PROJECT_DIR}/media/videos/individual/video3-url.txt"
+            if [ -f "$VIDEO3_URL_FILE" ]; then
+              VIDEO3_URL=$(cat "$VIDEO3_URL_FILE")
+              if curl -IfsS --max-time 20 "$VIDEO3_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+                mkdir -p "${PROJECT_DIR}/media/videos/individual"
+                curl -fsS "$VIDEO3_URL" -o "${PROJECT_DIR}/media/videos/individual/scene3_video.mp4" || true
+              fi
+            fi
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
-            VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*.mp4" -o -name "*video3*.mp4" 2>/dev/null | head -1)
+            VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene3*.mp4" -o -name "*video3*.mp4" \) 2>/dev/null | head -1)
             if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ] && [ $(stat -c%s "$VIDEO3_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 3 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO3_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video3_path=${VIDEO3_FILE}" >> $GITHUB_OUTPUT
@@ -1350,7 +1396,6 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video3_path=placeholder" >> $GITHUB_OUTPUT
-                exit 1
               else
                 echo "[$(date)] Retrying Video 3 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
@@ -1359,10 +1404,20 @@ jobs:
           done
 
       - name: Upload Video 3 artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase4-image3-to-video3
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 3 status
+        if: always()
+        run: |
+          FILE="${{ steps.video3-task.outputs.video3_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 3 verification failed::File invalid or missing"
+            exit 1
+          fi
 
   phase4-image4-to-video4:
     runs-on: ubuntu-latest
@@ -1409,8 +1464,17 @@ jobs:
               --permission-mode "acceptEdits" \
               -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO4_URL_FILE="${PROJECT_DIR}/media/videos/individual/video4-url.txt"
+            if [ -f "$VIDEO4_URL_FILE" ]; then
+              VIDEO4_URL=$(cat "$VIDEO4_URL_FILE")
+              if curl -IfsS --max-time 20 "$VIDEO4_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+                mkdir -p "${PROJECT_DIR}/media/videos/individual"
+                curl -fsS "$VIDEO4_URL" -o "${PROJECT_DIR}/media/videos/individual/scene4_video.mp4" || true
+              fi
+            fi
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
-            VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene4*.mp4" -o -name "*video4*.mp4" 2>/dev/null | head -1)
+            VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene4*.mp4" -o -name "*video4*.mp4" \) 2>/dev/null | head -1)
             if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ] && [ $(stat -c%s "$VIDEO4_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 4 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO4_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video4_path=${VIDEO4_FILE}" >> $GITHUB_OUTPUT
@@ -1420,7 +1484,6 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video4_path=placeholder" >> $GITHUB_OUTPUT
-                exit 1
               else
                 echo "[$(date)] Retrying Video 4 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
@@ -1429,10 +1492,20 @@ jobs:
           done
 
       - name: Upload Video 4 artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase4-image4-to-video4
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 4 status
+        if: always()
+        run: |
+          FILE="${{ steps.video4-task.outputs.video4_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 4 verification failed::File invalid or missing"
+            exit 1
+          fi
 
   phase4-image5-to-video5:
     runs-on: ubuntu-latest
@@ -1488,8 +1561,17 @@ jobs:
               --permission-mode "acceptEdits" \
               -p "$VIDEO5_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video5-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO5_URL_FILE="${PROJECT_DIR}/media/videos/individual/video5-url.txt"
+            if [ -f "$VIDEO5_URL_FILE" ]; then
+              VIDEO5_URL=$(cat "$VIDEO5_URL_FILE")
+              if curl -IfsS --max-time 20 "$VIDEO5_URL" | grep -i '^content-type:.*mp4' >/dev/null; then
+                mkdir -p "${PROJECT_DIR}/media/videos/individual"
+                curl -fsS "$VIDEO5_URL" -o "${PROJECT_DIR}/media/videos/individual/scene5_video.mp4" || true
+              fi
+            fi
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
-            VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*.mp4" -o -name "*video5*.mp4" 2>/dev/null | head -1)
+            VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene5*.mp4" -o -name "*video5*.mp4" \) 2>/dev/null | head -1)
             if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ] && [ $(stat -c%s "$VIDEO5_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 5 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO5_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video5_path=${VIDEO5_FILE}" >> $GITHUB_OUTPUT
@@ -1499,7 +1581,6 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video5_path=placeholder" >> $GITHUB_OUTPUT
-                exit 1
               else
                 echo "[$(date)] Retrying Video 5 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
@@ -1508,10 +1589,20 @@ jobs:
           done
 
       - name: Upload Video 5 artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase4-image5-to-video5
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 5 status
+        if: always()
+        run: |
+          FILE="${{ steps.video5-task.outputs.video5_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 5 verification failed::File invalid or missing"
+            exit 1
+          fi
 
 
   # Phase 5: Video Editing Planning (Claude Code SDK)
