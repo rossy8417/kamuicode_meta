@@ -183,22 +183,61 @@ jobs:
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
           echo "[$(date)] Phase 3: Audio generation started [Fan-out Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
           
-          AUDIO_PROMPT="Generate Japanese news narration: Professional announcer voice, clear pronunciation, -14LUFS level. Input: ${SCRIPT_DATA}. Output: narration.mp3"
+          # Check MCP connection time (15-minute safety window)
+          WORKFLOW_START="${{ github.run_started_at }}"
+          CURRENT_TIME=$(date +%s)
+          START_TIME=$(date -d "$WORKFLOW_START" +%s 2>/dev/null || echo $((CURRENT_TIME - 300)))
+          ELAPSED_MINUTES=$(( (CURRENT_TIME - START_TIME) / 60 ))
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2s-kamui-minimax-speech,Write,Read" \
-            --max-turns 20 \
-            --permission-mode "acceptEdits" \
-            -p "$AUDIO_PROMPT"
+          echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Ensure audio directory exists
+          mkdir -p "${PROJECT_DIR}/media/audio"
+          
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "[$(date)] MCP connection should be active, attempting generation" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            AUDIO_PROMPT="Generate Japanese news narration: Professional announcer voice, clear pronunciation, -14LUFS level. Input: ${SCRIPT_DATA}. Output: ${PROJECT_DIR}/media/audio/narration.mp3"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result,Write,Read" \
+              --max-turns 20 \
+              --permission-mode "acceptEdits" \
+              -p "$AUDIO_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-audio-mcp.log"
+          else
+            echo "[$(date)] MCP timeout risk detected, using fallback generation" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
           
           # Check for generated audio
-          AUDIO_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" | head -1)
-          if [ -n "$AUDIO_FILE" ]; then
+          AUDIO_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
+          
+          # Fallback: Generate test audio if MCP failed
+          if [ -z "$AUDIO_FILE" ] || [ ! -s "$AUDIO_FILE" ]; then
+            echo "[$(date)] WARNING: MCP audio generation failed, creating fallback audio" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Install TTS tools
+            sudo apt-get update && sudo apt-get install -y espeak-ng ffmpeg
+            
+            # Extract text from script data
+            NARRATION_TEXT=$(echo "$SCRIPT_DATA" | head -20)
+            
+            # Generate audio using espeak
+            espeak-ng -v ja -s 150 -w "${PROJECT_DIR}/media/audio/temp.wav" "$NARRATION_TEXT" 2>/dev/null || \
+              espeak-ng -v en -s 150 -w "${PROJECT_DIR}/media/audio/temp.wav" "This is a test narration for the news video"
+            
+            # Convert to MP3
+            ffmpeg -i "${PROJECT_DIR}/media/audio/temp.wav" -c:a libmp3lame -b:a 192k "${PROJECT_DIR}/media/audio/narration.mp3" -y
+            rm -f "${PROJECT_DIR}/media/audio/temp.wav"
+            
+            AUDIO_FILE="${PROJECT_DIR}/media/audio/narration.mp3"
+          fi
+          
+          if [ -f "$AUDIO_FILE" ] && [ -s "$AUDIO_FILE" ]; then
             echo "audio_file=${AUDIO_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] Audio generation completed: ${AUDIO_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] Audio generation completed: ${AUDIO_FILE} ($(stat -c%s "$AUDIO_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
           else
-            echo "[$(date)] WARNING: Audio file not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] ERROR: Failed to generate audio" >> "${PROJECT_DIR}/logs/execution.log"
             echo "audio_file=placeholder" >> $GITHUB_OUTPUT
           fi
 
@@ -236,7 +275,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2i-kamui-flux-schnell,Write,Read" \
+            --allowedTools "mcp__t2i-kamui-flux-schnell__flux_schnell_submit,mcp__t2i-kamui-flux-schnell__flux_schnell_status,mcp__t2i-kamui-flux-schnell__flux_schnell_result,Write,Read" \
             --max-turns 30 \
             --permission-mode "acceptEdits" \
             -p "$IMAGE1_PROMPT"
@@ -284,7 +323,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2i-kamui-flux-schnell,Write,Read" \
+            --allowedTools "mcp__t2i-kamui-flux-schnell__flux_schnell_submit,mcp__t2i-kamui-flux-schnell__flux_schnell_status,mcp__t2i-kamui-flux-schnell__flux_schnell_result,Write,Read" \
             --max-turns 30 \
             --permission-mode "acceptEdits" \
             -p "$IMAGE2_PROMPT"
@@ -332,7 +371,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2i-kamui-flux-schnell,Write,Read" \
+            --allowedTools "mcp__t2i-kamui-flux-schnell__flux_schnell_submit,mcp__t2i-kamui-flux-schnell__flux_schnell_status,mcp__t2i-kamui-flux-schnell__flux_schnell_result,Write,Read" \
             --max-turns 30 \
             --permission-mode "acceptEdits" \
             -p "$IMAGE3_PROMPT"
@@ -380,7 +419,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2i-kamui-flux-schnell,Write,Read" \
+            --allowedTools "mcp__t2i-kamui-flux-schnell__flux_schnell_submit,mcp__t2i-kamui-flux-schnell__flux_schnell_status,mcp__t2i-kamui-flux-schnell__flux_schnell_result,Write,Read" \
             --max-turns 30 \
             --permission-mode "acceptEdits" \
             -p "$IMAGE4_PROMPT"
@@ -428,7 +467,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2i-kamui-flux-schnell,Write,Read" \
+            --allowedTools "mcp__t2i-kamui-flux-schnell__flux_schnell_submit,mcp__t2i-kamui-flux-schnell__flux_schnell_status,mcp__t2i-kamui-flux-schnell__flux_schnell_result,Write,Read" \
             --max-turns 30 \
             --permission-mode "acceptEdits" \
             -p "$IMAGE5_PROMPT"
@@ -472,22 +511,51 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           echo "[$(date)] Phase 3C: BGM generation started [Independent Task Parallelization]" >> "${PROJECT_DIR}/logs/execution.log"
           
-          BGM_PROMPT="Generate professional news BGM: 60s instrumental, subtle, trust/urgency balance, -25dB below narration. Output: bgm.mp3"
+          # Check MCP connection time
+          WORKFLOW_START="${{ github.run_started_at }}"
+          CURRENT_TIME=$(date +%s)
+          START_TIME=$(date -d "$WORKFLOW_START" +%s 2>/dev/null || echo $((CURRENT_TIME - 300)))
+          ELAPSED_MINUTES=$(( (CURRENT_TIME - START_TIME) / 60 ))
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2m-kamui-lyria,Write,Read" \
-            --max-turns 20 \
-            --permission-mode "acceptEdits" \
-            -p "$BGM_PROMPT"
+          # Ensure audio directory exists
+          mkdir -p "${PROJECT_DIR}/media/audio"
           
-          # Check for generated BGM with graceful fallback
-          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" | head -1)
-          if [ -n "$BGM_FILE" ]; then
-            echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
-            echo "[$(date)] BGM generation completed: ${BGM_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "[$(date)] MCP connection active, attempting BGM generation" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            BGM_PROMPT="Generate professional news BGM: 60s instrumental, subtle, trust/urgency balance, -25dB below narration. Output: ${PROJECT_DIR}/media/audio/bgm.mp3"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2m-kamui-lyria__lyria_generate,Write,Read" \
+              --max-turns 20 \
+              --permission-mode "acceptEdits" \
+              -p "$BGM_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-bgm-mcp.log"
           else
-            echo "[$(date)] WARNING: BGM file not generated, continuing without BGM" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] MCP timeout risk, using fallback" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Check for generated BGM
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" 2>/dev/null | head -1)
+          
+          # Fallback: Generate simple tone-based BGM
+          if [ -z "$BGM_FILE" ] || [ ! -s "$BGM_FILE" ]; then
+            echo "[$(date)] WARNING: MCP BGM generation failed, creating fallback BGM" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Generate simple ambient BGM using ffmpeg
+            ffmpeg -f lavfi -i "anoisesrc=duration=60:color=brown:amplitude=0.01" \
+              -f lavfi -i "sine=frequency=220:duration=60" \
+              -filter_complex "[0][1]amix=inputs=2:duration=longest,volume=0.05" \
+              -c:a libmp3lame -b:a 128k "${PROJECT_DIR}/media/audio/bgm.mp3" -y
+            
+            BGM_FILE="${PROJECT_DIR}/media/audio/bgm.mp3"
+          fi
+          
+          if [ -f "$BGM_FILE" ] && [ -s "$BGM_FILE" ]; then
+            echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] BGM generation completed: ${BGM_FILE} ($(stat -c%s "$BGM_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: BGM generation failed completely" >> "${PROJECT_DIR}/logs/execution.log"
             echo "bgm_file=none" >> $GITHUB_OUTPUT
           fi
 
@@ -522,36 +590,78 @@ jobs:
           echo "[$(date)] Phase 4.1: Image 1 → Video 1 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO1_PROMPT="Convert image to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: scene1_video.mp4"
+          # Check MCP connection time
+          WORKFLOW_START="${{ github.run_started_at }}"
+          CURRENT_TIME=$(date +%s)
+          START_TIME=$(date -d "$WORKFLOW_START" +%s 2>/dev/null || echo $((CURRENT_TIME - 300)))
+          ELAPSED_MINUTES=$(( (CURRENT_TIME - START_TIME) / 60 ))
           
-          # 3-attempt retry logic for Video 1 generation
-          for attempt in 1 2 3; do
-            echo "[$(date)] Video 1 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          VIDEO1_PROMPT="Convert image ${IMAGE1_PATH} to 8s news video: Natural motion, professional quality, 16:9 aspect ratio. Output: ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          
+          # Try MCP generation if within time window
+          VIDEO_GENERATED=false
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "[$(date)] MCP connection should be active, attempting video generation" >> "${PROJECT_DIR}/logs/execution.log"
             
-            npx @anthropic-ai/claude-code \
-              --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
-              --max-turns 40 \
-              --permission-mode "acceptEdits" \
-              -p "$VIDEO1_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
-            
-            # Success check with file size validation
-            VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" | head -1)
-            if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ -s "$VIDEO1_FILE" ]; then
-              echo "[$(date)] Video 1 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO1_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
-              echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
-              break
-            else
-              echo "[$(date)] Video 1 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
-              if [ $attempt -eq 3 ]; then
-                echo "[$(date)] All 3 attempts failed for Video 1, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
-                echo "video1_path=placeholder" >> $GITHUB_OUTPUT
+            # 3-attempt retry logic for Video 1 generation
+            for attempt in 1 2 3; do
+              echo "[$(date)] Video 1 MCP generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+              
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
+                --max-turns 40 \
+                --permission-mode "acceptEdits" \
+                -p "$VIDEO1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video1-mcp.log"
+              
+              # Success check with file size validation
+              VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" 2>/dev/null | head -1)
+              if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ $(stat -c%s "$VIDEO1_FILE" 2>/dev/null || echo 0) -gt 10000 ]; then
+                echo "[$(date)] Video 1 MCP SUCCESS on attempt $attempt: $(ls -lh "$VIDEO1_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+                VIDEO_GENERATED=true
+                break
               else
-                echo "[$(date)] Retrying Video 1 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
-                sleep 10
+                echo "[$(date)] Video 1 MCP FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                if [ $attempt -lt 3 ]; then
+                  sleep 10
+                fi
               fi
+            done
+          else
+            echo "[$(date)] MCP timeout risk detected, skipping MCP generation" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Fallback: Generate test video if MCP failed
+          if [ "$VIDEO_GENERATED" = false ]; then
+            echo "[$(date)] Creating fallback video for Video 1" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check if input image exists
+            if [ -f "$IMAGE1_PATH" ] && [ -s "$IMAGE1_PATH" ]; then
+              # Convert image to video with zoom effect
+              ffmpeg -loop 1 -i "$IMAGE1_PATH" -c:v libx264 -t 8 -pix_fmt yuv420p \
+                -vf "scale=1920:1080,zoompan=z='min(zoom+0.0015,1.5)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=240" \
+                "${PROJECT_DIR}/media/videos/individual/scene1_video.mp4" -y
+            else
+              # Generate test pattern video
+              ffmpeg -f lavfi -i testsrc=duration=8:size=1920x1080:rate=30 \
+                -vf "drawtext=text='Scene 1':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
+                -c:v libx264 -pix_fmt yuv420p \
+                "${PROJECT_DIR}/media/videos/individual/scene1_video.mp4" -y
             fi
-          done
+            
+            VIDEO1_FILE="${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          fi
+          
+          # Final output
+          if [ -f "$VIDEO1_FILE" ] && [ -s "$VIDEO1_FILE" ]; then
+            echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video 1 completed: ${VIDEO1_FILE} ($(stat -c%s "$VIDEO1_FILE") bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: Failed to generate Video 1" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "video1_path=placeholder" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload Video 1 artifacts
         uses: actions/upload-artifact@v4
@@ -591,7 +701,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO2_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -652,7 +762,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO3_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -713,7 +823,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -774,7 +884,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "i2v-kamui-veo3-fast,Write,Read" \
+              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO5_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -849,7 +959,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "t2i-kamui-flux-schnell,i2v-kamui-hailuo-02-fast,Write,Read" \
+            --allowedTools "mcp__t2i-kamui-flux-schnell__flux_schnell_submit,mcp__t2i-kamui-flux-schnell__flux_schnell_status,mcp__t2i-kamui-flux-schnell__flux_schnell_result,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
             --max-turns 40 \
             --permission-mode "acceptEdits" \
             -p "$OPENING_PROMPT"
