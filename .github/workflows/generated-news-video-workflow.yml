@@ -693,10 +693,10 @@ jobs:
           # Prepare clear i2v instruction with Google URL if available
           if [ -n "$IMAGE1_URL" ] && [ "$IMAGE1_URL" != "" ]; then
             echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
-            VIDEO1_PROMPT="Convert image to video using i2v-kamui-veo3-fast. Parameters: image_url='${IMAGE1_URL}', duration='8s', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video1-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+            VIDEO1_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE1_URL}', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video1-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
           else
             echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
-            VIDEO1_PROMPT="IMPORTANT: Image-to-Video task. Read the image file at ${IMAGE1_PATH} and use mcp__i2v-kamui-veo3-fast to convert it to an 8-second video. The image_url parameter should be ${IMAGE1_PATH}. Use prompt 'Professional news segment with subtle motion'. Save output to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+            VIDEO1_PROMPT="IMPORTANT: Image-to-Video task. Read the image file at ${IMAGE1_PATH} and use mcp__i2v-kamui-hailuo-02-pro to convert it to an 8-second video. The image_url parameter should be ${IMAGE1_PATH}. Use prompt 'Professional news segment with subtle motion'. Save output to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
           fi
           
           # Try MCP generation if within time window
@@ -710,7 +710,7 @@ jobs:
               
               npx @anthropic-ai/claude-code \
                 --mcp-config ".claude/mcp-kamuicode.json" \
-                --allowedTools "mcp__i2v-*,Write,Read,Bash" \
+                --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
                 --max-turns 40 \
                 --permission-mode "acceptEdits" \
                 -p "$VIDEO1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video1-mcp.log"
@@ -799,10 +799,10 @@ jobs:
           # Prepare clear i2v instruction with Google URL if available
           if [ -n "$IMAGE2_URL" ] && [ "$IMAGE2_URL" != "" ]; then
             echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
-            VIDEO2_PROMPT="Convert image to video using i2v-kamui-veo3-fast. Parameters: image_url='${IMAGE2_URL}', duration='8s', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video2-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
+            VIDEO2_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE2_URL}', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video2-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
           else
             echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
-            VIDEO2_PROMPT="Read image at ${IMAGE2_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE2_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
+            VIDEO2_PROMPT="Read image at ${IMAGE2_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE2_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
           fi
           
           # 3-attempt retry logic for Video 2 generation
@@ -811,7 +811,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO2_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -867,9 +867,9 @@ jobs:
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           if [ -n "$IMAGE3_URL" ] && [ "$IMAGE3_URL" != "" ]; then
-            VIDEO3_PROMPT="Convert image to video using i2v-kamui-veo3-fast. Parameters: image_url='${IMAGE3_URL}', duration='8s', prompt='Professional news segment'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video3-url.txt and download to scene3_video.mp4"
+            VIDEO3_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE3_URL}', prompt='Professional news segment'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video3-url.txt and download to scene3_video.mp4"
           else
-            VIDEO3_PROMPT="Read image at ${IMAGE3_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE3_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4"
+            VIDEO3_PROMPT="Read image at ${IMAGE3_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE3_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4"
           fi
           
           # 3-attempt retry logic for Video 3 generation
@@ -878,7 +878,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO3_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -931,7 +931,7 @@ jobs:
           echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
+          VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
           
           # 3-attempt retry logic for Video 4 generation
           for attempt in 1 2 3; do
@@ -939,7 +939,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -992,7 +992,7 @@ jobs:
           echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
+          VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
           
           # 3-attempt retry logic for Video 5 generation
           for attempt in 1 2 3; do
@@ -1000,7 +1000,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO5_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
