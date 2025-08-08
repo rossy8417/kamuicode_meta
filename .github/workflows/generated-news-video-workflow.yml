@@ -1708,13 +1708,20 @@ jobs:
             fi
 
             if [ -n "$src" ] && [ -f "$src" ]; then
-              ffmpeg -y -loop 1 -t "$chunk" -i "$src" \
-                -vf "scale=1920:1080,zoompan=z='min(zoom+0.0015,1.1)':d=$((chunk*30)):s=1920x1080:fps=30" \
-                -c:v libx264 -pix_fmt yuv420p "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
+              # 軽量化: シンプルなスケールのみ、ズームパン効果を削除
+              timeout 120 ffmpeg -y -loop 1 -t "$chunk" -i "$src" \
+                -vf "scale=1920:1080" \
+                -c:v libx264 -pix_fmt yuv420p -preset ultrafast "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || {
+                echo "[$(date)] ffmpeg failed for filler ${maxn}, using fallback" >> "${PROJECT_DIR}/logs/execution.log"
+                timeout 60 ffmpeg -y -f lavfi -i "color=c=black:duration=${chunk}:size=1920x1080:rate=30" \
+                  -vf "drawtext=text='Scene ${maxn}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
+                  -c:v libx264 -pix_fmt yuv420p -preset ultrafast "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
+              }
             else
-              ffmpeg -y -f lavfi -i "testsrc=duration=${chunk}:size=1920x1080:rate=30" \
+              # 軽量フォールバック
+              timeout 60 ffmpeg -y -f lavfi -i "color=c=black:duration=${chunk}:size=1920x1080:rate=30" \
                 -vf "drawtext=text='Filler ${maxn}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
-                -c:v libx264 -pix_fmt yuv420p "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
+                -c:v libx264 -pix_fmt yuv420p -preset ultrafast "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
             fi
 
             echo "[$(date)] Created filler: $(basename "$out") (${chunk}s)" >> "${PROJECT_DIR}/logs/execution.log"
