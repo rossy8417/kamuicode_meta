@@ -1098,7 +1098,7 @@ jobs:
               
               # 確実なMP4ファイル成功判定（URL txtファイルを除外）
               VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*.mp4" -o -name "*video1*.mp4" 2>/dev/null | head -1)
-              if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ $(stat -c%s "$VIDEO1_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
+              if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ $(stat -c%s "$VIDEO1_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
                 echo "[$(date)] Video 1 MCP SUCCESS on attempt $attempt: $(ls -lh "$VIDEO1_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
                 VIDEO_GENERATED=true
                 break
@@ -1139,10 +1139,11 @@ jobs:
             echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
             VIDEO1_SIZE=$(stat -c%s "$VIDEO1_FILE" 2>/dev/null || ls -l "$VIDEO1_FILE" 2>/dev/null | awk '{print $5}' || echo "0")
             echo "[$(date)] Video 1 completed: ${VIDEO1_FILE} (${VIDEO1_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
-          else
-            echo "[$(date)] ERROR: Failed to generate Video 1" >> "${PROJECT_DIR}/logs/execution.log"
-            echo "video1_path=placeholder" >> $GITHUB_OUTPUT
-          fi
+            else
+              echo "[$(date)] ERROR: Failed to generate Video 1" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video1_path=placeholder" >> $GITHUB_OUTPUT
+              exit 1
+            fi
 
       - name: Upload Video 1 artifacts
         uses: actions/upload-artifact@v4
@@ -1259,7 +1260,7 @@ jobs:
             
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
             VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene2*.mp4" -o -name "*video2*.mp4" 2>/dev/null | head -1)
-            if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ] && [ $(stat -c%s "$VIDEO2_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
+            if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ] && [ $(stat -c%s "$VIDEO2_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 2 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO2_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video2_path=${VIDEO2_FILE}" >> $GITHUB_OUTPUT
               break
@@ -1268,6 +1269,7 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video2_path=placeholder" >> $GITHUB_OUTPUT
+                exit 1
               else
                 echo "[$(date)] Retrying Video 2 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
@@ -1339,7 +1341,7 @@ jobs:
             
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
             VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene3*.mp4" -o -name "*video3*.mp4" 2>/dev/null | head -1)
-            if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ] && [ $(stat -c%s "$VIDEO3_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
+            if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ] && [ $(stat -c%s "$VIDEO3_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 3 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO3_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video3_path=${VIDEO3_FILE}" >> $GITHUB_OUTPUT
               break
@@ -1348,6 +1350,7 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video3_path=placeholder" >> $GITHUB_OUTPUT
+                exit 1
               else
                 echo "[$(date)] Retrying Video 3 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
@@ -1389,7 +1392,11 @@ jobs:
           
           echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           
-          VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
+          if [ -n "$IMAGE4_URL" ] && [ "$IMAGE4_URL" != "" ]; then
+            VIDEO4_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE4_URL}', prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
+          else
+            VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
+          fi
           
           # 3-attempt retry logic for Video 4 generation
           for attempt in 1 2 3; do
@@ -1404,7 +1411,7 @@ jobs:
             
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
             VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene4*.mp4" -o -name "*video4*.mp4" 2>/dev/null | head -1)
-            if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ] && [ $(stat -c%s "$VIDEO4_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
+            if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ] && [ $(stat -c%s "$VIDEO4_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 4 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO4_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video4_path=${VIDEO4_FILE}" >> $GITHUB_OUTPUT
               break
@@ -1413,6 +1420,7 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video4_path=placeholder" >> $GITHUB_OUTPUT
+                exit 1
               else
                 echo "[$(date)] Retrying Video 4 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
@@ -1454,7 +1462,11 @@ jobs:
           
           echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           
-          VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
+          if [ -n "$IMAGE5_URL" ] && [ "$IMAGE5_URL" != "" ]; then
+            VIDEO5_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE5_URL}', prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
+          else
+            VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
+          fi
           
           # 3-attempt retry logic for Video 5 generation
           for attempt in 1 2 3; do
@@ -1478,7 +1490,7 @@ jobs:
             
             # 確実なMP4ファイル成功判定（URL txtファイルを除外）
             VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene5*.mp4" -o -name "*video5*.mp4" 2>/dev/null | head -1)
-            if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ] && [ $(stat -c%s "$VIDEO5_FILE" 2>/dev/null || echo 0) -gt 100000 ]; then
+            if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ] && [ $(stat -c%s "$VIDEO5_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
               echo "[$(date)] Video 5 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO5_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
               echo "video5_path=${VIDEO5_FILE}" >> $GITHUB_OUTPUT
               break
@@ -1487,6 +1499,7 @@ jobs:
               if [ $attempt -eq 3 ]; then
                 echo "[$(date)] All 3 attempts failed for Video 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
                 echo "video5_path=placeholder" >> $GITHUB_OUTPUT
+                exit 1
               else
                 echo "[$(date)] Retrying Video 5 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
                 sleep 10
