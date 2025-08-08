@@ -334,6 +334,48 @@ jobs:
           name: phase3-audio-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
+      - name: Add Phase 3A Audio Generation Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 3A Audio Report to GitHub Summary
+          echo "## 🎵 Phase 3A Audio Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check generated audio files and create direct links
+          AUDIO_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" -o -name "*.m4a" 2>/dev/null | head -1)
+          if [ -n "$AUDIO_FILE" ] && [ -f "$AUDIO_FILE" ]; then
+            AUDIO_SIZE=$(ls -lh "$AUDIO_FILE" | awk '{print $5}')
+            AUDIO_BASENAME=$(basename "$AUDIO_FILE")
+            echo "- ✅ **生成音声**: [\`${AUDIO_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${AUDIO_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Duration check if possible
+            if command -v ffprobe > /dev/null 2>&1; then
+              DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$AUDIO_FILE" 2>/dev/null | cut -d'.' -f1)
+              if [ -n "$DURATION" ]; then
+                echo "- ⏱️ **再生時間**: ${DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **生成音声**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # MCP Audio URL if available
+          AUDIO_URL_FILE="${PROJECT_DIR}/media/audio/narration-url.txt"
+          if [ -f "$AUDIO_URL_FILE" ]; then
+            AUDIO_URL=$(cat "$AUDIO_URL_FILE")
+            echo "- 🔗 **直接再生URL**: [音声ファイル](${AUDIO_URL})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Generation method
+          if [ -f "${PROJECT_DIR}/logs/phase3a-audio-mcp.log" ]; then
+            echo "- 🔧 **生成方法**: MCP (MiniMax Speech-02-Turbo)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 🔧 **生成方法**: Fallback (espeak-ng)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+
   # Phase 3B: Individual Image Generation Jobs (1-5)
   phase3-image1-generation:
     runs-on: ubuntu-latest
@@ -811,6 +853,47 @@ jobs:
           name: phase3-image5-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
 
+      - name: Add Phase 3 Image 5 Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 3 Image 5 Report to GitHub Summary
+          echo "## 🖼️ Phase 3 Image 5 Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check generated files and create direct links
+          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          if [ -n "$IMAGE5_FILE" ] && [ -f "$IMAGE5_FILE" ]; then
+            IMAGE5_SIZE=$(ls -lh "$IMAGE5_FILE" | awk '{print $5}')
+            IMAGE5_BASENAME=$(basename "$IMAGE5_FILE")
+            echo "- ✅ **生成画像**: [\`${IMAGE5_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${IMAGE5_SIZE})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **生成画像**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Google Cloud URL link
+          IMAGE5_URL_FILE="${PROJECT_DIR}/media/images/image5-url.txt"
+          if [ -f "$IMAGE5_URL_FILE" ]; then
+            IMAGE5_URL=$(cat "$IMAGE5_URL_FILE")
+            echo "- 🔗 **Google Cloud URL**: [直接アクセス](${IMAGE5_URL})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ **Google Cloud URL**: 取得失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Metadata files
+          if [ -f "${PROJECT_DIR}/metadata" ]; then
+            METADATA_COUNT=$(find "${PROJECT_DIR}/metadata" -name "*.json" 2>/dev/null | wc -l)
+            echo "- 📊 **メタデータファイル**: ${METADATA_COUNT}件 - [アーティファクトで確認](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Log files
+          if [ -f "${PROJECT_DIR}/logs" ]; then
+            LOG_COUNT=$(find "${PROJECT_DIR}/logs" -name "*.log" 2>/dev/null | wc -l)
+            echo "- 📝 **実行ログ**: ${LOG_COUNT}件 - [アーティファクトで確認](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+
   # Phase 3C: BGM Generation (Independent Job) - Relocated from Phase 5
   phase3-bgm-generation:
     runs-on: ubuntu-latest
@@ -905,6 +988,48 @@ jobs:
         with:
           name: phase3-bgm-generation
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 3C BGM Generation Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 3C BGM Report to GitHub Summary
+          echo "## 🎼 Phase 3C BGM Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check generated BGM files and create direct links
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" 2>/dev/null | head -1)
+          if [ -n "$BGM_FILE" ] && [ -f "$BGM_FILE" ]; then
+            BGM_SIZE=$(ls -lh "$BGM_FILE" | awk '{print $5}')
+            BGM_BASENAME=$(basename "$BGM_FILE")
+            echo "- ✅ **生成BGM**: [\`${BGM_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${BGM_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Duration check if possible
+            if command -v ffprobe > /dev/null 2>&1; then
+              BGM_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$BGM_FILE" 2>/dev/null | cut -d'.' -f1)
+              if [ -n "$BGM_DURATION" ]; then
+                echo "- ⏱️ **BGM再生時間**: ${BGM_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **生成BGM**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # MCP BGM URL if available
+          BGM_URL_FILE="${PROJECT_DIR}/media/audio/bgm-url.txt"
+          if [ -f "$BGM_URL_FILE" ]; then
+            BGM_URL=$(cat "$BGM_URL_FILE")
+            echo "- 🔗 **直接再生URL**: [BGMファイル](${BGM_URL})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Generation method
+          if [ -f "${PROJECT_DIR}/logs/phase3c-bgm-mcp.log" ]; then
+            echo "- 🔧 **生成方法**: MCP (Google Lyria)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 🔧 **生成方法**: Fallback (FFmpeg生成)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
 
   # Phase 4: Individual Image→Video Conversion Jobs (1-5)
   phase4-image1-to-video1:
@@ -1024,6 +1149,62 @@ jobs:
         with:
           name: phase4-image1-to-video1
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 4 Video 1 I2V Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 4 Video 1 I2V Report to GitHub Summary
+          echo "## 🎬 Phase 4 Video 1 I2V Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check generated video files and create direct links
+          VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*" -o -name "*video1*" 2>/dev/null | head -1)
+          if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ]; then
+            VIDEO1_SIZE=$(ls -lh "$VIDEO1_FILE" | awk '{print $5}')
+            VIDEO1_BASENAME=$(basename "$VIDEO1_FILE")
+            echo "- ✅ **生成動画**: [\`${VIDEO1_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${VIDEO1_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Duration and resolution check if possible
+            if command -v ffprobe > /dev/null 2>&1; then
+              VIDEO1_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$VIDEO1_FILE" 2>/dev/null | cut -d'.' -f1)
+              VIDEO1_RESOLUTION=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv="p=0" "$VIDEO1_FILE" 2>/dev/null | tr ',' 'x')
+              if [ -n "$VIDEO1_DURATION" ]; then
+                echo "- ⏱️ **動画時間**: ${VIDEO1_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ -n "$VIDEO1_RESOLUTION" ]; then
+                echo "- 📐 **解像度**: ${VIDEO1_RESOLUTION}" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **生成動画**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # MCP Video URL if available
+          VIDEO1_URL_FILE="${PROJECT_DIR}/media/videos/individual/video1-url.txt"
+          if [ -f "$VIDEO1_URL_FILE" ]; then
+            VIDEO1_URL=$(cat "$VIDEO1_URL_FILE")
+            echo "- 🔗 **直接再生URL**: [動画ファイル](${VIDEO1_URL})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Source image info
+          IMAGE1_URL="${{ needs.phase3-image1-generation.outputs.image1_url }}"
+          if [ -n "$IMAGE1_URL" ]; then
+            if [[ "$IMAGE1_URL" == *"storage.googleapis.com"* ]]; then
+              echo "- 🖼️ **変換元画像**: [Google Cloud画像]($IMAGE1_URL)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- 🖼️ **変換元画像**: ローカルファイル" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          # Generation method and service
+          if [ -f "${PROJECT_DIR}/logs/phase4-video1-mcp.log" ]; then
+            echo "- 🔧 **変換サービス**: MCP (Hailuo-02 Pro I2V)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 🔧 **変換サービス**: Fallback処理" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
 
   phase4-image2-to-video2:
     runs-on: ubuntu-latest
@@ -1734,6 +1915,78 @@ jobs:
         with:
           name: phase8-audio-mix
           path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 8 Final Audio Mix Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 8 Final Audio Mix Report to GitHub Summary
+          echo "## 🎤 Phase 8 Final Audio Mix - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check final video with audio
+          FINAL_VIDEO=$(find "${PROJECT_DIR}/final" -name "*.mp4" 2>/dev/null | head -1)
+          if [ -n "$FINAL_VIDEO" ] && [ -f "$FINAL_VIDEO" ]; then
+            FINAL_SIZE=$(ls -lh "$FINAL_VIDEO" | awk '{print $5}')
+            FINAL_BASENAME=$(basename "$FINAL_VIDEO")
+            echo "- ✅ **最終動画**: [\`${FINAL_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${FINAL_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Video specs
+            if command -v ffprobe > /dev/null 2>&1; then
+              FINAL_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null | cut -d'.' -f1)
+              FINAL_RESOLUTION=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null | tr ',' 'x')
+              AUDIO_CODEC=$(ffprobe -v quiet -select_streams a:0 -show_entries stream=codec_name -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null)
+              
+              if [ -n "$FINAL_DURATION" ]; then
+                echo "- ⏱️ **最終動画時間**: ${FINAL_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ -n "$FINAL_RESOLUTION" ]; then
+                echo "- 📐 **最終解像度**: ${FINAL_RESOLUTION}" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ -n "$AUDIO_CODEC" ]; then
+                echo "- 🔊 **音声コーデック**: ${AUDIO_CODEC}" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **最終動画**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Complete artifact summary
+          echo "## 📦 全成果物アーティファクト直リンク一覧" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 メディアファイル" >> $GITHUB_STEP_SUMMARY
+          
+          # Images count
+          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images" -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" 2>/dev/null | wc -l)
+          echo "- 🖼️ **画像ファイル**: ${IMAGE_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          # Videos count
+          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos" -name "*.mp4" 2>/dev/null | wc -l)
+          echo "- 🎬 **動画ファイル**: ${VIDEO_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          # Audio count
+          AUDIO_COUNT=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" -o -name "*.m4a" 2>/dev/null | wc -l)
+          echo "- 🎵 **音声ファイル**: ${AUDIO_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 プロジェクトデータ" >> $GITHUB_STEP_SUMMARY
+          
+          # JSON metadata count
+          JSON_COUNT=$(find "${PROJECT_DIR}/metadata" -name "*.json" 2>/dev/null | wc -l)
+          echo "- 📊 **JSONメタデータ**: ${JSON_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          # Log files count
+          LOG_COUNT=$(find "${PROJECT_DIR}/logs" -name "*.log" 2>/dev/null | wc -l)
+          echo "- 📝 **実行ログ**: ${LOG_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🛠️ アクセス方法" >> $GITHUB_STEP_SUMMARY
+          echo "1. 上記リンクをクリック → アーティファクト一覧ページ" >> $GITHUB_STEP_SUMMARY
+          echo "2. 各Phase別のZIPファイルをダウンロード" >> $GITHUB_STEP_SUMMARY  
+          echo "3. ZIPを展開して対象ファイルにアクセス" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
   # Phase 9: Quality Assurance and Final Output
   phase9-quality-assurance:
