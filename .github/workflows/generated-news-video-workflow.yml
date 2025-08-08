@@ -1432,14 +1432,23 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          EDITING_PLAN="${{ needs.phase5-video-editing-planning.outputs.editing_plan }}"
           echo "[$(date)] Phase 6: Opening creation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Using editing plan: ${EDITING_PLAN}" >> "${PROJECT_DIR}/logs/execution.log"
           
-          OPENING_PROMPT="オープニング・タイトル作成タスク：
+          OPENING_PROMPT="オープニング・タイトル作成タスク（編集計画統合版）：
           
-          入力: ${SCRIPT_DATA}
-          目標: 最初の3秒で視聴継続の50%を決める インパクトのあるオープニング
+          入力データ:
+          - スクリプトデータ: ${SCRIPT_DATA}
+          - 編集計画ファイル: ${EDITING_PLAN}
           
-          要件:
+          編集計画統合要件:
+          1. 編集計画のオープニングセグメント仕様を確認・参照
+          2. タイムライン上のオープニング時間（通常0-3秒）に最適化
+          3. 編集計画で指定されたトランジション効果に対応
+          4. 全体的な視覚的統一性を編集計画に合わせて調整
+          
+          視覚的要件:
           1. 瞬時に注意を引く視覚的インパクト
           2. ニュース番組としての信頼性表現
           3. 信頼性（青系）と緊急性（赤系）の色彩活用
@@ -1447,26 +1456,65 @@ jobs:
           5. プロフェッショナルなニュース番組スタイル
           
           処理手順:
-          1. インパクトのあるタイトル画像を生成
-          2. 画像を動画に変換（3-5秒）
+          1. 編集計画のopeningセグメント仕様を読み込み分析
+          2. タイムライン要件に基づいてインパクトのあるタイトル画像を生成
+          3. 編集計画のトランジション仕様に適合する動画に変換（3-5秒）
+          4. 編集計画の視覚的統一性に合わせたスタイル調整
           
           出力: ${PROJECT_DIR}/media/videos/opening.mp4
           メタデータ: ${PROJECT_DIR}/metadata/opening_metadata.json"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
-            --max-turns 40 \
-            --permission-mode "acceptEdits" \
-            -p "$OPENING_PROMPT"
+          # 3-attempt retry logic for Opening creation
+          # CRITICAL: Media generation (including opening video) requires retry logic due to API instability
+          OPENING_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Opening creation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
+              --max-turns 40 \
+              --permission-mode "acceptEdits" \
+              -p "$OPENING_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase6-opening-mcp.log"; then
+              
+              # Check if opening video was actually generated
+              OPENING_CHECK=$(find "${PROJECT_DIR}/media/videos" -name "*opening*" | head -1)
+              if [ -n "$OPENING_CHECK" ] && [ -f "$OPENING_CHECK" ] && [ -s "$OPENING_CHECK" ]; then
+                echo "[$(date)] Opening SUCCESS on attempt $attempt: $(basename "$OPENING_CHECK")" >> "${PROJECT_DIR}/logs/execution.log"
+                OPENING_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Opening generation completed but no valid file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Opening FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Opening in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
           
-          # Check for generated opening video
-          OPENING_FILE=$(find "${PROJECT_DIR}/media/videos" -name "*opening*" | head -1)
-          if [ -n "$OPENING_FILE" ]; then
+          if [ "$OPENING_SUCCESS" = "true" ]; then
+            OPENING_FILE=$(find "${PROJECT_DIR}/media/videos" -name "*opening*" | head -1)
             echo "opening_video=${OPENING_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Opening creation completed: ${OPENING_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 6 Report
+            echo "## 🎬 Phase 6: Opening Creation - オープニング作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ オープニング動画作成完了: $(basename "$OPENING_FILE")" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 編集計画統合: 完了" >> $GITHUB_STEP_SUMMARY
+            OPENING_SIZE=$(stat -c%s "$OPENING_FILE" 2>/dev/null || echo "0")
+            OPENING_SIZE_KB=$((OPENING_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${OPENING_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
-            echo "[$(date)] ERROR: Opening video not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "[$(date)] All 3 attempts failed for Opening creation" >> "${PROJECT_DIR}/logs/execution.log"
+            # Add error report
+            echo "## 🎬 Phase 6: Opening Creation - オープニング作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ オープニング動画生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
