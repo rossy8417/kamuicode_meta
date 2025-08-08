@@ -69,7 +69,7 @@ jobs:
           # ディレクトリ作成
           mkdir -p "${{ inputs.output_dir }}"
           
-          # Claude Code CLIでMCP経由で画像生成
+          # Claude Code CLIでMCP経由で画像生成（3回リトライ実装）
           CLAUDE_PROMPT="Generate an image using t2i-google-imagen3 with the following requirements:
           
           **Prompt**: ${{ inputs.prompt }}
@@ -86,11 +86,51 @@ jobs:
           
           Important: Make sure to pass auto_download=true and output_directory parameters to the MCP tool."
           
-          npx @anthropic-ai/claude-code \
-            -p "$CLAUDE_PROMPT" \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Bash,Write" \
-            --permission-mode "acceptEdits"
+          # 3-attempt retry logic for image generation
+          # CRITICAL: Media generation (images, videos, audio) requires retry logic due to API instability
+          IMAGE_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image generation attempt $attempt of 3"
+            
+            if npx @anthropic-ai/claude-code \
+              -p "$CLAUDE_PROMPT" \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Bash,Write" \
+              --permission-mode "acceptEdits"; then
+              
+              # Check if image was actually generated
+              cd "${{ inputs.output_dir }}"
+              IMAGE_CHECK=""
+              for ext in png jpg jpeg; do
+                for file in *.$ext; do
+                  if [ -f "$file" ]; then
+                    IMAGE_CHECK="$file"
+                    break 2
+                  fi
+                done
+              done
+              
+              if [ -n "$IMAGE_CHECK" ]; then
+                echo "[$(date)] Image SUCCESS on attempt $attempt: $IMAGE_CHECK"
+                IMAGE_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image generation completed but no file found on attempt $attempt"
+              fi
+            else
+              echo "[$(date)] Image FAILED on attempt $attempt"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying image generation in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for image generation"
+            exit 1
+          fi
           
           # 結果確認とファイル名の柔軟な処理
           cd "${{ inputs.output_dir }}"

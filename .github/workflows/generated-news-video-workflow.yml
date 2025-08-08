@@ -241,12 +241,40 @@ jobs:
             
             AUDIO_PROMPT="Generate Japanese news narration: Professional announcer voice, clear pronunciation, -14LUFS level. Input: ${SCRIPT_DATA}. Output: ${PROJECT_DIR}/media/audio/narration.mp3"
             
-            npx @anthropic-ai/claude-code \
-              --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result,Write,Read" \
-              --max-turns 20 \
-              --permission-mode "acceptEdits" \
-              -p "$AUDIO_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-audio-mcp.log"
+            # 3-attempt retry logic for Audio generation
+            AUDIO_SUCCESS=false
+            for attempt in 1 2 3; do
+              echo "[$(date)] Audio generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+              
+              if npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result,Write,Read" \
+                --max-turns 20 \
+                --permission-mode "acceptEdits" \
+                -p "$AUDIO_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-audio-mcp.log"; then
+                
+                # Check if audio was actually generated
+                AUDIO_CHECK=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
+                if [ -n "$AUDIO_CHECK" ] && [ -f "$AUDIO_CHECK" ] && [ -s "$AUDIO_CHECK" ]; then
+                  echo "[$(date)] Audio SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  AUDIO_SUCCESS=true
+                  break
+                else
+                  echo "[$(date)] Audio generation completed but no valid file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                fi
+              else
+                echo "[$(date)] Audio FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+              
+              if [ $attempt -lt 3 ]; then
+                echo "[$(date)] Retrying Audio in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 5
+              fi
+            done
+            
+            if [ "$AUDIO_SUCCESS" != "true" ]; then
+              echo "[$(date)] All 3 attempts failed for Audio, will use fallback generation" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
           else
             echo "[$(date)] MCP timeout risk detected, using fallback generation" >> "${PROJECT_DIR}/logs/execution.log"
           fi
@@ -333,12 +361,40 @@ jobs:
           
           IMAGE1_PROMPT="Generate scene 1 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image1-url.txt and download image to ${PROJECT_DIR}/media/images/scene1.png"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-            --max-turns 30 \
-            --permission-mode "acceptEdits" \
-            -p "$IMAGE1_PROMPT"
+          # 3-attempt retry logic for Image 1 generation
+          IMAGE1_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 1 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 30 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image1-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE1_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE1_CHECK" ] && [ -f "$IMAGE1_CHECK" ]; then
+                echo "[$(date)] Image 1 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE1_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 1 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 1 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 1 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE1_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 1, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
           
           # Check for generated image and URL
           IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | grep -v "url.txt" | head -1)
@@ -408,12 +464,40 @@ jobs:
           
           IMAGE2_PROMPT="Generate scene 2 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image2-url.txt and download image to ${PROJECT_DIR}/media/images/scene2.png"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-            --max-turns 30 \
-            --permission-mode "acceptEdits" \
-            -p "$IMAGE2_PROMPT"
+          # 3-attempt retry logic for Image 2 generation
+          IMAGE2_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 2 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 30 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image2-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE2_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE2_CHECK" ] && [ -f "$IMAGE2_CHECK" ]; then
+                echo "[$(date)] Image 2 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE2_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 2 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 2 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 2 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE2_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
           
           # Check for generated image and URL
           IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | grep -v "url.txt" | head -1)
@@ -483,12 +567,40 @@ jobs:
           
           IMAGE3_PROMPT="Generate scene 3 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image3-url.txt and download image to ${PROJECT_DIR}/media/images/scene3.png"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-            --max-turns 30 \
-            --permission-mode "acceptEdits" \
-            -p "$IMAGE3_PROMPT"
+          # 3-attempt retry logic for Image 3 generation
+          IMAGE3_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 3 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 30 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE3_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image3-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE3_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE3_CHECK" ] && [ -f "$IMAGE3_CHECK" ]; then
+                echo "[$(date)] Image 3 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE3_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 3 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 3 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 3 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE3_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
           
           # Check for generated image and URL
           IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | grep -v "url.txt" | head -1)
@@ -545,12 +657,40 @@ jobs:
           
           IMAGE4_PROMPT="Generate scene 4 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image4-url.txt and download image to ${PROJECT_DIR}/media/images/scene4.png"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-            --max-turns 30 \
-            --permission-mode "acceptEdits" \
-            -p "$IMAGE4_PROMPT"
+          # 3-attempt retry logic for Image 4 generation
+          IMAGE4_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 4 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 30 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE4_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image4-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE4_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE4_CHECK" ] && [ -f "$IMAGE4_CHECK" ]; then
+                echo "[$(date)] Image 4 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE4_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 4 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 4 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 4 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE4_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
           
           # Check for generated image and URL
           IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | grep -v "url.txt" | head -1)
@@ -607,12 +747,40 @@ jobs:
           
           IMAGE5_PROMPT="Generate scene 5 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image5-url.txt and download image to ${PROJECT_DIR}/media/images/scene5.png"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-            --max-turns 30 \
-            --permission-mode "acceptEdits" \
-            -p "$IMAGE5_PROMPT"
+          # 3-attempt retry logic for Image 5 generation
+          IMAGE5_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 5 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 30 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE5_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image5-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE5_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE5_CHECK" ] && [ -f "$IMAGE5_CHECK" ]; then
+                echo "[$(date)] Image 5 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE5_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 5 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 5 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 5 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE5_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
           
           # Check for generated image and URL
           IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)

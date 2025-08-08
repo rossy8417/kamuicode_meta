@@ -18,6 +18,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### For prompt creation & meta-workflow design
 → **`meta/prompts/`** directory specific prompt files
 
+### For meta-workflow construction & validation
+→ **`projects/workflow-execution-logs/meta-workflow-construction-checklist.md`** (Universal construction checklist)
+→ **`docs/YAML_CONSTRUCTION_GUIDELINES.md`** (YAML structure guidelines)
+→ **`docs/successful-workflow-patterns.md`** (Proven success patterns)
+→ **`meta/domain-templates/video-production/checklist-video-specific.md`** (Video generation domain-specific)
+
 ### For system overview & architecture
 → **`README.md`** (system overview)
 
