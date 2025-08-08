@@ -365,11 +365,77 @@ When meta-workflow generates workflows, it MUST check:
 - Jobs sharing files have artifact upload/download
 - File existence checks with error handling
 
+## 🚨 MCP (Model Context Protocol) Connection Management
+
+### **CRITICAL: MCP Server Connection Limitations**
+
+**The kamui-code.ai MCP server automatically disconnects after approximately 15-20 minutes of connection time.**
+
+#### Impact on GitHub Actions
+- Connection will be lost during long-running workflows (>20 minutes)
+- All MCP tools (image/video/audio generation) become unavailable
+- Manual reconnection would interrupt GitHub Actions execution
+
+#### MCP Connection Strategy
+1. **Track Elapsed Time Since Workflow Start**
+   ```bash
+   # Record workflow start time
+   WORKFLOW_START_TIME=$(date +%s)
+   
+   # Check elapsed time before MCP operations
+   check_elapsed_time() {
+     local current_time=$(date +%s)
+     local elapsed=$((current_time - WORKFLOW_START_TIME))
+     
+     if [ $elapsed -gt 900 ]; then  # 15 minutes
+       echo "Warning: Approaching MCP timeout limit"
+       echo "Switching to fallback generation methods"
+       return 1
+     fi
+     return 0
+   }
+   ```
+
+2. **Preventive Measures**
+   - Check connection viability BEFORE starting MCP operations
+   - Use fallback methods if approaching timeout
+   - Complete MCP operations early in workflow
+
+3. **Workflow Design Pattern**
+   ```yaml
+   # ✅ RECOMMENDED: Front-load MCP operations
+   jobs:
+     early-mcp-operations:  # Run within first 10 minutes
+       timeout-minutes: 10
+       steps:
+         - name: Check Time Window
+           run: |
+             if [ "${{ job.index }}" -gt 10 ]; then
+               echo "Too late for MCP, using fallback"
+               exit 0
+             fi
+         - name: Execute MCP Tools
+           run: |
+             # All MCP operations here
+   
+     later-operations:  # Non-MCP operations
+       needs: early-mcp-operations
+       steps:
+         - name: Process with local tools
+           run: |
+             # FFmpeg, ImageMagick, etc.
+   ```
+
+#### Important Notes
+- **DO NOT attempt manual reconnection during GitHub Actions** - it will interrupt the workflow
+- **DO NOT rely on MCP tools after 15 minutes** of workflow runtime
+- **ALWAYS have fallback methods** ready for when MCP is unavailable
+
 ### Workflow Design Best Practices
 
 #### 1. Task Minimization
 - Keep individual tasks small and focused (single responsibility)
-- Each task should complete within 5 minutes
+- **Each task should complete within 5 minutes (MCP接続維持のため)**
 - Split large operations into multiple smaller tasks
 - This reduces failure impact and improves debuggability
 
@@ -440,6 +506,37 @@ projects/                # ALL GitHub Actions outputs go here
 
 ### MCP Integration Rules
 **MCP Configuration**: See `docs/MCP_CONFIGURATION_GUIDE.md` for complete service list and setup instructions.
+
+**⚠️ CRITICAL Prerequisites**:
+- MCP server (kamui-code.ai) auto-disconnects after ~15-20 minutes
+- Connection will be lost during long GitHub Actions runs
+- Manual reconnection interrupts workflow execution
+- Must use time-based strategy, NOT reconnection attempts
+
+**MCP Tool Usage Checklist**:
+```bash
+# 1. Time-based Decision (REQUIRED)
+WORKFLOW_START=${{ github.run_started_at }}  # Use GitHub's timestamp
+ELAPSED_MINUTES=$(( ($(date +%s) - $(date -d "$WORKFLOW_START" +%s)) / 60 ))
+
+if [ $ELAPSED_MINUTES -lt 12 ]; then
+  echo "✅ Safe to use MCP tools (${ELAPSED_MINUTES} minutes elapsed)"
+  # Use MCP tools
+else
+  echo "⚠️ MCP timeout risk - using fallback (${ELAPSED_MINUTES} minutes elapsed)"
+  # Use fallback methods - DO NOT attempt reconnection
+fi
+
+# 2. Batch MCP Operations Early (RECOMMENDED)
+# Run all MCP operations in first 10 minutes
+# Then switch to local processing
+
+# 3. Fallback Ready (MANDATORY)
+# Always have non-MCP alternatives:
+# - FFmpeg for video/audio
+# - ImageMagick for images
+# - espeak-ng for TTS
+```
 
 **Key MCP Services** (from `.claude/mcp-kamuicode.json`) - 44+ services total:
 
