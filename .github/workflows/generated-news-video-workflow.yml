@@ -254,6 +254,7 @@ jobs:
     needs: [phase1-foundation, phase2-content-creation]
     outputs:
       image1_path: ${{ steps.image1-task.outputs.image1_path }}
+      image1_url: ${{ steps.image1-task.outputs.image1_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -272,7 +273,7 @@ jobs:
           echo "[$(date)] Phase 3B1: Image 1 generation started [Data Parallelism 1/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE1_PROMPT="Generate scene 1 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene1.png"
+          IMAGE1_PROMPT="Generate scene 1 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image1-url.txt and download image to ${PROJECT_DIR}/media/images/scene1.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -281,14 +282,27 @@ jobs:
             --permission-mode "acceptEdits" \
             -p "$IMAGE1_PROMPT"
           
-          # Check for generated image
-          IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | head -1)
+          # Check for generated image and URL
+          IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE1_URL_FILE="${PROJECT_DIR}/media/images/image1-url.txt"
+          
           if [ -n "$IMAGE1_FILE" ] && [ -f "$IMAGE1_FILE" ]; then
             echo "image1_path=${IMAGE1_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 1 completed: ${IMAGE1_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE1_URL_FILE" ]; then
+              IMAGE1_URL=$(cat "$IMAGE1_URL_FILE")
+              echo "image1_url=${IMAGE1_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 1 Google URL saved: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 1 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image1_url=" >> $GITHUB_OUTPUT
+            fi
           else
             echo "[$(date)] WARNING: Image 1 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
             echo "image1_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image1_url=" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload Image 1 artifacts
@@ -302,6 +316,7 @@ jobs:
     needs: [phase1-foundation, phase2-content-creation]
     outputs:
       image2_path: ${{ steps.image2-task.outputs.image2_path }}
+      image2_url: ${{ steps.image2-task.outputs.image2_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -320,7 +335,7 @@ jobs:
           echo "[$(date)] Phase 3B2: Image 2 generation started [Data Parallelism 2/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE2_PROMPT="Generate scene 2 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene2.png"
+          IMAGE2_PROMPT="Generate scene 2 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image2-url.txt and download image to ${PROJECT_DIR}/media/images/scene2.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -329,14 +344,27 @@ jobs:
             --permission-mode "acceptEdits" \
             -p "$IMAGE2_PROMPT"
           
-          # Check for generated image
-          IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | head -1)
+          # Check for generated image and URL
+          IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE2_URL_FILE="${PROJECT_DIR}/media/images/image2-url.txt"
+          
           if [ -n "$IMAGE2_FILE" ] && [ -f "$IMAGE2_FILE" ]; then
             echo "image2_path=${IMAGE2_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 2 completed: ${IMAGE2_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE2_URL_FILE" ]; then
+              IMAGE2_URL=$(cat "$IMAGE2_URL_FILE")
+              echo "image2_url=${IMAGE2_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 2 Google URL saved: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 2 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image2_url=" >> $GITHUB_OUTPUT
+            fi
           else
             echo "[$(date)] WARNING: Image 2 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
             echo "image2_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image2_url=" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload Image 2 artifacts
@@ -350,6 +378,7 @@ jobs:
     needs: [phase1-foundation, phase2-content-creation]
     outputs:
       image3_path: ${{ steps.image3-task.outputs.image3_path }}
+      image3_url: ${{ steps.image3-task.outputs.image3_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -368,7 +397,7 @@ jobs:
           echo "[$(date)] Phase 3B3: Image 3 generation started [Data Parallelism 3/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images"
           
-          IMAGE3_PROMPT="Generate scene 3 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Output: ${PROJECT_DIR}/media/images/scene3.png"
+          IMAGE3_PROMPT="Generate scene 3 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image3-url.txt and download image to ${PROJECT_DIR}/media/images/scene3.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -377,14 +406,27 @@ jobs:
             --permission-mode "acceptEdits" \
             -p "$IMAGE3_PROMPT"
           
-          # Check for generated image with graceful fallback
-          IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | head -1)
+          # Check for generated image and URL
+          IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | grep -v "url.txt" | head -1)
+          IMAGE3_URL_FILE="${PROJECT_DIR}/media/images/image3-url.txt"
+          
           if [ -n "$IMAGE3_FILE" ] && [ -f "$IMAGE3_FILE" ]; then
             echo "image3_path=${IMAGE3_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 3 completed: ${IMAGE3_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE3_URL_FILE" ]; then
+              IMAGE3_URL=$(cat "$IMAGE3_URL_FILE")
+              echo "image3_url=${IMAGE3_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 3 Google URL saved: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 3 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image3_url=" >> $GITHUB_OUTPUT
+            fi
           else
             echo "[$(date)] WARNING: Image 3 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
             echo "image3_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image3_url=" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload Image 3 artifacts
@@ -398,6 +440,7 @@ jobs:
     needs: [phase1-foundation, phase2-content-creation]
     outputs:
       image4_path: ${{ steps.image4-task.outputs.image4_path }}
+      image4_url: ${{ steps.image4-task.outputs.image4_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -416,7 +459,7 @@ jobs:
           echo "[$(date)] Phase 3B4: Image 4 generation started [Data Parallelism 4/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE4_PROMPT="Generate scene 4 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene4.png"
+          IMAGE4_PROMPT="Generate scene 4 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image4-url.txt and download image to ${PROJECT_DIR}/media/images/scene4.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -425,14 +468,27 @@ jobs:
             --permission-mode "acceptEdits" \
             -p "$IMAGE4_PROMPT"
           
-          # Check for generated image
-          IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | head -1)
+          # Check for generated image and URL
+          IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE4_URL_FILE="${PROJECT_DIR}/media/images/image4-url.txt"
+          
           if [ -n "$IMAGE4_FILE" ] && [ -f "$IMAGE4_FILE" ]; then
             echo "image4_path=${IMAGE4_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 4 completed: ${IMAGE4_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE4_URL_FILE" ]; then
+              IMAGE4_URL=$(cat "$IMAGE4_URL_FILE")
+              echo "image4_url=${IMAGE4_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 4 Google URL saved: ${IMAGE4_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 4 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image4_url=" >> $GITHUB_OUTPUT
+            fi
           else
             echo "[$(date)] WARNING: Image 4 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
             echo "image4_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image4_url=" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload Image 4 artifacts
@@ -446,6 +502,7 @@ jobs:
     needs: [phase1-foundation, phase2-content-creation]
     outputs:
       image5_path: ${{ steps.image5-task.outputs.image5_path }}
+      image5_url: ${{ steps.image5-task.outputs.image5_url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -464,7 +521,7 @@ jobs:
           echo "[$(date)] Phase 3B5: Image 5 generation started [Data Parallelism 5/5]" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/images/individual"
           
-          IMAGE5_PROMPT="Generate scene 5 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Input: ${SCRIPT_DATA}. Output: scene5.png"
+          IMAGE5_PROMPT="Generate scene 5 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image5-url.txt and download image to ${PROJECT_DIR}/media/images/scene5.png"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -473,14 +530,27 @@ jobs:
             --permission-mode "acceptEdits" \
             -p "$IMAGE5_PROMPT"
           
-          # Check for generated image
-          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | head -1)
+          # Check for generated image and URL
+          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE5_URL_FILE="${PROJECT_DIR}/media/images/image5-url.txt"
+          
           if [ -n "$IMAGE5_FILE" ] && [ -f "$IMAGE5_FILE" ]; then
             echo "image5_path=${IMAGE5_FILE}" >> $GITHUB_OUTPUT
             echo "[$(date)] Image 5 completed: ${IMAGE5_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE5_URL_FILE" ]; then
+              IMAGE5_URL=$(cat "$IMAGE5_URL_FILE")
+              echo "image5_url=${IMAGE5_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 5 Google URL saved: ${IMAGE5_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 5 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image5_url=" >> $GITHUB_OUTPUT
+            fi
           else
             echo "[$(date)] WARNING: Image 5 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
             echo "image5_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image5_url=" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload Image 5 artifacts
@@ -606,7 +676,10 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE1_PATH="${{ needs.phase3-image1-generation.outputs.image1_path }}"
+          IMAGE1_URL="${{ needs.phase3-image1-generation.outputs.image1_url }}"
           echo "[$(date)] Phase 4.1: Image 1 → Video 1 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 1 URL: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 1 Path: ${IMAGE1_PATH}" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
           # Check MCP connection time
@@ -617,8 +690,14 @@ jobs:
           
           echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
           
-          # Prepare clear i2v instruction
-          VIDEO1_PROMPT="IMPORTANT: Image-to-Video task. Read the image file at ${IMAGE1_PATH} and use mcp__i2v-kamui-veo3-fast to convert it to an 8-second video. The image_url parameter should be ${IMAGE1_PATH}. Use prompt 'Professional news segment with subtle motion'. Save output to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          # Prepare clear i2v instruction with Google URL if available
+          if [ -n "$IMAGE1_URL" ] && [ "$IMAGE1_URL" != "" ]; then
+            echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO1_PROMPT="Convert image to video using i2v-kamui-veo3-fast. Parameters: image_url='${IMAGE1_URL}', duration='8s', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video1-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          else
+            echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO1_PROMPT="IMPORTANT: Image-to-Video task. Read the image file at ${IMAGE1_PATH} and use mcp__i2v-kamui-veo3-fast to convert it to an 8-second video. The image_url parameter should be ${IMAGE1_PATH}. Use prompt 'Professional news segment with subtle motion'. Save output to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          fi
           
           # Try MCP generation if within time window
           VIDEO_GENERATED=false
@@ -631,7 +710,7 @@ jobs:
               
               npx @anthropic-ai/claude-code \
                 --mcp-config ".claude/mcp-kamuicode.json" \
-                --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
+                --allowedTools "mcp__i2v-*,Write,Read,Bash" \
                 --max-turns 40 \
                 --permission-mode "acceptEdits" \
                 -p "$VIDEO1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video1-mcp.log"
@@ -711,10 +790,20 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE2_PATH="${{ needs.phase3-image2-generation.outputs.image2_path }}"
+          IMAGE2_URL="${{ needs.phase3-image2-generation.outputs.image2_url }}"
           echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 2 URL: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 2 Path: ${IMAGE2_PATH}" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO2_PROMPT="Read image at ${IMAGE2_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE2_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
+          # Prepare clear i2v instruction with Google URL if available
+          if [ -n "$IMAGE2_URL" ] && [ "$IMAGE2_URL" != "" ]; then
+            echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO2_PROMPT="Convert image to video using i2v-kamui-veo3-fast. Parameters: image_url='${IMAGE2_URL}', duration='8s', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video2-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
+          else
+            echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO2_PROMPT="Read image at ${IMAGE2_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE2_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
+          fi
           
           # 3-attempt retry logic for Video 2 generation
           for attempt in 1 2 3; do
@@ -722,7 +811,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
+              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO2_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -772,10 +861,16 @@ jobs:
         run: |
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE3_PATH="${{ needs.phase3-image3-generation.outputs.image3_path }}"
+          IMAGE3_URL="${{ needs.phase3-image3-generation.outputs.image3_url }}"
           echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 3 URL: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
           
-          VIDEO3_PROMPT="Read image at ${IMAGE3_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE3_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4"
+          if [ -n "$IMAGE3_URL" ] && [ "$IMAGE3_URL" != "" ]; then
+            VIDEO3_PROMPT="Convert image to video using i2v-kamui-veo3-fast. Parameters: image_url='${IMAGE3_URL}', duration='8s', prompt='Professional news segment'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video3-url.txt and download to scene3_video.mp4"
+          else
+            VIDEO3_PROMPT="Read image at ${IMAGE3_PATH}. Use mcp__i2v-kamui-veo3-fast to create 8s video. Parameters: image_url=${IMAGE3_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4"
+          fi
           
           # 3-attempt retry logic for Video 3 generation
           for attempt in 1 2 3; do
@@ -783,7 +878,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
+              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO3_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -844,7 +939,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
+              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
@@ -905,7 +1000,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Read" \
+              --allowedTools "mcp__i2v-*,Write,Read,Bash" \
               --max-turns 40 \
               --permission-mode "acceptEdits" \
               -p "$VIDEO5_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
