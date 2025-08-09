@@ -475,9 +475,18 @@ jobs:
             echo "- ✅ 生成方式: Google Imagen3 (高品質)" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           else
-            echo "[$(date)] WARNING: Image 1 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
-            echo "image1_path=placeholder" >> $GITHUB_OUTPUT
-            echo "image1_url=" >> $GITHUB_OUTPUT
+            # 画像ファイルが無くてもURLがあれば出力して下流でURLを使用
+            if [ -f "$IMAGE1_URL_FILE" ]; then
+              IMAGE1_URL=$(cat "$IMAGE1_URL_FILE")
+              echo "[$(date)] WARNING: Image 1 file missing, but URL available. Passing URL to downstream" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image1_url=${IMAGE1_URL}" >> $GITHUB_OUTPUT
+              # ファイルが無いので path は空で渡す（placeholderは使わない）
+              echo "image1_path=" >> $GITHUB_OUTPUT
+            else
+              echo "[$(date)] WARNING: Image 1 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image1_path=placeholder" >> $GITHUB_OUTPUT
+              echo "image1_url=" >> $GITHUB_OUTPUT
+            fi
             # Add error report
             echo "## 🖼️ Phase 3B1: Image Generation - シーン1画像作成" >> $GITHUB_STEP_SUMMARY
             echo "- ❌ 画像生成失敗" >> $GITHUB_STEP_SUMMARY
