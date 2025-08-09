@@ -438,13 +438,11 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 1, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
-          # Attempt explicit download if URL exists but file missing
+          # Attempt explicit download if URL exists but file missing (relaxed conditions)
           if [ -f "${PROJECT_DIR}/media/images/image1-url.txt" ]; then
             IMAGE1_URL=$(cat "${PROJECT_DIR}/media/images/image1-url.txt")
             if [ ! -f "${PROJECT_DIR}/media/images/scene1.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene1.png" ]; then
-              if curl -IfsS --max-time 20 "$IMAGE1_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE1_URL" == *.png* || "$IMAGE1_URL" == *.jpg* || "$IMAGE1_URL" == *.jpeg* ]]; then
-                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE1_URL" -o "${PROJECT_DIR}/media/images/scene1.png" || true
-              fi
+              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE1_URL" -o "${PROJECT_DIR}/media/images/scene1.png" || true
             fi
           fi
 
@@ -560,13 +558,11 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
-          # Attempt explicit download if URL exists but file missing
+          # Attempt explicit download if URL exists but file missing (relaxed conditions)
           if [ -f "${PROJECT_DIR}/media/images/image2-url.txt" ]; then
             IMAGE2_URL=$(cat "${PROJECT_DIR}/media/images/image2-url.txt")
             if [ ! -f "${PROJECT_DIR}/media/images/scene2.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene2.png" ]; then
-              if curl -IfsS --max-time 20 "$IMAGE2_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE2_URL" == *.png* || "$IMAGE2_URL" == *.jpg* || "$IMAGE2_URL" == *.jpeg* ]]; then
-                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE2_URL" -o "${PROJECT_DIR}/media/images/scene2.png" || true
-              fi
+              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE2_URL" -o "${PROJECT_DIR}/media/images/scene2.png" || true
             fi
           fi
 
@@ -684,9 +680,7 @@ jobs:
           if [ -f "${PROJECT_DIR}/media/images/image3-url.txt" ]; then
             IMAGE3_URL=$(cat "${PROJECT_DIR}/media/images/image3-url.txt")
             if [ ! -f "${PROJECT_DIR}/media/images/scene3.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene3.png" ]; then
-              if curl -IfsS --max-time 20 "$IMAGE3_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE3_URL" == *.png* || "$IMAGE3_URL" == *.jpg* || "$IMAGE3_URL" == *.jpeg* ]]; then
-                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE3_URL" -o "${PROJECT_DIR}/media/images/scene3.png" || true
-              fi
+              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE3_URL" -o "${PROJECT_DIR}/media/images/scene3.png" || true
             fi
           fi
 
@@ -784,9 +778,7 @@ jobs:
           if [ -f "${PROJECT_DIR}/media/images/image4-url.txt" ]; then
             IMAGE4_URL=$(cat "${PROJECT_DIR}/media/images/image4-url.txt")
             if [ ! -f "${PROJECT_DIR}/media/images/scene4.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene4.png" ]; then
-              if curl -IfsS --max-time 20 "$IMAGE4_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE4_URL" == *.png* || "$IMAGE4_URL" == *.jpg* || "$IMAGE4_URL" == *.jpeg* ]]; then
-                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE4_URL" -o "${PROJECT_DIR}/media/images/scene4.png" || true
-              fi
+              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE4_URL" -o "${PROJECT_DIR}/media/images/scene4.png" || true
             fi
           fi
 
@@ -884,9 +876,7 @@ jobs:
           if [ -f "${PROJECT_DIR}/media/images/image5-url.txt" ]; then
             IMAGE5_URL=$(cat "${PROJECT_DIR}/media/images/image5-url.txt")
             if [ ! -f "${PROJECT_DIR}/media/images/scene5.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene5.png" ]; then
-              if curl -IfsS --max-time 20 "$IMAGE5_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE5_URL" == *.png* || "$IMAGE5_URL" == *.jpg* || "$IMAGE5_URL" == *.jpeg* ]]; then
-                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE5_URL" -o "${PROJECT_DIR}/media/images/scene5.png" || true
-              fi
+              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE5_URL" -o "${PROJECT_DIR}/media/images/scene5.png" || true
             fi
           fi
 
