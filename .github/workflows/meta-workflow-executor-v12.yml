@@ -743,6 +743,17 @@ jobs:
           name: domain-template-data
           path: artifacts/
 
+      - name: Inject required inputs into generated workflow from schema
+        run: |
+          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
+          SCHEMA_PATH="artifacts/domain-input-schema/input-schema.yaml"
+          if [ -f "$SCHEMA_PATH" ] && [ -f "$WORKFLOW_PATH" ]; then
+            python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='$SCHEMA_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; req=(schema.get('inputs') or {}).get('required') or {}; on=wf.setdefault('on',{}); wd=on.setdefault('workflow_dispatch',{}); inputs=wd.setdefault('inputs',{}); [ (inputs.setdefault(k,{}).update({'description':(v.get('description',k)), 'required':True}) or (inputs[k].update({'default':v['default']}) if 'default' in v else None) or (inputs[k].update({'type':'choice','options':v['enum']}) if 'enum' in v else inputs[k].pop('type', None)) ) for k,v in req.items() ]; open(wf_path,'w').write(yaml.safe_dump(wf, sort_keys=False))"
+            echo "✅ Injected required inputs into workflow_dispatch"
+          else
+            echo "::warning::Schema or workflow file not found; skip injection"
+          fi
+
       - name: Install jq
         run: |
           sudo apt-get update && sudo apt-get install -y jq
