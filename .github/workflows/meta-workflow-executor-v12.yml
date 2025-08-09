@@ -7,7 +7,7 @@ on:
       issue_number:
         description: 'Issue number for workflow generation request'
         required: true
-        default: '60'
+        default: '66'
   
   issue_comment:
     types: [created]
@@ -27,6 +27,9 @@ jobs:
   bootstrap:
     name: "🧩 Bootstrap Diagnostics"
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && contains(github.event.comment.body, '/start'))
     steps:
       - name: Print event context
         run: |
@@ -49,6 +52,9 @@ jobs:
   validate-and-detect:
     name: "🔍 Issue Validation & Domain Detection"
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && contains(github.event.comment.body, '/start'))
     outputs:
       issue_number: ${{ steps.extract.outputs.issue_number }}
       issue_title: ${{ steps.extract.outputs.issue_title }}
@@ -593,21 +599,6 @@ jobs:
         with:
           path: artifacts/
       
-      - name: Extract required inputs from domain input schema
-        run: |
-          SCHEMA_FILE="artifacts/domain-input-schema/input-schema.yaml"
-          if [ -f "$SCHEMA_FILE" ]; then
-            python -c "import yaml, json, os, sys, os.path as path; p='artifacts/domain-input-schema/input-schema.yaml';
-schema=yaml.safe_load(open(p)) or {} if path.exists(p) else sys.exit(0);
-groups=schema.get('inputs') or {}; required=groups.get('required') or {};
-def to_in(n,s): o={'name':n,'description':s.get('description',n),'required':True}; (o.update({'type':'choice','options':s['enum']}) if 'enum' in s else o.update({'type':'string'})); (o.update({'default':s['default']}) if 'default' in s else None); return o;
-inputs=[to_in(n, required.get(n,{})) for n in required.keys()]; os.makedirs('artifacts', exist_ok=True);
-open('artifacts/required_inputs.json','w',encoding='utf-8').write(json.dumps(inputs, ensure_ascii=False, indent=2));
-open('artifacts/required_input_keys.txt','w',encoding='utf-8').write('\\n'.join(required.keys()))"
-            echo "✅ Extracted required inputs from schema"
-          else
-            echo "::warning::Input schema file not found; required inputs list unavailable"
-          fi
           
       - name: Generate Professional Workflow
         id: generate
