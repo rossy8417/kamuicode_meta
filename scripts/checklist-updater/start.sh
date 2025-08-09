@@ -35,8 +35,8 @@ nohup bash -c "
         
         cd \"$PROJECT_ROOT\"
         
-        # Pythonスクリプトを実行
-        python3 scripts/checklist-updater/update-from-logs.py --hours 24 >> \"$LOG_FILE\" 2>&1
+        # 高度なログ分析スクリプトを実行
+        python3 scripts/checklist-updater/advanced-log-analyzer.py --hours 24 >> \"$LOG_FILE\" 2>&1
         
         if [ \$? -eq 0 ]; then
             echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] ✅ Update completed successfully\" >> \"$LOG_FILE\"
