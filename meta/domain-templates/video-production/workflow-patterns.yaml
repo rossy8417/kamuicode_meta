@@ -16,7 +16,7 @@ workflow_patterns:
         parallel: true
         tasks:
           - narration_generation: "音声生成"
-          - scene_images: "シーン画像生成（並列5）"
+          - scene_serial_parallel: "シーン単位 直列(画像→I2V) × 並列(matrix, ≤5)"
           - character_generation: "キャラクター・プレゼンター生成"
           - bgm_selection: "BGM生成/選択"
       
@@ -58,12 +58,21 @@ workflow_patterns:
           - audio_pregeneration: "音声を先行生成"
       
       2_rolling_production:
-        description: "ローリング方式で順次処理"
+        description: "ローリング方式（シーン直列×全体並列）"
         loop:
-          - generate_image_batch: "画像5枚生成"
-          - immediate_i2v: "即座にi2v変換"
-          - local_save: "ローカル保存"
-          - next_batch: "次のバッチへ"
+          - scene_serial_parallel: "各シーンで画像→I2Vを直列実行（matrixで並列し、max-parallel≤5）"
+  # 新規パターン: シーン直列×全体並列
+  scene_serial_parallel:
+    description: "各シーンで画像生成→I2Vを直列に実行し、シーン単位で並列化する"
+    strategy:
+      matrix: "scene: [1..N] (Nはシーン数計算による)"
+      max_parallel: 5
+      per_scene_pipeline:
+        - generate_image
+        - image_to_video
+    notes:
+      - "URL期限切れを避けるため、画像生成直後に同ジョブ内でI2Vを実施"
+      - "Nは constraints.yaml の scene_calculation/duration_allocation に従う"
       
       3_assembly:
         tasks:

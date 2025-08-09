@@ -17,6 +17,32 @@ timing_constraints:
       - "duration: 30s → scenes: 5 + 1 = 6"
       - "duration: 60s → scenes: 10 + 2 = 12"
       - "duration: 180s → scenes: 28 + 6 = 34"
+
+# 構成ルール（直列×並列）
+composition_rules:
+  per_scene_pipeline:
+    description: "各シーンは『画像生成 → 画像から動画(I2V)』を同一ジョブ内で直列実行する"
+    rationale:
+      - "画像生成直後にI2Vを行うことでURL期限切れを回避"
+      - "同一ランナー内でのファイル共有により安定性向上"
+    mandatory: true
+
+  orchestration:
+    strategy: "matrix(scene: 1..N)"
+    max_parallel: 5
+    notes:
+      - "URL有効期限対策として同時実行数を制限 (≤5)"
+      - "Nはscene_calculationで算出（scene_breakdownがあればそれを優先）」
+
+  duration_allocation:
+    default_per_scene_seconds: 5
+    precedence: "story_structure.scene_breakdown[i].duration_sec があればそれを優先"
+    fallback: "duration_seconds / default_per_scene_seconds でNを算出（切り上げ）"
+
+  forbidden_patterns:
+    - "画像だけをバッチ並列（7A/7B型）のみで生成する設計"
+    - "I2Vだけを別バッチ（8A/8B型）のみで並列処理する設計"
+    - "画像生成とI2Vが別ジョブになりURL有効期限の影響を受ける設計"
   
   # URL有効期限対策
   url_expiration:
