@@ -700,48 +700,74 @@ jobs:
             DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
             
             # First attempt: Strict validation with critical requirements
+            echo "Creating validation prompt..."
+            cat > validation_prompt.txt << 'PROMPT_EOF'
+厳格な検証を実行し、必ず validation_result.json を作成してください。
+
+ファイル: 
+- 検証対象ワークフロー: WORKFLOW_PATH_PLACEHOLDER
+- 検証基準: meta/validation/strict-validation-requirements.md
+
+タスク:
+1. ワークフローを読み込む
+2. strict-validation-requirements.md の CRITICAL REQUIREMENTS 10項目を確認
+3. 各項目の実際の値を抽出して検証
+4. 結果を validation_result.json に保存
+
+検証する項目（特に重要）:
+- CR001: I2V処理の --max-turns の値（80以上必須）
+- CR003: ファイルサイズ検証（300KB以上のチェック）
+- CR006: if: always() の使用箇所数（5箇所以上）
+
+出力形式:
+{
+  "overall_result": "PASSED または FAILED",
+  "critical_pass_count": "X/10",
+  "failed_items": ["失敗項目のリスト"],
+  "details": {
+    "CR001_max_turns": {"status": "✅/❌", "found": "実際の値"},
+    "CR003_file_size": {"status": "✅/❌", "found": "有/無"}
+  }
+}
+
+重要: 1つでもCRITICAL要件違反があれば overall_result は FAILED
+PROMPT_EOF
+            
+            # Replace placeholder with actual path
+            sed -i "s|WORKFLOW_PATH_PLACEHOLDER|$WORKFLOW_PATH|g" validation_prompt.txt
+            
             npx @anthropic-ai/claude-code \
               --allowedTools "Read,Write" \
               --permission-mode "acceptEdits" \
-              --max-turns 20 \
-              -p "厳格な検証を実行し、検証結果をvalidation_result.jsonに保存してください:
-
-            生成ワークフロー: $WORKFLOW_PATH
-            ドメイン: $DOMAIN
-
-            必須参照ファイル（全て読み込んで厳密にチェック）:
-            1. meta/validation/strict-validation-requirements.md (厳格検証要件)
-            2. projects/workflow-execution-logs/meta-workflow-construction-checklist.md
-            3. meta/domain-templates/$DOMAIN/checklist-*-specific.md
-
-            検証手順:
-            1. strict-validation-requirements.mdのCRITICAL REQUIREMENTS全10項目を1つずつチェック
-            2. 各項目で実際の値を抽出（例: max-turnsの実際の数値）
-            3. 期待値と比較（例: I2V処理のmax-turns >= 80）
-            4. 1つでもCRITICAL要件を満たさない場合は即座にFAILED判定
-
-            特に重要な検証:
-            - CR001: I2V処理のmax-turnsは必ず80以上（現在の値を報告）
-            - CR003: 300KB以上のファイルサイズ検証コードの存在
-            - CR006: if: always()が5箇所以上
-            - CR007: Google URL優先処理の実装
-
-            結果をvalidation_result.jsonに保存:
-            {
-              \"overall_result\": \"PASSED\" or \"FAILED\",
-              \"critical_requirements\": {
-                \"CR001_max_turns\": {\"status\": \"✅/❌\", \"expected\": \"80\", \"actual\": \"実際の値\"},
-                \"CR002_mcp_config\": {\"status\": \"✅/❌\", \"found_count\": \"数値\"},
-                \"CR003_file_validation\": {\"status\": \"✅/❌\", \"implementation\": \"有/無\"},
-                ...全10項目
-              },
-              \"critical_pass_count\": \"X/10\",
-              \"domain_score\": \"XX%\",
-              \"failed_items\": [\"失敗した項目のリスト\"],
-              \"auto_fix_needed\": true/false
-            }
-
-            重要: 1つでもCRITICAL要件違反があれば overall_result は必ず FAILED にすること"
+              --max-turns 30 \
+              -p "$(cat validation_prompt.txt)"
+            
+            # Ensure validation_result.json exists (create fallback if needed)
+            if [ ! -f "validation_result.json" ]; then
+              echo "⚠️ validation_result.json not created by Claude Code - creating fallback"
+              
+              # Quick manual check for critical issues
+              I2V_MAX_TURNS=$(grep -E "i2v.*--max-turns\s+[0-9]+" "$WORKFLOW_PATH" | grep -oE "[0-9]+" | head -1)
+              FILE_SIZE_CHECK=$(grep -c "file_size.*-lt.*300000" "$WORKFLOW_PATH" || echo "0")
+              IF_ALWAYS_COUNT=$(grep -c "if:\s*always()" "$WORKFLOW_PATH" || echo "0")
+              
+              # Create fallback validation result
+              cat > validation_result.json << EOF
+{
+  "overall_result": "FAILED",
+  "critical_pass_count": "0/10",
+  "failed_items": ["CR001: Max turns検証未完了", "検証タイムアウト"],
+  "details": {
+    "CR001_max_turns": {"status": "❌", "found": "${I2V_MAX_TURNS:-unknown}"},
+    "CR003_file_size": {"status": "❌", "found": "${FILE_SIZE_CHECK}"},
+    "CR006_if_always": {"status": "❌", "found": "${IF_ALWAYS_COUNT}"}
+  },
+  "auto_generated": true,
+  "reason": "Validation timeout - fallback result"
+}
+EOF
+              echo "✅ Fallback validation_result.json created"
+            fi
             
             # Check validation result from JSON
             if [ -f "validation_result.json" ]; then

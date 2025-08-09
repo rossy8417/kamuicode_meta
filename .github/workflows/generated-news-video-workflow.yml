@@ -411,7 +411,7 @@ jobs:
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-              --max-turns 30 \
+              --max-turns 60 \
               --permission-mode "acceptEdits" \
               -p "$IMAGE1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image1-mcp.log"; then
               
@@ -438,6 +438,16 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 1, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
+          # Attempt explicit download if URL exists but file missing
+          if [ -f "${PROJECT_DIR}/media/images/image1-url.txt" ]; then
+            IMAGE1_URL=$(cat "${PROJECT_DIR}/media/images/image1-url.txt")
+            if [ ! -f "${PROJECT_DIR}/media/images/scene1.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene1.png" ]; then
+              if curl -IfsS --max-time 20 "$IMAGE1_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE1_URL" == *.png* || "$IMAGE1_URL" == *.jpg* || "$IMAGE1_URL" == *.jpeg* ]]; then
+                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE1_URL" -o "${PROJECT_DIR}/media/images/scene1.png" || true
+              fi
+            fi
+          fi
+
           # Check for generated image and URL
           IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | grep -v "url.txt" | head -1)
           IMAGE1_URL_FILE="${PROJECT_DIR}/media/images/image1-url.txt"
@@ -514,7 +524,7 @@ jobs:
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-              --max-turns 30 \
+              --max-turns 60 \
               --permission-mode "acceptEdits" \
               -p "$IMAGE2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image2-mcp.log"; then
               
@@ -541,6 +551,16 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
+          # Attempt explicit download if URL exists but file missing
+          if [ -f "${PROJECT_DIR}/media/images/image2-url.txt" ]; then
+            IMAGE2_URL=$(cat "${PROJECT_DIR}/media/images/image2-url.txt")
+            if [ ! -f "${PROJECT_DIR}/media/images/scene2.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene2.png" ]; then
+              if curl -IfsS --max-time 20 "$IMAGE2_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE2_URL" == *.png* || "$IMAGE2_URL" == *.jpg* || "$IMAGE2_URL" == *.jpeg* ]]; then
+                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE2_URL" -o "${PROJECT_DIR}/media/images/scene2.png" || true
+              fi
+            fi
+          fi
+
           # Check for generated image and URL
           IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | grep -v "url.txt" | head -1)
           IMAGE2_URL_FILE="${PROJECT_DIR}/media/images/image2-url.txt"
@@ -617,7 +637,7 @@ jobs:
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-              --max-turns 30 \
+              --max-turns 60 \
               --permission-mode "acceptEdits" \
               -p "$IMAGE3_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image3-mcp.log"; then
               
@@ -644,6 +664,16 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
+          # Attempt explicit download if URL exists but file missing
+          if [ -f "${PROJECT_DIR}/media/images/image3-url.txt" ]; then
+            IMAGE3_URL=$(cat "${PROJECT_DIR}/media/images/image3-url.txt")
+            if [ ! -f "${PROJECT_DIR}/media/images/scene3.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene3.png" ]; then
+              if curl -IfsS --max-time 20 "$IMAGE3_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE3_URL" == *.png* || "$IMAGE3_URL" == *.jpg* || "$IMAGE3_URL" == *.jpeg* ]]; then
+                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE3_URL" -o "${PROJECT_DIR}/media/images/scene3.png" || true
+              fi
+            fi
+          fi
+
           # Check for generated image and URL
           IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | grep -v "url.txt" | head -1)
           IMAGE3_URL_FILE="${PROJECT_DIR}/media/images/image3-url.txt"
@@ -707,7 +737,7 @@ jobs:
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-              --max-turns 30 \
+              --max-turns 60 \
               --permission-mode "acceptEdits" \
               -p "$IMAGE4_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image4-mcp.log"; then
               
@@ -734,6 +764,16 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
+          # Attempt explicit download if URL exists but file missing
+          if [ -f "${PROJECT_DIR}/media/images/image4-url.txt" ]; then
+            IMAGE4_URL=$(cat "${PROJECT_DIR}/media/images/image4-url.txt")
+            if [ ! -f "${PROJECT_DIR}/media/images/scene4.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene4.png" ]; then
+              if curl -IfsS --max-time 20 "$IMAGE4_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE4_URL" == *.png* || "$IMAGE4_URL" == *.jpg* || "$IMAGE4_URL" == *.jpeg* ]]; then
+                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE4_URL" -o "${PROJECT_DIR}/media/images/scene4.png" || true
+              fi
+            fi
+          fi
+
           # Check for generated image and URL
           IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | grep -v "url.txt" | head -1)
           IMAGE4_URL_FILE="${PROJECT_DIR}/media/images/image4-url.txt"
@@ -797,7 +837,7 @@ jobs:
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
-              --max-turns 30 \
+              --max-turns 60 \
               --permission-mode "acceptEdits" \
               -p "$IMAGE5_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image5-mcp.log"; then
               
@@ -824,6 +864,16 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
+          # Attempt explicit download if URL exists but file missing
+          if [ -f "${PROJECT_DIR}/media/images/image5-url.txt" ]; then
+            IMAGE5_URL=$(cat "${PROJECT_DIR}/media/images/image5-url.txt")
+            if [ ! -f "${PROJECT_DIR}/media/images/scene5.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene5.png" ]; then
+              if curl -IfsS --max-time 20 "$IMAGE5_URL" | grep -Ei '^content-type:.*(png|jpeg|jpg|octet-stream)' >/dev/null || [[ "$IMAGE5_URL" == *.png* || "$IMAGE5_URL" == *.jpg* || "$IMAGE5_URL" == *.jpeg* ]]; then
+                timeout 30 curl -L -fSs --retry 3 --retry-delay 2 "$IMAGE5_URL" -o "${PROJECT_DIR}/media/images/scene5.png" || true
+              fi
+            fi
+          fi
+
           # Check for generated image and URL
           IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)
           IMAGE5_URL_FILE="${PROJECT_DIR}/media/images/image5-url.txt"
