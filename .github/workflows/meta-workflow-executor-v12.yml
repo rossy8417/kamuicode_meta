@@ -746,6 +746,7 @@ jobs:
       - name: Inject required inputs into generated workflow from schema
         run: |
           WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
+          # Schema file downloaded from 'domain-template-data' artifact into artifacts/
           SCHEMA_PATH="artifacts/domain-input-schema/input-schema.yaml"
           if [ -f "$SCHEMA_PATH" ] && [ -f "$WORKFLOW_PATH" ]; then
             python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='$SCHEMA_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; req=(schema.get('inputs') or {}).get('required') or {}; on=wf.setdefault('on',{}); wd=on.setdefault('workflow_dispatch',{}); inputs=wd.setdefault('inputs',{}); [ (inputs.setdefault(k,{}).update({'description':(v.get('description',k)), 'required':True}) or (inputs[k].update({'default':v['default']}) if 'default' in v else None) or (inputs[k].update({'type':'choice','options':v['enum']}) if 'enum' in v else inputs[k].pop('type', None)) ) for k,v in req.items() ]; open(wf_path,'w').write(yaml.safe_dump(wf, sort_keys=False))"
@@ -770,10 +771,9 @@ jobs:
           python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))"
           echo "✅ YAML syntax valid"
           
-          # GitHub Actions structure validation
-          if grep -q "^name:" "$WORKFLOW_PATH" && \
-             grep -q "^on:" "$WORKFLOW_PATH" && \
-             grep -q "^jobs:" "$WORKFLOW_PATH"; then
+          # GitHub Actions structure validation (robust against quoted keys)
+          python -c "import yaml,sys,os; wf_path=os.environ.get('WORKFLOW_PATH'); wf=yaml.safe_load(open(wf_path)) or {}; sys.exit(0 if isinstance(wf, dict) and 'name' in wf and 'on' in wf and 'jobs' in wf else 1)"
+          if [ $? -eq 0 ]; then
             echo "✅ GitHub Actions structure valid"
 
             # Input schema compliance validation (file-referenced, no inline duplication)
@@ -826,6 +826,7 @@ jobs:
             sed -i "s|WORKFLOW_PATH_PLACEHOLDER|$WORKFLOW_PATH|g" validation_prompt.txt
             
             npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "Read,Write" \
               --permission-mode "acceptEdits" \
               --max-turns 30 \
@@ -892,7 +893,8 @@ jobs:
                 echo "🔧 Attempting auto-fix for failed requirements..."
               
                 # Attempt auto-correction with specific failed items
-                npx @anthropic-ai/claude-code \
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
                   --allowedTools "Read,Write" \
                   --permission-mode "acceptEdits" \
                   --max-turns 30 \
@@ -925,7 +927,8 @@ jobs:
                   echo "✅ Auto-fix completed - Re-validating..."
                   
                   # Re-validate after fix
-                  npx @anthropic-ai/claude-code \
+                npx @anthropic-ai/claude-code \
+                  --mcp-config ".claude/mcp-kamuicode.json" \
                     --allowedTools "Read,Write" \
                     --permission-mode "acceptEdits" \
                     --max-turns 10 \
