@@ -961,18 +961,8 @@ jobs:
           # Check for generated BGM
           BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" 2>/dev/null | head -1)
           
-          # Fallback: Generate simple tone-based BGM
-          if [ -z "$BGM_FILE" ] || [ ! -s "$BGM_FILE" ]; then
-            echo "[$(date)] WARNING: MCP BGM generation failed, creating fallback BGM" >> "${PROJECT_DIR}/logs/execution.log"
-            
-            # Generate simple ambient BGM using ffmpeg
-            ffmpeg -f lavfi -i "anoisesrc=duration=60:color=brown:amplitude=0.01" \
-              -f lavfi -i "sine=frequency=220:duration=60" \
-              -filter_complex "[0][1]amix=inputs=2:duration=longest,volume=0.05" \
-              -c:a libmp3lame -b:a 128k "${PROJECT_DIR}/media/audio/bgm.mp3" -y
-            
-            BGM_FILE="${PROJECT_DIR}/media/audio/bgm.mp3"
-          fi
+          # Fallback無し方針（この段階ではffmpeg非使用）。
+          # MCPで取得できない場合はBGMなしで進め、Phase 8で安全にミックスする。
           
           if [ -f "$BGM_FILE" ] && [ -s "$BGM_FILE" ]; then
             echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
@@ -1054,6 +1044,14 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE1_PATH="${{ needs.phase3-image1-generation.outputs.image1_path }}"
           IMAGE1_URL="${{ needs.phase3-image1-generation.outputs.image1_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE1_URL" ] || [ "$IMAGE1_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image1-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE1_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE1_URL from file: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
           
           # Create directories first!
           mkdir -p "${PROJECT_DIR}/logs"
@@ -1248,6 +1246,14 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE2_PATH="${{ needs.phase3-image2-generation.outputs.image2_path }}"
           IMAGE2_URL="${{ needs.phase3-image2-generation.outputs.image2_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE2_URL" ] || [ "$IMAGE2_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image2-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE2_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE2_URL from file: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
           
           # Create directories first!
           mkdir -p "${PROJECT_DIR}/logs"
@@ -1342,6 +1348,14 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE3_PATH="${{ needs.phase3-image3-generation.outputs.image3_path }}"
           IMAGE3_URL="${{ needs.phase3-image3-generation.outputs.image3_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE3_URL" ] || [ "$IMAGE3_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image3-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE3_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE3_URL from file: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
           
           # Create directories first!
           mkdir -p "${PROJECT_DIR}/logs"
@@ -1441,6 +1455,14 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE4_PATH="${{ needs.phase3-image4-generation.outputs.image4_path }}"
           IMAGE4_URL="${{ needs.phase3-image4-generation.outputs.image4_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE4_URL" ] || [ "$IMAGE4_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image4-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE4_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE4_URL from file: ${IMAGE4_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
           # Create directories first!
           mkdir -p "${PROJECT_DIR}/logs"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"
@@ -1529,6 +1551,14 @@ jobs:
           PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
           IMAGE5_PATH="${{ needs.phase3-image5-generation.outputs.image5_path }}"
           IMAGE5_URL="${{ needs.phase3-image5-generation.outputs.image5_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE5_URL" ] || [ "$IMAGE5_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image5-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE5_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE5_URL from file: ${IMAGE5_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
           # Create directories first!
           mkdir -p "${PROJECT_DIR}/logs"
           mkdir -p "${PROJECT_DIR}/media/videos/individual"

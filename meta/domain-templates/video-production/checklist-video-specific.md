@@ -111,24 +111,65 @@ Output structured plan as JSON with timeline, commands, and quality checks."
 
 ## ⚠️ **Video Generation Specific Failure Pattern Avoidance**
 
-### **"False Success" Detection**
+### **"False Success" Detection - Enhanced Validation**
 ```bash
-# ❌ Dangerous: Status success but actually instruction file generated
-# Actual file verification essential
+# ✅ Enhanced validation with strict file size requirements
 validate_video_output() {
   local video_file="$1"
+  local min_size="${2:-300000}"  # Default 300KB minimum
+  
   if [ -f "$video_file" ] && [ -s "$video_file" ]; then
-    # Verify if actual MP4 file
+    local file_size=$(stat -c%s "$video_file" 2>/dev/null || echo 0)
+    
+    # Size validation first
+    if [ "$file_size" -lt "$min_size" ]; then
+      echo "❌ FILE TOO SMALL: $video_file (${file_size} bytes < ${min_size})"
+      return 1
+    fi
+    
+    # Format validation
     if ffprobe "$video_file" >/dev/null 2>&1; then
       duration=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$video_file")
       if (( $(echo "$duration >= 5.0" | bc -l) )); then
-        echo "✅ VALID VIDEO: $video_file ($duration s)"
+        echo "✅ VALID VIDEO: $video_file (${file_size} bytes, ${duration}s)"
         return 0
       fi
     fi
   fi
   echo "❌ INVALID VIDEO: $video_file"
   return 1
+}
+```
+
+### **Google URL vs Local Path Priority Pattern** ⭐ **NEW**
+```bash
+# ✅ Prioritize Google Cloud Storage URLs over local paths
+generate_video_with_url_priority() {
+  local image_url="$1"
+  local image_path="$2"
+  local output_file="$3"
+  
+  # Check if Google URL is available and valid
+  if [ -n "$image_url" ] && [ "$image_url" != "" ]; then
+    # Verify Google URL accessibility
+    if curl -IfsS --max-time 10 "$image_url" >/dev/null 2>&1; then
+      echo "✅ Using Google URL: $image_url"
+      VIDEO_PROMPT="Convert image to video. image_url: '${image_url}', duration: 8s"
+    else
+      echo "⚠️ Google URL inaccessible, using local path"
+      VIDEO_PROMPT="Convert image to video. image_url: ${image_path}, duration: 8s"
+    fi
+  else
+    echo "ℹ️ Google URL not available, using local path"
+    VIDEO_PROMPT="Convert image to video. image_url: ${image_path}, duration: 8s"
+  fi
+  
+  # Execute MCP I2V with appropriate URL
+  npx @anthropic-ai/claude-code \
+    --max-turns 80 \
+    --mcp-config ".claude/mcp-kamuicode.json" \
+    --allowedTools "mcp__i2v-*" \
+    -p "$VIDEO_PROMPT"
 }
 ```
 
@@ -144,22 +185,26 @@ validate_video_output() {
 
 ---
 
-## 🎯 **Video Generation Metrics Targets**
+## 🎯 **Video Generation Metrics Targets - Updated**
 
-### **Quality Targets**
-- **Video Generation Success Rate**: 95%+ (9.5+ clips successful out of 10)
+### **Quality Targets - Proven Achievable**
+- **Video Generation Success Rate**: 80%+ (4+ clips successful out of 5) ← *Proven achievable*
 - **Quality Consistency**: Resolution, FPS, length standard deviation < 5%
 - **URL Within-Expiration Processing Rate**: 100% (Zero failures due to expiration)
+- **File Size Quality**: 300KB+ minimum per clip (eliminates false positives)
 
-### **Efficiency Targets**  
-- **Parallel Processing Efficiency**: 25-35min completion with 5 parallel (reduced from conventional 45min)
-- **Resource Usage Rate**: MCP connection within 15min, fallback application rate < 10%
-- **Re-execution Rate**: < 5% (improved initial success rate)
+### **Efficiency Targets - Actual Performance**  
+- **Parallel Processing Efficiency**: 35-40min completion with 5 parallel ← *Realistic estimate*
+- **Resource Usage Rate**: MCP connection within 12min (safe window), fallback rate < 20%
+- **Re-execution Rate**: < 10% (with 3-retry logic implementation)
+- **Reporting Coverage**: 100% progressive reporting with `if: always()`
 
-### **Technical Targets**
+### **Technical Targets - Enhanced**
 - **Editing Plan Accuracy**: Claude SDK automatic timeline accuracy > 90%
 - **Audio Sync Accuracy**: Lipsync deviation < 100ms
 - **Final Quality**: Complete compliance with YouTube recommended quality standards
+- **Max Turns Sufficiency**: 80+ turns for I2V processing (vs previous 40 limit)
+- **Artifact Preservation**: 100% artifact upload even on job failures
 
 ---
 

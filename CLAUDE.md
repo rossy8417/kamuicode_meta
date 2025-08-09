@@ -371,35 +371,55 @@ When meta-workflow generates workflows, it MUST check:
 - Jobs sharing files have artifact upload/download
 - File existence checks with error handling
 
-## 🚨 MCP (Model Context Protocol) Connection Management
+## 🚨 MCP (Model Context Protocol) Connection Management - Updated
 
 ### **CRITICAL: MCP Server Connection Limitations**
 
 **The kamui-code.ai MCP server automatically disconnects after approximately 15-20 minutes of connection time.**
+
+**NEW: Max Turns Limitation for I2V Processing - MCP services that process videos (I2V) require significantly more turns due to asynchronous processing.**
 
 #### Impact on GitHub Actions
 - Connection will be lost during long-running workflows (>20 minutes)
 - All MCP tools (image/video/audio generation) become unavailable
 - Manual reconnection would interrupt GitHub Actions execution
 
-#### MCP Connection Strategy
+#### MCP Connection Strategy - Enhanced
 1. **Track Elapsed Time Since Workflow Start**
    ```bash
-   # Record workflow start time
-   WORKFLOW_START_TIME=$(date +%s)
-   
-   # Check elapsed time before MCP operations
+   # Record workflow start time using GitHub Actions context
    check_elapsed_time() {
-     local current_time=$(date +%s)
-     local elapsed=$((current_time - WORKFLOW_START_TIME))
+     local elapsed_minutes=$(( ($(date +%s) - $(date -d "${{ github.run_started_at }}" +%s)) / 60 ))
      
-     if [ $elapsed -gt 900 ]; then  # 15 minutes
-       echo "Warning: Approaching MCP timeout limit"
-       echo "Switching to fallback generation methods"
+     if [ $elapsed_minutes -lt 12 ]; then  # 12-minute safe window
+       echo "✅ MCP Connection OK (${elapsed_minutes}min elapsed)"
+       return 0
+     else
+       echo "⚠️ MCP Connection Risk - Using Fallback (${elapsed_minutes}min elapsed)"
+       # Optional: Create GitHub issue for user notification
+       gh issue create \
+         --title "🔴 MCP Connection Timeout - Workflow switched to fallback" \
+         --body "Elapsed time: ${elapsed_minutes} minutes. Switched to fallback processing." \
+         --label "mcp-timeout,automated"
        return 1
      fi
-     return 0
    }
+   ```
+
+2. **Max Turns Optimization for Video Processing**
+   ```bash
+   # For I2V (Image-to-Video) processing - requires more turns
+   npx @anthropic-ai/claude-code \
+     --mcp-config ".claude/mcp-kamuicode.json" \
+     --allowedTools "mcp__i2v-*" \
+     --max-turns 80 \  # Increased from 40 for async video processing
+     --permission-mode "acceptEdits" \
+     -p "$I2V_PROMPT"
+   
+   # For T2I (Text-to-Image) processing - standard turns sufficient
+   npx @anthropic-ai/claude-code \
+     --max-turns 40 \
+     -p "$T2I_PROMPT"
    ```
 
 2. **Preventive Measures**
@@ -437,13 +457,19 @@ When meta-workflow generates workflows, it MUST check:
 - **DO NOT rely on MCP tools after 15 minutes** of workflow runtime
 - **ALWAYS have fallback methods** ready for when MCP is unavailable
 
-### Workflow Design Best Practices
+### Workflow Design Best Practices - Updated
 
 #### 1. Task Minimization
 - Keep individual tasks small and focused (single responsibility)
 - **Each task should complete within 5 minutes (MCP接続維持のため)**
 - Split large operations into multiple smaller tasks
 - This reduces failure impact and improves debuggability
+
+#### 1a. Progressive Reporting Implementation ⭐ **NEW**
+- Add `$GITHUB_STEP_SUMMARY` updates at each major phase
+- Use `if: always()` condition for artifact uploads and reporting steps
+- Separate main task execution from reporting and artifact management
+- Include Google Cloud Storage URLs and file metadata in reports
 
 #### 2. Data Sharing Considerations
 - Be careful with job dependencies - each job runs on a separate machine
