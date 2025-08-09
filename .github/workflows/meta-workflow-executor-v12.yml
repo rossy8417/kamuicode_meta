@@ -709,7 +709,7 @@ jobs:
   validate-and-deploy:
     name: "✅ Validate & Deploy"
     runs-on: ubuntu-latest
-    needs: ['generate-professional-workflow']
+    needs: ['validate-and-detect','generate-professional-workflow']
     outputs:
       validation_passed: ${{ steps.validate.outputs.passed }}
       workflow_location: ${{ steps.copy.outputs.location }}
@@ -753,8 +753,8 @@ jobs:
 
             # Input schema compliance validation (file-referenced, no inline duplication)
             if [ -f "artifacts/domain-input-schema/input-schema.yaml" ]; then
-              python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='artifacts/domain-input-schema/input-schema.yaml'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; wf_inputs=(((wf.get('on') or {}).get('workflow_dispatch') or {}).get('inputs') or {}); schema_inputs=(schema.get('inputs') or {}); missing=[k for k in schema_inputs.keys() if k not in wf_inputs]; (print('Missing inputs in workflow:', missing) or sys.exit(1)) if missing else None"
-              echo "✅ Input schema alignment: OK"
+              python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='artifacts/domain-input-schema/input-schema.yaml'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; wf_inputs=(((wf.get('on') or {}).get('workflow_dispatch') or {}).get('inputs') or {}); groups=(schema.get('inputs') or {}); required=(groups.get('required') or {}); missing=[k for k in required.keys() if k not in wf_inputs]; (print('Missing inputs in workflow:', missing) or sys.exit(1)) if missing else None"
+              echo "✅ Input schema alignment (required): OK"
             else
               echo "::warning::No input schema file found for validation"
             fi
