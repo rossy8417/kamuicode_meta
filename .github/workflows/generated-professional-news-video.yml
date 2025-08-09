@@ -824,13 +824,23 @@ jobs:
           name: all-images
           path: ${{ needs.setup-environment.outputs.project_dir }}/media/images/
       
+      - name: Compute Total Images
+        id: compute
+        run: |
+          COUNT1="${{ needs.generate-images-batch1.outputs.image_count1 }}"
+          COUNT2="${{ steps.generate.outputs.count }}"
+          COUNT1=${COUNT1:-0}
+          COUNT2=${COUNT2:-0}
+          TOTAL_IMAGES=$(( COUNT1 + COUNT2 ))
+          echo "total_images=${TOTAL_IMAGES}" >> $GITHUB_OUTPUT
+      
       - name: Report Progress
         if: always()
         run: |
           echo "## 📊 Phase 7B: Image Generation (Batch 2)" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
           echo "- **Images Generated**: ${{ steps.generate.outputs.count }}/5" >> $GITHUB_STEP_SUMMARY
-          echo "- **Total Images**: ${{ needs.generate-images-batch1.outputs.image_count1 + steps.generate.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Images**: ${{ steps.compute.outputs.total_images }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Style**: Consistent content visuals" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -1082,13 +1092,23 @@ jobs:
           name: all-videos
           path: ${{ needs.setup-environment.outputs.project_dir }}/media/videos/
       
+      - name: Compute Total Videos
+        id: compute
+        run: |
+          COUNT1="${{ needs.convert-videos-batch1.outputs.video_count1 }}"
+          COUNT2="${{ steps.convert.outputs.count }}"
+          COUNT1=${COUNT1:-0}
+          COUNT2=${COUNT2:-0}
+          TOTAL_VIDEOS=$(( COUNT1 + COUNT2 ))
+          echo "total_videos=${TOTAL_VIDEOS}" >> $GITHUB_OUTPUT
+      
       - name: Report Progress
         if: always()
         run: |
           echo "## 📊 Phase 8B: Video Conversion (Batch 2)" >> $GITHUB_STEP_SUMMARY
           echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
           echo "- **Videos Created**: ${{ steps.convert.outputs.count }}/5" >> $GITHUB_STEP_SUMMARY
-          echo "- **Total Videos**: ${{ needs.convert-videos-batch1.outputs.video_count1 + steps.convert.outputs.count }}/10" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Videos**: ${{ steps.compute.outputs.total_videos }}/10" >> $GITHUB_STEP_SUMMARY
           echo "- **Quality**: Consistent broadcast standard" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
