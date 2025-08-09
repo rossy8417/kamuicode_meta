@@ -24,6 +24,24 @@ env:
   CLAUDE_CODE_AUTO_APPROVE_MCP: true
 
 jobs:
+  bootstrap:
+    name: "🧩 Bootstrap Diagnostics"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print event context
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "actor=${{ github.actor }}"
+          echo "ref=${{ github.ref }}"
+          echo "issue_number_from_dispatch=${{ inputs.issue_number }}"
+          echo "is_issue_comment=$([ "${{ github.event_name }}" = "issue_comment" ] && echo true || echo false)"
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            echo "comment_body<<EOT"
+            echo "${{ github.event.comment.body }}"
+            echo "EOT"
+          fi
+          echo "Bootstrap OK"
+  
   # ===========================================
   # PHASE 1: ISSUE VALIDATION & DOMAIN DETECTION
   # ===========================================
@@ -747,37 +765,37 @@ jobs:
             
             # First attempt: Strict validation with critical requirements
             echo "Creating validation prompt..."
-            cat > validation_prompt.txt << 'PROMPT_EOF'
-厳格な検証を実行し、必ず validation_result.json を作成してください。
-
-ファイル: 
-- 検証対象ワークフロー: WORKFLOW_PATH_PLACEHOLDER
-- 検証基準: meta/validation/strict-validation-requirements.md
-
-タスク:
-1. ワークフローを読み込む
-2. strict-validation-requirements.md の CRITICAL REQUIREMENTS 10項目を確認
-3. 各項目の実際の値を抽出して検証
-4. 結果を validation_result.json に保存
-
-検証する項目（特に重要）:
-- CR001: I2V処理の --max-turns の値（80以上必須）
-- CR003: ファイルサイズ検証（300KB以上のチェック）
-- CR006: if: always() の使用箇所数（5箇所以上）
-
-出力形式:
-{
-  "overall_result": "PASSED または FAILED",
-  "critical_pass_count": "X/10",
-  "failed_items": ["失敗項目のリスト"],
-  "details": {
-    "CR001_max_turns": {"status": "✅/❌", "found": "実際の値"},
-    "CR003_file_size": {"status": "✅/❌", "found": "有/無"}
-  }
-}
-
-重要: 1つでもCRITICAL要件違反があれば overall_result は FAILED
-PROMPT_EOF
+            {
+              echo "厳格な検証を実行し、必ず validation_result.json を作成してください。";
+              echo;
+              echo "ファイル:";
+              echo "- 検証対象ワークフロー: WORKFLOW_PATH_PLACEHOLDER";
+              echo "- 検証基準: meta/validation/strict-validation-requirements.md";
+              echo;
+              echo "タスク:";
+              echo "1. ワークフローを読み込む";
+              echo "2. strict-validation-requirements.md の CRITICAL REQUIREMENTS 10項目を確認";
+              echo "3. 各項目の実際の値を抽出して検証";
+              echo "4. 結果を validation_result.json に保存";
+              echo;
+              echo "検証する項目（特に重要）:";
+              echo "- CR001: I2V処理の --max-turns の値（80以上必須）";
+              echo "- CR003: ファイルサイズ検証（300KB以上のチェック）";
+              echo "- CR006: if: always() の使用箇所数（5箇所以上）";
+              echo;
+              echo "出力形式:";
+              echo "{";
+              echo "  \"overall_result\": \"PASSED または FAILED\",";
+              echo "  \"critical_pass_count\": \"X/10\",";
+              echo "  \"failed_items\": [\"失敗項目のリスト\"],";
+              echo "  \"details\": {";
+              echo "    \"CR001_max_turns\": {\"status\": \"✅/❌\", \"found\": \"実際の値\"},";
+              echo "    \"CR003_file_size\": {\"status\": \"✅/❌\", \"found\": \"有/無\"}";
+              echo "  }";
+              echo "}";
+              echo;
+              echo "重要: 1つでもCRITICAL要件違反があれば overall_result は FAILED";
+            } > validation_prompt.txt
             
             # Replace placeholder with actual path
             sed -i "s|WORKFLOW_PATH_PLACEHOLDER|$WORKFLOW_PATH|g" validation_prompt.txt
@@ -798,20 +816,18 @@ PROMPT_EOF
               IF_ALWAYS_COUNT=$(grep -c "if:\s*always()" "$WORKFLOW_PATH" || echo "0")
               
               # Create fallback validation result
-              cat > validation_result.json << EOF
-{
-  "overall_result": "FAILED",
-  "critical_pass_count": "0/10",
-  "failed_items": ["CR001: Max turns検証未完了", "検証タイムアウト"],
-  "details": {
-    "CR001_max_turns": {"status": "❌", "found": "${I2V_MAX_TURNS:-unknown}"},
-    "CR003_file_size": {"status": "❌", "found": "${FILE_SIZE_CHECK}"},
-    "CR006_if_always": {"status": "❌", "found": "${IF_ALWAYS_COUNT}"}
-  },
-  "auto_generated": true,
-  "reason": "Validation timeout - fallback result"
-}
-EOF
+              echo '{' > validation_result.json
+              echo '  "overall_result": "FAILED",' >> validation_result.json
+              echo '  "critical_pass_count": "0/10",' >> validation_result.json
+              echo '  "failed_items": ["CR001: Max turns検証未完了", "検証タイムアウト"],' >> validation_result.json
+              echo '  "details": {' >> validation_result.json
+              echo '    "CR001_max_turns": {"status": "❌", "found": "'"${I2V_MAX_TURNS:-unknown}"'"},' >> validation_result.json
+              echo '    "CR003_file_size": {"status": "❌", "found": "'"${FILE_SIZE_CHECK}"'"},' >> validation_result.json
+              echo '    "CR006_if_always": {"status": "❌", "found": "'"${IF_ALWAYS_COUNT}"'"}' >> validation_result.json
+              echo '  },' >> validation_result.json
+              echo '  "auto_generated": true,' >> validation_result.json
+              echo '  "reason": "Validation timeout - fallback result"' >> validation_result.json
+              echo '}' >> validation_result.json
               echo "✅ Fallback validation_result.json created"
             fi
             
