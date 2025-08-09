@@ -438,12 +438,30 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 1, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
-          # Attempt explicit download if URL exists but file missing (relaxed conditions)
+          # Attempt explicit download if URL exists but file missing - ENHANCED
           if [ -f "${PROJECT_DIR}/media/images/image1-url.txt" ]; then
             IMAGE1_URL=$(cat "${PROJECT_DIR}/media/images/image1-url.txt")
-            if [ ! -f "${PROJECT_DIR}/media/images/scene1.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene1.png" ]; then
-              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE1_URL" -o "${PROJECT_DIR}/media/images/scene1.png" || true
-            fi
+            echo "[$(date)] Attempting to download Image 1 from URL: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene1.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene1.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 1" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE1_URL" -o "${PROJECT_DIR}/media/images/scene1.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image1.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene1.png" ] && [ -s "${PROJECT_DIR}/media/images/scene1.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene1.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 1 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 1 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene1.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
           fi
 
           # Check for generated image and URL
@@ -558,12 +576,30 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
-          # Attempt explicit download if URL exists but file missing (relaxed conditions)
+          # Attempt explicit download if URL exists but file missing - ENHANCED
           if [ -f "${PROJECT_DIR}/media/images/image2-url.txt" ]; then
             IMAGE2_URL=$(cat "${PROJECT_DIR}/media/images/image2-url.txt")
-            if [ ! -f "${PROJECT_DIR}/media/images/scene2.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene2.png" ]; then
-              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE2_URL" -o "${PROJECT_DIR}/media/images/scene2.png" || true
-            fi
+            echo "[$(date)] Attempting to download Image 2 from URL: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene2.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene2.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 2" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE2_URL" -o "${PROJECT_DIR}/media/images/scene2.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image2.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene2.png" ] && [ -s "${PROJECT_DIR}/media/images/scene2.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene2.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 2 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 2 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene2.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
           fi
 
           # Check for generated image and URL
@@ -774,12 +810,30 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
-          # Attempt explicit download if URL exists but file missing
+          # Attempt explicit download if URL exists but file missing - ENHANCED
           if [ -f "${PROJECT_DIR}/media/images/image4-url.txt" ]; then
             IMAGE4_URL=$(cat "${PROJECT_DIR}/media/images/image4-url.txt")
-            if [ ! -f "${PROJECT_DIR}/media/images/scene4.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene4.png" ]; then
-              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE4_URL" -o "${PROJECT_DIR}/media/images/scene4.png" || true
-            fi
+            echo "[$(date)] Attempting to download Image 4 from URL: ${IMAGE4_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene4.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene4.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 4" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE4_URL" -o "${PROJECT_DIR}/media/images/scene4.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image4.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene4.png" ] && [ -s "${PROJECT_DIR}/media/images/scene4.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene4.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 4 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 4 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene4.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
           fi
 
           # Check for generated image and URL
@@ -872,12 +926,30 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
-          # Attempt explicit download if URL exists but file missing
+          # Attempt explicit download if URL exists but file missing - ENHANCED
           if [ -f "${PROJECT_DIR}/media/images/image5-url.txt" ]; then
             IMAGE5_URL=$(cat "${PROJECT_DIR}/media/images/image5-url.txt")
-            if [ ! -f "${PROJECT_DIR}/media/images/scene5.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene5.png" ]; then
-              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE5_URL" -o "${PROJECT_DIR}/media/images/scene5.png" || true
-            fi
+            echo "[$(date)] Attempting to download Image 5 from URL: ${IMAGE5_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene5.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene5.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 5" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE5_URL" -o "${PROJECT_DIR}/media/images/scene5.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image5.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene5.png" ] && [ -s "${PROJECT_DIR}/media/images/scene5.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene5.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 5 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 5 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene5.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
           fi
 
           # Check for generated image and URL
@@ -1139,10 +1211,19 @@ jobs:
           if [ $ELAPSED_MINUTES -lt 12 ]; then
             echo "[$(date)] MCP connection should be active, attempting video generation" >> "${PROJECT_DIR}/logs/execution.log"
             
-            # 3-attempt retry logic for Video 1 generation
-            MAX_TURNS=${CLAUDE_CODE_MAX_TURNS:-120}
+            # 3-attempt retry logic for Video 1 generation with enhanced timing
+            MAX_TURNS=${CLAUDE_CODE_MAX_TURNS:-160}
             for attempt in 1 2 3; do
               echo "[$(date)] Video 1 MCP generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+              
+              # 段階的待機時間（I2V処理の安定化）
+              if [ $attempt -eq 2 ]; then
+                echo "[$(date)] Waiting 30s for MCP recovery (Video 1)..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 30
+              elif [ $attempt -eq 3 ]; then
+                echo "[$(date)] Waiting 60s for MCP recovery (Video 1)..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 60
+              fi
               
               npx @anthropic-ai/claude-code \
                 --mcp-config ".claude/mcp-kamuicode.json" \
@@ -1154,7 +1235,7 @@ jobs:
               # max-turnsに達した場合は次の試行で引上げ
               if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video1-mcp.log"; then
                 echo "[$(date)] Max turns reached for Video 1. Increasing for next attempt" >> "${PROJECT_DIR}/logs/execution.log"
-                MAX_TURNS=${CLAUDE_CODE_MAX_TURNS_RETRY:-160}
+                MAX_TURNS=${CLAUDE_CODE_MAX_TURNS_RETRY:-200}
               fi
               
               # 生成後に直接URLからのダウンロードも試行（MCPがURLのみ保存するケース）
@@ -1342,14 +1423,14 @@ jobs:
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns "${CLAUDE_CODE_MAX_TURNS:-120}" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
               --permission-mode "acceptEdits" \
               -p "$VIDEO2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video2-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
 
             # max-turnsに達した場合は次の試行で引上げ
             if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video2-mcp.log"; then
               echo "[$(date)] Max turns reached for Video 2. Will retry with higher cap" >> "${PROJECT_DIR}/logs/execution.log"
-              export CLAUDE_CODE_MAX_TURNS=160
+              export CLAUDE_CODE_MAX_TURNS=200
             fi
             
             # 生成後に直接URLからのダウンロードも試行
@@ -1455,7 +1536,7 @@ jobs:
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns "${CLAUDE_CODE_MAX_TURNS:-120}" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
               --permission-mode "acceptEdits" \
               -p "$VIDEO3_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video3-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video3-mcp.log"; then export CLAUDE_CODE_MAX_TURNS=160; fi
@@ -1545,17 +1626,26 @@ jobs:
             VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
           fi
           
-          # 3-attempt retry logic for Video 4 generation
+          # 3-attempt retry logic for Video 4 generation with enhanced timing
           for attempt in 1 2 3; do
             echo "[$(date)] Video 4 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # 段階的待機時間（I2V処理の安定化）
+            if [ $attempt -eq 2 ]; then
+              echo "[$(date)] Waiting 30s for MCP recovery (Video 4)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 30
+            elif [ $attempt -eq 3 ]; then
+              echo "[$(date)] Waiting 60s for MCP recovery (Video 4)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 60
+            fi
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns "${CLAUDE_CODE_MAX_TURNS:-120}" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
               --permission-mode "acceptEdits" \
               -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
-            if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video4-mcp.log" 2>/dev/null; then export CLAUDE_CODE_MAX_TURNS=160; fi
+            if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video4-mcp.log" 2>/dev/null; then export CLAUDE_CODE_MAX_TURNS=200; fi
             
             # 生成後に直接URLからのダウンロードも試行
             VIDEO4_URL_FILE="${PROJECT_DIR}/media/videos/individual/video4-url.txt"
@@ -1658,7 +1748,7 @@ jobs:
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
-              --max-turns "${CLAUDE_CODE_MAX_TURNS:-120}" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
               --permission-mode "acceptEdits" \
               -p "$VIDEO5_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video5-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
             if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video5-mcp.log"; then export CLAUDE_CODE_MAX_TURNS=160; fi
@@ -2034,7 +2124,7 @@ jobs:
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
-              --max-turns "${CLAUDE_CODE_MAX_TURNS:-120}" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
               --permission-mode "acceptEdits" \
               -p "$OPENING_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase6-opening-mcp.log"; then
               
