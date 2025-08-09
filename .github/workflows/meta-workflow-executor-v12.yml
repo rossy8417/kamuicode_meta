@@ -772,7 +772,7 @@ jobs:
           echo "✅ YAML syntax valid"
           
           # GitHub Actions structure validation (robust against quoted keys)
-          python -c "import yaml,sys,os; wf_path=os.environ.get('WORKFLOW_PATH'); wf=yaml.safe_load(open(wf_path)) or {}; sys.exit(0 if isinstance(wf, dict) and 'name' in wf and 'on' in wf and 'jobs' in wf else 1)"
+          python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; sys.exit(0 if isinstance(wf, dict) and 'name' in wf and 'on' in wf and 'jobs' in wf else 1)"
           if [ $? -eq 0 ]; then
             echo "✅ GitHub Actions structure valid"
 
