@@ -1241,33 +1241,45 @@ jobs:
           mkdir -p "$REGEN_DIR/logs"
           mkdir -p "$REGEN_DIR/generated-workflow"
           
-          # Enhanced regeneration with failure analysis input
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "Read,Write" \
-            --permission-mode "acceptEdits" \
-            --max-turns 20 \
-            -p "検証失敗を踏まえた改善版ワークフロー再生成:
+          # Enhanced regeneration with failure analysis input (with retries + backoff)
+          set +e
+          CLI_STATUS=1
+          for attempt in {1..3}; do
+            echo "🛠️ Regeneration attempt $attempt/3"
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "Read,Write" \
+              --permission-mode "acceptEdits" \
+              --max-turns 30 \
+              -p "検証失敗を踏まえた改善版ワークフロー再生成:
+              
+            参照データ:
+            1. artifacts/failure_analysis.json (失敗分析結果)
+            2. artifacts/professional_task_decomposition.json (タスク分解)
+            3. artifacts/optimized_task_order.json (最適化済み実行順序)
+            4. meta/domain-templates/$DOMAIN/ (ドメイン情報)
             
-          参照データ:
-          1. artifacts/failure_analysis.json (失敗分析結果)
-          2. artifacts/professional_task_decomposition.json (タスク分解)
-          3. artifacts/optimized_task_order.json (最適化済み実行順序)
-          4. meta/domain-templates/$DOMAIN/ (ドメイン情報)
-          
-          必須修正ガイドライン:
-          1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用パターン)
-          2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化)
-          
-          重要改善ポイント:
-          - 前回の検証失敗項目を全て修正
-          - 直列並列パイプライン構造の確実な実装
-          - URL期限切れ対策の強化
-          - エラーハンドリング・リトライロジックの改善
-          - ファイル検証の強化
-          - プログレッシブレポート実装の改善
-          
-          改善されたワークフローを$REGEN_DIR/generated-workflow/に保存してください。"
+            必須修正ガイドライン:
+            1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用パターン)
+            2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化)
+            
+            重要改善ポイント:
+            - 前回の検証失敗項目を全て修正
+            - 直列並列パイプライン構造の確実な実装
+            - URL期限切れ対策の強化
+            - エラーハンドリング・リトライロジックの改善
+            - ファイル検証の強化
+            - プログレッシブレポート実装の改善
+            
+            改善されたワークフローを$REGEN_DIR/generated-workflow/に保存してください。"
+            CLI_STATUS=$?
+            if [ $CLI_STATUS -eq 0 ]; then
+              break
+            fi
+            echo "⏳ CLI failed (status=$CLI_STATUS). Retrying after backoff..."
+            sleep $((attempt * 5))
+          done
+          set -e
           
           if [ -f "$REGEN_DIR/generated-workflow"/*.yml ]; then
             REGEN_WORKFLOW=$(ls "$REGEN_DIR/generated-workflow"/*.yml | head -1)
