@@ -53,6 +53,10 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install pyyaml
+
+      - name: Install jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
         
       - name: Extract Issue Information
         id: extract
@@ -170,6 +174,10 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install pyyaml
+
+      - name: Install jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
           
       - name: Download Issue Data
         uses: actions/download-artifact@v4
@@ -255,6 +263,10 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           pip install pyyaml
+
+      - name: Install jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
           
       - name: Download and Merge Previous Artifacts
         run: |
@@ -539,6 +551,10 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           pip install pyyaml
+
+      - name: Install jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
           
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -672,18 +688,18 @@ jobs:
         with:
           name: generated-workflow
           path: projects/
+
+      - name: Install jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
           
       - name: Validate Workflow
         id: validate
         run: |
           echo "✅ Validating generated workflow..."
           
-          # Use workflow with inputs if available, otherwise use original
-          if [ "${{ needs.generate-professional-inputs.outputs.inputs_generated }}" == "true" ]; then
-            WORKFLOW_PATH="${{ needs.generate-professional-inputs.outputs.workflow_path_with_inputs }}"
-          else
-            WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
-          fi
+          # Use generated workflow path
+          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
           
           # YAML syntax validation
           python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))"
@@ -893,12 +909,8 @@ EOF
         run: |
           echo "📋 Copying workflow to final location..."
           
-          # Use workflow with inputs if available, otherwise use original
-          if [ "${{ needs.generate-professional-inputs.outputs.inputs_generated }}" == "true" ]; then
-            WORKFLOW_PATH="${{ needs.generate-professional-inputs.outputs.workflow_path_with_inputs }}"
-          else
-            WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
-          fi
+          # Use generated workflow path
+          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
           WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
           
           # Use the project directory from previous job
