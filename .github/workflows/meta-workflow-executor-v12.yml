@@ -158,6 +158,7 @@ jobs:
     outputs:
       template_summary: ${{ steps.load.outputs.template_summary }}
       chunk_count: ${{ steps.load.outputs.chunk_count }}
+      input_schema: ${{ steps.inputs.outputs.input_schema }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -222,6 +223,23 @@ jobs:
           echo "- ✅ 専門家役割: ${EXPERT_ROLE}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ テンプレートチャンク数: ${CHUNK_COUNT}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Locate and Copy Domain Input Schema
+        id: inputs
+        run: |
+          PRIMARY_DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
+          SCHEMA_PATH="meta/domain-templates/$PRIMARY_DOMAIN/input-schema.yaml"
+          mkdir -p artifacts/domain-input-schema
+          if [ -f "$SCHEMA_PATH" ]; then
+            cp "$SCHEMA_PATH" artifacts/domain-input-schema/input-schema.yaml
+            echo "input_schema=artifacts/domain-input-schema/input-schema.yaml" >> $GITHUB_OUTPUT
+            echo "✅ Input schema found: $SCHEMA_PATH"
+            echo "- ✅ 入力スキーマ検出: $PRIMARY_DOMAIN/input-schema.yaml" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Input schema not found for domain: $PRIMARY_DOMAIN"
+            echo "input_schema=" >> $GITHUB_OUTPUT
+            echo "- ❌ 入力スキーマ未検出" >> $GITHUB_STEP_SUMMARY
+          fi
           
       - name: Upload Template Data
         uses: actions/upload-artifact@v4
@@ -589,6 +607,7 @@ jobs:
           以下のファイルから情報を読み込んでください：
           1. タスク分解結果: artifacts/task-decomposition/professional_task_decomposition.json
           2. 最適化されたタスク順序: artifacts/optimized-task-order/optimized_task_order.json (存在する場合)
+          3. 入力スキーマ: artifacts/domain-input-schema/input-schema.yaml
           
           ワークフロー生成の要件：
           1. uses: でローカルファイルを参照しない（インライン実装）
@@ -599,6 +618,7 @@ jobs:
           4. ジョブ間のファイル共有はartifactsを使用
           5. 各ステップは21000文字以内
           6. 全ての出力は\${PROJECT_DIR}配下に整理
+          7. workflow_dispatch の inputs は必ず「入力スキーマファイル」を読み取り反映すること（インライン貼り付け禁止、ファイル参照で設計）
           
           🚨 CRITICAL: You MUST read and follow these guidelines:
           
@@ -685,6 +705,12 @@ jobs:
           name: generated-workflow
           path: projects/
 
+      - name: Download Domain Template Data (for input schema)
+        uses: actions/download-artifact@v4
+        with:
+          name: domain-template-data
+          path: artifacts/
+
       - name: Install jq
         run: |
           sudo apt-get update && sudo apt-get install -y jq
@@ -706,6 +732,26 @@ jobs:
              grep -q "^on:" "$WORKFLOW_PATH" && \
              grep -q "^jobs:" "$WORKFLOW_PATH"; then
             echo "✅ GitHub Actions structure valid"
+
+            # Input schema compliance validation (file-referenced, no inline duplication)
+            if [ -f "artifacts/domain-input-schema/input-schema.yaml" ]; then
+              python - <<'PY'
+import yaml, sys
+wf_path = "$WORKFLOW_PATH"
+schema_path = "artifacts/domain-input-schema/input-schema.yaml"
+wf = yaml.safe_load(open(wf_path)) or {}
+schema = yaml.safe_load(open(schema_path)) or {}
+wf_inputs = (((wf.get('on') or {}).get('workflow_dispatch') or {}).get('inputs') or {})
+schema_inputs = (schema.get('inputs') or {})
+missing = [k for k in schema_inputs.keys() if k not in wf_inputs]
+if missing:
+  print(f"Missing inputs in workflow: {missing}")
+  sys.exit(1)
+PY
+              echo "✅ Input schema alignment: OK"
+            else
+              echo "::warning::No input schema file found for validation"
+            fi
             
             # STRICT domain-specific validation with mandatory requirements
             echo "🔍 Executing STRICT validation with mandatory requirements..."
