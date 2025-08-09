@@ -592,6 +592,44 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
+      
+      - name: Extract required inputs from domain input schema
+        run: |
+          SCHEMA_FILE="artifacts/domain-input-schema/input-schema.yaml"
+          if [ -f "$SCHEMA_FILE" ]; then
+            python - <<'PY'
+import yaml, json, os
+p = 'artifacts/domain-input-schema/input-schema.yaml'
+if not os.path.exists(p):
+    raise SystemExit(0)
+schema = yaml.safe_load(open(p)) or {}
+groups = schema.get('inputs') or {}
+required = groups.get('required') or {}
+
+def to_github_input(name, spec):
+    out = {
+        'name': name,
+        'description': spec.get('description', name),
+        'required': True
+    }
+    if 'default' in spec:
+        out['default'] = spec['default']
+    if 'enum' in spec:
+        out['type'] = 'choice'
+        out['options'] = spec['enum']
+    else:
+        out['type'] = 'string'
+    return out
+
+inputs = [to_github_input(n, required[n] or {}) for n in required.keys()]
+os.makedirs('artifacts', exist_ok=True)
+open('artifacts/required_inputs.json','w').write(json.dumps(inputs, ensure_ascii=False, indent=2))
+open('artifacts/required_input_keys.txt','w').write('\n'.join(required.keys()))
+PY
+            echo "✅ Extracted required inputs from schema"
+          else
+            echo "::warning::Input schema file not found; required inputs list unavailable"
+          fi
           
       - name: Generate Professional Workflow
         id: generate
@@ -626,6 +664,7 @@ jobs:
           1. タスク分解結果: artifacts/task-decomposition/professional_task_decomposition.json
           2. 最適化されたタスク順序: artifacts/optimized-task-order/optimized_task_order.json (存在する場合)
           3. 入力スキーマ: artifacts/domain-input-schema/input-schema.yaml
+          4. 必須入力一覧: artifacts/required_inputs.json（存在する場合）/ artifacts/required_input_keys.txt
           
           ワークフロー生成の要件：
           1. uses: でローカルファイルを参照しない（インライン実装）
@@ -637,6 +676,12 @@ jobs:
           5. 各ステップは21000文字以内
           6. 全ての出力は\${PROJECT_DIR}配下に整理
           7. workflow_dispatch の inputs は必ず「入力スキーマファイル」を読み取り反映すること（インライン貼り付け禁止、ファイル参照で設計）
+          8. 入力定義は「スキーマの inputs.required の各キー」を GitHub Actions の on.workflow_dispatch.inputs に展開すること：
+             - type: enum がある場合は type: choice と options を使用
+             - default があれば default を設定
+             - description を反映（無ければキー名）
+             - required: true を設定
+             - recommended/optional は任意（可能なら description のみ comments として保持）
           
           🚨 CRITICAL: You MUST read and follow these guidelines:
           
