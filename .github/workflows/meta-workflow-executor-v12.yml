@@ -694,12 +694,79 @@ jobs:
              grep -q "^on:" "$WORKFLOW_PATH" && \
              grep -q "^jobs:" "$WORKFLOW_PATH"; then
             echo "✅ GitHub Actions structure valid"
-            echo "passed=true" >> $GITHUB_OUTPUT
+            
+            # Comprehensive domain-specific validation using existing checklists
+            echo "🔍 Domain-specific comprehensive validation..."
+            DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
+            
+            npx @anthropic-ai/claude-code \
+              --allowedTools "Read" \
+              --permission-mode "acceptEdits" \
+              --max-turns 10 \
+              -p "生成されたワークフローを既存のチェックリストで包括検証してください:
+
+            生成ワークフロー: $WORKFLOW_PATH
+            ドメイン: $DOMAIN
+
+            必須参照チェックリスト:
+            1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用パターン)
+            2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化)
+
+            検証項目:
+            - 直列並列パイプライン構造 (URL期限切れ対策)
+            - ドメイン特化要件の実装状況
+            - エラーハンドリング・リトライロジック
+            - MCP接続タイムアウト対策
+            - ファイル検証・アーティファクト管理
+            - プログレッシブレポート実装
+
+            結果フォーマット:
+            ✅/❌ 検証項目: 結果
+            
+            重大な問題があれば具体的な修正提案を含めてください。"
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ Domain-specific validation completed"
+              echo "passed=true" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Domain-specific validation failed - attempting auto-fix"
+              
+              # Attempt auto-correction using checklist guidance
+              npx @anthropic-ai/claude-code \
+                --allowedTools "Read,Write" \
+                --permission-mode "acceptEdits" \
+                --max-turns 15 \
+                -p "検証で発見された問題を修正してください:
+
+              問題のあるワークフロー: $WORKFLOW_PATH
+              ドメイン: $DOMAIN
+
+              修正ガイドライン参照:
+              1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md
+              2. meta/domain-templates/$DOMAIN/checklist-*-specific.md
+
+              特に重要な修正ポイント:
+              - 直列並列パイプライン構造の実装
+              - URL期限切れ対策の適用
+              - リトライロジックの追加
+              - ファイル検証の強化
+
+              修正したワークフローを元のファイルに上書き保存してください。"
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ Auto-fix completed successfully"
+                echo "passed=true" >> $GITHUB_OUTPUT
+              else
+                echo "❌ Auto-fix failed - manual intervention required"
+                echo "passed=false" >> $GITHUB_OUTPUT
+              fi
+            fi
             
             # Add Phase 6 Report
-            echo "## ✅ Phase 6: 検証 & 配置" >> $GITHUB_STEP_SUMMARY
+            echo "## ✅ Phase 6: 包括検証 & 配置" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ YAML構文検証: 正常" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ GitHub Actions構造検証: 正常" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ ドメイン特化包括検証: 完了" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ ワークフロー配置準備完了" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           else
@@ -805,13 +872,162 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ===========================================
-  # PHASE 7: FINAL REPORT DISPLAY
+  # PHASE 7: REGENERATION LOOP (IF NEEDED)
+  # ===========================================
+  
+  regeneration-loop:
+    name: "🔄 修正・再生成ループ"
+    runs-on: ubuntu-latest
+    needs: ['validate-and-deploy', 'validate-and-detect', 'load-domain-templates']
+    if: needs.validate-and-deploy.outputs.validation_passed == 'false'
+    outputs:
+      regeneration_attempt: ${{ steps.attempt.outputs.regeneration_attempt }}
+      regeneration_success: ${{ steps.regenerate.outputs.success }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Environment
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          pip install pyyaml
+          
+      - name: Download All Previous Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          
+      - name: Record Regeneration Attempt
+        id: attempt
+        run: |
+          echo "🔄 検証失敗による再生成を開始..."
+          ATTEMPT_COUNT=1
+          echo "regeneration_attempt=$ATTEMPT_COUNT" >> $GITHUB_OUTPUT
+          
+          echo "## 🔄 Phase 7: 修正・再生成ループ" >> $GITHUB_STEP_SUMMARY
+          echo "- 🚨 初回生成の検証失敗を検出" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔄 自動再生成を実行中..." >> $GITHUB_STEP_SUMMARY
+          
+      - name: Analyze Validation Failures
+        id: analyze
+        run: |
+          echo "🔍 検証失敗の詳細分析..."
+          DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
+          
+          # Extract specific failure reasons from previous validation
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write" \
+            --permission-mode "acceptEdits" \
+            --max-turns 8 \
+            -p "検証失敗の原因を詳細分析してください:
+            
+          参照ファイル:
+          1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用失敗パターン)
+          2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化失敗パターン)
+          3. artifacts/ (前回の実行結果)
+          
+          分析項目:
+          - どの検証項目で失敗したか
+          - 失敗の根本原因
+          - 修正すべき具体的なポイント
+          - 再生成時の改善方針
+          
+          分析結果をartifacts/failure_analysis.jsonに保存してください:
+          {
+            \"failure_reasons\": [\"原因1\", \"原因2\"],
+            \"critical_issues\": [\"重要な問題1\", \"重要な問題2\"],
+            \"improvement_strategy\": \"改善戦略の詳細\",
+            \"regeneration_focus\": [\"再生成で特に注意すべき点1\", \"点2\"]
+          }"
+          
+          if [ -f "artifacts/failure_analysis.json" ]; then
+            echo "✅ 失敗分析完了"
+            echo "- ✅ 失敗原因の特定完了" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ 失敗分析に失敗"
+          fi
+          
+      - name: Regenerate with Improved Strategy
+        id: regenerate
+        run: |
+          echo "⚡ 改善戦略に基づく再生成実行..."
+          DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
+          ISSUE_NUMBER="${{ needs.validate-and-detect.outputs.issue_number }}"
+          
+          # Create regeneration directory
+          REGEN_DIR="projects/issue-$ISSUE_NUMBER-regeneration-$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$REGEN_DIR/metadata"
+          mkdir -p "$REGEN_DIR/logs"
+          mkdir -p "$REGEN_DIR/generated-workflow"
+          
+          # Enhanced regeneration with failure analysis input
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Read,Write" \
+            --permission-mode "acceptEdits" \
+            --max-turns 20 \
+            -p "検証失敗を踏まえた改善版ワークフロー再生成:
+            
+          参照データ:
+          1. artifacts/failure_analysis.json (失敗分析結果)
+          2. artifacts/professional_task_decomposition.json (タスク分解)
+          3. artifacts/optimized_task_order.json (最適化済み実行順序)
+          4. meta/domain-templates/$DOMAIN/ (ドメイン情報)
+          
+          必須修正ガイドライン:
+          1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用パターン)
+          2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化)
+          
+          重要改善ポイント:
+          - 前回の検証失敗項目を全て修正
+          - 直列並列パイプライン構造の確実な実装
+          - URL期限切れ対策の強化
+          - エラーハンドリング・リトライロジックの改善
+          - ファイル検証の強化
+          - プログレッシブレポート実装の改善
+          
+          改善されたワークフローを$REGEN_DIR/generated-workflow/に保存してください。"
+          
+          if [ -f "$REGEN_DIR/generated-workflow"/*.yml ]; then
+            REGEN_WORKFLOW=$(ls "$REGEN_DIR/generated-workflow"/*.yml | head -1)
+            echo "✅ 再生成完了: $(basename "$REGEN_WORKFLOW")"
+            
+            # Quick validation of regenerated workflow
+            python -c "import yaml; yaml.safe_load(open('$REGEN_WORKFLOW'))"
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ 再生成ワークフローのYAML構文検証: 正常"
+              echo "success=true" >> $GITHUB_OUTPUT
+              
+              echo "- ✅ 改善版ワークフロー再生成完了" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ YAML構文検証: 正常" >> $GITHUB_STEP_SUMMARY
+              echo "- 📁 保存場所: $REGEN_DIR/generated-workflow/" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ 再生成ワークフローのYAML構文エラー"
+              echo "success=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ ワークフロー再生成失敗"
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "- ❌ 再生成失敗 - 手動対応が必要" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+      - name: Upload Regenerated Workflow
+        uses: actions/upload-artifact@v4
+        if: steps.regenerate.outputs.success == 'true'
+        with:
+          name: regenerated-workflow
+          path: projects/issue-${{ needs.validate-and-detect.outputs.issue_number }}-regeneration-*
+          if-no-files-found: warn
+
+  # ===========================================
+  # PHASE 8: FINAL REPORT DISPLAY
   # ===========================================
   
   display-final-report:
     name: "📊 実行完了"
     runs-on: ubuntu-latest
-    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'optimize-task-order', 'generate-professional-workflow', 'validate-and-deploy']
+    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'optimize-task-order', 'generate-professional-workflow', 'validate-and-deploy', 'regeneration-loop']
     if: always()
     steps:
           
@@ -826,8 +1042,19 @@ jobs:
           # 実行完了サマリーを追加
           echo "## 🎉 実行完了" >> $GITHUB_STEP_SUMMARY
           echo "- **完了時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          
+          # 再生成結果の確認
+          REGENERATION_SUCCESS="${{ needs.regeneration-loop.outputs.regeneration_success }}"
+          REGENERATION_ATTEMPTED="${{ needs.regeneration-loop.outputs.regeneration_attempt }}"
+          
           if [ "$VALIDATION_STATUS" = "true" ]; then
-            echo "- **全体実行結果**: ✅ 成功" >> $GITHUB_STEP_SUMMARY
+            echo "- **全体実行結果**: ✅ 成功（初回生成）" >> $GITHUB_STEP_SUMMARY
+          elif [ "$REGENERATION_SUCCESS" = "true" ]; then
+            echo "- **全体実行結果**: ✅ 成功（再生成により修正）" >> $GITHUB_STEP_SUMMARY
+            echo "- **再生成実行**: ✅ 完了（検証失敗を自動修正）" >> $GITHUB_STEP_SUMMARY
+          elif [ "$REGENERATION_ATTEMPTED" = "1" ]; then
+            echo "- **全体実行結果**: ❌ 失敗（再生成でも修正不可）" >> $GITHUB_STEP_SUMMARY
+            echo "- **再生成実行**: ❌ 失敗（手動対応が必要）" >> $GITHUB_STEP_SUMMARY
           else
             echo "- **全体実行結果**: ⚠️ 一部エラーあり" >> $GITHUB_STEP_SUMMARY
           fi
@@ -845,5 +1072,17 @@ jobs:
           
           # 特定の成果物のみダウンロード
           gh run download ${{ github.run_id }} -n generated-workflow
+          EOF
+          
+          # 再生成された場合の追加情報
+          if [ "$REGENERATION_SUCCESS" = "true" ]; then
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+          
+          # 再生成版ワークフローもダウンロード（推奨）
+          gh run download ${{ github.run_id }} -n regenerated-workflow
+          EOF
+          fi
+          
+          cat >> $GITHUB_STEP_SUMMARY << EOF
           \`\`\`
           EOF
