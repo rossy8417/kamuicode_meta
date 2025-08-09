@@ -1215,9 +1215,9 @@ jobs:
           
           echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
           
-          # Prepare clear i2v instruction with Google URL if available
-          if [ -n "$IMAGE1_URL" ] && [ "$IMAGE1_URL" != "" ]; then
-            echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
+          # Validate URL; fall back to local path if URL is unreachable
+          if [ -n "$IMAGE1_URL" ] && curl -sIL --max-time 20 "$IMAGE1_URL" | grep -E '^HTTP/.* 200' >/dev/null; then
+            echo "[$(date)] Using validated URL for video generation (Video 1)" >> "${PROJECT_DIR}/logs/execution.log"
             VIDEO1_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE1_URL}', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video1-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
           else
             echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
@@ -1423,9 +1423,9 @@ jobs:
           echo "[$(date)] Image 2 URL: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
           echo "[$(date)] Image 2 Path: ${IMAGE2_PATH}" >> "${PROJECT_DIR}/logs/execution.log"
           
-          # Prepare clear i2v instruction with Google URL if available
-          if [ -n "$IMAGE2_URL" ] && [ "$IMAGE2_URL" != "" ]; then
-            echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
+          # Validate URL; fall back to local path if URL is unreachable
+          if [ -n "$IMAGE2_URL" ] && curl -sIL --max-time 20 "$IMAGE2_URL" | grep -E '^HTTP/.* 200' >/dev/null; then
+            echo "[$(date)] Using validated URL for video generation (Video 2)" >> "${PROJECT_DIR}/logs/execution.log"
             VIDEO2_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE2_URL}', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video2-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
           else
             echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
@@ -1528,7 +1528,7 @@ jobs:
           echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           echo "[$(date)] Image 3 URL: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
           
-          if [ -n "$IMAGE3_URL" ] && [ "$IMAGE3_URL" != "" ]; then
+          if [ -n "$IMAGE3_URL" ] && curl -sIL --max-time 20 "$IMAGE3_URL" | grep -E '^HTTP/.* 200' >/dev/null; then
             VIDEO3_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE3_URL}', prompt='Professional news segment'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video3-url.txt and download to scene3_video.mp4"
           else
             VIDEO3_PROMPT="Read image at ${IMAGE3_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE3_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4"
@@ -1632,9 +1632,12 @@ jobs:
           
           echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           
-          if [ -n "$IMAGE4_URL" ] && [ "$IMAGE4_URL" != "" ]; then
+          # Validate URL; fall back to local path if URL is unreachable
+          if [ -n "$IMAGE4_URL" ] && curl -sIL --max-time 20 "$IMAGE4_URL" | grep -E '^HTTP/.* 200' >/dev/null; then
+            echo "[$(date)] Using validated URL for video generation (Video 4)" >> "${PROJECT_DIR}/logs/execution.log"
             VIDEO4_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE4_URL}', prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
           else
+            echo "[$(date)] WARNING: URL validation failed, using local path" >> "${PROJECT_DIR}/logs/execution.log"
             VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
           fi
           
@@ -1736,7 +1739,7 @@ jobs:
           
           echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
           
-          if [ -n "$IMAGE5_URL" ] && [ "$IMAGE5_URL" != "" ]; then
+          if [ -n "$IMAGE5_URL" ] && curl -sIL --max-time 20 "$IMAGE5_URL" | grep -E '^HTTP/.* 200' >/dev/null; then
             VIDEO5_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE5_URL}', prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
           else
             VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
