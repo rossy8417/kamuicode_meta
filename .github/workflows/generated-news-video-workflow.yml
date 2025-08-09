@@ -712,12 +712,30 @@ jobs:
             echo "[$(date)] All 3 attempts failed for Image 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
           fi
           
-          # Attempt explicit download if URL exists but file missing
+          # Attempt explicit download if URL exists but file missing - ENHANCED
           if [ -f "${PROJECT_DIR}/media/images/image3-url.txt" ]; then
             IMAGE3_URL=$(cat "${PROJECT_DIR}/media/images/image3-url.txt")
-            if [ ! -f "${PROJECT_DIR}/media/images/scene3.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene3.png" ]; then
-              timeout 60 curl -L -fSs --retry 5 --retry-delay 2 "$IMAGE3_URL" -o "${PROJECT_DIR}/media/images/scene3.png" || true
-            fi
+            echo "[$(date)] Attempting to download Image 3 from URL: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene3.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene3.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 3" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE3_URL" -o "${PROJECT_DIR}/media/images/scene3.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image3.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene3.png" ] && [ -s "${PROJECT_DIR}/media/images/scene3.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene3.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 3 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 3 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene3.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
           fi
 
           # Check for generated image and URL
