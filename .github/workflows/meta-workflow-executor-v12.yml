@@ -652,43 +652,10 @@ jobs:
              - required: true を設定
              - recommended/optional は任意（可能なら description のみ comments として保持）
           
-          【必須の品質要件（CRITICAL）: 生成物に厳密に実装してください】
-          - CR001: I2V処理での --max-turns は全箇所 80 以上（例: --max-turns 80）
-          - CR003: 300KB以上のファイルサイズ検証を主要出力に実装（以下スニペットを必要箇所に挿入）
-            ```bash
-            if [ -f "$video_file" ] && [ -s "$video_file" ]; then
-              file_size=$(stat -c%s "$video_file" 2>/dev/null || stat -f%z "$video_file" 2>/dev/null || echo 0)
-              if [ "$file_size" -lt 300000 ]; then
-                echo "❌ Video file too small: ${file_size} bytes"
-                exit 1
-              fi
-            fi
-            ```
-          - CR005: URL期限切れ対策の記述を少なくとも3箇所（just-in-time/rolling/immediate等の方針と、早期実行配置）
-          - CR006: プログレッシブレポート（if: always()）を5箇所以上に配置
-          - CR007: Google URL優先処理（以下のスニペットを適切な箇所で使用）
-            ```bash
-            if [ -n "$google_url" ] && curl -IfsS --max-time 10 "$google_url" >/dev/null 2>&1; then
-              VIDEO_URL="$google_url"
-              echo "Using Google Cloud URL"
-            else
-              VIDEO_URL="file://${local_path}"
-              echo "Fallback to local path"
-            fi
-            ```
-          - CR008: 主要な外部I/O処理にリトライロジック（以下パターンを少なくとも3箇所）
-            ```bash
-            for attempt in {1..3}; do
-              if command_to_retry; then
-                break
-              fi
-              echo "Retry $attempt/3..."
-              sleep $((attempt * 5))
-            done
-            ```
-          - 上記の実装は具体的なジョブ/ステップ内にコードとして含め、コメントではなく実行可能な形で配置すること。
-          
-          【検証基準】meta/validation/strict-validation-requirements.md を読み、全CR項目に合格するように構成してください。
+          【参照ルール】
+          - 共通の厳格要件: meta/validation/strict-validation-requirements.md（CR項目の定義）
+          - ドメイン固有の必須事項: meta/domain-templates/DOMAIN_PLACEHOLDER/checklist-*-specific.md（該当ドメインのチェック表）
+          これらのドキュメントを読み込み、共通CR + ドメイン必須の両方を満たす形で設計してください。
           
           🚨 CRITICAL: You MUST read and follow these guidelines:
           
@@ -717,6 +684,7 @@ jobs:
           
           # Replace project directory in prompt
           sed -i "s|projects/issue-66-20250804-004120|$PROJECT_DIR|g" generation_prompt.txt
+          sed -i "s|DOMAIN_PLACEHOLDER|$PRIMARY_DOMAIN|g" generation_prompt.txt
           
           # Execute workflow generation
           npx @anthropic-ai/claude-code \
@@ -725,21 +693,7 @@ jobs:
             --allowedTools "Write,Read,MultiEdit" \
             --permission-mode "acceptEdits"
 
-          # Programmatic safety bump for CR001: ensure all i2v max-turns >= 80
-          WORKFLOW_PATH="$PROJECT_DIR/generated-workflow/workflow.yml"
-          if [ -f "$WORKFLOW_PATH" ]; then
-            perl -0777 -pe 's/(--max-turns\s+)(\d{1,3})/($2 < 80 ? $1."80" : $1.$2)/ge' -i "$WORKFLOW_PATH" || true
-          fi
-
-          # Enforce remaining CRITICAL requirements via targeted edit
-          if [ -f "$WORKFLOW_PATH" ]; then
-            npx @anthropic-ai/claude-code \
-              --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "Read,Write" \
-              --permission-mode "acceptEdits" \
-              --max-turns 40 \
-              -p "次のファイルに対してCR001/CR003/CR005/CR006/CR007/CR008の必須要件を満たすように必要最小限の編集を行い、同じパスに上書き保存してください。\n\n対象ワークフロー: $WORKFLOW_PATH\n検証基準: meta/validation/strict-validation-requirements.md\n要件:\n- I2Vの--max-turnsは80以上（必要なら80に置換）\n- 300KB以上のファイルサイズ検証コードを主要出力箇所へ挿入\n- URL期限切れ対策の記述（just-in-time/rolling/immediate）を3箇所以上\n- if: always() のプログレッシブレポートを5箇所以上\n- Google URL優先処理の実装（curl -IfsSで検証）\n- 主要I/Oでのリトライ（for attempt in {1..3}）を3箇所以上\n\n注意: コメントではなく実行コードとして配置し、YAML構造を壊さないこと。"
-          fi
+          # Do not inlineドメイン要件のハードコードは行わず、生成時に参照ドキュメントを読む形で反映させます
           
           # Verify workflow was created
           WORKFLOW_PATH="$PROJECT_DIR/generated-workflow/workflow.yml"
