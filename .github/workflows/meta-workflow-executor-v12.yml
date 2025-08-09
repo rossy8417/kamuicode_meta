@@ -995,6 +995,16 @@ jobs:
             echo "passed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
+
+      - name: Upload Validation Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: |
+            validation_result.json
+            revalidation_result.json
+          if-no-files-found: warn
           
       - name: Copy Workflow to Final Location
         id: copy
@@ -1133,9 +1143,10 @@ jobs:
           
           # Extract specific failure reasons from previous validation
           npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "Read,Write" \
             --permission-mode "acceptEdits" \
-            --max-turns 8 \
+            --max-turns 20 \
             -p "検証失敗の原因を詳細分析してください:
             
           参照ファイル:
@@ -1161,7 +1172,23 @@ jobs:
             echo "✅ 失敗分析完了"
             echo "- ✅ 失敗原因の特定完了" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ 失敗分析に失敗"
+            echo "❌ 失敗分析に失敗 - Fallbackを作成"
+            # Fallback: use validation report to craft minimal analysis
+            REPORT_DIR="artifacts/validation-report"
+            REPORT_FILE=""
+            if [ -f "$REPORT_DIR/validation_result.json" ]; then
+              REPORT_FILE="$REPORT_DIR/validation_result.json"
+            elif [ -f "validation_result.json" ]; then
+              REPORT_FILE="validation_result.json"
+            fi
+            mkdir -p artifacts
+            if [ -n "$REPORT_FILE" ]; then
+              jq -n --argjson failed "$(jq -r '.failed_items // []' "$REPORT_FILE" 2>/dev/null || echo '[]')" '{failure_reasons:$failed, critical_issues:$failed, improvement_strategy:"Auto-fallback from validation_result.json", regeneration_focus:$failed}' > artifacts/failure_analysis.json || echo '{"failure_reasons":[],"critical_issues":[],"improvement_strategy":"fallback","regeneration_focus":[]}' > artifacts/failure_analysis.json
+              echo "- ⚠️ Fallback failure_analysis.json を作成" >> $GITHUB_STEP_SUMMARY
+            else
+              echo '{"failure_reasons":[],"critical_issues":[],"improvement_strategy":"no-report","regeneration_focus":[]}' > artifacts/failure_analysis.json
+              echo "- ⚠️ 検証レポート未検出のため空の分析を作成" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
           
       - name: Regenerate with Improved Strategy
@@ -1210,9 +1237,17 @@ jobs:
             echo "✅ 再生成完了: $(basename "$REGEN_WORKFLOW")"
             
             # Quick validation of regenerated workflow
-            python -c "import yaml; yaml.safe_load(open('$REGEN_WORKFLOW'))"
+            if ! python -c "import yaml; yaml.safe_load(open('$REGEN_WORKFLOW'))" >/dev/null 2>&1; then
+              echo "❌ 再生成ワークフローのYAML構文エラー - 自動修復を試行"
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "Read,Write" \
+                --permission-mode "acceptEdits" \
+                --max-turns 12 \
+                -p "以下のYAMLファイルの構文エラーを修正し、GitHub Actions仕様に準拠させてください。\n\n対象: $REGEN_WORKFLOW\n要件:\n- トップレベルに name, on, jobs を保持\n- docs/YAML_CONSTRUCTION_GUIDELINES.md を順守\n- 構造と意図を保持\n\n修正後は同じパスに上書き保存してください。"
+            fi
             
-            if [ $? -eq 0 ]; then
+            if python -c "import yaml; yaml.safe_load(open('$REGEN_WORKFLOW'))" >/dev/null 2>&1; then
               echo "✅ 再生成ワークフローのYAML構文検証: 正常"
               echo "success=true" >> $GITHUB_OUTPUT
               
