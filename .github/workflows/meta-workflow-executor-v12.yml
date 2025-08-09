@@ -695,71 +695,158 @@ jobs:
              grep -q "^jobs:" "$WORKFLOW_PATH"; then
             echo "✅ GitHub Actions structure valid"
             
-            # Comprehensive domain-specific validation using existing checklists
-            echo "🔍 Domain-specific comprehensive validation..."
+            # STRICT domain-specific validation with mandatory requirements
+            echo "🔍 Executing STRICT validation with mandatory requirements..."
             DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
             
+            # First attempt: Strict validation with critical requirements
             npx @anthropic-ai/claude-code \
-              --allowedTools "Read" \
+              --allowedTools "Read,Write" \
               --permission-mode "acceptEdits" \
-              --max-turns 10 \
-              -p "生成されたワークフローを既存のチェックリストで包括検証してください:
+              --max-turns 20 \
+              -p "厳格な検証を実行し、検証結果をvalidation_result.jsonに保存してください:
 
             生成ワークフロー: $WORKFLOW_PATH
             ドメイン: $DOMAIN
 
-            必須参照チェックリスト:
-            1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用パターン)
-            2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化)
+            必須参照ファイル（全て読み込んで厳密にチェック）:
+            1. meta/validation/strict-validation-requirements.md (厳格検証要件)
+            2. projects/workflow-execution-logs/meta-workflow-construction-checklist.md
+            3. meta/domain-templates/$DOMAIN/checklist-*-specific.md
 
-            検証項目:
-            - 直列並列パイプライン構造 (URL期限切れ対策)
-            - ドメイン特化要件の実装状況
-            - エラーハンドリング・リトライロジック
-            - MCP接続タイムアウト対策
-            - ファイル検証・アーティファクト管理
-            - プログレッシブレポート実装
+            検証手順:
+            1. strict-validation-requirements.mdのCRITICAL REQUIREMENTS全10項目を1つずつチェック
+            2. 各項目で実際の値を抽出（例: max-turnsの実際の数値）
+            3. 期待値と比較（例: I2V処理のmax-turns >= 80）
+            4. 1つでもCRITICAL要件を満たさない場合は即座にFAILED判定
 
-            結果フォーマット:
-            ✅/❌ 検証項目: 結果
+            特に重要な検証:
+            - CR001: I2V処理のmax-turnsは必ず80以上（現在の値を報告）
+            - CR003: 300KB以上のファイルサイズ検証コードの存在
+            - CR006: if: always()が5箇所以上
+            - CR007: Google URL優先処理の実装
+
+            結果をvalidation_result.jsonに保存:
+            {
+              \"overall_result\": \"PASSED\" or \"FAILED\",
+              \"critical_requirements\": {
+                \"CR001_max_turns\": {\"status\": \"✅/❌\", \"expected\": \"80\", \"actual\": \"実際の値\"},
+                \"CR002_mcp_config\": {\"status\": \"✅/❌\", \"found_count\": \"数値\"},
+                \"CR003_file_validation\": {\"status\": \"✅/❌\", \"implementation\": \"有/無\"},
+                ...全10項目
+              },
+              \"critical_pass_count\": \"X/10\",
+              \"domain_score\": \"XX%\",
+              \"failed_items\": [\"失敗した項目のリスト\"],
+              \"auto_fix_needed\": true/false
+            }
+
+            重要: 1つでもCRITICAL要件違反があれば overall_result は必ず FAILED にすること"
             
-            重大な問題があれば具体的な修正提案を含めてください。"
-            
-            if [ $? -eq 0 ]; then
-              echo "✅ Domain-specific validation completed"
-              echo "passed=true" >> $GITHUB_OUTPUT
-            else
-              echo "❌ Domain-specific validation failed - attempting auto-fix"
+            # Check validation result from JSON
+            if [ -f "validation_result.json" ]; then
+              VALIDATION_RESULT=$(jq -r '.overall_result' validation_result.json 2>/dev/null || echo "FAILED")
+              CRITICAL_PASS=$(jq -r '.critical_pass_count' validation_result.json 2>/dev/null || echo "0/10")
+              FAILED_ITEMS=$(jq -r '.failed_items[]' validation_result.json 2>/dev/null || echo "Unknown")
               
-              # Attempt auto-correction using checklist guidance
-              npx @anthropic-ai/claude-code \
-                --allowedTools "Read,Write" \
-                --permission-mode "acceptEdits" \
-                --max-turns 15 \
-                -p "検証で発見された問題を修正してください:
-
-              問題のあるワークフロー: $WORKFLOW_PATH
-              ドメイン: $DOMAIN
-
-              修正ガイドライン参照:
-              1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md
-              2. meta/domain-templates/$DOMAIN/checklist-*-specific.md
-
-              特に重要な修正ポイント:
-              - 直列並列パイプライン構造の実装
-              - URL期限切れ対策の適用
-              - リトライロジックの追加
-              - ファイル検証の強化
-
-              修正したワークフローを元のファイルに上書き保存してください。"
+              echo "📊 Validation Result: $VALIDATION_RESULT"
+              echo "📊 Critical Requirements: $CRITICAL_PASS"
               
-              if [ $? -eq 0 ]; then
-                echo "✅ Auto-fix completed successfully"
+              if [ "$VALIDATION_RESULT" = "PASSED" ]; then
+                echo "✅ STRICT validation PASSED - All critical requirements met"
                 echo "passed=true" >> $GITHUB_OUTPUT
+                
+                # Add detailed validation report to summary
+                echo "### 🎯 Strict Validation Report" >> $GITHUB_STEP_SUMMARY
+                echo "- **Result**: ✅ PASSED" >> $GITHUB_STEP_SUMMARY
+                echo "- **Critical Requirements**: $CRITICAL_PASS" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
               else
-                echo "❌ Auto-fix failed - manual intervention required"
-                echo "passed=false" >> $GITHUB_OUTPUT
+                echo "❌ STRICT validation FAILED - Critical requirements not met"
+                echo "❌ Failed items: $FAILED_ITEMS"
+                
+                # Add failure report to summary
+                echo "### 🚨 Strict Validation Report" >> $GITHUB_STEP_SUMMARY
+                echo "- **Result**: ❌ FAILED" >> $GITHUB_STEP_SUMMARY
+                echo "- **Critical Requirements**: $CRITICAL_PASS" >> $GITHUB_STEP_SUMMARY
+                echo "- **Failed Items**:" >> $GITHUB_STEP_SUMMARY
+                echo "$FAILED_ITEMS" | while read item; do
+                  echo "  - $item" >> $GITHUB_STEP_SUMMARY
+                done
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "- **Action**: Attempting auto-fix..." >> $GITHUB_STEP_SUMMARY
+                
+                echo "🔧 Attempting auto-fix for failed requirements..."
+              
+                # Attempt auto-correction with specific failed items
+                npx @anthropic-ai/claude-code \
+                  --allowedTools "Read,Write" \
+                  --permission-mode "acceptEdits" \
+                  --max-turns 30 \
+                  -p "検証で失敗した項目を必ず修正してください:
+
+                問題のあるワークフロー: $WORKFLOW_PATH
+                検証結果: validation_result.json
+                ドメイン: $DOMAIN
+
+                必須修正項目（validation_result.jsonのfailed_itemsから）:
+                $FAILED_ITEMS
+
+                修正ガイドライン（厳密に従うこと）:
+                1. meta/validation/strict-validation-requirements.md (全要件の詳細)
+                2. projects/workflow-execution-logs/meta-workflow-construction-checklist.md
+                3. meta/domain-templates/$DOMAIN/checklist-*-specific.md
+
+                具体的な修正アクション:
+                - CR001違反: I2V処理の--max-turnsを80以上に変更
+                - CR003違反: 300KB以上のファイルサイズ検証コードを追加
+                - CR006違反: if: always()を主要ステップに追加（最低5箇所）
+                - CR007違反: Google URL優先処理のパターンを実装
+                - CR008違反: リトライロジック（for attempt in {1..3}）を追加
+
+                修正後:
+                1. 修正したワークフローを$WORKFLOW_PATHに上書き保存
+                2. 修正内容のサマリーをfix_summary.txtに保存"
+              
+                if [ $? -eq 0 ]; then
+                  echo "✅ Auto-fix completed - Re-validating..."
+                  
+                  # Re-validate after fix
+                  npx @anthropic-ai/claude-code \
+                    --allowedTools "Read,Write" \
+                    --permission-mode "acceptEdits" \
+                    --max-turns 10 \
+                    -p "修正後のワークフローを再検証してください:
+                    
+                    ワークフロー: $WORKFLOW_PATH
+                    検証要件: meta/validation/strict-validation-requirements.md
+                    
+                    前回失敗した項目が修正されているか確認:
+                    $FAILED_ITEMS
+                    
+                    結果をrevalidation_result.jsonに保存"
+                  
+                  if [ -f "revalidation_result.json" ]; then
+                    REVALIDATION_RESULT=$(jq -r '.overall_result' revalidation_result.json 2>/dev/null || echo "FAILED")
+                    if [ "$REVALIDATION_RESULT" = "PASSED" ]; then
+                      echo "✅ Re-validation PASSED - All issues fixed"
+                      echo "passed=true" >> $GITHUB_OUTPUT
+                    else
+                      echo "❌ Re-validation FAILED - Some issues remain"
+                      echo "passed=false" >> $GITHUB_OUTPUT
+                    fi
+                  else
+                    echo "❌ Re-validation failed to complete"
+                    echo "passed=false" >> $GITHUB_OUTPUT
+                  fi
+                else
+                  echo "❌ Auto-fix failed - manual intervention required"
+                  echo "passed=false" >> $GITHUB_OUTPUT
+                fi
               fi
+            else
+              echo "❌ Validation result file not found"
+              echo "passed=false" >> $GITHUB_OUTPUT
             fi
             
             # Add Phase 6 Report
