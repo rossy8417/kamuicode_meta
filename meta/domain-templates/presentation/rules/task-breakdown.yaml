@@ -1,0 +1,30 @@
+# Task breakdown rules (Presentation)
+# Purpose: Decompose high-level presentation tasks into concrete, atomic steps.
+
+version: 1
+scope: presentation
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; implement logic with `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  outline:
+    - MUST create slide_outline.json with slide array (title, key_points)
+    - SHOULD include per-slide notes and visual hints
+
+  content:
+    - SHOULD generate text content first when narration/voiceover alignment is required
+
+  slide_assets:
+    - MUST ensure required slide_count from duration/constraints when outline missing
+    - For each slide: generate_content -> layout -> export_image (serial in same job when possible)
+
+file_layout:
+  - slides: ${PROJECT_DIR}/media/slides/slide_%02d.png
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify slide_count computed when outline is missing
+  - MUST verify slide images exist before final assembly
