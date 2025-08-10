@@ -1,0 +1,25 @@
+# Task breakdown rules (News Curation)
+# Purpose: Decompose curation tasks into atomic steps.
+
+version: 1
+scope: news_curation
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  sourcing:
+    - MUST store sources to ${PROJECT_DIR}/metadata/sources.json
+  summarization:
+    - SHOULD create summaries.json
+  packaging:
+    - SHOULD export curated_feed.json to ${PROJECT_DIR}/final/
+
+file_layout:
+  - metadata: ${PROJECT_DIR}/metadata/
+  - final: ${PROJECT_DIR}/final/
+
+validation:
+  - MUST verify curated_feed contains summarized items

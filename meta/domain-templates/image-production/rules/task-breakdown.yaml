@@ -1,0 +1,26 @@
+# Task breakdown rules (Image Production)
+# Purpose: Decompose image generation tasks into atomic steps.
+
+version: 1
+scope: image_production
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; implement with `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  prompt:
+    - SHOULD produce prompt.json
+  generate:
+    - MUST save images to ${PROJECT_DIR}/media/images/
+  review:
+    - SHOULD export selected.json
+
+file_layout:
+  - images: ${PROJECT_DIR}/media/images/
+  - metadata: ${PROJECT_DIR}/metadata/
+  - final: ${PROJECT_DIR}/final/
+
+validation:
+  - MUST verify at least one image selected

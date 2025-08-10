@@ -1,0 +1,31 @@
+# Task breakdown rules (Web Development)
+# Purpose: Decompose high-level web tasks into concrete, atomic CI steps.
+
+version: 1
+scope: web_development
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run` steps
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  planning:
+    - SHOULD define requirements.json (endpoints, pages, dependencies)
+  setup:
+    - MUST install dependencies and cache if available
+  build:
+    - MUST produce build artifacts under ${PROJECT_DIR}/build/
+  test:
+    - MUST run unit/integration tests and save reports to ${PROJECT_DIR}/reports/
+  package:
+    - SHOULD create deployable bundle to ${PROJECT_DIR}/final/
+
+file_layout:
+  - build: ${PROJECT_DIR}/build/
+  - reports: ${PROJECT_DIR}/reports/
+  - final: ${PROJECT_DIR}/final/
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify build and reports exist before packaging

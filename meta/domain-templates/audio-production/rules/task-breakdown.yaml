@@ -1,0 +1,26 @@
+# Task breakdown rules (Audio Production)
+# Purpose: Decompose audio production tasks into atomic steps.
+
+version: 1
+scope: audio_production
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; implement with `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  composition:
+    - SHOULD produce stems to ${PROJECT_DIR}/media/audio/stems/
+  mixing:
+    - MUST output mix.wav to ${PROJECT_DIR}/media/audio/
+  mastering:
+    - MUST output master.wav/mp3 to ${PROJECT_DIR}/final/
+
+file_layout:
+  - audio: ${PROJECT_DIR}/media/audio/
+  - metadata: ${PROJECT_DIR}/metadata/
+  - final: ${PROJECT_DIR}/final/
+
+validation:
+  - MUST verify master exists and meets loudness target if specified

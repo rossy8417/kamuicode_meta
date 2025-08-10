@@ -1,0 +1,26 @@
+# Task breakdown rules (Live Streaming)
+# Purpose: Decompose live workflow into atomic steps.
+
+version: 1
+scope: live_streaming
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  setup:
+    - SHOULD create streaming_plan.json
+  asset_prep:
+    - SHOULD prepare overlays/scenes to ${PROJECT_DIR}/media/
+  rehearsal:
+    - SHOULD run checks and output checklist to ${PROJECT_DIR}/metadata/
+
+file_layout:
+  - media: ${PROJECT_DIR}/media/
+  - metadata: ${PROJECT_DIR}/metadata/
+  - final: ${PROJECT_DIR}/final/
+
+validation:
+  - MUST verify assets and plan before go-live

@@ -1,0 +1,26 @@
+# Task breakdown rules (E-commerce Management)
+# Purpose: Decompose e-commerce ops tasks into atomic steps.
+
+version: 1
+scope: ecommerce_management
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  catalog:
+    - MUST export products.json to ${PROJECT_DIR}/metadata/
+  assets:
+    - SHOULD prepare images to ${PROJECT_DIR}/media/images/
+  publishing:
+    - SHOULD export feeds/files to ${PROJECT_DIR}/final/
+
+file_layout:
+  - media: ${PROJECT_DIR}/media/
+  - metadata: ${PROJECT_DIR}/metadata/
+  - final: ${PROJECT_DIR}/final/
+
+validation:
+  - MUST verify products and assets exist before publishing

@@ -1,0 +1,29 @@
+# Task breakdown rules (Data Analysis)
+# Purpose: Decompose data analysis tasks into atomic steps.
+
+version: 1
+scope: data_analysis
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  ingestion:
+    - MUST save raw data to ${PROJECT_DIR}/data/raw/
+  processing:
+    - MUST save cleaned data to ${PROJECT_DIR}/data/clean/
+  analysis:
+    - SHOULD save results to ${PROJECT_DIR}/results/
+  visualization:
+    - SHOULD save charts to ${PROJECT_DIR}/media/charts/
+
+file_layout:
+  - data: ${PROJECT_DIR}/data/
+  - results: ${PROJECT_DIR}/results/
+  - media: ${PROJECT_DIR}/media/
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify results/charts exist when required

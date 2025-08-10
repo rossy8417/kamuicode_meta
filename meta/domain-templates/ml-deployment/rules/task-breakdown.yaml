@@ -1,0 +1,27 @@
+# Task breakdown rules (ML Deployment)
+# Purpose: Decompose ML ops tasks into atomic steps.
+
+version: 1
+scope: ml_deployment
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  model_fetch:
+    - MUST store model and version to ${PROJECT_DIR}/models/
+  containerize:
+    - SHOULD build image and export to ${PROJECT_DIR}/build/
+  deploy:
+    - SHOULD output deployment manifests to ${PROJECT_DIR}/final/
+
+file_layout:
+  - models: ${PROJECT_DIR}/models/
+  - build: ${PROJECT_DIR}/build/
+  - final: ${PROJECT_DIR}/final/
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify model hash/version, image tag and manifest exist

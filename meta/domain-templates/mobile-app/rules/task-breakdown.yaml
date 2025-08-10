@@ -1,0 +1,29 @@
+# Task breakdown rules (Mobile App)
+# Purpose: Decompose mobile CI tasks into atomic steps.
+
+version: 1
+scope: mobile_app
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  setup:
+    - MUST install SDKs/deps
+  build:
+    - MUST produce app package (apk/ipa) under ${PROJECT_DIR}/build/
+  test:
+    - MUST run tests and save reports ${PROJECT_DIR}/reports/
+  distribute:
+    - SHOULD export artifacts to ${PROJECT_DIR}/final/
+
+file_layout:
+  - build: ${PROJECT_DIR}/build/
+  - reports: ${PROJECT_DIR}/reports/
+  - final: ${PROJECT_DIR}/final/
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify package created and signed when applicable

@@ -1,0 +1,29 @@
+# Task breakdown rules (API Backend)
+# Purpose: Decompose backend tasks into atomic CI steps.
+
+version: 1
+scope: api_backend
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  schema:
+    - MUST export openapi.json/yaml to ${PROJECT_DIR}/metadata/
+  build:
+    - MUST produce server build to ${PROJECT_DIR}/build/
+  test:
+    - MUST run tests and save reports to ${PROJECT_DIR}/reports/
+  package:
+    - SHOULD create container/bundle to ${PROJECT_DIR}/final/
+
+file_layout:
+  - build: ${PROJECT_DIR}/build/
+  - reports: ${PROJECT_DIR}/reports/
+  - final: ${PROJECT_DIR}/final/
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify schema/build/tests before package

@@ -1,0 +1,26 @@
+# Task breakdown rules (Game Development)
+# Purpose: Decompose game dev tasks into atomic CI steps.
+
+version: 1
+scope: game_development
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; use `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  setup:
+    - MUST install engine/dependencies
+  build:
+    - MUST produce build to ${PROJECT_DIR}/build/
+  test:
+    - SHOULD run automated tests, save to ${PROJECT_DIR}/reports/
+
+file_layout:
+  - build: ${PROJECT_DIR}/build/
+  - reports: ${PROJECT_DIR}/reports/
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify build artifacts exist
