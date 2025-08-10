@@ -667,8 +667,8 @@ jobs:
           2. 最適化順序(任意): artifacts/optimized-task-order/optimized_task_order.json
           3. 入力スキーマ(必須): artifacts/domain-input-schema/input-schema.yaml
           4. 必須入力一覧(任意): artifacts/required_inputs.json / artifacts/required_input_keys.txt
-          5. ドメイン概要/分解データ(任意): artifacts/domain_summary.json, artifacts/domain_decomposition_data.json
-          6. ドメイン・チェックリスト一覧(任意): artifacts/domain-checklists.txt
+          5. ドメイン概要/分解データ(任意): artifacts/domain-template-data/domain_summary.json, artifacts/domain-template-data/domain_decomposition_data.json
+          6. ドメイン・チェックリスト一覧(任意): artifacts/domain-template-data/domain-checklists.txt
           7. 共通ルール: docs/YAML_CONSTRUCTION_GUIDELINES.md, docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
 
           生成ガイド（汎用）:
@@ -680,7 +680,7 @@ jobs:
           - SHOULD: ステップは21000文字以内に分割
 
           ドメイン知識の適用（強制）:
-          - artifacts/domain-checklists.txt が存在する場合、列挙された各チェックリストを読み「MUST」遵守すること。遵守できない場合は生成時に代替設計を行い、それでも不可なら検証段階で FAILED とする前提で出力すること。
+          - artifacts/domain-template-data/domain-checklists.txt が存在する場合、列挙された各チェックリストを読み「MUST」遵守すること。遵守できない場合は生成時に代替設計を行い、それでも不可なら検証段階で FAILED とする前提で出力すること。
           - meta/domain-templates/<domain>/constraints.yaml が存在する場合:
             * MUST: constraints.composition_rules / timing_constraints / orchestration / path constraints を適用（該当タスクが存在する場合のみ）
             * SHOULD: constraints.rule_references / checklist_references に列挙された各ファイル（rules/*.yaml, checklists/*.md）を順に読み、MUSTを優先して設計へ反映
@@ -707,7 +707,9 @@ jobs:
           
           # Add visibility in logs: which checklists will be referenced
           echo "📚 Using domain checklists:" >> $GITHUB_STEP_SUMMARY
-          if [ -f artifacts/domain-checklists.txt ]; then
+          if [ -f artifacts/domain-template-data/domain-checklists.txt ]; then
+            cat artifacts/domain-template-data/domain-checklists.txt | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          elif [ -f artifacts/domain-checklists.txt ]; then
             cat artifacts/domain-checklists.txt | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
           else
             echo "- (none found)" >> $GITHUB_STEP_SUMMARY
