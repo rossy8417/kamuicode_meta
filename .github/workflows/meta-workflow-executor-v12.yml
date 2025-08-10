@@ -844,14 +844,14 @@ jobs:
           python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))"
           echo "✅ YAML syntax valid"
           
-          # GitHub Actions structure validation (robust against quoted keys)
-          python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; sys.exit(0 if isinstance(wf, dict) and 'name' in wf and 'on' in wf and 'jobs' in wf else 1)"
+          # GitHub Actions structure validation (robust against quoted keys and on: true issue)
+          python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; has_on = 'on' in wf or True in wf; sys.exit(0 if isinstance(wf, dict) and 'name' in wf and has_on and 'jobs' in wf else 1)"
           if [ $? -eq 0 ]; then
             echo "✅ GitHub Actions structure valid"
 
             # Input schema compliance validation (file-referenced, no inline duplication)
             if [ -f "artifacts/domain-input-schema/input-schema.yaml" ]; then
-              python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='artifacts/domain-input-schema/input-schema.yaml'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; wf_inputs=(((wf.get('on') or {}).get('workflow_dispatch') or {}).get('inputs') or {}); groups=(schema.get('inputs') or {}); required=(groups.get('required') or {}); missing=[k for k in required.keys() if k not in wf_inputs]; (print('Missing inputs in workflow:', missing) or sys.exit(1)) if missing else None"
+              python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='artifacts/domain-input-schema/input-schema.yaml'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; on_key = 'on' if 'on' in wf else True if True in wf else None; wf_inputs=(((wf.get(on_key) or {}).get('workflow_dispatch') or {}).get('inputs') or {}); groups=(schema.get('inputs') or {}); required=(groups.get('required') or {}); missing=[k for k in required.keys() if k not in wf_inputs]; (print('Missing inputs in workflow:', missing) or sys.exit(1)) if missing else None"
               echo "✅ Input schema alignment (required): OK"
             else
               echo "::warning::No input schema file found for validation"
