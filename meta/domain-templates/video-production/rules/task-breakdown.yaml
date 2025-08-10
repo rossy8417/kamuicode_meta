@@ -1,0 +1,34 @@
+# Task breakdown rules (Video Production)
+# Purpose: Decompose high-level tasks into concrete, atomic operations that a CI runner can execute reliably.
+
+version: 1
+scope: video_production
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; implement with `run` steps
+  - MUST share data between jobs via artifacts (upload/download)
+
+breakdown:
+  storyboard:
+    - MUST create story_structure.json with scene_breakdown array when available
+    - SHOULD include per-scene duration_sec, description, and visual_requirements
+
+  narration:
+    - SHOULD generate narration text before scene media when sync to audio is required
+
+  scene_media:
+    - IF image_to_video (i2v) tools are used and max clip length per generation is 5-8 seconds:
+      - MUST compute required scene_count = ceil(target_duration_sec / per_scene_sec)
+      - MUST ensure at least scene_count images exist
+      - MUST execute per-scene pipeline as: generate_image -> convert_image_to_video
+
+  file_layout:
+    - images: ${PROJECT_DIR}/media/images/scene_XX.png
+    - videos: ${PROJECT_DIR}/media/videos/scene_XX_video.mp4
+    - audio:  ${PROJECT_DIR}/media/audio/
+    - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify scene_count derived from duration when scene_breakdown is missing
+  - MUST verify required files exist per scene before final assembly

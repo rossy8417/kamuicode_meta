@@ -1,0 +1,28 @@
+# Orchestration rules (Video Production)
+# Purpose: Define serial/parallel structure, matrix strategy, resource limits and naming.
+
+version: 1
+scope: video_production
+
+serial_parallel:
+  per_scene_pipeline:
+    description: Generate image then immediately convert to video in the same job to avoid URL expiration.
+    steps:
+      - generate_image
+      - image_to_video
+
+matrix:
+  key: scene
+  max_parallel: 5
+  naming:
+    file_prefix: scene_
+    pad_width: 2
+
+scheduling:
+  prefer:
+    - run i2v immediately after image generation (same runner)
+  avoid:
+    - batching images and delaying i2v across jobs
+
+fallbacks:
+  - If i2v fails, create a minimal FFmpeg still/video clip of the same duration for continuity.

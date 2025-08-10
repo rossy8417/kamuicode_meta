@@ -651,63 +651,38 @@ jobs:
           # Load template chunks progressively
           CHUNKS=$(jq -r '.chunks[].id' artifacts/domain-template-data/template_chunks.json)
           
-          # Create comprehensive generation prompt (with explicit doc references for logging)
+          # Create comprehensive generation prompt (domain-agnostic with strict domain enforcement when provided)
           cat > generation_prompt.txt << 'EOF'
-          プロフェッショナルなGitHub Actionsワークフローを生成してください。
-          
-          以下のファイルから情報を読み込んでください：
-          1. タスク分解結果: artifacts/task-decomposition/professional_task_decomposition.json
-          2. 最適化されたタスク順序: artifacts/optimized-task-order/optimized_task_order.json (存在する場合)
-          3. 入力スキーマ: artifacts/domain-input-schema/input-schema.yaml
-          4. 必須入力一覧: artifacts/required_inputs.json（存在する場合）/ artifacts/required_input_keys.txt
-          5. 共通検証基準: meta/validation/strict-validation-requirements.md
-          6. ドメイン検証チェックリスト一覧: artifacts/domain-checklists.txt（存在する場合）
-          
-          ワークフロー生成の要件：
-          1. uses: でローカルファイルを参照しない（インライン実装）
-          2. PROJECT_DIRは各ジョブで明示的に設定：
-             PROJECT_DIR="\${GITHUB_WORKSPACE}/projects/\${PROJECT_NAME}-\${TIMESTAMP}"
-             mkdir -p "\${PROJECT_DIR}"
-          3. MCP使用時は--mcp-configを必ず含める
-          4. ジョブ間のファイル共有はartifactsを使用
-          5. 各ステップは21000文字以内
-          6. 全ての出力は\${PROJECT_DIR}配下に整理
-          7. workflow_dispatch の inputs は必ず「入力スキーマファイル」を読み取り反映すること（インライン貼り付け禁止、ファイル参照で設計）
-          8. 入力定義は「スキーマの inputs.required の各キー」を GitHub Actions の on.workflow_dispatch.inputs に展開すること：
-             - type: enum がある場合は type: choice と options を使用
-             - default があれば default を設定
-             - description を反映（無ければキー名）
-             - required: true を設定
-             - recommended/optional は任意（可能なら description のみ comments として保持）
-          
-          【参照ルール】
-          - 共通の厳格要件: meta/validation/strict-validation-requirements.md（CR項目の定義）
-          - ドメイン固有の必須事項: artifacts/domain-checklists.txt に列挙されたチェック表（該当ドメイン）
-          これらのドキュメントを読み込み、共通CR + ドメイン必須の両方を満たす形で設計してください。
-          
-          🚨 CRITICAL: You MUST read and follow these guidelines:
-          
-          1. YAML Construction Guidelines: docs/YAML_CONSTRUCTION_GUIDELINES.md
-             - Contains all patterns to avoid (especially HEREDOC)
-             - Provides correct file creation examples
-             - MANDATORY: Read this file and apply ALL rules
-          
-          2. Minimal Unit Dependencies: docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
-             - Check input/output specifications for each unit
-             - Understand data flow and dependency patterns
-             - Identify parallelizable tasks
-          
-          3. Claude Code SDK CLI Reference: docs/CLAUDE_CODE_SDK_CLI_REFERENCE.md
-             - Proper MCP tool naming: mcp__serverName__toolName
-             - Required environment variables for CI/CD
-             - Best practices for GitHub Actions usage
-             - Select appropriate data sharing methods
-          
-          専門的な品質基準に従って、実務で使えるワークフローを生成してください。
-          
-          重要: ファイル作成時は必ずYAML Construction Guidelinesのパターンに従ってください。
-          
-          出力ファイル: projects/issue-66-20250804-004120/generated-workflow/workflow.yml
+          あなたは「汎用メタワークフロー生成器」です。ユーザー要求（Issue）とドメインテンプレートを読み、最適なGitHub Actionsワークフローを生成してください。
+
+          入力（必ず参照）:
+          1. タスク分解: artifacts/task-decomposition/professional_task_decomposition.json
+          2. 最適化順序(任意): artifacts/optimized-task-order/optimized_task_order.json
+          3. 入力スキーマ(必須): artifacts/domain-input-schema/input-schema.yaml
+          4. ドメイン概要/分解データ(任意): artifacts/domain_summary.json, artifacts/domain_decomposition_data.json
+          5. ドメイン・チェックリスト一覧(任意): artifacts/domain-checklists.txt
+          6. 共通ルール: docs/YAML_CONSTRUCTION_GUIDELINES.md, docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
+
+          生成ガイド（汎用）:
+          - MUST: uses: でローカルパス参照をしない（インライン実装）
+          - MUST: 全ての出力/中間生成物は ${PROJECT_DIR} 配下に保存
+          - MUST: ジョブ間共有は actions/upload-artifact / download-artifact を使用
+          - MUST: workflow_dispatch.inputs は input-schema.yaml を読み込み反映（enum→choice, default, description）
+          - MUST: 絶対パスやルート直下の出力を禁止し、常に ${PROJECT_DIR} を使う
+          - SHOULD: ステップは21000文字以内に分割
+
+          ドメイン知識の適用（強制）:
+          - artifacts/domain-checklists.txt が存在する場合、列挙された各チェックリストを読み「MUST」遵守すること。遵守できない場合は生成時に代替設計を行い、それでも不可なら検証段階で FAILED とする前提で出力すること。
+          - meta/domain-templates/<domain>/constraints.yaml が存在する場合、そこに定義された composition_rules / timing_constraints / orchestration / path constraints を優先して適用すること（該当タスクが存在する場合のみ）。
+          - 複数ドメインが関係する場合は、各ドメインの制約とチェックリストをすべて統合し、競合時は安全側（厳しい方）を採用。
+
+          設計原則（例）:
+          - 画像→動画など明示的な直列要件が constraints で示される場合、対象アイテム/シーンごとに「直列チェーン」を同一ジョブ内で実行し、全体を matrix で並列化（max-parallel は constraints に従う）。
+          - 類似作業（例: スライド複数枚生成）は並列最適化。ただしデータ依存がある場合は直列化。
+          - ドメインが指定されていない・制約が無い場合は、タスク分解/最適化順序に基づく一般的な直列/並列構成とする。
+
+          出力先（MUST）:
+          - ワークフローを ${PROJECT_DIR}/generated-workflow/workflow.yml に生成
           EOF
           
           # Replace project directory in prompt
@@ -719,6 +694,12 @@ jobs:
             cat artifacts/domain-checklists.txt | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
           else
             echo "- (none found)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Also list rule references if present in constraints
+          if [ -f artifacts/domain-template-data/domain_summary.json ]; then
+            echo "### Domain Rule References" >> $GITHUB_STEP_SUMMARY
+            jq -r '.constraints.rule_references[]?.path' artifacts/domain-template-data/domain_summary.json 2>/dev/null | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
           fi
 
           # Note: do not inject domain-specific helper jobs inline. All domain rules are enforced via referenced checklists during validation/auto-fix.
@@ -864,6 +845,8 @@ jobs:
               echo;
               echo "制約検証（任意）:";
               echo "- constraints.composition_rules があれば、その要件（pipeline/matrix/max_parallel/duration_allocation）に沿っていること";
+              echo "- constraints.rule_references と checklist_references が示すファイルを順に読み、MUSTを優先して妥当性を確認すること";
+              echo "- 直列/並列/matrix/命名/一貫性/時間配分などの規則があれば適用されていること";
               echo;
               echo '{"overall_result":"PASSED","failed_items":[],"details":{}}';
             } > validation_prompt.txt
