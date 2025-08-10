@@ -1017,23 +1017,67 @@ PY
 
                 echo "🔧 Attempting generic auto-fix based on domain constraints..."
 
+                # Build rule file list from constraints (if any) for precise autofix
+                RULE_FILES=$(jq -r '.constraints.rule_references[]?.path' artifacts/domain-template-data/domain_summary.json 2>/dev/null || true)
+                CHECKLIST_FILES=$(jq -r '.constraints.checklist_references[]?.path' artifacts/domain-template-data/domain_summary.json 2>/dev/null || true)
+
+                echo "🔧 AI auto-fix with explicit domain rule inputs..."
                 npx @anthropic-ai/claude-code \
                   --mcp-config ".claude/mcp-kamuicode.json" \
                   --allowedTools "Read,Write" \
                   --permission-mode "acceptEdits" \
-                  --max-turns 30 \
-                  -p "validation_result.json の failed_items を修正してください。
+                  --max-turns 40 \
+                  -p "次のファイルを読み込み、検証失敗を修正してください。
 
                   対象ワークフロー: $WORKFLOW_PATH
+                  検証結果: validation_result.json
                   ドメイン: $DOMAIN
-                  制約ファイル（任意）: $CONSTRAINTS_PATH
+                  制約: $CONSTRAINTS_PATH
+                  ルールファイル一覧:\n$RULE_FILES
+                  チェックリスト一覧:\n$CHECKLIST_FILES
 
-                  原則:
-                  - ローカル uses: を排除
-                  - artifacts によるファイル共有を適所で実装
-                  - constraints.composition_rules が存在し per-item/perscene pipeline / matrix が指定されていれば、それに従う
+                  必須修正（MUST）:
+                  1) ローカル uses の排除 / すべての出力を ${PROJECT_DIR} 配下へ / artifacts による共有
+                  2) constraints.composition_rules / rules/orchestration.yaml に従い、該当タスクがある場合:
+                     - per-item/perscene 直列チェーン（例: generate_image -> image_to_video）を同一ジョブ内で実行
+                     - strategy.matrix を導入し、matrix.key（rulesのmatrix.key）で並列化
+                     - strategy.max-parallel を rulesの max_parallel 以下に設定
+                  3) rules/consistency.yaml の命名規約（image_pattern / video_pattern）と解像度/音声基準を満たすよう命名・設定
+                  4) paths: ${PROJECT_DIR}/media/{images|videos|audio}/ および ${PROJECT_DIR}/metadata/ に整える
 
-                  修正後は同じパスに上書き保存し、fix_summary.txt に要約を保存すること"
+                  推奨修正（SHOULD）:
+                  - checklist の MUST/SHOULD のうち、実装可能な項目は適用
+
+                  変更は $WORKFLOW_PATH に上書き保存。fix_summary.txt に修正点の要約（適用したルール、変更箇所）を記録。"
+
+                # Safety cap for max-parallel if still exceeding rule limit
+                python - << 'PY'
+import os, yaml
+wf = r"""$WORKFLOW_PATH"""
+dom = r"""${{ needs.validate-and-detect.outputs.primary_domain }}"""
+cp = f"meta/domain-templates/{dom}/rules/orchestration.yaml"
+try:
+    orc = yaml.safe_load(open(cp, 'r', encoding='utf-8')) or {}
+except Exception:
+    orc = {}
+try:
+    data = yaml.safe_load(open(wf, 'r', encoding='utf-8')) or {}
+except Exception:
+    data = {}
+limit = ((orc.get('matrix') or {}).get('max_parallel'))
+changed = False
+if isinstance(data.get('jobs'), dict) and limit is not None:
+    for jn, job in data['jobs'].items():
+        strat = job.get('strategy') or {}
+        mp = strat.get('max-parallel') or strat.get('max_parallel')
+        if isinstance(mp, int) and mp > int(limit):
+            strat['max-parallel'] = int(limit)
+            job['strategy'] = strat
+            data['jobs'][jn] = job
+            changed = True
+if changed:
+    open(wf, 'w', encoding='utf-8').write(yaml.safe_dump(data, sort_keys=False))
+PY
               
                 if [ $? -eq 0 ]; then
                   echo "✅ Auto-fix completed - Re-validating..."
