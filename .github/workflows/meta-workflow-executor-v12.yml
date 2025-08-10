@@ -697,12 +697,6 @@ jobs:
           - 必ず workflow_generation_parameters.matrix_scene_list を使用してmatrix.sceneを設定
           - max-parallelは workflow_generation_parameters.max_parallel の値を使用
           - 固定値（例: batch: [1,2,3]）ではなく、計算された動的な値を使用すること
-          - 例: workflow_generation_parameters.matrix_scene_list が "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]" の場合、
-            strategy:
-              matrix:
-                scene: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-              max-parallel: 12
-            と生成すること（7シーンや固定値ではなく、必ず計算された全シーン数を使用）
 
           出力先（MUST）:
           - ワークフローを PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml に生成
@@ -844,14 +838,14 @@ jobs:
           python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))"
           echo "✅ YAML syntax valid"
           
-          # GitHub Actions structure validation (robust against quoted keys and on: true issue)
-          python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; has_on = 'on' in wf or True in wf; sys.exit(0 if isinstance(wf, dict) and 'name' in wf and has_on and 'jobs' in wf else 1)"
+          # GitHub Actions structure validation (robust against quoted keys)
+          python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; sys.exit(0 if isinstance(wf, dict) and 'name' in wf and 'on' in wf and 'jobs' in wf else 1)"
           if [ $? -eq 0 ]; then
             echo "✅ GitHub Actions structure valid"
 
             # Input schema compliance validation (file-referenced, no inline duplication)
             if [ -f "artifacts/domain-input-schema/input-schema.yaml" ]; then
-              python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='artifacts/domain-input-schema/input-schema.yaml'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; on_key = 'on' if 'on' in wf else True if True in wf else None; wf_inputs=(((wf.get(on_key) or {}).get('workflow_dispatch') or {}).get('inputs') or {}); groups=(schema.get('inputs') or {}); required=(groups.get('required') or {}); missing=[k for k in required.keys() if k not in wf_inputs]; (print('Missing inputs in workflow:', missing) or sys.exit(1)) if missing else None"
+              python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='artifacts/domain-input-schema/input-schema.yaml'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; wf_inputs=(((wf.get('on') or {}).get('workflow_dispatch') or {}).get('inputs') or {}); groups=(schema.get('inputs') or {}); required=(groups.get('required') or {}); missing=[k for k in required.keys() if k not in wf_inputs]; (print('Missing inputs in workflow:', missing) or sys.exit(1)) if missing else None"
               echo "✅ Input schema alignment (required): OK"
             else
               echo "::warning::No input schema file found for validation"
@@ -996,17 +990,6 @@ jobs:
                   
                   if [ -f "revalidation_result.json" ]; then
                     REVALIDATION_RESULT=$(jq -r '.overall_result' revalidation_result.json 2>/dev/null || echo "FAILED")
-                    
-                    # Create final validation report combining initial and post-fix results
-                    cat > final_validation_report.json << EOF
-                    {
-                      "initial_validation": $(cat validation_result.json),
-                      "auto_fix_applied": true,
-                      "final_validation": $(cat revalidation_result.json),
-                      "overall_status": "$REVALIDATION_RESULT"
-                    }
-                    EOF
-                    
                     if [ "$REVALIDATION_RESULT" = "PASSED" ]; then
                       echo "✅ Re-validation PASSED - All issues fixed"
                       echo "passed=true" >> $GITHUB_OUTPUT
@@ -1028,29 +1011,11 @@ jobs:
               echo "passed=false" >> $GITHUB_OUTPUT
             fi
             
-            # Add Phase 6 Report with validation details
+            # Add Phase 6 Report
             echo "## ✅ Phase 6: 包括検証 & 配置" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ YAML構文検証: 正常" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ GitHub Actions構造検証: 正常" >> $GITHUB_STEP_SUMMARY
-            
-            # Show validation results
-            if [ -f "validation_result.json" ]; then
-              INITIAL_RESULT=$(jq -r '.overall_result' validation_result.json 2>/dev/null || echo "UNKNOWN")
-              echo "- 🔍 初期検証結果: $INITIAL_RESULT" >> $GITHUB_STEP_SUMMARY
-              
-              if [ "$INITIAL_RESULT" = "FAILED" ] && [ -f "revalidation_result.json" ]; then
-                echo "- 🔧 Auto-fix実行: 完了" >> $GITHUB_STEP_SUMMARY
-                FINAL_RESULT=$(jq -r '.overall_result' revalidation_result.json 2>/dev/null || echo "UNKNOWN")
-                echo "- ✅ 最終検証結果: $FINAL_RESULT" >> $GITHUB_STEP_SUMMARY
-                
-                # Show what was fixed
-                if [ -f "fix_summary.txt" ]; then
-                  echo "- 📝 修正内容:" >> $GITHUB_STEP_SUMMARY
-                  cat fix_summary.txt | head -5 | sed 's/^/    - /' >> $GITHUB_STEP_SUMMARY
-                fi
-              fi
-            fi
-            
+            echo "- ✅ ドメイン特化包括検証: 完了" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ ワークフロー配置準備完了" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           else
@@ -1066,9 +1031,6 @@ jobs:
           name: validation-report
           path: |
             validation_result.json
-            revalidation_result.json
-            final_validation_report.json
-            fix_summary.txt
             revalidation_result.json
           if-no-files-found: warn
           
