@@ -29,10 +29,11 @@ composition_rules:
 
   orchestration:
     strategy: "matrix(scene: 1..N)"
-    max_parallel: 5
+    max_parallel: "N"  # Nはscene_calculationで動的に算出されたシーン数
     notes:
-      - "URL有効期限対策として同時実行数を制限 (≤5)"
-      - "Nはscene_calculationで算出（scene_breakdownがあればそれを優先）"
+      - "max_parallelはシーン数と同じ値に動的設定（全シーン同時処理可能）"
+      - "各ジョブ内で画像生成→I2V変換を直列実行しURL期限対策"
+      - "Nはscene_calculationで算出（例: 60秒→12シーン、30秒→6シーン）"
 
   duration_allocation:
     default_per_scene_seconds: 5
@@ -51,13 +52,16 @@ composition_rules:
     safety_margin: 180 # 3分の安全マージン
     
     batch_strategy:
-      max_parallel: 5
+      max_parallel: "dynamic"  # scene_calculationの結果に基づいて動的設定
       time_per_batch: 180 # 3分
       calculation: |
-        total_batches = ceil(total_scenes / max_parallel)
+        # max_parallelは動的に計算されたシーン数（N）と同じ
+        max_parallel = N  # Nはscene_calculationで算出
+        total_batches = 1  # 全シーンを1バッチで並列処理が理想
         total_time = total_batches * time_per_batch
+        # URL期限内に収まらない場合のみバッチ分割
         if total_time > (url_limit - safety_margin):
-          reduce_parallel_count or split_workflow
+          adjust_batch_size_based_on_url_limit()
 
 # 人間要素特化制約
 human_element_technical_constraints:
@@ -124,11 +128,11 @@ parallel_processing:
   # 並列処理戦略
   strategies:
     - name: "シーン別並列"
-      condition: "total_scenes > 10"
+      condition: "total_scenes > 1"  # 複数シーンがある場合は常に並列化
       approach: |
-        1. シーンを5つのグループに分割
-        2. 各グループを並列処理
-        3. 完成したグループから順次結合
+        1. 全シーンを並列処理（N並列、Nは動的計算されたシーン数）
+        2. 各シーンは画像生成→I2V変換を直列実行
+        3. 完成したシーンから順次結合
     
     - name: "レイヤー別並列"
       condition: "has_background && has_foreground"
