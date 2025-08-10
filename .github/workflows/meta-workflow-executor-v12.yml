@@ -659,25 +659,30 @@ jobs:
           1. タスク分解: artifacts/task-decomposition/professional_task_decomposition.json
           2. 最適化順序(任意): artifacts/optimized-task-order/optimized_task_order.json
           3. 入力スキーマ(必須): artifacts/domain-input-schema/input-schema.yaml
-          4. ドメイン概要/分解データ(任意): artifacts/domain_summary.json, artifacts/domain_decomposition_data.json
-          5. ドメイン・チェックリスト一覧(任意): artifacts/domain-checklists.txt
-          6. 共通ルール: docs/YAML_CONSTRUCTION_GUIDELINES.md, docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
+          4. 必須入力一覧(任意): artifacts/required_inputs.json / artifacts/required_input_keys.txt
+          5. ドメイン概要/分解データ(任意): artifacts/domain_summary.json, artifacts/domain_decomposition_data.json
+          6. ドメイン・チェックリスト一覧(任意): artifacts/domain-checklists.txt
+          7. 共通ルール: docs/YAML_CONSTRUCTION_GUIDELINES.md, docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
 
           生成ガイド（汎用）:
           - MUST: uses: でローカルパス参照をしない（インライン実装）
           - MUST: 全ての出力/中間生成物は ${PROJECT_DIR} 配下に保存
           - MUST: ジョブ間共有は actions/upload-artifact / download-artifact を使用
-          - MUST: workflow_dispatch.inputs は input-schema.yaml を読み込み反映（enum→choice, default, description）
+          - MUST: workflow_dispatch.inputs は input-schema.yaml と必須入力一覧を読み込み反映（enum→choice, default, description、追加必須キーの補完）
           - MUST: 絶対パスやルート直下の出力を禁止し、常に ${PROJECT_DIR} を使う
           - SHOULD: ステップは21000文字以内に分割
 
           ドメイン知識の適用（強制）:
           - artifacts/domain-checklists.txt が存在する場合、列挙された各チェックリストを読み「MUST」遵守すること。遵守できない場合は生成時に代替設計を行い、それでも不可なら検証段階で FAILED とする前提で出力すること。
-          - meta/domain-templates/<domain>/constraints.yaml が存在する場合、そこに定義された composition_rules / timing_constraints / orchestration / path constraints を優先して適用すること（該当タスクが存在する場合のみ）。
-          - 複数ドメインが関係する場合は、各ドメインの制約とチェックリストをすべて統合し、競合時は安全側（厳しい方）を採用。
+          - meta/domain-templates/<domain>/constraints.yaml が存在する場合:
+            * MUST: constraints.composition_rules / timing_constraints / orchestration / path constraints を適用（該当タスクが存在する場合のみ）
+            * SHOULD: constraints.rule_references / checklist_references に列挙された各ファイル（rules/*.yaml, checklists/*.md）を順に読み、MUSTを優先して設計へ反映
+          - 複数ドメインが関係する場合:
+            * MUST: 各ドメインの constraints / rules / checklists を統合適用
+            * MUST: 競合時は安全側（より厳しいMUST）を採用し、妥協点は明記
 
           設計原則（例）:
-          - 画像→動画など明示的な直列要件が constraints で示される場合、対象アイテム/シーンごとに「直列チェーン」を同一ジョブ内で実行し、全体を matrix で並列化（max-parallel は constraints に従う）。
+          - 画像→動画など明示的な直列要件が constraints/rules で示される場合、対象アイテム/シーンごとに「直列チェーン」を同一ジョブ内で実行し、全体を matrix で並列化（max-parallel は constraints に従う）。
           - 類似作業（例: スライド複数枚生成）は並列最適化。ただしデータ依存がある場合は直列化。
           - ドメインが指定されていない・制約が無い場合は、タスク分解/最適化順序に基づく一般的な直列/並列構成とする。
 
