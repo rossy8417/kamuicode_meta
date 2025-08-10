@@ -837,7 +837,7 @@ jobs:
             echo "🔎 Static structural checks..."
             python - << 'PY'
 import os, re, sys, yaml
-wf_path = os.environ.get('WORKFLOW_PATH')
+wf_path = r"""$WORKFLOW_PATH"""
 text = open(wf_path, 'r', encoding='utf-8').read()
 data = yaml.safe_load(text) or {}
 jobs = data.get('jobs') or {}
@@ -908,6 +908,79 @@ PY
               echo "⚠️ validation_result.json not created - creating minimal PASSED report"
               echo '{"overall_result":"PASSED","failed_items":[],"details":{}}' > validation_result.json
             fi
+
+            # Domain rule structural checks (non-blocking warnings)
+            echo "🔎 Domain rule structural checks..."
+            python - << 'PY'
+import os, re, sys, yaml, json
+wf_path = r"""$WORKFLOW_PATH"""
+domain = r"""${{ needs.validate-and-detect.outputs.primary_domain }}"""
+constraints_path = f"meta/domain-templates/{domain}/constraints.yaml"
+try:
+    constraints = yaml.safe_load(open(constraints_path, 'r', encoding='utf-8')) or {}
+except Exception:
+    constraints = {}
+
+rule_refs = constraints.get('rule_references') or []
+rules_by_name = {}
+for ref in rule_refs:
+    p = (ref or {}).get('path')
+    if not p: continue
+    try:
+        content = yaml.safe_load(open(p, 'r', encoding='utf-8')) if p.endswith(('.yaml','.yml')) else None
+    except Exception:
+        content = None
+    rules_by_name[p] = content
+
+text = open(wf_path, 'r', encoding='utf-8').read()
+data = yaml.safe_load(text) or {}
+jobs = data.get('jobs') or {}
+warns = []
+
+# Orchestration checks
+orc = None
+for k,v in rules_by_name.items():
+    if k.endswith('/rules/orchestration.yaml') and isinstance(v, dict):
+        orc = v
+        break
+
+if orc:
+    matrix_key = (((orc.get('matrix') or {}).get('key')) or 'scene')
+    max_parallel_lim = ((orc.get('matrix') or {}).get('max_parallel'))
+    # Find a job with matrix_key
+    found = False
+    for jn, job in (jobs or {}).items():
+        strat = (job or {}).get('strategy') or {}
+        matrix = strat.get('matrix') or {}
+        if isinstance(matrix, dict) and matrix_key in matrix:
+            found = True
+            mp = strat.get('max-parallel') or strat.get('max_parallel')
+            try:
+                if max_parallel_lim is not None and mp is not None and int(mp) > int(max_parallel_lim):
+                    warns.append(f"Job '{jn}': max-parallel {mp} exceeds limit {max_parallel_lim}")
+            except Exception:
+                warns.append(f"Job '{jn}': max-parallel not numeric: {mp}")
+    if not found:
+        warns.append(f"No job with strategy.matrix containing key '{matrix_key}' found")
+
+# Naming checks (consistency rule)
+cons = None
+for k,v in rules_by_name.items():
+    if k.endswith('/rules/consistency.yaml') and isinstance(v, dict):
+        cons = v
+        break
+if cons:
+    img_pat = ((cons.get('naming') or {}).get('image_pattern'))
+    vid_pat = ((cons.get('naming') or {}).get('video_pattern'))
+    if img_pat and 'scene_' not in text:
+        warns.append("Scene image naming pattern not referenced in workflow text (scene_) ")
+    if vid_pat and 'scene_' not in text:
+        warns.append("Scene video naming pattern not referenced in workflow text (scene_) ")
+
+for w in warns:
+    print(f"::warning ::{w}")
+print(f"Domain rule checks: {len(warns)} warning(s)")
+PY
             
             # Check validation result from JSON
             if [ -f "validation_result.json" ]; then
