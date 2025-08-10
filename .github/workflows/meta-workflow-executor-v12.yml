@@ -666,10 +666,10 @@ jobs:
 
           生成ガイド（汎用）:
           - MUST: uses: でローカルパス参照をしない（インライン実装）
-          - MUST: 全ての出力/中間生成物は ${PROJECT_DIR} 配下に保存
+          - MUST: 全ての出力/中間生成物は PROJECT_DIR_PLACEHOLDER 配下に保存
           - MUST: ジョブ間共有は actions/upload-artifact / download-artifact を使用
           - MUST: workflow_dispatch.inputs は input-schema.yaml と必須入力一覧を読み込み反映（enum→choice, default, description、追加必須キーの補完）
-          - MUST: 絶対パスやルート直下の出力を禁止し、常に ${PROJECT_DIR} を使う
+          - MUST: 絶対パスやルート直下の出力を禁止し、常に PROJECT_DIR_PLACEHOLDER を使う
           - SHOULD: ステップは21000文字以内に分割
 
           ドメイン知識の適用（強制）:
@@ -687,11 +687,11 @@ jobs:
           - ドメインが指定されていない・制約が無い場合は、タスク分解/最適化順序に基づく一般的な直列/並列構成とする。
 
           出力先（MUST）:
-          - ワークフローを ${PROJECT_DIR}/generated-workflow/workflow.yml に生成
+          - ワークフローを PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml に生成
           EOF
           
-          # Replace project directory in prompt
-          sed -i "s|projects/issue-66-20250804-004120|$PROJECT_DIR|g" generation_prompt.txt
+          # Replace project directory placeholder with actual path
+          sed -i "s|PROJECT_DIR_PLACEHOLDER|$PROJECT_DIR|g" generation_prompt.txt
           
           # Add visibility in logs: which checklists will be referenced
           echo "📚 Using domain checklists:" >> $GITHUB_STEP_SUMMARY
@@ -709,12 +709,16 @@ jobs:
 
           # Note: do not inject domain-specific helper jobs inline. All domain rules are enforced via referenced checklists during validation/auto-fix.
           
-          # Execute workflow generation
+          # Execute workflow generation with explicit output
+          echo "📝 Generating workflow with Claude Code SDK..."
+          echo "Target: $PROJECT_DIR/generated-workflow/workflow.yml"
+          
           npx @anthropic-ai/claude-code \
             -p "$(cat generation_prompt.txt)" \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "Write,Read,MultiEdit" \
-            --permission-mode "acceptEdits"
+            --allowedTools "Write,Read,MultiEdit,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 50
 
           # Do not inlineドメイン要件のハードコードは行わず、生成時に参照ドキュメントを読む形で反映させます
           
