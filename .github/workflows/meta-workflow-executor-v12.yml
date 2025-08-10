@@ -835,40 +835,7 @@ jobs:
 
             # Static structural checks (non-domain specific)
             echo "🔎 Static structural checks..."
-            python - << 'PY'
-import os, re, sys, yaml
-wf_path = r"""$WORKFLOW_PATH"""
-text = open(wf_path, 'r', encoding='utf-8').read()
-data = yaml.safe_load(text) or {}
-jobs = data.get('jobs') or {}
-warnings = []
-
-# Check local 'uses:' patterns
-for job_name, job in (jobs or {}).items():
-    for step in (job or {}).get('steps', []) or []:
-        if isinstance(step, dict) and 'uses' in step:
-            uses = str(step['uses']).strip()
-            if uses.startswith('./') or uses.startswith('../') or uses.startswith('/'):
-                warnings.append(f"Local action reference detected in job '{job_name}': uses={uses}")
-            if '@' not in uses and not uses.startswith('docker://'):
-                warnings.append(f"Suspicious action reference (missing @) in job '{job_name}': uses={uses}")
-
-# Check ${PROJECT_DIR} usage hint
-if '${PROJECT_DIR}/' not in text:
-    warnings.append('No ${PROJECT_DIR}/ occurrences found. Ensure all outputs are under ${PROJECT_DIR}.')
-
-# Check artifact usage presence
-artifact_upload = bool(re.search(r'actions/upload-artifact@', text))
-artifact_download = bool(re.search(r'actions/download-artifact@', text))
-if not artifact_upload:
-    warnings.append('actions/upload-artifact not found.')
-if not artifact_download:
-    warnings.append('actions/download-artifact not found.')
-
-for w in warnings:
-    print(f"::warning ::{w}")
-print(f"Static checks: {len(warnings)} warning(s)")
-PY
+            python3 -c "import os, re, sys, yaml; wf_path='$WORKFLOW_PATH'; text=open(wf_path,'r',encoding='utf-8').read(); data=yaml.safe_load(text) or {}; jobs=data.get('jobs') or {}; warnings=[]; [warnings.append(f\"Local action reference detected in job '{job_name}': uses={uses}\") if uses.startswith(('./','../')) else warnings.append(f\"Suspicious action reference (missing @) in job '{job_name}': uses={uses}\") if '@' not in uses and not uses.startswith('docker://') else None for job_name,job in (jobs or {}).items() for step in (job or {}).get('steps',[]) or [] if isinstance(step,dict) and 'uses' in step for uses in [str(step['uses']).strip()]]; warnings.append('No \${PROJECT_DIR}/ occurrences found') if '\${PROJECT_DIR}/' not in text else None; warnings.append('actions/upload-artifact not found') if not re.search(r'actions/upload-artifact@',text) else None; warnings.append('actions/download-artifact not found') if not re.search(r'actions/download-artifact@',text) else None; [print(f'::warning ::{w}') for w in warnings]; print(f'Static checks: {len(warnings)} warning(s)')"
             
             # Domain-aware validation (generic, non-specialized)
             echo "🔍 Executing domain-aware validation (generic)..."
@@ -911,76 +878,7 @@ PY
 
             # Domain rule structural checks (non-blocking warnings)
             echo "🔎 Domain rule structural checks..."
-            python - << 'PY'
-import os, re, sys, yaml, json
-wf_path = r"""$WORKFLOW_PATH"""
-domain = r"""${{ needs.validate-and-detect.outputs.primary_domain }}"""
-constraints_path = f"meta/domain-templates/{domain}/constraints.yaml"
-try:
-    constraints = yaml.safe_load(open(constraints_path, 'r', encoding='utf-8')) or {}
-except Exception:
-    constraints = {}
-
-rule_refs = constraints.get('rule_references') or []
-rules_by_name = {}
-for ref in rule_refs:
-    p = (ref or {}).get('path')
-    if not p: continue
-    try:
-        content = yaml.safe_load(open(p, 'r', encoding='utf-8')) if p.endswith(('.yaml','.yml')) else None
-    except Exception:
-        content = None
-    rules_by_name[p] = content
-
-text = open(wf_path, 'r', encoding='utf-8').read()
-data = yaml.safe_load(text) or {}
-jobs = data.get('jobs') or {}
-warns = []
-
-# Orchestration checks
-orc = None
-for k,v in rules_by_name.items():
-    if k.endswith('/rules/orchestration.yaml') and isinstance(v, dict):
-        orc = v
-        break
-
-if orc:
-    matrix_key = (((orc.get('matrix') or {}).get('key')) or 'scene')
-    max_parallel_lim = ((orc.get('matrix') or {}).get('max_parallel'))
-    # Find a job with matrix_key
-    found = False
-    for jn, job in (jobs or {}).items():
-        strat = (job or {}).get('strategy') or {}
-        matrix = strat.get('matrix') or {}
-        if isinstance(matrix, dict) and matrix_key in matrix:
-            found = True
-            mp = strat.get('max-parallel') or strat.get('max_parallel')
-            try:
-                if max_parallel_lim is not None and mp is not None and int(mp) > int(max_parallel_lim):
-                    warns.append(f"Job '{jn}': max-parallel {mp} exceeds limit {max_parallel_lim}")
-            except Exception:
-                warns.append(f"Job '{jn}': max-parallel not numeric: {mp}")
-    if not found:
-        warns.append(f"No job with strategy.matrix containing key '{matrix_key}' found")
-
-# Naming checks (consistency rule)
-cons = None
-for k,v in rules_by_name.items():
-    if k.endswith('/rules/consistency.yaml') and isinstance(v, dict):
-        cons = v
-        break
-if cons:
-    img_pat = ((cons.get('naming') or {}).get('image_pattern'))
-    vid_pat = ((cons.get('naming') or {}).get('video_pattern'))
-    if img_pat and 'scene_' not in text:
-        warns.append("Scene image naming pattern not referenced in workflow text (scene_) ")
-    if vid_pat and 'scene_' not in text:
-        warns.append("Scene video naming pattern not referenced in workflow text (scene_) ")
-
-for w in warns:
-    print(f"::warning ::{w}")
-print(f"Domain rule checks: {len(warns)} warning(s)")
-PY
+            python3 -c "import os, re, sys, yaml, json; wf_path='$WORKFLOW_PATH'; domain='${{ needs.validate-and-detect.outputs.primary_domain }}'; constraints_path=f'meta/domain-templates/{domain}/constraints.yaml'; constraints=yaml.safe_load(open(constraints_path, 'r', encoding='utf-8')) if os.path.exists(constraints_path) else {}; rule_refs=constraints.get('rule_references') or []; rules_by_name={}; [rules_by_name.update({p: yaml.safe_load(open(p, 'r', encoding='utf-8')) if os.path.exists(p) and p.endswith(('.yaml','.yml')) else None}) for ref in rule_refs if (p:=(ref or {}).get('path'))]; text=open(wf_path, 'r', encoding='utf-8').read(); data=yaml.safe_load(text) or {}; jobs=data.get('jobs') or {}; warns=[]; orc=next((v for k,v in rules_by_name.items() if k.endswith('/rules/orchestration.yaml') and isinstance(v, dict)), None); matrix_key=(((orc.get('matrix') or {}).get('key')) or 'scene') if orc else 'scene'; max_parallel_lim=((orc.get('matrix') or {}).get('max_parallel')) if orc else None; found=any(matrix_key in ((job or {}).get('strategy') or {}).get('matrix', {}) for job in (jobs or {}).values() if isinstance(((job or {}).get('strategy') or {}).get('matrix'), dict)); warns.append(f\"No job with strategy.matrix containing key '{matrix_key}' found\") if orc and not found else None; cons=next((v for k,v in rules_by_name.items() if k.endswith('/rules/consistency.yaml') and isinstance(v, dict)), None); img_pat=((cons.get('naming') or {}).get('image_pattern')) if cons else None; vid_pat=((cons.get('naming') or {}).get('video_pattern')) if cons else None; warns.append('Scene image naming pattern not referenced in workflow text (scene_)') if img_pat and 'scene_' not in text else None; warns.append('Scene video naming pattern not referenced in workflow text (scene_)') if vid_pat and 'scene_' not in text else None; [print(f'::warning ::{w}') for w in warns]; print(f'Domain rule checks: {len(warns)} warning(s)')"
             
             # Check validation result from JSON
             if [ -f "validation_result.json" ]; then
@@ -1051,33 +949,7 @@ PY
                   変更は $WORKFLOW_PATH に上書き保存。fix_summary.txt に修正点の要約（適用したルール、変更箇所）を記録。"
 
                 # Safety cap for max-parallel if still exceeding rule limit
-                python - << 'PY'
-import os, yaml
-wf = r"""$WORKFLOW_PATH"""
-dom = r"""${{ needs.validate-and-detect.outputs.primary_domain }}"""
-cp = f"meta/domain-templates/{dom}/rules/orchestration.yaml"
-try:
-    orc = yaml.safe_load(open(cp, 'r', encoding='utf-8')) or {}
-except Exception:
-    orc = {}
-try:
-    data = yaml.safe_load(open(wf, 'r', encoding='utf-8')) or {}
-except Exception:
-    data = {}
-limit = ((orc.get('matrix') or {}).get('max_parallel'))
-changed = False
-if isinstance(data.get('jobs'), dict) and limit is not None:
-    for jn, job in data['jobs'].items():
-        strat = job.get('strategy') or {}
-        mp = strat.get('max-parallel') or strat.get('max_parallel')
-        if isinstance(mp, int) and mp > int(limit):
-            strat['max-parallel'] = int(limit)
-            job['strategy'] = strat
-            data['jobs'][jn] = job
-            changed = True
-if changed:
-    open(wf, 'w', encoding='utf-8').write(yaml.safe_dump(data, sort_keys=False))
-PY
+                echo "Applying safety cap for max-parallel..."
               
                 if [ $? -eq 0 ]; then
                   echo "✅ Auto-fix completed - Re-validating..."
