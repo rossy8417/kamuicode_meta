@@ -702,14 +702,18 @@ jobs:
           - 必ず workflow_generation_parameters.matrix_scene_list を使用してmatrix.sceneを設定
           - max-parallelは workflow_generation_parameters.max_parallel の値を使用
           - 固定値（例: batch: [1,2,3]）ではなく、計算された動的な値を使用すること
-          - 画像生成（T2I）→動画変換（I2V）は必ず同一ジョブ内で直列実行（URL期限対策）
-          - 各シーンジョブ構造：
-            1. phase1-audio-generation (独立ジョブまたは事前生成)
-            2. phase2-image-to-video (matrix並列ジョブ):
-               - step1: 画像生成 (T2I)
-               - step2: 即座に動画変換 (I2V) - 同一ジョブ内で直列
-            3. phase3-bgm-generation (独立ジョブ)
-            4. phase4-composition (全素材統合)
+          - ニュースキャスター/アンカーは一貫した人物を使用（seed固定）
+          - 画像生成（T2I）→動画変換（I2V）は別ジョブだが密接な依存関係で実装
+          - 推奨ジョブ構造：
+            1. phase1: 情報収集・リサーチ
+            2. phase2: コンテンツ構成・台本作成
+            3. phase3-scene-N-image: 各シーン画像生成（N並列ジョブ）
+               - ニュースキャスターは固定seed使用
+            4. phase4-scene-N-video: 各シーン動画変換（N並列ジョブ）
+               - needs: 対応するphase3-scene-N-image
+               - URL期限内に実行（早期開始）
+            5. phase5: 音声生成（ナレーション、BGM）
+            6. phase6: 最終編集・合成
 
           出力先（MUST）:
           - ワークフローを PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml に生成
@@ -883,8 +887,10 @@ jobs:
               echo "- 生成物は projects/ 配下に保存されていること";
               echo "- ジョブ間共有に artifacts を使用していること";
               echo "- video-productionドメインの場合:";
-              echo "  * 画像生成(T2I)→動画変換(I2V)が同一ジョブ内で直列実行されていること";
-              echo "  * 複数シーンがmatrix strategyで並列化されていること";
+              echo "  * 各シーン画像生成が独立ジョブ（phase3-scene-N-image）として存在";
+              echo "  * 各シーン動画変換が独立ジョブ（phase4-scene-N-video）として存在";
+              echo "  * phase4がphase3の対応するシーンに依存（needs）していること";
+              echo "  * ニュースキャスター用の固定seed値が設定されていること";
               echo "  * シーン数が動的に計算された値を使用していること";
               echo;
               echo "制約検証（任意）:";
