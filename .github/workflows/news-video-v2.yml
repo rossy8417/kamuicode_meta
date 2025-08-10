@@ -127,7 +127,7 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "WebSearch,Write,Bash" \
             --max-turns 40 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$RESEARCH_PROMPT"
           
           NEWS_DATA_FILE=$(find "$PROJECT_DIR" -name "*news*.json" | head -1)
@@ -203,7 +203,7 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "Write,Bash" \
             --max-turns 30 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$SCRIPT_PROMPT"
           
           SCRIPT_FILE=$(find "$PROJECT_DIR" -name "*script*.txt" | head -1)
@@ -288,12 +288,13 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__t2s-*,Write,Bash" \
             --max-turns 40 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$NARRATION_PROMPT"
           
           NARRATION_FILE=$(find "$PROJECT_DIR" -name "*.mp3" -o -name "*.wav" | head -1)
           if [ -z "$NARRATION_FILE" ]; then
             NARRATION_FILE="$PROJECT_DIR/media/audio/narration.mp3"
+            mkdir -p "$(dirname "$NARRATION_FILE")"
             echo "Placeholder narration audio" > "$NARRATION_FILE"
           fi
           
@@ -331,12 +332,13 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__t2i-*,Write,Bash" \
             --max-turns 40 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$PRESENTER_PROMPT"
           
           PRESENTER_FILE=$(find "$PROJECT_DIR" -name "*.png" -o -name "*.jpg" | head -1)
           if [ -z "$PRESENTER_FILE" ]; then
             PRESENTER_FILE="$PROJECT_DIR/media/images/presenter.png"
+            mkdir -p "$(dirname "$PRESENTER_FILE")"
             echo "Placeholder presenter image" > "$PRESENTER_FILE"
           fi
           
@@ -362,12 +364,13 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__t2m-*,Write,Bash" \
             --max-turns 40 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$BGM_PROMPT"
           
           BGM_FILE=$(find "$PROJECT_DIR" -name "*.wav" -o -name "*.mp3" | grep -i bgm | head -1)
           if [ -z "$BGM_FILE" ]; then
             BGM_FILE="$PROJECT_DIR/media/audio/bgm.wav"
+            mkdir -p "$(dirname "$BGM_FILE")"
             echo "Placeholder BGM audio" > "$BGM_FILE"
           fi
           
@@ -432,12 +435,13 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__t2i-*,Write,Bash" \
             --max-turns 40 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$SCENE_PROMPT"
           
           SCENE_IMAGE=$(find "$PROJECT_DIR" -name "*scene${SCENE_NUM}*" -name "*.png" -o -name "*.jpg" | head -1)
           if [ -z "$SCENE_IMAGE" ]; then
             SCENE_IMAGE="$PROJECT_DIR/media/images/scene${SCENE_NUM}.png"
+            mkdir -p "$(dirname "$SCENE_IMAGE")"
             echo "Placeholder scene $SCENE_NUM image" > "$SCENE_IMAGE"
           fi
           
@@ -521,7 +525,7 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__i2v-*,Write,Bash" \
             --max-turns 80 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$VIDEO_PROMPT"
           
           SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*scene${SCENE_NUM}*" -name "*.mp4" | head -1)
@@ -532,6 +536,7 @@ jobs:
               SCENE_VIDEO="$PROJECT_DIR/media/videos/scene${SCENE_NUM}.mp4"
             else
               SCENE_VIDEO="$PROJECT_DIR/media/videos/scene${SCENE_NUM}.mp4"
+              mkdir -p "$(dirname "$SCENE_VIDEO")"
               echo "Placeholder video for scene $SCENE_NUM" > "$SCENE_VIDEO"
             fi
           fi
@@ -614,7 +619,7 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__v2v-*,Write,Bash" \
             --max-turns 80 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$LIPSYNC_PROMPT"
           
           # Check lipsync results
@@ -680,12 +685,13 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "mcp__t2i-*,Write,Bash" \
             --max-turns 40 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$GRAPHICS_PROMPT"
           
           GRAPHICS_FILE=$(find "$PROJECT_DIR" -name "*graphic*" -o -name "*overlay*" -o -name "*banner*" | head -1)
           if [ -z "$GRAPHICS_FILE" ]; then
             GRAPHICS_FILE="$PROJECT_DIR/media/images/news_graphics.png"
+            mkdir -p "$(dirname "$GRAPHICS_FILE")"
             echo "Placeholder graphics" > "$GRAPHICS_FILE"
           fi
           
@@ -760,13 +766,14 @@ jobs:
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "Write,Bash" \
             --max-turns 50 \
-            --permission-mode "acceptEdits" \
+            --permission-mode "acceptAll" \
             -p "$EDITING_PROMPT"
           
           # Find final video
           FINAL_VIDEO=$(find "$PROJECT_DIR" -name "*final*.mp4" -o -name "*complete*.mp4" -o -name "*news*.mp4" | head -1)
           if [ -z "$FINAL_VIDEO" ]; then
             FINAL_VIDEO="$PROJECT_DIR/final/news_video_60s.mp4"
+            mkdir -p "$(dirname "$FINAL_VIDEO")"
             echo "Placeholder final video" > "$FINAL_VIDEO"
           fi
           
