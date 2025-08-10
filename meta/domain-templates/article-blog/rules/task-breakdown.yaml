@@ -1,0 +1,34 @@
+# Task breakdown rules (Article/Blog)
+# Purpose: Decompose high-level writing tasks into concrete, atomic steps.
+
+version: 1
+scope: article_blog
+
+principles:
+  - MUST write all outputs under ${PROJECT_DIR}
+  - MUST avoid local path in `uses:`; implement with `run`
+  - MUST share data between jobs via artifacts
+
+breakdown:
+  outline:
+    - MUST create article_outline.json with sections array (title, key_points)
+    - SHOULD include target_keywords and internal_links plan
+
+  drafting:
+    - MUST produce draft.md from outline
+    - SHOULD include citations/links placeholders
+
+  editing:
+    - MUST run readability/SEO checks and update draft.md
+    - SHOULD ensure keyword density and structure targets
+
+  publishing:
+    - SHOULD export final.md and metadata.json
+
+file_layout:
+  - drafts: ${PROJECT_DIR}/content/draft.md
+  - final:  ${PROJECT_DIR}/final/final.md
+  - metadata: ${PROJECT_DIR}/metadata/
+
+validation:
+  - MUST verify draft and final exist before marking success
