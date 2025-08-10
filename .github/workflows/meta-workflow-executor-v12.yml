@@ -433,6 +433,12 @@ jobs:
               "critical_path": [],
               "optimization_rationale": "最適化の理由"
             },
+            "workflow_generation_parameters": {
+              "calculated_scene_count": "constraints.yamlのscene_calculationに基づいて計算した数値",
+              "matrix_scene_list": "[1, 2, 3, ...]の形式で計算されたシーンリスト",
+              "max_parallel": "calculated_scene_countと同じ値",
+              "assumed_scene_duration": "計算で使用した1シーンあたりの秒数"
+            },
             "total_estimated_duration": "30分",
             "domain_specific_constraints": []
           }
@@ -657,6 +663,7 @@ jobs:
 
           入力（必ず参照）:
           1. タスク分解: artifacts/task-decomposition/professional_task_decomposition.json
+             特に重要: workflow_generation_parameters セクションの calculated_scene_count と matrix_scene_list
           2. 最適化順序(任意): artifacts/optimized-task-order/optimized_task_order.json
           3. 入力スキーマ(必須): artifacts/domain-input-schema/input-schema.yaml
           4. 必須入力一覧(任意): artifacts/required_inputs.json / artifacts/required_input_keys.txt
@@ -685,6 +692,11 @@ jobs:
           - 画像→動画など明示的な直列要件が constraints/rules で示される場合、対象アイテム/シーンごとに「直列チェーン」を同一ジョブ内で実行し、全体を matrix で並列化（max-parallel は constraints に従う）。
           - 類似作業（例: スライド複数枚生成）は並列最適化。ただしデータ依存がある場合は直列化。
           - ドメインが指定されていない・制約が無い場合は、タスク分解/最適化順序に基づく一般的な直列/並列構成とする。
+          
+          重要: video-productionドメインの場合:
+          - 必ず workflow_generation_parameters.matrix_scene_list を使用してmatrix.sceneを設定
+          - max-parallelは workflow_generation_parameters.max_parallel の値を使用
+          - 固定値（例: batch: [1,2,3]）ではなく、計算された動的な値を使用すること
 
           出力先（MUST）:
           - ワークフローを PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml に生成
