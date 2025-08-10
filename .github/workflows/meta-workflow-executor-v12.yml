@@ -832,6 +832,43 @@ jobs:
             else
               echo "::warning::No input schema file found for validation"
             fi
+
+            # Static structural checks (non-domain specific)
+            echo "🔎 Static structural checks..."
+            python - << 'PY'
+import os, re, sys, yaml
+wf_path = os.environ.get('WORKFLOW_PATH')
+text = open(wf_path, 'r', encoding='utf-8').read()
+data = yaml.safe_load(text) or {}
+jobs = data.get('jobs') or {}
+warnings = []
+
+# Check local 'uses:' patterns
+for job_name, job in (jobs or {}).items():
+    for step in (job or {}).get('steps', []) or []:
+        if isinstance(step, dict) and 'uses' in step:
+            uses = str(step['uses']).strip()
+            if uses.startswith('./') or uses.startswith('../') or uses.startswith('/'):
+                warnings.append(f"Local action reference detected in job '{job_name}': uses={uses}")
+            if '@' not in uses and not uses.startswith('docker://'):
+                warnings.append(f"Suspicious action reference (missing @) in job '{job_name}': uses={uses}")
+
+# Check ${PROJECT_DIR} usage hint
+if '${PROJECT_DIR}/' not in text:
+    warnings.append('No ${PROJECT_DIR}/ occurrences found. Ensure all outputs are under ${PROJECT_DIR}.')
+
+# Check artifact usage presence
+artifact_upload = bool(re.search(r'actions/upload-artifact@', text))
+artifact_download = bool(re.search(r'actions/download-artifact@', text))
+if not artifact_upload:
+    warnings.append('actions/upload-artifact not found.')
+if not artifact_download:
+    warnings.append('actions/download-artifact not found.')
+
+for w in warnings:
+    print(f"::warning ::{w}")
+print(f"Static checks: {len(warnings)} warning(s)")
+PY
             
             # Domain-aware validation (generic, non-specialized)
             echo "🔍 Executing domain-aware validation (generic)..."
