@@ -24,7 +24,7 @@
 ### **核心コンポーネント**
 - **`minimal-units/`**: 88個の再利用可能なワークフロー部品（画像、動画、音声、企画、外部API等）
 - **`kamuicode-workflow/`**: 参考となるオーケストレーター・モジュールパターン
-- **`.github/workflows/meta-workflow-executor-v12.yml`**: Claude Code SDKベースの動的メタワークフロー
+- **`.github/workflows/meta-workflow-executor-v12.yml`**: Claude Code SDKベースの動的メタワークフロー（ドメイン非依存の汎用設計 + ドメインMUST強制）
 - **`.github/workflows/auto-fix-deployment.yml`**: 自動デプロイ・エラー回復システム
 - **`.github/workflows/continuous-system-monitor.yml`**: システム健全性監視
 - **`meta/prompts/`**: タスク分解、ユニット選択、ワークフロー生成用プロンプト
@@ -154,6 +154,34 @@
 - **通信**: Slack、Discord、Telegram、SendGrid
 - **データ**: NewsAPI、天気、Google Sheets、株価、arXiv
 - **開発**: GitHub API、Notion
+
+## 🧭 ドメインテンプレート参照ポリシー（v12強化）
+
+- 汎用メタ（v12）は常に以下を参照してワークフローを生成します。
+  - タスク分解結果（artifacts）/ 最適化順序（任意）/ 入力スキーマ（必須）/ 必須入力一覧（任意）
+  - ドメインテンプレート（constraints.yaml / workflow-patterns.yaml / input-schema.yaml）
+  - 追加ルール・チェックリスト（constraints.yaml の `rule_references` / `checklist_references`）
+- MUST（必ず守る）
+  - ローカル`uses:`禁止、出力は必ず`${PROJECT_DIR}`配下、ジョブ間共有は`actions/upload-artifact`/`download-artifact`
+  - ドメインにrules/checklistsが存在する場合はMUSTを優先して適用
+  - 複数ドメイン検出時は全ルールを統合し、競合時は安全側（厳しい方）を採用
+- 代表的なドメイン規則（例）
+  - Video Production: `rules/orchestration.yaml`に基づく直列（画像→i2v）× 全体並列（matrix）、max-parallel上限、命名規約
+  - Presentation: アウトライン→レイアウト→画像書き出しの直列化、スライド数の事前計算
+  - Article/Blog: アウトライン→ドラフト→編集→公開までの原子タスク化、SEO/可読性チェック
+
+ディレクトリ例:
+```
+meta/domain-templates/
+└── video-production/
+    ├── constraints.yaml
+    ├── rules/
+    │   ├── task-breakdown.yaml
+    │   ├── orchestration.yaml
+    │   └── consistency.yaml
+    └── checklists/
+        └── news-specific.md
+```
 
 ## 🛡️ 環境分離システム
 
