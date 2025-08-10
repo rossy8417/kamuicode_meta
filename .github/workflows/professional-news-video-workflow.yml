@@ -415,7 +415,7 @@ jobs:
 
   phase4-scene-videos:
     runs-on: ubuntu-latest
-    needs: [setup, phase3-parallel-assets]
+    needs: [setup]  # Phase1と並列実行して早期にMCP接続を利用
     strategy:
       max-parallel: 12
       matrix:
@@ -444,17 +444,11 @@ jobs:
           SCENE_NUM="${{ matrix.scene }}"
           VISUAL_STYLE="${{ inputs.visual_style }}"
           
-          # MCP接続時間チェック（12分以内での安全実行）
-          WORKFLOW_START="${{ github.run_started_at }}"
-          ELAPSED_MINUTES=$(( ($(date +%s) - $(date -d "$WORKFLOW_START" +%s)) / 60 ))
-          
-          if [ $ELAPSED_MINUTES -lt 12 ]; then
-            echo "✅ MCP接続安全範囲内 (${ELAPSED_MINUTES}分経過)"
-            USE_MCP=true
-          else
-            echo "⚠️ MCP接続タイムアウトリスク (${ELAPSED_MINUTES}分経過) - フォールバック使用"
-            USE_MCP=false
-          fi
+          # MCP接続は最初の12分間のみ有効
+          # Phase1-3で約10分使用済みなので、Phase4では使用不可
+          # TODO: Phase4をPhase2と並列実行するよう構造を変更する必要がある
+          USE_MCP=true
+          echo "⚠️ Phase4: MCP接続試行（タイムアウトリスクあり）"
           
           if [ "$USE_MCP" = "true" ]; then
             SCENE_PROMPT="シーン${SCENE_NUM}動画生成:
