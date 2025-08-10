@@ -37,6 +37,23 @@ Phase 3: Generate all images → (time elapsed・URL expiration) → Phase 4: Vi
 
 ## 🔧 **Technical Implementation Specific Patterns**
 
+### **Shell Script Syntax Validation** (Added 2025-08-10)
+- [ ] **No Multi-line Strings in Shell Variables**: Extract to separate variables first
+- [ ] **No Hardcoded Paths**: Use dynamic references like `${{ needs.job.outputs.var }}`
+- [ ] **Proper Variable Expansion**: Use `${VAR}` format, not `$VAR` in strings
+- [ ] **Quote Handling**: Ensure all quotes are properly closed in YAML strings
+
+```bash
+# ❌ AVOID: Multi-line strings cause syntax errors
+PROMPT="Line 1
+Line 2
+Line 3"
+
+# ✅ CORRECT: Single-line construction
+CONTENT="Line 1, Line 2, Line 3"
+PROMPT="Prompt text: ${CONTENT}"
+```
+
 ### **URL Management & Expiration Countermeasures**
 - [ ] **Google Cloud Storage URL Storage**: Persistence via text file
 - [ ] **URL vs File Path Judgment**: Google URL for MCP service, local path for fallback

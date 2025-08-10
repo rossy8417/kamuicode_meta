@@ -103,7 +103,7 @@ jobs:
       - name: Setup Project Directory
         id: setup
         run: |
-          PROJECT_DIR="/home/runner/work/kamuicode_meta/kamuicode_meta/projects/issue-66-20250810-084033"
+          PROJECT_DIR="${{ needs.phase1-news-research.outputs.project_dir }}"
           mkdir -p "$PROJECT_DIR"/{metadata,logs,media/{images,videos,audio,3d},final}
           echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
           echo "Project directory: $PROJECT_DIR"
@@ -116,19 +116,11 @@ jobs:
           
           echo "[$(date)] Starting news research for topic: $TOPIC" >> "$PROJECT_DIR/logs/execution.log"
           
-          RESEARCH_PROMPT="指定されたトピック「$TOPIC」について最新ニュースを収集し分析してください。
-
-          要求事項:
-          1. 複数の信頼性の高い情報源からニュースを収集
-          2. 情報の信頼性評価とファクトチェック実施
-          3. 最低3つの独立した情報源から情報収集
-          4. 時系列で整理し、重要度でランキング
-          5. 60秒動画に適したニュース構成を提案
+          # Extract content first to avoid shell syntax issues
+          RESEARCH_REQUIREMENTS="複数の信頼性の高い情報源からニュースを収集、情報の信頼性評価とファクトチェック実施、最低3つの独立した情報源から情報収集、時系列で整理して重要度でランキング、60秒動画に適したニュース構成を提案"
+          RESEARCH_OUTPUT="収集したニュース情報をJSON形式で保存、信頼性スコアと情報源を明記、動画構成案を含む"
           
-          出力要求:
-          - 収集したニュース情報をJSON形式で保存
-          - 信頼性スコアと情報源を明記
-          - 動画構成案を含む"
+          RESEARCH_PROMPT="指定されたトピック『${TOPIC}』について最新ニュースを収集し分析してください。要求事項: ${RESEARCH_REQUIREMENTS}。出力要求: ${RESEARCH_OUTPUT}"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -189,9 +181,11 @@ jobs:
           
           echo "[$(date)] Creating script and scene design" >> "$PROJECT_DIR/logs/execution.log"
           
+          NEWS_DATA_CONTENT=$(cat "$NEWS_DATA" 2>/dev/null || echo '{}')
+          
           SCRIPT_PROMPT="収集されたニュース情報を基に、60秒動画用の構成と日本語ナレーション脚本を作成してください。
 
-          入力データ: $(cat "$NEWS_DATA" 2>/dev/null || echo '{}')"
+          入力データ: ${NEWS_DATA_CONTENT}
           
           要求事項:
           1. 60秒以内の動画用構成（導入→主要事実→背景説明→まとめ→情報源明記）
@@ -357,15 +351,11 @@ jobs:
           
           echo "[$(date)] Generating background music" >> "$PROJECT_DIR/logs/execution.log"
           
-          BGM_PROMPT="ニュース番組に適した背景音楽を生成してください。
-
-          要求仕様:
-          - ニュース番組風のプロフェッショナルなBGM
-          - ナレーションを邪魔しない音量レベル
-          - 60秒以上の長さ（ループ対応）
-          - 重要ポイントでの効果音も含める
+          # Extract content first to avoid shell syntax issues
+          BGM_SPECS="ニュース番組風のプロフェッショナルなBGM、ナレーションを邪魔しない音量レベル、60秒以上の長さ（ループ対応）、重要ポイントでの効果音も含める"
+          BGM_STYLE="News broadcast background music, professional, subtle, 60 seconds"
           
-          スタイル: News broadcast background music, professional, subtle, 60 seconds"
+          BGM_PROMPT="ニュース番組に適した背景音楽を生成してください。要求仕様: ${BGM_SPECS}。スタイル: ${BGM_STYLE}"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -431,19 +421,11 @@ jobs:
           
           echo "[$(date)] Generating scene $SCENE_NUM image" >> "$PROJECT_DIR/logs/execution.log"
           
-          SCENE_PROMPT="ニュース番組のシーン$SCENE_NUM用の画像を生成してください。
-
-          トピック: $TOPIC
-          シーン番号: $SCENE_NUM / 12
+          # Extract content first to avoid shell syntax issues
+          SCENE_SPECS="プロフェッショナルなニュースキャスター（一貫した人物）、ニューススタジオの背景、1920x1080解像度、リップシンク対応可能な構図、シーン${SCENE_NUM}に適した表情と姿勢"
+          SCENE_VISUAL="Professional news anchor scene ${SCENE_NUM}, news studio, consistent character, 1920x1080, broadcast quality, front facing"
           
-          要求仕様:
-          - プロフェッショナルなニュースキャスター（一貫した人物）
-          - ニューススタジオの背景
-          - 1920x1080解像度
-          - リップシンク対応可能な構図
-          - シーン$SCENEに適した表情と姿勢
-          
-          プロンプト: 'Professional news anchor scene $SCENE_NUM, news studio, consistent character, 1920x1080, broadcast quality, front facing'"
+          SCENE_PROMPT="ニュース番組のシーン${SCENE_NUM}用の画像を生成してください。トピック: ${TOPIC}、シーン番号: ${SCENE_NUM}/12。要求仕様: ${SCENE_SPECS}。プロンプト: ${SCENE_VISUAL}"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -529,18 +511,10 @@ jobs:
             IMAGE_REF="$SCENE_IMAGE"
           fi
           
-          VIDEO_PROMPT="画像を動画に変換してください。
-
-          入力画像: $IMAGE_REF
+          # Extract content first to avoid shell syntax issues
+          VIDEO_SPECS="6-8秒の動画長、1920x1080解像度、30fps、ニュースキャスターの自然な動き、リップシンク対応可能な品質"
           
-          要求仕様:
-          - 6-8秒の動画長
-          - 1920x1080解像度
-          - 30fps
-          - ニュースキャスターの自然な動き
-          - リップシンク対応可能な品質
-          
-          シーン$SCENE_NUM用動画生成"
+          VIDEO_PROMPT="画像を動画に変換してください。入力画像: ${IMAGE_REF}。要求仕様: ${VIDEO_SPECS}。シーン${SCENE_NUM}用動画生成"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -629,21 +603,11 @@ jobs:
           VIDEO_COUNT=$(echo "$VIDEO_FILES" | wc -l)
           echo "Found $VIDEO_COUNT scene videos for lipsync"
           
-          LIPSYNC_PROMPT="すべてのシーン動画にナレーション音声を同期させたリップシンクを適用してください。
-
-          ナレーション音声: $NARRATION
-          シーン動画数: $VIDEO_COUNT
+          # Extract content first to avoid shell syntax issues
+          VIDEO_LIST=$(echo "$VIDEO_FILES" | nl)
+          LIPSYNC_SPECS="音素解析による正確なリップシンク、±50ms許容範囲での同期精度、全12シーンへの適用、プロフェッショナルなニュース番組品質"
           
-          処理対象動画:
-          $(echo "$VIDEO_FILES" | nl)
-          
-          要求仕様:
-          - 音素解析による正確なリップシンク
-          - ±50ms許容範囲での同期精度
-          - 全12シーンへの適用
-          - プロフェッショナルなニュース番組品質
-          
-          各シーンの音声区間を自動分割し、対応する動画にリップシンクを適用"
+          LIPSYNC_PROMPT="すべてのシーン動画にナレーション音声を同期させたリップシンクを適用してください。ナレーション音声: ${NARRATION}、シーン動画数: ${VIDEO_COUNT}。処理対象動画: ${VIDEO_LIST}。要求仕様: ${LIPSYNC_SPECS}。各シーンの音声区間を自動分割し、対応する動画にリップシンクを適用"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -704,23 +668,12 @@ jobs:
           
           echo "[$(date)] Creating news graphics and overlays" >> "$PROJECT_DIR/logs/execution.log"
           
-          GRAPHICS_PROMPT="ニュース番組用のグラフィック要素を作成してください。
-
-          トピック: $TOPIC
-          ニュースデータ: $(cat "$NEWS_DATA" 2>/dev/null || echo '{}')"
+          # Extract content first to avoid shell syntax issues
+          NEWS_DATA_CONTENT=$(cat "$NEWS_DATA" 2>/dev/null || echo '{}')
+          GRAPHICS_REQUIREMENTS="情報源表示バナー（信頼性を示すデザイン）、ニュース番組ロゴ・タイトル、統計データの視覚化（該当する場合）、Lower third（画面下部情報表示）、背景グラフィック要素"
+          DESIGN_SPECS="color_psychologyでblue（信頼性）を基調、読みやすい文字サイズとコントラスト、プロフェッショナルなニュース番組スタイル、1920x1080解像度対応"
           
-          作成要求:
-          1. 情報源表示バナー（信頼性を示すデザイン）
-          2. ニュース番組ロゴ・タイトル
-          3. 統計データの視覚化（該当する場合）
-          4. Lower third（画面下部情報表示）
-          5. 背景グラフィック要素
-          
-          デザイン要求:
-          - color_psychologyでblue（信頼性）を基調
-          - 読みやすい文字サイズとコントラスト
-          - プロフェッショナルなニュース番組スタイル
-          - 1920x1080解像度対応"
+          GRAPHICS_PROMPT="ニュース番組用のグラフィック要素を作成してください。トピック: ${TOPIC}、ニュースデータ: ${NEWS_DATA_CONTENT}。作成要求: ${GRAPHICS_REQUIREMENTS}。デザイン要求: ${DESIGN_SPECS}"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
@@ -796,30 +749,11 @@ jobs:
           echo "- BGM: $(basename "$BGM" 2>/dev/null || echo "not found")"
           echo "- Graphics: $(basename "$GRAPHICS" 2>/dev/null || echo "not found")"
           
-          EDITING_PROMPT="すべての素材を統合して、プロフェッショナルなニュース番組品質の最終動画を作成してください。
-
-          統合素材:
-          - シーン動画: $VIDEO_COUNT個のシーン
-          - ナレーション音声: $NARRATION
-          - BGM: $BGM
-          - グラフィック要素: $GRAPHICS
+          # Extract content first to avoid shell syntax issues
+          EDIT_SPECS="目標長: ${DURATION}、プラットフォーム: ${TARGET_PLATFORM}、解像度: 1920x1080、フレームレート: 30fps、音声レベル: -14 LUFS（YouTube最適化）"
+          EDIT_REQUIREMENTS="全シーンの適切な順序での結合、スムーズなトランジション効果、BGMとナレーションの適切なミックス、グラフィック要素のオーバーレイ、カラーグレーディング統一、最終品質チェック"
           
-          編集仕様:
-          - 目標長: $DURATION
-          - プラットフォーム: $TARGET_PLATFORM
-          - 解像度: 1920x1080
-          - フレームレート: 30fps
-          - 音声レベル: -14 LUFS（YouTube最適化）
-          
-          編集要求:
-          1. 全シーンの適切な順序での結合
-          2. スムーズなトランジション効果
-          3. BGMとナレーションの適切なミックス
-          4. グラフィック要素のオーバーレイ
-          5. カラーグレーディング統一
-          6. 最終品質チェック
-          
-          Claude Code SDKでFFmpegコマンド生成し、プロフェッショナル品質で完成"
+          EDITING_PROMPT="すべての素材を統合して、プロフェッショナルなニュース番組品質の最終動画を作成してください。統合素材: シーン動画${VIDEO_COUNT}個、ナレーション音声: ${NARRATION}、BGM: ${BGM}、グラフィック要素: ${GRAPHICS}。編集仕様: ${EDIT_SPECS}。編集要求: ${EDIT_REQUIREMENTS}。Claude Code SDKでFFmpegコマンド生成し、プロフェッショナル品質で完成"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
