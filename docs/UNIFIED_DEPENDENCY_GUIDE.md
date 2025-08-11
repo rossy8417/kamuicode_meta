@@ -476,6 +476,41 @@ Skippable:
 3. **Single search pattern**: Always use 3+ search patterns
 4. **Ignoring URL expiration**: Always check URL validity before use
 5. **Creating placeholders too early**: Exhaust all search options first
+6. **Direct curl of GCS URLs**: Always check protocol before using curl
+
+### 🔧 GCS URL Handling Pattern
+
+**CRITICAL**: Google Cloud Storage URLs (gs://) cannot be downloaded with curl.
+
+```bash
+# ❌ WRONG - curl doesn't support gs:// protocol
+curl -L -o "image.png" "gs://bucket/path/image.png"
+
+# ✅ CORRECT - Check protocol first
+if [ -f "$URL_PATH" ]; then
+  URL_CONTENT=$(cat "$URL_PATH")
+  if [[ "$URL_CONTENT" == gs://* ]]; then
+    echo "⚠️ GCS URL detected"
+    if command -v gsutil >/dev/null; then
+      gsutil cp "$URL_CONTENT" "image.png"
+    else
+      echo "❌ gsutil not available, cannot download GCS URL"
+    fi
+  else
+    curl -L -o "image.png" "$URL_CONTENT"
+  fi
+fi
+
+# ✅ ALSO CORRECT - Handle URL validity checks
+if [[ "$IMAGE_URL" == gs://* ]]; then
+  # For GCS URLs, skip curl validity check
+  IMAGE_REF="$LOCAL_IMAGE"  # Use local file
+elif curl -IfsS --max-time 5 "$IMAGE_URL" >/dev/null 2>&1; then
+  IMAGE_REF="$IMAGE_URL"  # HTTPS URL is valid
+else
+  IMAGE_REF="$LOCAL_IMAGE"  # URL expired
+fi
+```
 
 ### ✅ Success Criteria
 

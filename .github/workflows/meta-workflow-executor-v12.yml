@@ -824,10 +824,14 @@ jobs:
               sed -i '/^\s*outputs:/,/^\s*steps:/{/matrix\./d}' "$WORKFLOW_PATH"
             fi
             
-            # Fix GCS URL handling
-            if grep -q 'curl.*gs://' "$WORKFLOW_PATH" 2>/dev/null; then
-              echo "⚠️ Found direct curl of GCS URLs, fixing..."
-              # Replace curl with proper GCS handling
+            # Fix GCS URL handling - comprehensive approach
+            if grep -q 'curl.*gs://' "$WORKFLOW_PATH" 2>/dev/null || grep -q '\[ -f.*URL_PATH.*\] && curl' "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Found curl operations that may encounter GCS URLs, fixing..."
+              
+              # Fix simple one-line curl commands that read URLs from files
+              sed -i 's/\[ -f "\$URL_PATH" \] && curl -L -o "\([^"]*\)" "\$(cat \$URL_PATH)"/if [ -f "$URL_PATH" ]; then\n  URL_CONTENT=$(cat "$URL_PATH")\n  if [[ "$URL_CONTENT" == gs:\/\/* ]]; then\n    echo "⚠️ GCS URL detected, attempting gsutil..."\n    if command -v gsutil >\/dev\/null; then\n      gsutil cp "$URL_CONTENT" "\1"\n    else\n      echo "❌ gsutil not available, skipping GCS URL"\n    fi\n  else\n    curl -L -o "\1" "$URL_CONTENT"\n  fi\nfi/' "$WORKFLOW_PATH"
+              
+              # Fix direct curl of GCS URLs
               sed -i 's/curl -L -o "\([^"]*\)" "\(gs:\/\/[^"]*\)"/# GCS URL detected: \2\n  if command -v gsutil >/dev/null; then\n    gsutil cp "\2" "\1"\n  else\n    echo "Skipping GCS URL (gsutil not available): \2"\n  fi/' "$WORKFLOW_PATH"
             fi
             
@@ -930,6 +934,15 @@ jobs:
             echo "❌ ERROR: Direct curl of GCS URLs detected"
             echo "  curl does not support gs:// protocol"
             echo "  Use gsutil or convert to signed https:// URL"
+            VALIDATION_PASSED=false
+          fi
+          
+          # Check for URL validity checks that don't handle GCS
+          if grep -q 'curl -IfsS.*URL' "$WORKFLOW_PATH" 2>/dev/null; then
+            if ! grep -B2 -A2 'curl -IfsS' "$WORKFLOW_PATH" | grep -q 'if.*gs://'; then
+              echo "⚠️ WARNING: URL validity checks may fail on GCS URLs"
+              echo "  Consider adding GCS URL detection before curl checks"
+            fi
           fi
           
           echo "✅ データフロー検証完了"
