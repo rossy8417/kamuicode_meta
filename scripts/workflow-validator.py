@@ -90,6 +90,24 @@ class WorkflowValidator:
             self.content = re.sub(r'^"on":', 'on:', self.content, flags=re.MULTILINE)
             self.fixes_applied.append("Fixed quoted 'on' field")
         
+        # Remove invalid matrix references in outputs
+        if re.search(r'outputs:.*\$\{\{\s*matrix\.', self.content):
+            # Remove lines with matrix references in outputs sections
+            lines = self.content.split('\n')
+            new_lines = []
+            in_outputs = False
+            for line in lines:
+                if re.match(r'^\s*outputs:', line):
+                    in_outputs = True
+                elif re.match(r'^\s*steps:', line) or (in_outputs and re.match(r'^\s*\w+:', line) and not re.match(r'^\s+', line)):
+                    in_outputs = False
+                
+                if not (in_outputs and 'matrix.' in line):
+                    new_lines.append(line)
+            
+            self.content = '\n'.join(new_lines)
+            self.fixes_applied.append("Removed invalid matrix references in outputs")
+        
         # Fix HEREDOC patterns
         self.content = self._fix_heredoc_patterns(self.content)
         if self.content != original_content:
@@ -176,14 +194,19 @@ class WorkflowValidator:
             self.errors.append("Empty YAML file")
             return False
             
-        required_fields = ['name', 'on', 'jobs']
+        # Special handling for 'on' field (can be parsed as True in YAML 1.1)
+        required_fields = ['name', 'jobs']
         for field in required_fields:
             if field not in self.yaml_data:
                 self.errors.append(f"Missing required field: '{field}'")
+        
+        # Check for 'on' field (might be parsed as True)
+        if 'on' not in self.yaml_data and True not in self.yaml_data:
+            self.errors.append("Missing required field: 'on'")
                 
         # Check workflow_dispatch if present
-        if 'on' in self.yaml_data:
-            on_config = self.yaml_data['on']
+        on_config = self.yaml_data.get('on') or self.yaml_data.get(True)
+        if on_config:
             if isinstance(on_config, dict) and 'workflow_dispatch' in on_config:
                 dispatch = on_config['workflow_dispatch']
                 if dispatch is None:
@@ -252,6 +275,10 @@ class WorkflowValidator:
         # Check for quoted "on" field (GitHub Actions requires it unquoted)
         if re.search(r'^"on":', self.content, re.MULTILINE):
             self.errors.append('"on" field must not be quoted - GitHub Actions requires: on:')
+            
+        # Check for matrix references in outputs section
+        if re.search(r'outputs:.*\$\{\{\s*matrix\.', self.content):
+            self.errors.append('Invalid matrix references in outputs - GitHub Actions does not allow ${{ matrix.* }} in job outputs')
             
         # Check for absolute paths
         if re.search(r'path:\s*[\'"]?/[^$\s\'"]', self.content):

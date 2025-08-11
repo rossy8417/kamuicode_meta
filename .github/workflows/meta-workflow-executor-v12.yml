@@ -678,6 +678,8 @@ jobs:
           - MUST: Use actions/upload-artifact / download-artifact for job sharing
           - MUST: workflow_dispatch.inputs must reflect input-schema.yaml and required inputs list (enum→choice, default, description, supplement required keys)
           - MUST: Prohibit absolute paths or root-level outputs, always use PROJECT_DIR_PLACEHOLDER
+          - MUST: Never use matrix variables in job outputs section (outputs cannot reference ${{ matrix.* }})
+          - MUST: Matrix strategy can only be used within steps, not in outputs definition
           - MUST: Include the following in environment variable section (env:):
             env:
               CLAUDE_CODE_CI_MODE: true
@@ -811,6 +813,14 @@ jobs:
             # Make sure it's unquoted (in case Claude Code quoted it)
             sed -i 's/^"on":$/on:/' "$WORKFLOW_PATH"
             
+            # Remove invalid matrix references in outputs section
+            # GitHub Actions doesn't allow ${{ matrix.* }} in job outputs
+            if grep -q 'outputs:.*matrix\.' "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Found invalid matrix references in outputs, removing..."
+              # Remove lines with matrix references in outputs sections
+              sed -i '/^\s*outputs:/,/^\s*steps:/{/matrix\./d}' "$WORKFLOW_PATH"
+            fi
+            
             # Ensure workflow ends properly (no trailing content)
             # Add a newline at the end if missing
             if [ -n "$(tail -c 1 "$WORKFLOW_PATH")" ]; then
@@ -896,6 +906,13 @@ jobs:
           if [ "$FIND_COUNT" -lt 3 ]; then
             echo "⚠️ WARNING: ファイル検索パターンが少ない可能性があります（現在: $FIND_COUNT回）"
             echo "  推奨: 最低3パターンで検索（特定名、時間ベース、汎用）"
+          fi
+          
+          # Check for invalid matrix references in outputs
+          if grep -q 'outputs:.*matrix\.' "$WORKFLOW_PATH" 2>/dev/null; then
+            echo "❌ ERROR: Invalid matrix references found in outputs section"
+            echo "  GitHub Actions does not allow \${{ matrix.* }} in job outputs"
+            echo "  Found: $(grep 'outputs:.*matrix\.' "$WORKFLOW_PATH")"
           fi
           
           echo "✅ データフロー検証完了"
