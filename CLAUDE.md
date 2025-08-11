@@ -8,12 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### For workflow generation & dependencies
 → **`docs/UNIFIED_DEPENDENCY_GUIDE.md`** (AI-optimized, single source)
+→ **`docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md`** (CRITICAL: Prevent placeholder issues)
 
 ### For minimal unit selection & catalog
 → **`minimal-units/MINIMAL_UNITS_CATALOG.md`** (80 units, full paths)
 
 ### For technical implementation details
 → **`docs/UNIT_INTERFACE_SPEC.md`** (YAML interface specs)
+→ **`docs/MINIMAL_UNIT_CONNECTION_PATTERNS.md`** (Data flow between units)
 
 ### For prompt creation & meta-workflow design
 → **`meta/prompts/`** directory specific prompt files
@@ -79,6 +81,12 @@ Optimal Order:
 ## Project Status
 
 This is a **Meta Workflow Generator System (Kamui Rossy)** built with Claude Code GitHub Actions integration. The system uses **template-based generation** with **staged deployment system** to generate high-quality, executable GitHub Actions workflows efficiently.
+
+### Recent Critical Updates (2025-08-11)
+- **Data Persistence Issue Resolved**: Claude Code SDK executes MCP tools but doesn't save files locally without explicit instructions
+- **Documentation Consolidated**: All Claude Code patterns unified in `CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md`
+- **Language Standardization**: All AI-referenced documentation converted to English
+- **Meta-workflow v12 Enhanced**: Includes concrete code templates for file search and URL handling
 
 ## CLI Environment Recognition
 
@@ -294,6 +302,57 @@ jobs:
 
 ## Critical Workflow Generation Rules (MUST FOLLOW)
 
+### 🚨 Data Persistence Patterns (CRITICAL - Prevents Placeholder Issues)
+
+**Root Cause**: Claude Code SDK successfully executes MCP tools but doesn't save files locally without explicit instructions.
+
+#### MANDATORY Pattern for T2I Generation
+```bash
+# Step 1: Define explicit paths
+SAVE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+URL_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}-url.txt"
+
+# Step 2: Claude Code prompt with explicit save instructions
+PROMPT="Generate image following these steps:
+1. Generate image with MCP tool mcp__t2i-kamui-imagen3__imagen_t2i
+2. Save to ${SAVE_PATH} using Write tool
+3. Save URL to ${URL_PATH} using Write tool
+4. Execute ls -la ${PROJECT_DIR}/media/images/ using Bash tool"
+
+# Step 3: Include Write and Bash tools
+npx @anthropic-ai/claude-code \
+  --allowedTools "mcp__t2i-*,Write,Bash" \
+  -p "$PROMPT"
+
+# Step 4: Immediate URL download (prevent 15-minute expiration)
+[ -f "$URL_PATH" ] && curl -L -o "$SAVE_PATH" "$(cat $URL_PATH)"
+
+# Step 5: Multi-pattern file search (3+ patterns)
+IMAGE=$(find "$PROJECT_DIR" -name "*scene${SCENE_NUM}*.png" 2>/dev/null | head -1)
+[ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+[ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" 2>/dev/null | head -1)
+
+# Step 6: File validation
+if [ -f "$IMAGE" ] && [ $(stat -c%s "$IMAGE") -gt 10000 ]; then
+  echo "✅ Valid image: $IMAGE"
+else
+  echo "❌ Invalid or missing image"
+fi
+```
+
+#### URL Validity Check Pattern
+```bash
+# Check Google Cloud URL before use (expires in 15 minutes)
+if [ -f "$URL_FILE" ]; then
+  URL=$(cat "$URL_FILE")
+  if curl -IfsS --max-time 5 "$URL" >/dev/null 2>&1; then
+    IMAGE_REF="$URL"
+  else
+    IMAGE_REF="$LOCAL_FILE"  # Fallback to local
+  fi
+fi
+```
+
 ### 🚨 Prevent Common Errors When Generating Workflows
 
 **IMPORTANT**: These rules prevent the most common errors discovered through testing. Follow them EXACTLY when generating workflows:
@@ -461,7 +520,7 @@ When meta-workflow generates workflows, it MUST check:
 
 #### 1. Task Minimization
 - Keep individual tasks small and focused (single responsibility)
-- **Each task should complete within 5 minutes (MCP接続維持のため)**
+- **Each task should complete within 5 minutes (to maintain MCP connection)**
 - Split large operations into multiple smaller tasks
 - This reduces failure impact and improves debuggability
 

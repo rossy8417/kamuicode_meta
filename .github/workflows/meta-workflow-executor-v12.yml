@@ -715,13 +715,28 @@ jobs:
           - Use calculated dynamic values, not fixed values (e.g., batch: [1,2,3])
           - Use consistent character for news anchor (fixed seed)
           - Image generation (T2I) → video conversion (I2V) are separate jobs but with tight dependencies
-          - MUST: Include the following in each scene image generation step:
-            a. Explicit save path specification to Claude Code (${PROJECT_DIR}/media/images/scene${N}.png)
-            b. URL file save specification (${PROJECT_DIR}/media/images/scene${N}-url.txt)
-            c. Verification command with ls -la after execution
-            d. Immediate curl download from URL file
-            e. Multi-stage execution of find command (3+ patterns)
-            f. Retry before creating placeholder
+          - MUST: Include the following EXACT code patterns in each scene image generation step:
+            a. Explicit save path specification to Claude Code:
+               SAVE_PATH="\${PROJECT_DIR}/media/images/scene\${SCENE_NUM}.png"
+               URL_PATH="\${PROJECT_DIR}/media/images/scene\${SCENE_NUM}-url.txt"
+            b. Claude Code prompt must include:
+               "1. Generate image with MCP tool
+                2. Save to \${SAVE_PATH} using Write tool
+                3. Save URL to \${URL_PATH} using Write tool
+                4. Execute ls -la \${PROJECT_DIR}/media/images/ using Bash tool"
+            c. After Claude Code execution, MUST include:
+               # Immediate URL download (prevent expiration)
+               [ -f "\$URL_PATH" ] && curl -L -o "\$SAVE_PATH" "\$(cat \$URL_PATH)"
+            d. Multi-pattern file search (NEVER assume exact filename):
+               IMAGE=\$(find "\$PROJECT_DIR" -name "*scene\${SCENE_NUM}*.png" 2>/dev/null | head -1)
+               [ -z "\$IMAGE" ] && IMAGE=\$(find "\$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+               [ -z "\$IMAGE" ] && IMAGE=\$(find "\$PROJECT_DIR" -name "*.png" 2>/dev/null | head -1)
+            e. File validation before use:
+               if [ -f "\$IMAGE" ] && [ \$(stat -c%s "\$IMAGE") -gt 10000 ]; then
+                 echo "✅ Valid image: \$IMAGE"
+               else
+                 echo "❌ Invalid or missing image"
+               fi
           - Recommended job structure:
             1. phase1: Information gathering/research
             2. phase2: Content composition/script creation
