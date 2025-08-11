@@ -694,7 +694,10 @@ jobs:
             1. Specific pattern: "*scene${NUM}*.png"
             2. Time-based: "*.png -mmin -2"
             3. Generic pattern: "*.png"
-          - MUST: Download immediately with curl when URL file detected (curl -L -o)
+          - MUST: Download immediately when URL file detected
+            * For https:// URLs: Use curl -L -o
+            * For gs:// URLs: Use gsutil cp or convert to https:// signed URL first
+            * Always check URL protocol before download
           - SHOULD: Split steps within 21000 characters
 
           Domain Knowledge Application (Mandatory):
@@ -821,6 +824,13 @@ jobs:
               sed -i '/^\s*outputs:/,/^\s*steps:/{/matrix\./d}' "$WORKFLOW_PATH"
             fi
             
+            # Fix GCS URL handling
+            if grep -q 'curl.*gs://' "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Found direct curl of GCS URLs, fixing..."
+              # Replace curl with proper GCS handling
+              sed -i 's/curl -L -o "\([^"]*\)" "\(gs:\/\/[^"]*\)"/# GCS URL detected: \2\n  if command -v gsutil >/dev/null; then\n    gsutil cp "\2" "\1"\n  else\n    echo "Skipping GCS URL (gsutil not available): \2"\n  fi/' "$WORKFLOW_PATH"
+            fi
+            
             # Ensure workflow ends properly (no trailing content)
             # Add a newline at the end if missing
             if [ -n "$(tail -c 1 "$WORKFLOW_PATH")" ]; then
@@ -913,6 +923,13 @@ jobs:
             echo "❌ ERROR: Invalid matrix references found in outputs section"
             echo "  GitHub Actions does not allow \${{ matrix.* }} in job outputs"
             echo "  Found: $(grep 'outputs:.*matrix\.' "$WORKFLOW_PATH")"
+          fi
+          
+          # Check for GCS URL handling
+          if grep -q 'curl.*gs://' "$WORKFLOW_PATH" 2>/dev/null; then
+            echo "❌ ERROR: Direct curl of GCS URLs detected"
+            echo "  curl does not support gs:// protocol"
+            echo "  Use gsutil or convert to signed https:// URL"
           fi
           
           echo "✅ データフロー検証完了"

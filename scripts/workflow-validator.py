@@ -108,6 +108,22 @@ class WorkflowValidator:
             self.content = '\n'.join(new_lines)
             self.fixes_applied.append("Removed invalid matrix references in outputs")
         
+        # Fix GCS URL handling
+        if re.search(r'curl.*gs://', self.content):
+            # Replace direct curl of GCS URLs with proper handling
+            gcs_fix = '''# GCS URL detected: \\2
+  if command -v gsutil >/dev/null; then
+    gsutil cp "\\2" "\\1"
+  else
+    echo "Skipping GCS URL (gsutil not available): \\2"
+  fi'''
+            self.content = re.sub(
+                r'curl -L -o "([^"]*)" "(gs://[^"]*)"',
+                gcs_fix,
+                self.content
+            )
+            self.fixes_applied.append("Fixed GCS URL handling")
+        
         # Fix HEREDOC patterns
         self.content = self._fix_heredoc_patterns(self.content)
         if self.content != original_content:
@@ -279,6 +295,10 @@ class WorkflowValidator:
         # Check for matrix references in outputs section
         if re.search(r'outputs:.*\$\{\{\s*matrix\.', self.content):
             self.errors.append('Invalid matrix references in outputs - GitHub Actions does not allow ${{ matrix.* }} in job outputs')
+            
+        # Check for GCS URL with curl
+        if re.search(r'curl.*gs://', self.content):
+            self.errors.append('Direct curl of GCS URLs detected - curl does not support gs:// protocol')
             
         # Check for absolute paths
         if re.search(r'path:\s*[\'"]?/[^$\s\'"]', self.content):
