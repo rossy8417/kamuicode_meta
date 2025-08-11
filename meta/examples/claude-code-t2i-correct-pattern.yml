@@ -1,0 +1,137 @@
+# Claude Code T2I (Text-to-Image) 正しい実装パターン例
+# このファイルは、画像生成時のプレースホルダー問題を防ぐための参照実装です
+
+name: "Claude Code T2I Correct Pattern Example"
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "画像生成プロンプト"
+        required: true
+        default: "Professional news anchor in studio"
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  generate-image:
+    name: "画像生成（正しいパターン）"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Project Directory
+        id: setup
+        run: |
+          PROJECT_DIR="projects/t2i-example-$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$PROJECT_DIR"/{media/images,logs}
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Project directory created: $PROJECT_DIR"
+
+      - name: Generate Image with Explicit Save
+        run: |
+          PROJECT_DIR="${{ steps.setup.outputs.project_dir }}"
+          
+          # ✅ CORRECT: 明示的な保存パスを定義
+          SAVE_PATH="${PROJECT_DIR}/media/images/generated.png"
+          URL_PATH="${PROJECT_DIR}/media/images/generated-url.txt"
+          
+          # ✅ CORRECT: 詳細な手順を含むプロンプト
+          GENERATION_PROMPT="以下の手順で画像を生成してください：
+          
+          1. MCPツール mcp__t2i-kamui-imagen3__imagen_t2i を使用して画像生成
+             - プロンプト: ${{ inputs.prompt }}
+             - 解像度: 1920x1080
+             - 品質: プロフェッショナル
+          
+          2. Writeツールを使用して生成画像を以下のパスに保存
+             - ローカルパス: ${SAVE_PATH}
+          
+          3. Google Cloud Storage URLを以下のファイルに保存
+             - URLファイル: ${URL_PATH}
+          
+          4. Bashツールで以下のコマンドを実行して保存確認
+             - ls -la ${PROJECT_DIR}/media/images/
+          
+          重要: すべてのステップを順番に実行し、各ステップの結果を確認してください"
+          
+          # ✅ CORRECT: Write, Bashツールを許可
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "$GENERATION_PROMPT"
+          
+          # ✅ CORRECT: 即座の確認
+          echo "=== 生成ファイル確認 ==="
+          ls -la "${PROJECT_DIR}/media/images/"
+          
+          # ✅ CORRECT: URLファイルからの即座ダウンロード
+          if [ -f "$URL_PATH" ]; then
+            URL=$(cat "$URL_PATH")
+            echo "📥 Downloading from Google Cloud Storage: $URL"
+            curl -L -o "$SAVE_PATH" "$URL" || echo "⚠️ Download failed, file may already be local"
+          fi
+          
+          # ✅ CORRECT: 多段階ファイル検索（3パターン）
+          echo "=== ファイル検索 ==="
+          
+          # パターン1: 特定のファイル名
+          IMAGE=$(find "$PROJECT_DIR" -type f -name "generated.png" 2>/dev/null | head -1)
+          
+          # パターン2: 2分以内に作成されたPNGファイル
+          if [ -z "$IMAGE" ]; then
+            echo "Searching for recently created PNG files..."
+            IMAGE=$(find "$PROJECT_DIR" -type f -name "*.png" -mmin -2 2>/dev/null | head -1)
+          fi
+          
+          # パターン3: 任意のPNGファイル
+          if [ -z "$IMAGE" ]; then
+            echo "Searching for any PNG files..."
+            IMAGE=$(find "$PROJECT_DIR" -type f -name "*.png" 2>/dev/null | head -1)
+          fi
+          
+          # ✅ CORRECT: 検証とファイルサイズチェック
+          if [ -n "$IMAGE" ] && [ -f "$IMAGE" ]; then
+            FILE_SIZE=$(stat -c%s "$IMAGE" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 10000 ]; then
+              echo "✅ 画像ファイル生成成功: $IMAGE (${FILE_SIZE} bytes)"
+            else
+              echo "⚠️ 画像ファイルが小さすぎます: $IMAGE (${FILE_SIZE} bytes)"
+            fi
+          else
+            # ✅ CORRECT: プレースホルダーは最終手段のみ
+            echo "❌ ERROR: 画像ファイルが見つかりません"
+            echo "Creating placeholder as last resort..."
+            IMAGE="${SAVE_PATH}"
+            mkdir -p "$(dirname "$IMAGE")"
+            echo "Placeholder image - generation failed" > "$IMAGE"
+          fi
+          
+          # ✅ CORRECT: GitHub Step Summaryに結果を記録
+          echo "## 🎨 画像生成結果" >> $GITHUB_STEP_SUMMARY
+          if [ "$FILE_SIZE" -gt 10000 ]; then
+            echo "- ✅ 生成成功: ${IMAGE}" >> $GITHUB_STEP_SUMMARY
+            echo "- 📊 ファイルサイズ: ${FILE_SIZE} bytes" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ 生成失敗: プレースホルダーを使用" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Generated Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-image
+          path: ${{ steps.setup.outputs.project_dir }}/media/images/
+
+# ポイント解説:
+# 1. 明示的な保存パス指定: ${PROJECT_DIR}/media/images/generated.png
+# 2. URLファイル作成指示: ${PROJECT_DIR}/media/images/generated-url.txt
+# 3. 詳細な手順説明: 1→2→3→4のステップを明記
+# 4. Writeツール許可: --allowedTools に Write を含める
+# 5. Bashツール許可: --allowedTools に Bash を含める
+# 6. 即座の確認: ls -la でファイル生成を確認
+# 7. URLダウンロード: curl -L -o で即座にローカル保存
+# 8. 多段階検索: 3つのパターンでファイル検索
+# 9. ファイルサイズ検証: 10KB以上で成功判定
+# 10. プレースホルダーは最終手段: すべての検索が失敗した場合のみ

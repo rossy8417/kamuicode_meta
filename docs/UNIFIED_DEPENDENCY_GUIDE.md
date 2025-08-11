@@ -9,6 +9,22 @@ This document provides comprehensive dependency relationships for all components
 3. [Execution Order Rules](#execution-order-rules)
 4. [Typical Flow Patterns](#typical-flow-patterns)
 5. [AI System Quick Reference](#ai-system-quick-reference)
+6. [Claude Code Execution Patterns](#claude-code-execution-patterns)
+
+## 🚨 Critical Implementation Requirements
+
+### Claude Code Data Persistence Pattern (MANDATORY)
+
+**Problem**: Claude Code executes MCP tools successfully but doesn't save files locally, resulting in placeholder files.
+
+**Solution**: Always provide explicit save instructions with these components:
+1. **Explicit save path**: `${PROJECT_DIR}/media/...` format
+2. **URL file creation**: Save Google Cloud Storage URLs to `*-url.txt`
+3. **Verification command**: Execute `ls -la` after generation
+4. **Immediate download**: Use `curl -L -o` for URL files
+5. **Multi-pattern search**: At least 3 search patterns for file retrieval
+
+**Reference Implementation**: See `docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md` and `meta/examples/claude-code-t2i-correct-pattern.yml`
 
 ## System Hierarchy
 
@@ -384,10 +400,94 @@ Skippable:
   - External integration: sns-publish, pdf-create
 ```
 
+## Claude Code Execution Patterns
+
+### 🚨 Mandatory Pattern for T2I (Text-to-Image)
+
+```yaml
+- name: Generate Image
+  run: |
+    # MANDATORY: Define explicit paths
+    SAVE_PATH="${PROJECT_DIR}/media/images/scene${N}.png"
+    URL_PATH="${PROJECT_DIR}/media/images/scene${N}-url.txt"
+    
+    # MANDATORY: Detailed instruction prompt
+    PROMPT="手順:
+    1. MCPツール mcp__t2i-* で画像生成
+    2. Writeツールで ${SAVE_PATH} に保存
+    3. URLを ${URL_PATH} に保存
+    4. ls -la で確認"
+    
+    # MANDATORY: Include Write and Bash tools
+    npx @anthropic-ai/claude-code \
+      --mcp-config ".claude/mcp-kamuicode.json" \
+      --allowedTools "mcp__t2i-*,Write,Bash" \
+      --permission-mode "bypassPermissions" \
+      -p "$PROMPT"
+    
+    # MANDATORY: Immediate verification and download
+    ls -la "${PROJECT_DIR}/media/images/"
+    [ -f "$URL_PATH" ] && curl -L -o "$SAVE_PATH" "$(cat $URL_PATH)"
+    
+    # MANDATORY: Multi-pattern search (3+ patterns)
+    IMAGE=$(find "$PROJECT_DIR" -name "*scene*${N}*.png" | head -1)
+    [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 | head -1)
+    [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" | head -1)
+```
+
+### 🚨 Mandatory Pattern for I2V (Image-to-Video)
+
+```yaml
+- name: Convert to Video
+  run: |
+    # Check for both URL and local path
+    URL_FILE="${PROJECT_DIR}/media/images/scene${N}-url.txt"
+    LOCAL_IMAGE="${PROJECT_DIR}/media/images/scene${N}.png"
+    
+    # Prioritize valid URL over local path
+    if [ -f "$URL_FILE" ]; then
+      IMAGE_URL=$(cat "$URL_FILE")
+      if curl -IfsS --max-time 5 "$IMAGE_URL" >/dev/null 2>&1; then
+        IMAGE_REF="$IMAGE_URL"
+      else
+        IMAGE_REF="$LOCAL_IMAGE"
+      fi
+    else
+      IMAGE_REF="$LOCAL_IMAGE"
+    fi
+    
+    # Explicit save path in prompt
+    VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${N}.mp4"
+    PROMPT="Convert image to video:
+    Input: ${IMAGE_REF}
+    Output: ${VIDEO_PATH}
+    Duration: 6-8s"
+    
+    npx @anthropic-ai/claude-code \
+      --allowedTools "mcp__i2v-*,Write,Bash" \
+      --max-turns 80 \
+      -p "$PROMPT"
+```
+
+### ❌ Common Failures to Avoid
+
+1. **Ambiguous save instructions**: Never use vague prompts like "生成してください"
+2. **Missing Write tool**: Always include "Write" in --allowedTools
+3. **Single search pattern**: Always use 3+ search patterns
+4. **Ignoring URL expiration**: Always check URL validity before use
+5. **Creating placeholders too early**: Exhaust all search options first
+
+### ✅ Success Criteria
+
+- File size > 10KB for images, > 300KB for videos
+- Proper format validation with ffprobe/file command
+- URL downloaded within 15 minutes of generation
+- No placeholder files in final output
+
 ---
 
 **By using this guide, AI systems can understand appropriate dependencies and automatically generate efficient and reliable workflows.**
 
-**Last updated**: 2025-08-02  
-**Compatible version**: v10.0 (Minimal unit based + External API integration)  
-**Integrated sources**: DEPENDENCY_MAP.md + WORKFLOW_PATTERNS.md + kamuicode-workflow/README.md
+**Last updated**: 2025-08-11  
+**Compatible version**: v12.0 (Minimal unit based + External API integration + Claude Code patterns)  
+**Integrated sources**: DEPENDENCY_MAP.md + WORKFLOW_PATTERNS.md + kamuicode-workflow/README.md + CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md

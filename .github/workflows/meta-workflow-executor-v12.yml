@@ -659,82 +659,84 @@ jobs:
           
           # Create comprehensive generation prompt (domain-agnostic with strict domain enforcement when provided)
           cat > generation_prompt.txt << 'EOF'
-          あなたは「汎用メタワークフロー生成器」です。ユーザー要求（Issue）とドメインテンプレートを読み、最適なGitHub Actionsワークフローを生成してください。
+          You are a "Universal Meta-Workflow Generator". Read the user requirements (Issue) and domain templates to generate optimal GitHub Actions workflows.
 
-          入力（必ず参照）:
-          1. タスク分解: artifacts/task-decomposition/professional_task_decomposition.json
-             特に重要: workflow_generation_parameters セクションの calculated_scene_count と matrix_scene_list
-          2. 最適化順序(任意): artifacts/optimized-task-order/optimized_task_order.json
-          3. 入力スキーマ(必須): artifacts/domain-input-schema/input-schema.yaml
-          4. 必須入力一覧(任意): artifacts/required_inputs.json / artifacts/required_input_keys.txt
-          5. ドメイン概要/分解データ(任意): artifacts/domain-template-data/domain_summary.json, artifacts/domain-template-data/domain_decomposition_data.json
-          6. ドメイン・チェックリスト一覧(任意): artifacts/domain-template-data/domain-checklists.txt
-          7. 共通ルール: docs/YAML_CONSTRUCTION_GUIDELINES.md, docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
+          Input (must reference):
+          1. Task decomposition: artifacts/task-decomposition/professional_task_decomposition.json
+             Critical: workflow_generation_parameters section's calculated_scene_count and matrix_scene_list
+          2. Optimized order (optional): artifacts/optimized-task-order/optimized_task_order.json
+          3. Input schema (required): artifacts/domain-input-schema/input-schema.yaml
+          4. Required inputs list (optional): artifacts/required_inputs.json / artifacts/required_input_keys.txt
+          5. Domain summary/decomposition data (optional): artifacts/domain-template-data/domain_summary.json, artifacts/domain-template-data/domain_decomposition_data.json
+          6. Domain checklist list (optional): artifacts/domain-template-data/domain-checklists.txt
+          7. Common rules: docs/YAML_CONSTRUCTION_GUIDELINES.md, docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
+          8. Claude Code data persistence: docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
 
-          生成ガイド（汎用）:
-          - MUST: uses: でローカルパス参照をしない（インライン実装）
-          - MUST: 全ての出力/中間生成物は PROJECT_DIR_PLACEHOLDER 配下に保存
-          - MUST: ジョブ間共有は actions/upload-artifact / download-artifact を使用
-          - MUST: workflow_dispatch.inputs は input-schema.yaml と必須入力一覧を読み込み反映（enum→choice, default, description、追加必須キーの補完）
-          - MUST: 絶対パスやルート直下の出力を禁止し、常に PROJECT_DIR_PLACEHOLDER を使う
-          - MUST: 環境変数セクション(env:)に以下を必ず含める:
+          Generation Guide (Universal):
+          - MUST: Don't use local path references with uses: (inline implementation)
+          - MUST: Save all outputs/intermediate products under PROJECT_DIR_PLACEHOLDER
+          - MUST: Use actions/upload-artifact / download-artifact for job sharing
+          - MUST: workflow_dispatch.inputs must reflect input-schema.yaml and required inputs list (enum→choice, default, description, supplement required keys)
+          - MUST: Prohibit absolute paths or root-level outputs, always use PROJECT_DIR_PLACEHOLDER
+          - MUST: Include the following in environment variable section (env:):
             env:
               CLAUDE_CODE_CI_MODE: true
               CLAUDE_CODE_AUTO_APPROVE_MCP: true
               CLAUDE_CODE_OAUTH_TOKEN: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          - MUST: Claude Code実行時は必ず以下の3つを指示:
-            1. MCPツールでの生成/処理実行
-            2. Writeツールでローカルファイル保存（明示的パス指定: ${PROJECT_DIR}/media/...）
-            3. Bashツールでls -laによる保存確認
-          - MUST: ファイル検索は複数パターンで実行:
-            1. 特定パターン: "*scene${NUM}*.png"
-            2. 時間ベース: "*.png -mmin -2"
-            3. 汎用パターン: "*.png"
-          - MUST: URLファイル検出時は即座にcurlでダウンロード（curl -L -o）
-          - SHOULD: ステップは21000文字以内に分割
+          - MUST: Follow these patterns when executing Claude Code:
+            1. Execute generation/processing with MCP tools
+            2. Save local files with Write tool (explicit path: ${PROJECT_DIR}/media/...)
+            3. Verify save with ls -la using Bash tool
+            * Details: See docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
+          - MUST: Execute file search with multiple patterns:
+            1. Specific pattern: "*scene${NUM}*.png"
+            2. Time-based: "*.png -mmin -2"
+            3. Generic pattern: "*.png"
+          - MUST: Download immediately with curl when URL file detected (curl -L -o)
+          - SHOULD: Split steps within 21000 characters
 
-          ドメイン知識の適用（強制）:
-          - artifacts/domain-template-data/domain-checklists.txt が存在する場合、列挙された各チェックリストを読み「MUST」遵守すること。遵守できない場合は生成時に代替設計を行い、それでも不可なら検証段階で FAILED とする前提で出力すること。
-          - meta/domain-templates/<domain>/constraints.yaml が存在する場合:
-            * MUST: constraints.composition_rules / timing_constraints / orchestration / path constraints を適用（該当タスクが存在する場合のみ）
-            * SHOULD: constraints.rule_references / checklist_references に列挙された各ファイル（rules/*.yaml, checklists/*.md）を順に読み、MUSTを優先して設計へ反映
-          - 複数ドメインが関係する場合:
-            * MUST: 各ドメインの constraints / rules / checklists を統合適用
-            * MUST: 競合時は安全側（より厳しいMUST）を採用し、妥協点は明記
+          Domain Knowledge Application (Mandatory):
+          - If artifacts/domain-template-data/domain-checklists.txt exists, read each listed checklist and comply with "MUST" requirements. If compliance is not possible, perform alternative design during generation, and if still impossible, output with the premise of FAILED at validation stage.
+          - If meta/domain-templates/<domain>/constraints.yaml exists:
+            * MUST: Apply constraints.composition_rules / timing_constraints / orchestration / path constraints (only when relevant tasks exist)
+            * SHOULD: Read each file listed in constraints.rule_references / checklist_references (rules/*.yaml, checklists/*.md) in order, prioritizing MUST for design reflection
+          - When multiple domains are involved:
+            * MUST: Apply integrated constraints / rules / checklists from each domain
+            * MUST: Adopt safer side (stricter MUST) in conflicts, explicitly note compromises
 
-          設計原則（例）:
-          - 画像→動画など明示的な直列要件が constraints/rules で示される場合、対象アイテム/シーンごとに「直列チェーン」を同一ジョブ内で実行し、全体を matrix で並列化（max-parallel は constraints に従う）。
-          - 類似作業（例: スライド複数枚生成）は並列最適化。ただしデータ依存がある場合は直列化。
-          - ドメインが指定されていない・制約が無い場合は、タスク分解/最適化順序に基づく一般的な直列/並列構成とする。
+          Design Principles (Examples):
+          - When explicit serial requirements like image→video are shown in constraints/rules, execute "serial chain" within the same job for each target item/scene, and parallelize overall with matrix (max-parallel follows constraints).
+          - Similar tasks (e.g., generating multiple slides) are optimized for parallel execution. However, serialize when data dependencies exist.
+          - When domain is not specified or no constraints exist, use general serial/parallel configuration based on task decomposition/optimization order.
           
-          重要: video-productionドメインの場合:
-          - 必ず workflow_generation_parameters.matrix_scene_list を使用してmatrix.sceneを設定
-          - max-parallelは workflow_generation_parameters.max_parallel の値を使用
-          - 固定値（例: batch: [1,2,3]）ではなく、計算された動的な値を使用すること
-          - ニュースキャスター/アンカーは一貫した人物を使用（seed固定）
-          - 画像生成（T2I）→動画変換（I2V）は別ジョブだが密接な依存関係で実装
-          - MUST: 各シーン画像生成ステップに以下を含める:
-            a. Claude Codeへの明示的な保存パス指定（${PROJECT_DIR}/media/images/scene${N}.png）
-            b. URLファイル保存指定（${PROJECT_DIR}/media/images/scene${N}-url.txt）
-            c. 実行後のls -laによる確認コマンド
-            d. URLファイルからの即座のcurlダウンロード
-            e. findコマンドの多段階実行（3パターン以上）
-            f. プレースホルダー作成前の再試行
-          - 推奨ジョブ構造：
-            1. phase1: 情報収集・リサーチ
-            2. phase2: コンテンツ構成・台本作成
-            3. phase3-scene-N-image: 各シーン画像生成（N並列ジョブ）
-               - ニュースキャスターは固定seed使用
-               - 明示的なファイル保存とURL処理を含む
-            4. phase4-scene-N-video: 各シーン動画変換（N並列ジョブ）
-               - needs: 対応するphase3-scene-N-image
-               - URL期限内に実行（早期開始）
-               - URLとローカルパスの両方に対応
-            5. phase5: 音声生成（ナレーション、BGM）
-            6. phase6: 最終編集・合成
+          Important: For video-production domain:
+          - Always use workflow_generation_parameters.matrix_scene_list to set matrix.scene
+          - Use workflow_generation_parameters.max_parallel value for max-parallel
+          - Use calculated dynamic values, not fixed values (e.g., batch: [1,2,3])
+          - Use consistent character for news anchor (fixed seed)
+          - Image generation (T2I) → video conversion (I2V) are separate jobs but with tight dependencies
+          - MUST: Include the following in each scene image generation step:
+            a. Explicit save path specification to Claude Code (${PROJECT_DIR}/media/images/scene${N}.png)
+            b. URL file save specification (${PROJECT_DIR}/media/images/scene${N}-url.txt)
+            c. Verification command with ls -la after execution
+            d. Immediate curl download from URL file
+            e. Multi-stage execution of find command (3+ patterns)
+            f. Retry before creating placeholder
+          - Recommended job structure:
+            1. phase1: Information gathering/research
+            2. phase2: Content composition/script creation
+            3. phase3-scene-N-image: Each scene image generation (N parallel jobs)
+               - News anchor uses fixed seed
+               - Include explicit file save and URL processing
+            4. phase4-scene-N-video: Each scene video conversion (N parallel jobs)
+               - needs: corresponding phase3-scene-N-image
+               - Execute within URL expiration (early start)
+               - Support both URL and local path
+            5. phase5: Audio generation (narration, BGM)
+            6. phase6: Final editing/synthesis
 
-          出力先（MUST）:
-          - ワークフローを PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml に生成
+          Output destination (MUST):
+          - Generate workflow at PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml
           EOF
           
           # Replace project directory placeholder with actual path
