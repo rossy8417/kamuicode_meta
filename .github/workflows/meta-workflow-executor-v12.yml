@@ -874,29 +874,36 @@ jobs:
           
           echo "✅ データフロー検証完了"
           
+      - name: Comprehensive Workflow Validation and Auto-Fix
+        run: |
+          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
+          
+          echo "🔍 Running comprehensive validation..."
+          
+          # Use unified validator with auto-fix
+          if python3 scripts/workflow-validator.py "$WORKFLOW_PATH" --auto-fix; then
+            echo "✅ Workflow validation passed"
+          else
+            echo "⚠️ Validation failed, checking report..."
+            
+            # Check if critical errors remain
+            if [ -f "$(dirname "$WORKFLOW_PATH")/validation_report.json" ]; then
+              CRITICAL_ERRORS=$(jq -r '.errors | length' "$(dirname "$WORKFLOW_PATH")/validation_report.json")
+              if [ "$CRITICAL_ERRORS" -gt 0 ]; then
+                echo "❌ Critical errors remain after auto-fix"
+                jq -r '.errors[]' "$(dirname "$WORKFLOW_PATH")/validation_report.json" | while read error; do
+                  echo "  • $error"
+                done
+                exit 1
+              fi
+            fi
+          fi
+          
       - name: Inject required inputs into generated workflow from schema
         run: |
           WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
           # Schema file downloaded from 'domain-template-data' artifact into artifacts/
           SCHEMA_PATH="artifacts/domain-input-schema/input-schema.yaml"
-          
-          # Pre-validate YAML before attempting schema injection
-          if ! python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))" >/dev/null 2>&1; then
-            echo "❌ Generated workflow YAML is invalid. Attempting auto-repair..."
-            npx @anthropic-ai/claude-code \
-              --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "Read,Write" \
-              --permission-mode "acceptEdits" \
-              --max-turns 12 \
-              -p "以下のYAMLファイルの構文エラーを修正し、GitHub Actions仕様に準拠させてください。\n\n対象: $WORKFLOW_PATH\n要件:\n- トップレベルに name, on, jobs を保持\n- HEREDOC禁止。行ごとに安全に生成される形を維持\n- docs/YAML_CONSTRUCTION_GUIDELINES.md のルールを順守\n- 既存の意図（ジョブ/ステップ構造）を壊さない\n\n修正後は同じパスに上書き保存してください。"
-
-            # Re-validate after auto-repair
-            if ! python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))" >/dev/null 2>&1; then
-              echo "::error::Workflow YAML remains invalid after auto-repair. Skipping schema injection."
-              exit 1
-            fi
-            echo "✅ Auto-repair completed; YAML is now valid."
-          fi
           if [ -f "$SCHEMA_PATH" ] && [ -f "$WORKFLOW_PATH" ]; then
             python -c "import yaml,sys; wf_path='$WORKFLOW_PATH'; schema_path='$SCHEMA_PATH'; wf=yaml.safe_load(open(wf_path)) or {}; schema=yaml.safe_load(open(schema_path)) or {}; req=(schema.get('inputs') or {}).get('required') or {}; on=wf.setdefault('on',{}); wd=on.setdefault('workflow_dispatch',{}); inputs=wd.setdefault('inputs',{}); [ (inputs.setdefault(k,{}).update({'description':(v.get('description',k)), 'required':True}) or (inputs[k].update({'default':v['default']}) if 'default' in v else None) or (inputs[k].update({'type':'choice','options':v['enum']}) if 'enum' in v else inputs[k].pop('type', None)) ) for k,v in req.items() ]; open(wf_path,'w').write(yaml.safe_dump(wf, sort_keys=False))"
             echo "✅ Injected required inputs into workflow_dispatch"
