@@ -366,7 +366,17 @@ jobs:
           if [ -f "$URL_PATH" ]; then
             URL_CONTENT=$(cat "$URL_PATH")
             echo "Downloading from URL: $URL_CONTENT"
-            curl -L -o "$SAVE_PATH" "$URL_CONTENT"
+            # Check URL protocol
+            if [[ "$URL_CONTENT" == gs://* ]]; then
+              echo "⚠️ GCS URL detected, attempting gsutil..."
+              if command -v gsutil >/dev/null; then
+                gsutil cp "$URL_CONTENT" "$SAVE_PATH"
+              else
+                echo "❌ gsutil not available, cannot download GCS URL"
+              fi
+            else
+              curl -L -o "$SAVE_PATH" "$URL_CONTENT"
+            fi
           fi
           
           # Multi-pattern search
@@ -451,7 +461,14 @@ jobs:
           BG_URL_PATH="${{ needs.setup.outputs.project_dir }}/media/images/news-background-url.txt"
           
           # Download from URL if available
-          [ -f "$BG_URL_PATH" ] && curl -L -o "$BG_SAVE_PATH" "$(cat $BG_URL_PATH)"
+          if [ -f "$BG_URL_PATH" ]; then
+            BG_URL=$(cat "$BG_URL_PATH")
+            if [[ "$BG_URL" == gs://* ]]; then
+              command -v gsutil >/dev/null && gsutil cp "$BG_URL" "$BG_SAVE_PATH" || echo "Skipping GCS URL"
+            else
+              curl -L -o "$BG_SAVE_PATH" "$BG_URL"
+            fi
+          fi
           
           # Validate
           if [ -f "$BG_SAVE_PATH" ]; then
@@ -544,7 +561,19 @@ jobs:
           VIDEO_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}.mp4"
           
           # Immediate URL download (prevent expiration)
-          [ -f "$URL_PATH" ] && curl -L -o "$IMAGE_SAVE_PATH" "$(cat $URL_PATH)"
+          if [ -f "$URL_PATH" ]; then
+            URL_CONTENT=$(cat "$URL_PATH")
+            if [[ "$URL_CONTENT" == gs://* ]]; then
+              echo "⚠️ GCS URL detected, attempting gsutil..."
+              if command -v gsutil >/dev/null; then
+                gsutil cp "$URL_CONTENT" "$IMAGE_SAVE_PATH"
+              else
+                echo "❌ gsutil not available, skipping GCS URL"
+              fi
+            else
+              curl -L -o "$IMAGE_SAVE_PATH" "$URL_CONTENT"
+            fi
+          fi
           
           # Multi-pattern file search
           IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${SCENE_NUM}*.png" 2>/dev/null | head -1)
@@ -558,9 +587,20 @@ jobs:
             # URL validity check for I2V
             if [ -f "$URL_PATH" ]; then
               IMAGE_URL=$(cat "$URL_PATH")
-              if curl -IfsS --max-time 5 "$IMAGE_URL" >/dev/null 2>&1; then
+              # Check if it's a GCS URL or HTTPS URL
+              if [[ "$IMAGE_URL" == gs://* ]]; then
+                # For GCS URLs, we can't use curl to check validity
+                # Use the local file if it exists
+                if [ -f "$IMAGE_SAVE_PATH" ]; then
+                  IMAGE_REF="$IMAGE_SAVE_PATH"
+                  echo "⚠️ GCS URL detected, using local file for I2V"
+                else
+                  IMAGE_REF="$IMAGE"
+                  echo "⚠️ GCS URL but no local file, using found image"
+                fi
+              elif curl -IfsS --max-time 5 "$IMAGE_URL" >/dev/null 2>&1; then
                 IMAGE_REF="$IMAGE_URL"
-                echo "✅ Using Google Cloud Storage URL for I2V"
+                echo "✅ Using HTTPS URL for I2V"
               else
                 IMAGE_REF="$IMAGE"
                 echo "⚠️ URL expired, using local path for I2V"
