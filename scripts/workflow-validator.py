@@ -326,6 +326,11 @@ def main():
     
     # Validate workflow
     validator = WorkflowValidator(workflow_path)
+    # Read file first
+    if not validator._read_file():
+        print("Failed to read workflow file")
+        sys.exit(1)
+    
     is_valid = validator.validate_and_fix() if auto_fix else validator._validate_content()
     
     sys.exit(0 if is_valid else 1)
