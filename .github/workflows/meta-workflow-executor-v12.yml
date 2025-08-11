@@ -757,7 +757,8 @@ jobs:
           - Output ONLY valid GitHub Actions YAML
           - Do NOT include any function calls, tool invocations, or internal commands in the output
           - The workflow file must be complete and self-contained
-          - Use quoted "on": field to avoid YAML boolean interpretation
+          - Use unquoted on: field (GitHub Actions requires it unquoted)
+          - Keep workflow names simple and without special characters
           EOF
           
           # Replace project directory placeholder with actual path
@@ -806,9 +807,9 @@ jobs:
               sed -i '/<function_calls>/,$d' "$WORKFLOW_PATH"
             fi
             
-            # Fix the "on" field interpretation issue
-            # Replace unquoted "on:" with quoted version to prevent boolean interpretation
-            sed -i 's/^on:$/"on":/' "$WORKFLOW_PATH"
+            # Note: Do NOT quote the "on" field - GitHub Actions requires it unquoted
+            # Make sure it's unquoted (in case Claude Code quoted it)
+            sed -i 's/^"on":$/on:/' "$WORKFLOW_PATH"
             
             # Ensure workflow ends properly (no trailing content)
             # Add a newline at the end if missing

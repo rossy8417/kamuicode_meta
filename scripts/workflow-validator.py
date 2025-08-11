@@ -85,6 +85,11 @@ class WorkflowValidator:
         """Apply automatic fixes for detected issues."""
         original_content = self.content
         
+        # Fix quoted "on" field
+        if re.search(r'^"on":', self.content, re.MULTILINE):
+            self.content = re.sub(r'^"on":', 'on:', self.content, flags=re.MULTILINE)
+            self.fixes_applied.append("Fixed quoted 'on' field")
+        
         # Fix HEREDOC patterns
         self.content = self._fix_heredoc_patterns(self.content)
         if self.content != original_content:
@@ -244,6 +249,10 @@ class WorkflowValidator:
     def _check_common_issues(self):
         """Check for common workflow issues."""
         
+        # Check for quoted "on" field (GitHub Actions requires it unquoted)
+        if re.search(r'^"on":', self.content, re.MULTILINE):
+            self.errors.append('"on" field must not be quoted - GitHub Actions requires: on:')
+            
         # Check for absolute paths
         if re.search(r'path:\s*[\'"]?/[^$\s\'"]', self.content):
             self.warnings.append("Absolute paths detected - use relative or variable paths")
