@@ -291,6 +291,64 @@ else
 fi
 ```
 
+### 7. 🚨 Claude Code実行時の必須パターン
+
+#### ❌ 問題のあるパターン（ファイル保存指示が曖昧）
+```yaml
+# ファイル保存が不明確で、プレースホルダーになる可能性が高い
+- name: Generate Image
+  run: |
+    npx @anthropic-ai/claude-code \
+      --allowedTools "mcp__t2i-*" \
+      -p "画像を生成してください"
+    
+    # ファイルが見つからず、プレースホルダーを作成
+    IMAGE=$(find . -name "*.png" | head -1)
+    if [ -z "$IMAGE" ]; then
+      echo "Placeholder" > image.png
+    fi
+```
+
+#### ✅ 正しいパターン（明示的な保存指示とURL処理）
+```yaml
+# 明示的な保存指示と多段階確認
+- name: Generate Image with Explicit Save
+  run: |
+    # 保存先を明示的に指定
+    SAVE_PATH="${PROJECT_DIR}/media/images/scene${N}.png"
+    URL_PATH="${PROJECT_DIR}/media/images/scene${N}-url.txt"
+    
+    # Claude Codeに詳細な指示（単一行で構成）
+    PROMPT="画像生成手順: 1.MCPツールで生成 2.Writeツールで${SAVE_PATH}に保存 3.URLを${URL_PATH}に保存 4.ls -laで確認"
+    
+    npx @anthropic-ai/claude-code \
+      --mcp-config ".claude/mcp-kamuicode.json" \
+      --allowedTools "mcp__t2i-*,Write,Bash" \
+      --permission-mode "bypassPermissions" \
+      -p "$PROMPT"
+    
+    # 即座の検証
+    ls -la "${PROJECT_DIR}/media/images/"
+    
+    # URLファイルが存在すれば即ダウンロード
+    if [ -f "$URL_PATH" ]; then
+      curl -L -o "$SAVE_PATH" "$(cat $URL_PATH)"
+    fi
+    
+    # 多段階ファイル検索（3パターン）
+    IMAGE=$(find "$PROJECT_DIR" -name "*scene*${N}*.png" 2>/dev/null | head -1)
+    [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+    [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" 2>/dev/null | head -1)
+    
+    # それでも見つからない場合のみプレースホルダー
+    if [ -z "$IMAGE" ]; then
+      echo "⚠️ WARNING: Using placeholder"
+      IMAGE="${SAVE_PATH}"
+      mkdir -p "$(dirname "$IMAGE")"
+      echo "Placeholder" > "$IMAGE"
+    fi
+```
+
 #### Progressive Reporting Pattern (GitHub Actions Summary)
 ```bash
 # ✅ CORRECT - Independent job reporting pattern

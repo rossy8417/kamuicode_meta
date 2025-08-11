@@ -97,6 +97,36 @@ fallback: i2v-kamui-seedance-v1-lite # Fast, lightweight
 
 ## 📋 **Video Editing Planning Phase Specific**
 
+### **Claude Code実行時のデータ保存チェックリスト**
+- [ ] **明示的な保存パス指定**: `${PROJECT_DIR}/media/images/scene${N}.png`形式で必ず指定
+- [ ] **URLファイル作成**: `${PROJECT_DIR}/media/images/scene${N}-url.txt`にGoogle URLを保存
+- [ ] **保存確認コマンド**: `ls -la ${PROJECT_DIR}/media/images/`で生成ファイルを確認
+- [ ] **URLダウンロード**: `curl -L -o local.png "$URL"`で即座にローカル保存
+- [ ] **多段階ファイル検索**: 最低3パターンで検索（特定名、時間ベース、汎用）
+- [ ] **プレースホルダー前の再試行**: ファイルが見つからない場合、3回は再検索
+
+```bash
+# ✅ 正しい実装パターン
+# Claude Code実行部分
+SAVE_PATH="${PROJECT_DIR}/media/images/scene${N}.png"
+URL_PATH="${PROJECT_DIR}/media/images/scene${N}-url.txt"
+
+npx @anthropic-ai/claude-code \
+  --allowedTools "mcp__t2i-*,Write,Bash" \
+  -p "画像生成→${SAVE_PATH}に保存→URLを${URL_PATH}に保存→ls -laで確認"
+
+# 即座の検証とダウンロード
+ls -la "${PROJECT_DIR}/media/images/"
+
+# URLファイルが存在すれば即ダウンロード
+[ -f "$URL_PATH" ] && curl -L -o "$SAVE_PATH" "$(cat $URL_PATH)"
+
+# 多段階ファイル検索
+IMAGE=$(find "$PROJECT_DIR" -name "*scene*${N}*.png" 2>/dev/null | head -1)
+[ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+[ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" 2>/dev/null | head -1)
+```
+
 ### **Claude Code SDK Utilization Patterns**
 - [ ] **Editing Plan Development**: All material analysis → Timeline design → FFmpeg command generation
 - [ ] **Transition Optimization**: Natural transition planning between scenes

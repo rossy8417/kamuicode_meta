@@ -87,6 +87,33 @@ human_element_technical_constraints:
       voice_overlap_resolution: "priority_based  # 主話者優先"
       cross_talk_detection: "enabled  # 同時発話検出"
 
+# データ永続化制約（データ共有問題対策）
+data_persistence_constraints:
+  claude_code_execution:
+    must_include:
+      - explicit_save_path: "必ず${PROJECT_DIR}/media/...形式で明示的に指定"
+      - url_file_creation: "Google Cloud Storage URLを別ファイル（*-url.txt）に保存"
+      - verification_command: "ls -laコマンド実行でファイル保存を確認"
+    example_prompt: |
+      "MCPツール mcp__t2i-kamui-imagen3__imagen_t2i で画像生成後、
+       Writeツールで ${PROJECT_DIR}/media/images/scene${N}.png に保存、
+       Google URLを ${PROJECT_DIR}/media/images/scene${N}-url.txt に保存、
+       最後に Bashツールで ls -la ${PROJECT_DIR}/media/images/ を実行"
+    
+  file_retrieval:
+    search_patterns:
+      primary: "*scene*.png または *scene*.jpg"
+      secondary: "*.png -mmin -2 (2分以内に作成されたファイル)"
+      tertiary: "*.png または *.jpg (汎用パターン)"
+    retry_before_placeholder: true
+    multiple_attempts: 3
+    
+  url_handling:
+    immediate_download: true
+    curl_command: "curl -L -o local_file.png \"$URL\""
+    expiration_check: "curl -IfsS --max-time 5 \"$URL\""
+    fallback_to_local: true
+
 technical_constraints:
   # 解像度とアスペクト比
   resolution:
