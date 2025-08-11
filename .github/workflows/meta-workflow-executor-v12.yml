@@ -752,6 +752,12 @@ jobs:
 
           Output destination (MUST):
           - Generate workflow at PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml
+          
+          CRITICAL REQUIREMENTS:
+          - Output ONLY valid GitHub Actions YAML
+          - Do NOT include any function calls, tool invocations, or internal commands in the output
+          - The workflow file must be complete and self-contained
+          - Use quoted "on": field to avoid YAML boolean interpretation
           EOF
           
           # Replace project directory placeholder with actual path
@@ -791,13 +797,32 @@ jobs:
           # Verify workflow was created
           WORKFLOW_PATH="$PROJECT_DIR/generated-workflow/workflow.yml"
           if [ -f "$WORKFLOW_PATH" ]; then
+            echo "📋 Post-processing generated workflow..."
+            
+            # Clean up any function call artifacts that might have been included
+            if grep -q "<function_calls>" "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Found function call artifacts, cleaning up..."
+              # Remove everything from <function_calls> onwards
+              sed -i '/<function_calls>/,$d' "$WORKFLOW_PATH"
+            fi
+            
+            # Fix the "on" field interpretation issue
+            # Replace unquoted "on:" with quoted version to prevent boolean interpretation
+            sed -i 's/^on:$/"on":/' "$WORKFLOW_PATH"
+            
+            # Ensure workflow ends properly (no trailing content)
+            # Add a newline at the end if missing
+            if [ -n "$(tail -c 1 "$WORKFLOW_PATH")" ]; then
+              echo "" >> "$WORKFLOW_PATH"
+            fi
+            
             WORKFLOW_NAME="professional-workflow-${PRIMARY_DOMAIN}-${TIMESTAMP}"
             
             echo "workflow_path=$WORKFLOW_PATH" >> $GITHUB_OUTPUT
             echo "workflow_name=$WORKFLOW_NAME" >> $GITHUB_OUTPUT
             echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
             
-            echo "✅ Workflow generated: $WORKFLOW_NAME"
+            echo "✅ Workflow generated and cleaned: $WORKFLOW_NAME"
             
             # Add Phase 5 Report
             echo "## ⚡ Phase 5: プロフェッショナルワークフロー生成" >> $GITHUB_STEP_SUMMARY
