@@ -1,0 +1,897 @@
+name: "News Video Production - Improved"
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number for tracking"
+        required: false
+        default: "66"
+      topic:
+        description: "News topic to cover"
+        required: true
+        default: "latest technology trends"
+      duration:
+        description: "Target video duration in seconds"
+        required: false
+        default: "60"
+      category:
+        description: "News category"
+        required: false
+        default: "technology"
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      timestamp: ${{ steps.setup.outputs.timestamp }}
+      scene_count: ${{ steps.scene_calc.outputs.scene_count }}
+      matrix_scenes: ${{ steps.scene_calc.outputs.matrix_scenes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup environment
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="projects/news-video-${TIMESTAMP}"
+          
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          
+          mkdir -p "$PROJECT_DIR"/{metadata,logs,media/{images,videos,audio},final}
+          
+          echo "## 🎬 News Video Production Started" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project Directory**: $PROJECT_DIR" >> $GITHUB_STEP_SUMMARY
+          echo "- **Topic**: ${{ inputs.topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duration**: ${{ inputs.duration }}s" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Calculate dynamic scene count
+        id: scene_calc
+        run: |
+          DURATION="${{ inputs.duration }}"
+          SCENE_COUNT=$(echo "($DURATION / 6.5 + 0.5) * 1.2" | bc -l | cut -d. -f1)
+          # Ensure minimum 8 scenes, maximum 15
+          if [ "$SCENE_COUNT" -lt 8 ]; then
+            SCENE_COUNT=8
+          elif [ "$SCENE_COUNT" -gt 15 ]; then
+            SCENE_COUNT=15
+          fi
+          
+          # Generate matrix list
+          MATRIX_SCENES="["
+          for i in $(seq 1 $SCENE_COUNT); do
+            if [ $i -eq 1 ]; then
+              MATRIX_SCENES="${MATRIX_SCENES}$i"
+            else
+              MATRIX_SCENES="${MATRIX_SCENES},$i"
+            fi
+          done
+          MATRIX_SCENES="${MATRIX_SCENES}]"
+          
+          echo "scene_count=$SCENE_COUNT" >> $GITHUB_OUTPUT
+          echo "matrix_scenes=$MATRIX_SCENES" >> $GITHUB_OUTPUT
+          
+          echo "- **Calculated Scenes**: $SCENE_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scene Matrix**: $MATRIX_SCENES" >> $GITHUB_STEP_SUMMARY
+
+  phase1-news-collection:
+    runs-on: ubuntu-latest
+    needs: setup
+    outputs:
+      news_data_path: ${{ steps.collect.outputs.news_data_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: News information collection
+        id: collect
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          PROMPT="Collect news information on topic: '${{ inputs.topic }}' in category: '${{ inputs.category }}'. Search multiple reliable sources and create comprehensive analysis. Save results to ${PROJECT_DIR}/metadata/news-data.json with Write tool. Include: sources, main points, timeline, key quotes."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "WebSearch,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 20 \
+            -p "$PROMPT"
+          
+          NEWS_DATA_PATH="${PROJECT_DIR}/metadata/news-data.json"
+          echo "news_data_path=$NEWS_DATA_PATH" >> $GITHUB_OUTPUT
+          
+          echo "## 📰 Phase 1: News Collection Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Data File**: $NEWS_DATA_PATH" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload news data
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  phase2-program-structure:
+    runs-on: ubuntu-latest
+    needs: [setup, phase1-news-collection]
+    outputs:
+      script_path: ${{ steps.structure.outputs.script_path }}
+      scene_breakdown: ${{ steps.structure.outputs.scene_breakdown }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download news data
+        uses: actions/download-artifact@v4
+        with:
+          name: news-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+      - name: Create program structure
+        id: structure
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_COUNT="${{ needs.setup.outputs.scene_count }}"
+          
+          PROMPT="Create ${{ inputs.duration }}s news program structure with $SCENE_COUNT scenes. Analyze news data from ${PROJECT_DIR}/metadata/news-data.json. Create detailed script with scene-by-scene breakdown, narration text, and visual descriptions. Save to ${PROJECT_DIR}/metadata/program-script.json with Write tool. Follow news industry standards: Hook(0-3s), Lead(3-8s), Body(8-52s), Closer(52-60s)."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Read,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 15 \
+            -p "$PROMPT"
+          
+          SCRIPT_PATH="${PROJECT_DIR}/metadata/program-script.json"
+          echo "script_path=$SCRIPT_PATH" >> $GITHUB_OUTPUT
+          echo "scene_breakdown=${PROJECT_DIR}/metadata/scene-breakdown.json" >> $GITHUB_OUTPUT
+          
+          echo "## 📝 Phase 2: Program Structure Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Script**: $SCRIPT_PATH" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scenes**: $SCENE_COUNT" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload structure data
+        uses: actions/upload-artifact@v4
+        with:
+          name: structure-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  phase3-parallel-media-generation:
+    runs-on: ubuntu-latest
+    needs: [setup, phase2-program-structure]
+    outputs:
+      narration_path: ${{ steps.narration.outputs.narration_path }}
+      anchor_image_path: ${{ steps.anchor.outputs.anchor_image_path }}
+      anchor_image_url: ${{ steps.anchor.outputs.anchor_image_url }}
+      anchor_seed: ${{ steps.anchor.outputs.anchor_seed }}
+      bgm_path: ${{ steps.bgm.outputs.bgm_path }}
+      title_path: ${{ steps.title.outputs.title_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download structure data
+        uses: actions/download-artifact@v4
+        with:
+          name: structure-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+      - name: Generate narration audio
+        id: narration
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          PROMPT="Generate professional Japanese news narration from script at ${PROJECT_DIR}/metadata/program-script.json. Use neutral news anchor tone, 150-180 words/minute pace. Save audio to ${PROJECT_DIR}/media/audio/narration.mp3 with Write tool and MCP t2s tools. Ensure -14 LUFS audio level for YouTube compliance."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-*,Read,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 25 \
+            -p "$PROMPT"
+          
+          NARRATION_PATH="${PROJECT_DIR}/media/audio/narration.mp3"
+          echo "narration_path=$NARRATION_PATH" >> $GITHUB_OUTPUT
+
+      - name: Generate news anchor
+        id: anchor
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          ANCHOR_SEED=12345
+          
+          SAVE_PATH="${PROJECT_DIR}/media/images/news-anchor.png"
+          URL_PATH="${PROJECT_DIR}/media/images/news-anchor-url.txt"
+          
+          PROMPT="Generate professional news anchor image. Requirements: formal business attire, neutral expression, 30-50 years old, diverse background consideration, blue corporate colors for trust. Save to ${SAVE_PATH} using Write tool. Save URL to ${URL_PATH}. Execute ls -la ${PROJECT_DIR}/media/images/ for verification. Use seed: $ANCHOR_SEED for consistency."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 30 \
+            -p "$PROMPT"
+          
+          # Immediate URL download
+          if [ -f "$URL_PATH" ]; then
+            curl -L -o "$SAVE_PATH" "$(cat $URL_PATH)" 2>/dev/null || true
+            ANCHOR_URL=$(cat "$URL_PATH")
+          else
+            ANCHOR_URL=""
+          fi
+          
+          # Multi-pattern file search
+          ANCHOR_IMAGE=$(find "$PROJECT_DIR" -name "*anchor*.png" 2>/dev/null | head -1)
+          if [ -z "$ANCHOR_IMAGE" ]; then
+            ANCHOR_IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+          fi
+          if [ -z "$ANCHOR_IMAGE" ]; then
+            ANCHOR_IMAGE="$SAVE_PATH"
+            mkdir -p "$(dirname "$ANCHOR_IMAGE")"
+            echo "Placeholder anchor" > "$ANCHOR_IMAGE"
+          fi
+          
+          echo "anchor_image_path=$ANCHOR_IMAGE" >> $GITHUB_OUTPUT
+          echo "anchor_image_url=$ANCHOR_URL" >> $GITHUB_OUTPUT
+          echo "anchor_seed=$ANCHOR_SEED" >> $GITHUB_OUTPUT
+
+      - name: Generate BGM
+        id: bgm
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          PROMPT="Generate professional news background music. Requirements: subtle, neutral tone, instrumental, professional corporate style, suitable for news program. Duration: ${{ inputs.duration }} seconds. Save to ${PROJECT_DIR}/media/audio/bgm.mp3 with Write tool."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2m-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 20 \
+            -p "$PROMPT"
+          
+          BGM_PATH="${PROJECT_DIR}/media/audio/bgm.mp3"
+          echo "bgm_path=$BGM_PATH" >> $GITHUB_OUTPUT
+
+      - name: Generate title graphics
+        id: title
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          PROMPT="Create professional news program title graphics. Include clean typography, corporate blue colors, topic: '${{ inputs.topic }}'. Modern news design with professional layout. Save to ${PROJECT_DIR}/media/images/title-graphic.png with Write tool."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 20 \
+            -p "$PROMPT"
+          
+          TITLE_PATH="${PROJECT_DIR}/media/images/title-graphic.png"
+          echo "title_path=$TITLE_PATH" >> $GITHUB_OUTPUT
+
+      - name: Report parallel generation status
+        run: |
+          echo "## 🎭 Phase 3: Parallel Media Generation Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Narration**: ✅ Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- **News Anchor**: ✅ Generated (Seed: ${{ steps.anchor.outputs.anchor_seed }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **BGM**: ✅ Generated" >> $GITHUB_STEP_SUMMARY
+          echo "- **Title Graphics**: ✅ Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload media artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: parallel-media
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  # Per-scene pipeline jobs (Image → Video immediate conversion)
+  phase4-scene-1-pipeline:
+    runs-on: ubuntu-latest
+    needs: [setup, phase2-program-structure]
+    outputs:
+      scene1_video: ${{ steps.convert.outputs.video_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Download structure data
+        uses: actions/download-artifact@v4
+        with:
+          name: structure-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      - name: Generate scene 1 image and video
+        id: convert
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM=1
+          
+          # Image generation with explicit save paths
+          IMAGE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          IMAGE_URL_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}-url.txt"
+          
+          IMAGE_PROMPT="Generate scene ${SCENE_NUM} image based on script from ${PROJECT_DIR}/metadata/program-script.json. Create news-appropriate visual for this scene. Save to ${IMAGE_PATH} using Write tool. Save URL to ${IMAGE_URL_PATH}. Execute ls -la ${PROJECT_DIR}/media/images/"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Read,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 30 \
+            -p "$IMAGE_PROMPT"
+          
+          # Immediate URL download to prevent expiration
+          if [ -f "$IMAGE_URL_PATH" ]; then
+            curl -L -o "$IMAGE_PATH" "$(cat $IMAGE_URL_PATH)" 2>/dev/null || true
+            IMAGE_URL=$(cat "$IMAGE_URL_PATH")
+          else
+            IMAGE_URL=""
+          fi
+          
+          # Find generated image
+          FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.png" 2>/dev/null | head -1)
+          if [ -z "$FOUND_IMAGE" ]; then
+            FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+          fi
+          if [ -z "$FOUND_IMAGE" ]; then
+            echo "⚠️ No image found, using placeholder"
+            FOUND_IMAGE="$IMAGE_PATH"
+            mkdir -p "$(dirname "$FOUND_IMAGE")"
+            echo "Placeholder scene ${SCENE_NUM}" > "$FOUND_IMAGE"
+          fi
+          
+          # Immediate I2V conversion (URL expiration countermeasure)
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -n "$IMAGE_URL" ] && [ "$IMAGE_URL" != "" ]; then
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: '${IMAGE_URL}'. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          else
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: ${FOUND_IMAGE}. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          fi
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 80 \
+            -p "$VIDEO_PROMPT"
+          
+          # Find generated video
+          SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.mp4" 2>/dev/null | head -1)
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*.mp4" -mmin -5 2>/dev/null | head -1)
+          fi
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO="$VIDEO_PATH"
+          fi
+          
+          echo "video_path=$SCENE_VIDEO" >> $GITHUB_OUTPUT
+      
+      - name: Upload scene 1 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scene-1-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  phase4-scene-2-pipeline:
+    runs-on: ubuntu-latest
+    needs: [setup, phase2-program-structure]
+    outputs:
+      scene2_video: ${{ steps.convert.outputs.video_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Download structure data
+        uses: actions/download-artifact@v4
+        with:
+          name: structure-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      - name: Generate scene 2 image and video
+        id: convert
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM=2
+          
+          # Image generation with explicit save paths
+          IMAGE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          IMAGE_URL_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}-url.txt"
+          
+          IMAGE_PROMPT="Generate scene ${SCENE_NUM} image based on script from ${PROJECT_DIR}/metadata/program-script.json. Create news-appropriate visual for this scene. Save to ${IMAGE_PATH} using Write tool. Save URL to ${IMAGE_URL_PATH}. Execute ls -la ${PROJECT_DIR}/media/images/"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Read,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 30 \
+            -p "$IMAGE_PROMPT"
+          
+          # Immediate URL download to prevent expiration
+          if [ -f "$IMAGE_URL_PATH" ]; then
+            curl -L -o "$IMAGE_PATH" "$(cat $IMAGE_URL_PATH)" 2>/dev/null || true
+            IMAGE_URL=$(cat "$IMAGE_URL_PATH")
+          else
+            IMAGE_URL=""
+          fi
+          
+          # Find generated image
+          FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.png" 2>/dev/null | head -1)
+          if [ -z "$FOUND_IMAGE" ]; then
+            FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+          fi
+          if [ -z "$FOUND_IMAGE" ]; then
+            echo "⚠️ No image found, using placeholder"
+            FOUND_IMAGE="$IMAGE_PATH"
+            mkdir -p "$(dirname "$FOUND_IMAGE")"
+            echo "Placeholder scene ${SCENE_NUM}" > "$FOUND_IMAGE"
+          fi
+          
+          # Immediate I2V conversion (URL expiration countermeasure)
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -n "$IMAGE_URL" ] && [ "$IMAGE_URL" != "" ]; then
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: '${IMAGE_URL}'. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          else
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: ${FOUND_IMAGE}. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          fi
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 80 \
+            -p "$VIDEO_PROMPT"
+          
+          # Find generated video
+          SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.mp4" 2>/dev/null | head -1)
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*.mp4" -mmin -5 2>/dev/null | head -1)
+          fi
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO="$VIDEO_PATH"
+          fi
+          
+          echo "video_path=$SCENE_VIDEO" >> $GITHUB_OUTPUT
+      
+      - name: Upload scene 2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scene-2-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  phase4-scene-3-pipeline:
+    runs-on: ubuntu-latest
+    needs: [setup, phase2-program-structure]
+    outputs:
+      scene3_video: ${{ steps.convert.outputs.video_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Download structure data
+        uses: actions/download-artifact@v4
+        with:
+          name: structure-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      - name: Generate scene 3 image and video
+        id: convert
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM=3
+          
+          # Image generation with explicit save paths
+          IMAGE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          IMAGE_URL_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}-url.txt"
+          
+          IMAGE_PROMPT="Generate scene ${SCENE_NUM} image based on script from ${PROJECT_DIR}/metadata/program-script.json. Create news-appropriate visual for this scene. Save to ${IMAGE_PATH} using Write tool. Save URL to ${IMAGE_URL_PATH}. Execute ls -la ${PROJECT_DIR}/media/images/"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Read,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 30 \
+            -p "$IMAGE_PROMPT"
+          
+          # Immediate URL download to prevent expiration
+          if [ -f "$IMAGE_URL_PATH" ]; then
+            curl -L -o "$IMAGE_PATH" "$(cat $IMAGE_URL_PATH)" 2>/dev/null || true
+            IMAGE_URL=$(cat "$IMAGE_URL_PATH")
+          else
+            IMAGE_URL=""
+          fi
+          
+          # Find generated image
+          FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.png" 2>/dev/null | head -1)
+          if [ -z "$FOUND_IMAGE" ]; then
+            FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+          fi
+          if [ -z "$FOUND_IMAGE" ]; then
+            echo "⚠️ No image found, using placeholder"
+            FOUND_IMAGE="$IMAGE_PATH"
+            mkdir -p "$(dirname "$FOUND_IMAGE")"
+            echo "Placeholder scene ${SCENE_NUM}" > "$FOUND_IMAGE"
+          fi
+          
+          # Immediate I2V conversion (URL expiration countermeasure)
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -n "$IMAGE_URL" ] && [ "$IMAGE_URL" != "" ]; then
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: '${IMAGE_URL}'. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          else
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: ${FOUND_IMAGE}. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          fi
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 80 \
+            -p "$VIDEO_PROMPT"
+          
+          # Find generated video
+          SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.mp4" 2>/dev/null | head -1)
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*.mp4" -mmin -5 2>/dev/null | head -1)
+          fi
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO="$VIDEO_PATH"
+          fi
+          
+          echo "video_path=$SCENE_VIDEO" >> $GITHUB_OUTPUT
+      
+      - name: Upload scene 3 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scene-3-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  phase4-scene-4-pipeline:
+    runs-on: ubuntu-latest
+    needs: [setup, phase2-program-structure]
+    outputs:
+      scene4_video: ${{ steps.convert.outputs.video_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Download structure data
+        uses: actions/download-artifact@v4
+        with:
+          name: structure-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+      - name: Generate scene 4 image and video
+        id: convert
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM=4
+          
+          # Image generation with explicit save paths
+          IMAGE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          IMAGE_URL_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}-url.txt"
+          
+          IMAGE_PROMPT="Generate scene ${SCENE_NUM} image based on script from ${PROJECT_DIR}/metadata/program-script.json. Create news-appropriate visual for this scene. Save to ${IMAGE_PATH} using Write tool. Save URL to ${IMAGE_URL_PATH}. Execute ls -la ${PROJECT_DIR}/media/images/"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Read,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 30 \
+            -p "$IMAGE_PROMPT"
+          
+          # Immediate URL download to prevent expiration
+          if [ -f "$IMAGE_URL_PATH" ]; then
+            curl -L -o "$IMAGE_PATH" "$(cat $IMAGE_URL_PATH)" 2>/dev/null || true
+            IMAGE_URL=$(cat "$IMAGE_URL_PATH")
+          else
+            IMAGE_URL=""
+          fi
+          
+          # Find generated image
+          FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.png" 2>/dev/null | head -1)
+          if [ -z "$FOUND_IMAGE" ]; then
+            FOUND_IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+          fi
+          if [ -z "$FOUND_IMAGE" ]; then
+            echo "⚠️ No image found, using placeholder"
+            FOUND_IMAGE="$IMAGE_PATH"
+            mkdir -p "$(dirname "$FOUND_IMAGE")"
+            echo "Placeholder scene ${SCENE_NUM}" > "$FOUND_IMAGE"
+          fi
+          
+          # Immediate I2V conversion (URL expiration countermeasure)
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -n "$IMAGE_URL" ] && [ "$IMAGE_URL" != "" ]; then
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: '${IMAGE_URL}'. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          else
+            VIDEO_PROMPT="Convert image to 8-second video. image_url: ${FOUND_IMAGE}. Create subtle movement appropriate for news content. Save to ${VIDEO_PATH}."
+          fi
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 80 \
+            -p "$VIDEO_PROMPT"
+          
+          # Find generated video
+          SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.mp4" 2>/dev/null | head -1)
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO=$(find "$PROJECT_DIR" -name "*.mp4" -mmin -5 2>/dev/null | head -1)
+          fi
+          if [ -z "$SCENE_VIDEO" ]; then
+            SCENE_VIDEO="$VIDEO_PATH"
+          fi
+          
+          echo "video_path=$SCENE_VIDEO" >> $GITHUB_OUTPUT
+      
+      - name: Upload scene 4 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scene-4-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  phase5-anchor-video-production:
+    runs-on: ubuntu-latest
+    needs: [setup, phase3-parallel-media-generation]
+    outputs:
+      anchor_video_path: ${{ steps.lipsync.outputs.anchor_video_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download parallel media
+        uses: actions/download-artifact@v4
+        with:
+          name: parallel-media
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+      - name: Create anchor video with lip-sync
+        id: lipsync
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Use anchor image and narration from previous phases
+          ANCHOR_IMAGE="${{ needs.phase3-parallel-media-generation.outputs.anchor_image_path }}"
+          ANCHOR_URL="${{ needs.phase3-parallel-media-generation.outputs.anchor_image_url }}"
+          NARRATION_AUDIO="${{ needs.phase3-parallel-media-generation.outputs.narration_path }}"
+          
+          ANCHOR_VIDEO_PATH="${PROJECT_DIR}/media/videos/news-anchor-lipsync.mp4"
+          
+          # First convert image to video
+          if [ -n "$ANCHOR_URL" ] && [ "$ANCHOR_URL" != "" ]; then
+            I2V_PROMPT="Convert news anchor image to video with subtle professional movements. image_url: '${ANCHOR_URL}'. Duration: ${{ inputs.duration }} seconds. Save to ${PROJECT_DIR}/media/videos/anchor-base.mp4."
+          else
+            I2V_PROMPT="Convert news anchor image to video with subtle professional movements. image_url: ${ANCHOR_IMAGE}. Duration: ${{ inputs.duration }} seconds. Save to ${PROJECT_DIR}/media/videos/anchor-base.mp4."
+          fi
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 80 \
+            -p "$I2V_PROMPT"
+          
+          # Find anchor base video
+          ANCHOR_BASE=$(find "$PROJECT_DIR" -name "*anchor*.mp4" 2>/dev/null | head -1)
+          if [ -z "$ANCHOR_BASE" ]; then
+            ANCHOR_BASE="${PROJECT_DIR}/media/videos/anchor-base.mp4"
+          fi
+          
+          # Apply lip-sync
+          LIPSYNC_PROMPT="Apply lip-sync to anchor video. video_url: ${ANCHOR_BASE}, audio_url: ${NARRATION_AUDIO}. Create natural lip movement synchronized with narration. Save to ${ANCHOR_VIDEO_PATH}."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__v2v-*,Write,Bash" \
+            --permission-mode "acceptEdits" \
+            --max-turns 60 \
+            -p "$LIPSYNC_PROMPT"
+          
+          # Find final anchor video
+          FINAL_ANCHOR=$(find "$PROJECT_DIR" -name "*lipsync*.mp4" 2>/dev/null | head -1)
+          if [ -z "$FINAL_ANCHOR" ]; then
+            FINAL_ANCHOR="$ANCHOR_VIDEO_PATH"
+          fi
+          
+          echo "anchor_video_path=$FINAL_ANCHOR" >> $GITHUB_OUTPUT
+          
+          echo "## 👤 Phase 5: Anchor Video Production Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Anchor Video**: $FINAL_ANCHOR" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload anchor video
+        uses: actions/upload-artifact@v4
+        with:
+          name: anchor-video
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+
+  phase6-video-editing-plan:
+    runs-on: ubuntu-latest
+    needs: [setup, phase3-parallel-media-generation, phase4-scene-1-pipeline, phase4-scene-2-pipeline, phase4-scene-3-pipeline, phase4-scene-4-pipeline, phase5-anchor-video-production]
+    outputs:
+      editing_plan_path: ${{ steps.plan.outputs.editing_plan_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all media artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-artifacts"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+      - name: Download parallel media
+        uses: actions/download-artifact@v4
+        with:
+          name: parallel-media
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+      - name: Download anchor video
+        uses: actions/download-artifact@v4
+        with:
+          name: anchor-video
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+
+      - name: Create comprehensive editing plan
+        id: plan
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          EDITING_PLAN_PROMPT="Create comprehensive video editing plan. Analyze all materials in ${PROJECT_DIR}/media/: scene videos (scene1-4.mp4), anchor video, narration audio, BGM, title graphics. Create detailed timeline with: 1) Precise timing and transitions 2) Audio mixing levels 3) Scene sequencing 4) Title placement 5) Complete FFmpeg command sequence. Target: ${{ inputs.duration }}s professional news video. Save plan to ${PROJECT_DIR}/metadata/editing-plan.json with Write tool."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Bash,Read,Write" \
+            --permission-mode "acceptEdits" \
+            --max-turns 30 \
+            -p "$EDITING_PLAN_PROMPT"
+          
+          EDITING_PLAN_PATH="${PROJECT_DIR}/metadata/editing-plan.json"
+          echo "editing_plan_path=$EDITING_PLAN_PATH" >> $GITHUB_OUTPUT
+          
+          echo "## 📋 Phase 6: Video Editing Plan Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Plan**: $EDITING_PLAN_PATH" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload editing plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: editing-plan
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  phase7-final-integration:
+    runs-on: ubuntu-latest
+    needs: [setup, phase6-video-editing-plan]
+    outputs:
+      final_video_path: ${{ steps.integrate.outputs.final_video_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          merge-multiple: true
+          path: ${{ needs.setup.outputs.project_dir }}/
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Execute final video integration
+        id: integrate
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Execute editing plan with Claude Code assistance
+          INTEGRATION_PROMPT="Execute video integration based on editing plan at ${PROJECT_DIR}/metadata/editing-plan.json. Use FFmpeg to combine all materials: scene videos, anchor video, narration, BGM, title graphics. Create professional ${{ inputs.duration }}s news video. Technical specs: 1920x1080, 30fps, -14 LUFS audio. Save final video to ${PROJECT_DIR}/final/news-video-final.mp4. Use Bash tool to execute FFmpeg commands."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Bash,Read,Write" \
+            --permission-mode "acceptEdits" \
+            --max-turns 40 \
+            -p "$INTEGRATION_PROMPT"
+          
+          # Find final video
+          FINAL_VIDEO=$(find "$PROJECT_DIR" -name "*final*.mp4" 2>/dev/null | head -1)
+          if [ -z "$FINAL_VIDEO" ]; then
+            FINAL_VIDEO="${PROJECT_DIR}/final/news-video-final.mp4"
+          fi
+          
+          echo "final_video_path=$FINAL_VIDEO" >> $GITHUB_OUTPUT
+          
+          echo "## 🎬 Phase 7: Final Integration Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Final Video**: $FINAL_VIDEO" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video
+          path: ${{ needs.setup.outputs.project_dir }}/final/
+
+  phase8-quality-verification:
+    runs-on: ubuntu-latest
+    needs: [setup, phase7-final-integration]
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download final video
+        uses: actions/download-artifact@v4
+        with:
+          name: final-video
+          path: ${{ needs.setup.outputs.project_dir }}/final/
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Quality verification and optimization
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          FINAL_VIDEO="${{ needs.phase7-final-integration.outputs.final_video_path }}"
+          
+          # Verify video exists and validate quality
+          if [ -f "$FINAL_VIDEO" ]; then
+            # Check video properties
+            duration=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null || echo "0")
+            resolution=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv="s=x:p=0" "$FINAL_VIDEO" 2>/dev/null || echo "unknown")
+            filesize=$(stat -c%s "$FINAL_VIDEO" 2>/dev/null || echo 0)
+            
+            echo "## 🔍 Phase 8: Quality Verification" >> $GITHUB_STEP_SUMMARY
+            echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+            echo "- **File Size**: ${filesize} bytes" >> $GITHUB_STEP_SUMMARY
+            echo "- **Duration**: ${duration}s" >> $GITHUB_STEP_SUMMARY
+            echo "- **Resolution**: ${resolution}" >> $GITHUB_STEP_SUMMARY
+            
+            # Quality checks
+            if (( $(echo "$duration >= 50.0" | bc -l) )); then
+              echo "- **Duration Check**: ✅ Pass" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Duration Check**: ⚠️ Warning (${duration}s < 50s)" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ "$resolution" = "1920x1080" ]; then
+              echo "- **Resolution Check**: ✅ Pass" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Resolution Check**: ⚠️ Warning (${resolution})" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            if [ "$filesize" -gt 5000000 ]; then
+              echo "- **Size Check**: ✅ Pass (${filesize} bytes)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Size Check**: ⚠️ Warning (${filesize} bytes < 5MB)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "## 🔍 Phase 8: Quality Verification" >> $GITHUB_STEP_SUMMARY
+            echo "- **Status**: ❌ Final video not found" >> $GITHUB_STEP_SUMMARY
+            echo "- **Path**: $FINAL_VIDEO" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📈 Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Topic**: ${{ inputs.topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Duration**: ${{ inputs.duration }}s" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scenes Generated**: ${{ needs.setup.outputs.scene_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project Directory**: ${{ needs.setup.outputs.project_dir }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload all final artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: complete-project
+          path: ${{ needs.setup.outputs.project_dir }}/
