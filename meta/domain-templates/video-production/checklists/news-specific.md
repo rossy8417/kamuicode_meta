@@ -1,11 +1,15 @@
 # News Video Checklist (MUST/SHOULD)
 
 ## MUST
+- **News Anchor Generation**: Create ONE consistent news anchor/presenter who appears throughout the entire video
+  - Use fixed seed value (e.g., seed: 42) for character consistency
+  - Generate anchor once, then create multiple lip-sync videos for each scene
+  - Anchor should be professional (business attire, neutral expression, credible appearance)
+- **Scene Calculation for News**: Use fixed 5-second per scene (60s = 12 scenes, 30s = 6 scenes)
 - Use professional presenter style with stable identity (no face change).
 - Keep 1920x1080 resolution and 30fps for all clips.
 - Maintain audio loudness around -14 LUFS.
 - Include clear Hook -> Main -> CTA structure within target duration.
-- If i2v clip length is limited (5–8s), ensure enough scenes: ceil(duration_sec / per_scene_sec).
 - Save files under `${PROJECT_DIR}` and share between jobs via artifacts.
 
 ## SHOULD

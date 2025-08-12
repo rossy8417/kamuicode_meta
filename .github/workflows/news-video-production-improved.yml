@@ -23,6 +23,7 @@ on:
 env:
   CLAUDE_CODE_CI_MODE: true
   CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 jobs:
   setup:
@@ -57,13 +58,13 @@ jobs:
         id: scene_calc
         run: |
           DURATION="${{ inputs.duration }}"
-          SCENE_COUNT=$(echo "($DURATION / 6.5 + 0.5) * 1.2" | bc -l | cut -d. -f1)
-          # Ensure minimum 8 scenes, maximum 15
-          if [ "$SCENE_COUNT" -lt 8 ]; then
-            SCENE_COUNT=8
-          elif [ "$SCENE_COUNT" -gt 15 ]; then
-            SCENE_COUNT=15
-          fi
+          # News video: fixed 5 seconds per scene
+          SCENE_COUNT=$(( (DURATION + 4) / 5 ))  # ceil(duration/5)
+          
+          echo "📊 Scene calculation for news video:"
+          echo "  Duration: ${DURATION}s"
+          echo "  Scene length: 5s (fixed for news)"
+          echo "  Total scenes: ${SCENE_COUNT}"
           
           # Generate matrix list
           MATRIX_SCENES="["

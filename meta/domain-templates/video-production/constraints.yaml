@@ -7,16 +7,20 @@ timing_constraints:
   scene_calculation:
     importance: "CRITICAL - 動画の視聴体験を左右する最重要要素"
     formula: |
-      total_scenes = ceil(duration_seconds / average_scene_length)
-      where:
-        - average_scene_length = 6.5 (5-8秒の中央値)
-        - buffer_scenes = ceil(total_scenes * 0.2) # 20%の予備シーン
-        - final_scene_count = total_scenes + buffer_scenes
+      # ニュース動画用の計算式（5秒/シーン固定）
+      total_scenes = ceil(duration_seconds / 5)
+      
+      # 旧式（汎用動画向け）
+      # total_scenes = ceil(duration_seconds / average_scene_length)
+      # where:
+      #   - average_scene_length = 6.5 (5-8秒の中央値)
+      #   - buffer_scenes = ceil(total_scenes * 0.2) # 20%の予備シーン
+      #   - final_scene_count = total_scenes + buffer_scenes
     
     examples:
-      - "duration: 30s → scenes: 5 + 1 = 6"
-      - "duration: 60s → scenes: 10 + 2 = 12"
-      - "duration: 180s → scenes: 28 + 6 = 34"
+      - "duration: 30s → scenes: 6"
+      - "duration: 60s → scenes: 12"
+      - "duration: 180s → scenes: 36"
 
 # 構成ルール（直列×並列）
 composition_rules:
