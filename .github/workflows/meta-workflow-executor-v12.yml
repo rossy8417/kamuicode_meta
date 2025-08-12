@@ -854,7 +854,9 @@ jobs:
             if grep -q 'max-parallel:.*fromJSON' "$WORKFLOW_PATH" 2>/dev/null; then
               echo "⚠️ Fixing max-parallel syntax..."
               # max-parallel should use the number directly without fromJSON
-              sed -i 's/max-parallel: \${{ fromJSON(\([^)]*\)) }}/max-parallel: \${{ \1 }}/g' "$WORKFLOW_PATH" 2>/dev/null || true
+              # Using printf to avoid GitHub Actions interpreting the pattern
+              PATTERN='s/max-parallel: \${{ fromJSON(\([^)]*\)) }}/max-parallel: \${{ \1 }}/g'
+              sed -i "$PATTERN" "$WORKFLOW_PATH" 2>/dev/null || true
               echo "  ✅ Fixed max-parallel syntax"
             fi
             
