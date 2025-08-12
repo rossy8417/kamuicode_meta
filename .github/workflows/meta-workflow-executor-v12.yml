@@ -853,15 +853,13 @@ jobs:
               echo "  ✅ Converted GCS URLs to HTTPS format"
             fi
             
-            # Fix common YAML syntax issues with Python
+            # Fix common YAML syntax issues with inline Python
             echo "⚠️ Fixing common YAML syntax issues..."
-            export WORKFLOW_PATH="$WORKFLOW_PATH"
-            python3 << 'PYTHON_EOF'
+            python3 -c "
 import re
-import sys
 import os
 
-workflow_path = os.environ.get('WORKFLOW_PATH', '')
+workflow_path = '$WORKFLOW_PATH'
 
 try:
     with open(workflow_path, 'r') as f:
@@ -870,36 +868,34 @@ try:
     # Remove max-parallel entirely to allow unlimited parallelization
     # GitHub Actions doesn't support variables in max-parallel
     content = re.sub(
-        r'\n\s*max-parallel:.*\n',
-        '\n',
+        r'\\n\\s*max-parallel:.*\\n',
+        '\\n',
         content
     )
     
     # Fix CALCULATED_SCENES environment variable syntax
     # Fix quotes in fromJSON calls
     content = re.sub(
-        r"fromJSON\('(\{[^}]+\})'\)",
-        r"fromJSON('\1')",
+        r\"fromJSON\\('(\\{[^}]+\\})'\\)\",
+        r\"fromJSON('\\1')\",
         content
     )
     
-    # Fix heredoc issues - escape $ in command substitutions within heredocs
-    # Find cat > ... << EOF blocks and fix $(date) and similar
+    # Fix heredoc issues - escape dollar in command substitutions within heredocs
     content = re.sub(
-        r'(cat\s+>\s+.*<<\s*EOF.*?)(\$\(date\))',
-        r'\1\\$(date)',
-        content,
-        flags=re.MULTILINE | re.DOTALL
+        r'Generated: \\$\\(date\\)',
+        r'Generated: \\\\\\$(date)',
+        content
     )
     
     with open(workflow_path, 'w') as f:
         f.write(content)
     
-    print("  ✅ Fixed YAML syntax issues")
-    print("  ✅ Removed max-parallel to allow dynamic parallelization")
+    print('  ✅ Fixed YAML syntax issues')
+    print('  ✅ Removed max-parallel to allow dynamic parallelization')
 except Exception as e:
-    print(f"  ⚠️ Could not fix YAML issues: {e}")
-PYTHON_EOF
+    print(f'  ⚠️ Could not fix YAML issues: {e}')
+"
             
             # Ensure workflow ends properly (no trailing content)
             # Add a newline at the end if missing
