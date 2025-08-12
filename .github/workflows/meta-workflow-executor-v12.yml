@@ -686,7 +686,8 @@ jobs:
             env:
               CLAUDE_CODE_CI_MODE: true
               CLAUDE_CODE_AUTO_APPROVE_MCP: true
-              CLAUDE_CODE_OAUTH_TOKEN: \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+              CLAUDE_CODE_OAUTH_TOKEN: SECRETS_PLACEHOLDER
+            Then replace SECRETS_PLACEHOLDER with the exact text: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           - MUST: Follow these patterns when executing Claude Code:
             1. Execute generation/processing with MCP tools
             2. Save local files with Write tool (explicit path: ${PROJECT_DIR}/media/...)
@@ -818,6 +819,12 @@ jobs:
             # Note: Do NOT quote the "on" field - GitHub Actions requires it unquoted
             # Make sure it's unquoted (in case Claude Code quoted it)
             sed -i 's/^"on":$/on:/' "$WORKFLOW_PATH"
+            
+            # Replace SECRETS_PLACEHOLDER with the actual secrets reference
+            if grep -q "SECRETS_PLACEHOLDER" "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Replacing SECRETS_PLACEHOLDER with actual secrets reference..."
+              sed -i 's/SECRETS_PLACEHOLDER/\${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/' "$WORKFLOW_PATH"
+            fi
             
             # Remove invalid matrix references in outputs section
             # GitHub Actions doesn't allow ${{ matrix.* }} in job outputs
