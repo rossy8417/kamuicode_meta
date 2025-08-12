@@ -850,23 +850,6 @@ jobs:
               echo "  ✅ Converted GCS URLs to HTTPS format"
             fi
             
-            # Fix incorrect fromJSON usage in max-parallel
-            if grep -q 'max-parallel:.*fromJSON' "$WORKFLOW_PATH" 2>/dev/null; then
-              echo "⚠️ Fixing max-parallel syntax..."
-              # max-parallel should use the number directly without fromJSON
-              # Using printf to avoid GitHub Actions interpreting the pattern
-              PATTERN='s/max-parallel: \${{ fromJSON(\([^)]*\)) }}/max-parallel: \${{ \1 }}/g'
-              sed -i "$PATTERN" "$WORKFLOW_PATH" 2>/dev/null || true
-              echo "  ✅ Fixed max-parallel syntax"
-            fi
-            
-            # Fix CALCULATED_SCENES environment variable with fromJSON
-            if grep -q "CALCULATED_SCENES:.*fromJSON" "$WORKFLOW_PATH" 2>/dev/null; then
-              echo "⚠️ Fixing CALCULATED_SCENES syntax..."
-              # Fix the quotes issue in fromJSON
-              sed -i "s/fromJSON('{\([^}]*\)}')/fromJSON('{\\1}')/g" "$WORKFLOW_PATH" 2>/dev/null || true
-              echo "  ✅ Fixed CALCULATED_SCENES syntax"
-            fi
             
             # Ensure workflow ends properly (no trailing content)
             # Add a newline at the end if missing
