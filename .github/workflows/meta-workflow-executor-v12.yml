@@ -693,6 +693,13 @@ jobs:
             2. Save local files with Write tool (explicit path: ${PROJECT_DIR}/media/...)
             3. Verify save with ls -la using Bash tool
             * Details: See docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
+          - MUST: For video-production, combine T2I and I2V in single job per scene:
+            Example structure for each scene job:
+            1. Generate image with T2I MCP tool
+            2. Save image locally
+            3. IMMEDIATELY convert to video with I2V MCP tool (within 3 minutes)
+            4. Save video locally
+            This prevents URL expiration between T2I and I2V
           - MUST: Execute file search with multiple patterns:
             1. Specific pattern: "*scene${NUM}*.png"
             2. Time-based: "*.png -mmin -2"
@@ -726,7 +733,10 @@ jobs:
             - Recommendation: Remove max-parallel to allow full parallelization based on scene count
           - Use calculated dynamic values, not fixed values (e.g., batch: [1,2,3])
           - Use consistent character for news anchor (fixed seed)
-          - Image generation (T2I) → video conversion (I2V) are separate jobs but with tight dependencies
+          - CRITICAL: Image generation (T2I) → video conversion (I2V) MUST be in SAME JOB (serial execution)
+            - This avoids Google Cloud Storage URL expiration (15 minutes)
+            - Each scene job should: Generate image → Convert to video immediately
+            - NEVER split T2I and I2V into separate jobs
           - MUST: Include the following EXACT code patterns in each scene image generation step:
             a. Explicit save path specification to Claude Code:
                SAVE_PATH="\${PROJECT_DIR}/media/images/scene\${SCENE_NUM}.png"

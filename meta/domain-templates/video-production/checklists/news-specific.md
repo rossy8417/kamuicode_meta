@@ -1,6 +1,10 @@
 # News Video Checklist (MUST/SHOULD)
 
 ## MUST
+- **CRITICAL: T2I→I2V Serial Execution**: Each scene MUST execute T2I and I2V in the SAME job
+  - This prevents Google Cloud Storage URL expiration (15 minutes limit)
+  - Structure: matrix.scene → each job does: T2I → save → I2V → save
+  - NEVER split T2I and I2V into separate job phases
 - **News Anchor Generation**: Create ONE consistent news anchor/presenter who appears throughout the entire video
   - Use fixed seed value (e.g., seed: 42) for character consistency
   - Generate anchor once, then create multiple lip-sync videos for each scene
