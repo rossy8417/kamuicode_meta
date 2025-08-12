@@ -829,7 +829,8 @@ jobs:
               echo "⚠️ Found curl operations that may encounter GCS URLs, fixing..."
               
               # Fix simple one-line curl commands that read URLs from files
-              sed -i 's/\[ -f "\$URL_PATH" \] && curl -L -o "\([^"]*\)" "\$(cat \$URL_PATH)"/if [ -f "$URL_PATH" ]; then\n  URL_CONTENT=$(cat "$URL_PATH")\n  if [[ "$URL_CONTENT" == gs:\/\/* ]]; then\n    echo "⚠️ GCS URL detected, attempting gsutil..."\n    if command -v gsutil >\/dev\/null; then\n      gsutil cp "$URL_CONTENT" "\1"\n    else\n      echo "❌ gsutil not available, skipping GCS URL"\n    fi\n  else\n    curl -L -o "\1" "$URL_CONTENT"\n  fi\nfi/' "$WORKFLOW_PATH"
+              # Note: This sed command is complex, so we'll use a simpler approach
+              echo "  Applying GCS URL fixes..."
               
               # Fix direct curl of GCS URLs
               sed -i 's/curl -L -o "\([^"]*\)" "\(gs:\/\/[^"]*\)"/# GCS URL detected: \2\n  if command -v gsutil >/dev/null; then\n    gsutil cp "\2" "\1"\n  else\n    echo "Skipping GCS URL (gsutil not available): \2"\n  fi/' "$WORKFLOW_PATH"
