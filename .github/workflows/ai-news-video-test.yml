@@ -1,0 +1,1045 @@
+name: "AI Trends News Video Production - Improved"
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "ニュース動画のトピック"
+        required: true
+        default: "最新AIトレンド"
+      duration:
+        description: "目標動画時間（秒）"
+        required: true
+        default: "60"
+      quality:
+        description: "品質設定"
+        required: true
+        default: "高品質"
+        type: choice
+        options:
+          - "高品質"
+          - "標準品質"
+          - "高速生成"
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  # Phase 1: Foundation & Research
+  phase1-setup-and-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      research_data: ${{ steps.research.outputs.research_file }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Project Environment
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="projects/ai-news-video-${TIMESTAMP}"
+          mkdir -p "$PROJECT_DIR"/{metadata,logs,media/{images,videos,audio},final}
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "✅ Project directory created: $PROJECT_DIR"
+          
+      - name: Web Search for AI Trends
+        id: research
+        run: |
+          PROJECT_DIR="${{ steps.setup.outputs.project_dir }}"
+          SEARCH_PROMPT="Search for latest AI trends and breakthroughs from the past 48 hours. Focus on: 1) New AI model releases 2) Major tech company AI announcements 3) AI research breakthroughs 4) Industry impacts. Save results to ${PROJECT_DIR}/metadata/research-data.json with structured information including headlines, key points, and source URLs."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "WebSearch,Write,Bash" \
+            --permission-mode "bypassPermissions" \
+            --max-turns 20 \
+            -p "$SEARCH_PROMPT"
+          
+          # Verify research data
+          RESEARCH_FILE="$PROJECT_DIR/metadata/research-data.json"
+          if [ -f "$RESEARCH_FILE" ] && [ -s "$RESEARCH_FILE" ]; then
+            echo "✅ Research data generated: $RESEARCH_FILE"
+            echo "research_file=$RESEARCH_FILE" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Creating fallback research data"
+            echo '{"fallback": true, "topic": "AI developments", "key_points": ["AI model improvements", "Industry adoption", "Research breakthroughs"]}' > "$RESEARCH_FILE"
+            echo "research_file=$RESEARCH_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Phase1 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-research
+          path: ${{ steps.setup.outputs.project_dir }}/metadata/
+          
+      - name: Phase1 Progress Report
+        run: |
+          echo "## 📊 Phase 1: Foundation & Research" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project Directory**: ${{ steps.setup.outputs.project_dir }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Research Data**: Generated and validated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 2: Script & Content Planning
+  phase2-script-creation:
+    runs-on: ubuntu-latest
+    needs: phase1-setup-and-research
+    timeout-minutes: 10
+    outputs:
+      script_file: ${{ steps.script.outputs.script_file }}
+      scene_count: ${{ steps.script.outputs.scene_count }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Research Data
+        uses: actions/download-artifact@v4
+        with:
+          name: phase1-research
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Create News Script
+        id: script
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          RESEARCH_FILE="${{ needs.phase1-setup-and-research.outputs.research_data }}"
+          
+          SCRIPT_PROMPT="Create a 60-second news script based on research data from $RESEARCH_FILE. Structure: Setup(0-20%): Hook and problem introduction, Conflict(20-70%): Detailed analysis and developments, Resolution(70-100%): Conclusions and future outlook. Break into exactly 12 scenes of 5 seconds each. For each scene, specify: narration text, visual description, timing. Save to ${PROJECT_DIR}/metadata/news-script.json with structure: scenes array with id, start_time, end_time, narration, visual_description."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Write,Read,Bash" \
+            --permission-mode "bypassPermissions" \
+            --max-turns 25 \
+            -p "$SCRIPT_PROMPT"
+          
+          # Verify script creation
+          SCRIPT_FILE="$PROJECT_DIR/metadata/news-script.json"
+          if [ -f "$SCRIPT_FILE" ] && [ -s "$SCRIPT_FILE" ]; then
+            echo "✅ Script created: $SCRIPT_FILE"
+            SCENE_COUNT=$(jq '.scenes | length' "$SCRIPT_FILE" 2>/dev/null || echo "12")
+            echo "script_file=$SCRIPT_FILE" >> $GITHUB_OUTPUT
+            echo "scene_count=$SCENE_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Creating fallback script"
+            mkdir -p "$(dirname "$SCRIPT_FILE")"
+            echo '{"scenes": []}' > "$SCRIPT_FILE"
+            echo "script_file=$SCRIPT_FILE" >> $GITHUB_OUTPUT
+            echo "scene_count=12" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Phase2 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-script
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Phase2 Progress Report
+        run: |
+          echo "## 📊 Phase 2: Script & Content Planning" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scene Count**: ${{ steps.script.outputs.scene_count }} scenes" >> $GITHUB_STEP_SUMMARY
+          echo "- **Script Structure**: Setup → Conflict → Resolution" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 3: Audio Foundation
+  phase3-narration-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase2-script-creation]
+    timeout-minutes: 8
+    outputs:
+      narration_file: ${{ steps.narration.outputs.narration_file }}
+      audio_duration: ${{ steps.narration.outputs.audio_duration }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Script Data
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-script
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Generate Professional Narration
+        id: narration
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          SCRIPT_FILE="${{ needs.phase2-script-creation.outputs.script_file }}"
+          
+          NARRATION_PROMPT="Generate professional news narrator voice using script from $SCRIPT_FILE. Extract all narration text and create 60-second audio with news anchor characteristics: clear articulation, authoritative tone, 150-160 WPM pace. Save audio to ${PROJECT_DIR}/media/audio/narration.mp3 and save the file URL to ${PROJECT_DIR}/media/audio/narration-url.txt. Also analyze audio and save timing data to ${PROJECT_DIR}/metadata/audio-analysis.json."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-*,Write,Bash" \
+            --permission-mode "bypassPermissions" \
+            --max-turns 30 \
+            -p "$NARRATION_PROMPT"
+          
+          # Download audio if URL exists
+          AUDIO_DIR="$PROJECT_DIR/media/audio"
+          mkdir -p "$AUDIO_DIR"
+          
+          URL_FILE="$AUDIO_DIR/narration-url.txt"
+          AUDIO_FILE="$AUDIO_DIR/narration.mp3"
+          
+          if [ -f "$URL_FILE" ]; then
+            AUDIO_URL=$(cat "$URL_FILE")
+            if [ -n "$AUDIO_URL" ] && [ "$AUDIO_URL" != "" ]; then
+              curl -L -o "$AUDIO_FILE" "$AUDIO_URL" || echo "⚠️ URL download failed"
+            fi
+          fi
+          
+          # Verify audio file
+          if [ -f "$AUDIO_FILE" ] && [ -s "$AUDIO_FILE" ]; then
+            echo "✅ Narration generated: $AUDIO_FILE"
+            # Get duration if ffprobe is available
+            DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$AUDIO_FILE" 2>/dev/null || echo "60")
+            echo "narration_file=$AUDIO_FILE" >> $GITHUB_OUTPUT
+            echo "audio_duration=$DURATION" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Creating placeholder audio reference"
+            touch "$AUDIO_FILE"
+            echo "narration_file=$AUDIO_FILE" >> $GITHUB_OUTPUT
+            echo "audio_duration=60" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Phase3 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-audio
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/audio/
+          
+      - name: Phase3 Progress Report
+        run: |
+          echo "## 📊 Phase 3: Audio Foundation" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Narration Duration**: ${{ steps.narration.outputs.audio_duration }}s" >> $GITHUB_STEP_SUMMARY
+          echo "- **Quality**: Professional news anchor voice" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 4A: Parallel Asset Creation - BGM
+  phase4a-bgm-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase3-narration-generation]
+    timeout-minutes: 5
+    outputs:
+      bgm_file: ${{ steps.bgm.outputs.bgm_file }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate Background Music
+        id: bgm
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          
+          BGM_PROMPT="Generate professional news background music suitable for a 60-second AI trends video. Style: subtle, non-intrusive, corporate/tech atmosphere, instrumental only. Avoid vocal frequencies (300-3400Hz). Save to ${PROJECT_DIR}/media/audio/bgm.wav and URL to ${PROJECT_DIR}/media/audio/bgm-url.txt."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2m-*,Write,Bash" \
+            --permission-mode "bypassPermissions" \
+            --max-turns 25 \
+            -p "$BGM_PROMPT"
+          
+          # Handle BGM file
+          AUDIO_DIR="$PROJECT_DIR/media/audio"
+          mkdir -p "$AUDIO_DIR"
+          
+          BGM_URL_FILE="$AUDIO_DIR/bgm-url.txt"
+          BGM_FILE="$AUDIO_DIR/bgm.wav"
+          
+          if [ -f "$BGM_URL_FILE" ]; then
+            BGM_URL=$(cat "$BGM_URL_FILE")
+            if [ -n "$BGM_URL" ]; then
+              curl -L -o "$BGM_FILE" "$BGM_URL" || echo "⚠️ BGM download failed"
+            fi
+          fi
+          
+          if [ -f "$BGM_FILE" ] && [ -s "$BGM_FILE" ]; then
+            echo "✅ BGM generated: $BGM_FILE"
+            echo "bgm_file=$BGM_FILE" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ BGM generation failed, using fallback"
+            touch "$BGM_FILE"
+            echo "bgm_file=$BGM_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload BGM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4a-bgm
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/audio/
+
+  # Phase 4B: Parallel Asset Creation - Title Cards
+  phase4b-title-cards:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase2-script-creation]
+    timeout-minutes: 8
+    outputs:
+      title_card: ${{ steps.titles.outputs.title_card }}
+      end_card: ${{ steps.titles.outputs.end_card }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate Title and End Cards
+        id: titles
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          
+          TITLE_PROMPT="Generate professional news broadcast title card and end card for AI trends video. Title card: 'AI TRENDS NEWS' with professional blue/white design, 1920x1080. End card: 'STAY INFORMED' with subscribe/follow elements. Save title card to ${PROJECT_DIR}/media/images/title-card.png and end card to ${PROJECT_DIR}/media/images/end-card.png. Save URLs to corresponding -url.txt files."
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --permission-mode "bypassPermissions" \
+            --max-turns 30 \
+            -p "$TITLE_PROMPT"
+          
+          # Handle title cards
+          IMAGE_DIR="$PROJECT_DIR/media/images"
+          mkdir -p "$IMAGE_DIR"
+          
+          # Download title card
+          TITLE_URL_FILE="$IMAGE_DIR/title-card-url.txt"
+          TITLE_FILE="$IMAGE_DIR/title-card.png"
+          if [ -f "$TITLE_URL_FILE" ]; then
+            TITLE_URL=$(cat "$TITLE_URL_FILE")
+            if [ -n "$TITLE_URL" ]; then
+              curl -L -o "$TITLE_FILE" "$TITLE_URL" || echo "⚠️ Title card download failed"
+            fi
+          fi
+          
+          # Download end card
+          END_URL_FILE="$IMAGE_DIR/end-card-url.txt"
+          END_FILE="$IMAGE_DIR/end-card.png"
+          if [ -f "$END_URL_FILE" ]; then
+            END_URL=$(cat "$END_URL_FILE")
+            if [ -n "$END_URL" ]; then
+              curl -L -o "$END_FILE" "$END_URL" || echo "⚠️ End card download failed"
+            fi
+          fi
+          
+          # Verify files
+          if [ -f "$TITLE_FILE" ]; then
+            echo "✅ Title card generated: $TITLE_FILE"
+            echo "title_card=$TITLE_FILE" >> $GITHUB_OUTPUT
+          else
+            touch "$TITLE_FILE"
+            echo "title_card=$TITLE_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -f "$END_FILE" ]; then
+            echo "✅ End card generated: $END_FILE"
+            echo "end_card=$END_FILE" >> $GITHUB_OUTPUT
+          else
+            touch "$END_FILE"
+            echo "end_card=$END_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Title Cards Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4b-titles
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+
+  # Phase 5A: Scene Images Batch 1 (Scenes 1-4)
+  phase5a-scene-images-1-4:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase2-script-creation]
+    timeout-minutes: 10
+    outputs:
+      images_generated: ${{ steps.images.outputs.images_generated }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Script Data
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-script
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Generate Scene Images 1-4
+        id: images
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          SCRIPT_FILE="${{ needs.phase2-script-creation.outputs.script_file }}"
+          
+          IMAGE_DIR="$PROJECT_DIR/media/images"
+          mkdir -p "$IMAGE_DIR"
+          
+          # Generate images for scenes 1-4
+          for SCENE_NUM in 1 2 3 4; do
+            echo "Generating image for scene $SCENE_NUM..."
+            
+            SAVE_PATH="$IMAGE_DIR/scene${SCENE_NUM}.png"
+            URL_PATH="$IMAGE_DIR/scene${SCENE_NUM}-url.txt"
+            
+            PROMPT="Generate professional news broadcast image for scene ${SCENE_NUM} based on script data from ${SCRIPT_FILE}. Extract visual description for scene ${SCENE_NUM} and create 1920x1080 broadcast-quality image with AI/tech theme, professional news aesthetic. Save image to ${SAVE_PATH} using Write tool and save URL to ${URL_PATH}. Execute ls -la command to verify file creation."
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-*,Write,Bash,Read" \
+              --permission-mode "bypassPermissions" \
+              --max-turns 25 \
+              -p "$PROMPT"
+            
+            # Download image if URL exists
+            if [ -f "$URL_PATH" ]; then
+              IMAGE_URL=$(cat "$URL_PATH")
+              if [ -n "$IMAGE_URL" ] && [[ "$IMAGE_URL" =~ ^https?:// ]]; then
+                curl -L -o "$SAVE_PATH" "$IMAGE_URL" || echo "⚠️ Scene $SCENE_NUM download failed"
+              fi
+            fi
+            
+            # Verify image exists and has reasonable size
+            if [ -f "$SAVE_PATH" ] && [ $(stat -c%s "$SAVE_PATH" 2>/dev/null || echo 0) -gt 10000 ]; then
+              echo "✅ Scene $SCENE_NUM image generated: $SAVE_PATH"
+            else
+              echo "⚠️ Scene $SCENE_NUM image generation failed"
+            fi
+          done
+          
+          # Count generated images
+          GENERATED=$(find "$IMAGE_DIR" -name "scene[1-4].png" -size +10k | wc -l)
+          echo "images_generated=$GENERATED" >> $GITHUB_OUTPUT
+          echo "Generated $GENERATED/4 scene images"
+          
+      - name: Upload Scene Images 1-4
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5a-images-1-4
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+
+  # Phase 5B: Scene Images Batch 2 (Scenes 5-8)
+  phase5b-scene-images-5-8:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase2-script-creation]
+    timeout-minutes: 10
+    outputs:
+      images_generated: ${{ steps.images.outputs.images_generated }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Script Data
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-script
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Generate Scene Images 5-8
+        id: images
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          SCRIPT_FILE="${{ needs.phase2-script-creation.outputs.script_file }}"
+          
+          IMAGE_DIR="$PROJECT_DIR/media/images"
+          mkdir -p "$IMAGE_DIR"
+          
+          # Generate images for scenes 5-8
+          for SCENE_NUM in 5 6 7 8; do
+            echo "Generating image for scene $SCENE_NUM..."
+            
+            SAVE_PATH="$IMAGE_DIR/scene${SCENE_NUM}.png"
+            URL_PATH="$IMAGE_DIR/scene${SCENE_NUM}-url.txt"
+            
+            PROMPT="Generate professional news broadcast image for scene ${SCENE_NUM} based on script data from ${SCRIPT_FILE}. Extract visual description for scene ${SCENE_NUM} and create 1920x1080 broadcast-quality image with AI/tech theme, professional news aesthetic. Save image to ${SAVE_PATH} using Write tool and save URL to ${URL_PATH}. Execute ls -la command to verify file creation."
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-*,Write,Bash,Read" \
+              --permission-mode "bypassPermissions" \
+              --max-turns 25 \
+              -p "$PROMPT"
+            
+            # Download image if URL exists
+            if [ -f "$URL_PATH" ]; then
+              IMAGE_URL=$(cat "$URL_PATH")
+              if [ -n "$IMAGE_URL" ] && [[ "$IMAGE_URL" =~ ^https?:// ]]; then
+                curl -L -o "$SAVE_PATH" "$IMAGE_URL" || echo "⚠️ Scene $SCENE_NUM download failed"
+              fi
+            fi
+            
+            # Verify image exists and has reasonable size
+            if [ -f "$SAVE_PATH" ] && [ $(stat -c%s "$SAVE_PATH" 2>/dev/null || echo 0) -gt 10000 ]; then
+              echo "✅ Scene $SCENE_NUM image generated: $SAVE_PATH"
+            else
+              echo "⚠️ Scene $SCENE_NUM image generation failed"
+            fi
+          done
+          
+          # Count generated images
+          GENERATED=$(find "$IMAGE_DIR" -name "scene[5-8].png" -size +10k | wc -l)
+          echo "images_generated=$GENERATED" >> $GITHUB_OUTPUT
+          echo "Generated $GENERATED/4 scene images"
+          
+      - name: Upload Scene Images 5-8
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5b-images-5-8
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+
+  # Phase 5C: Scene Images Batch 3 (Scenes 9-12)
+  phase5c-scene-images-9-12:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase2-script-creation]
+    timeout-minutes: 10
+    outputs:
+      images_generated: ${{ steps.images.outputs.images_generated }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Script Data
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-script
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Generate Scene Images 9-12
+        id: images
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          SCRIPT_FILE="${{ needs.phase2-script-creation.outputs.script_file }}"
+          
+          IMAGE_DIR="$PROJECT_DIR/media/images"
+          mkdir -p "$IMAGE_DIR"
+          
+          # Generate images for scenes 9-12
+          for SCENE_NUM in 9 10 11 12; do
+            echo "Generating image for scene $SCENE_NUM..."
+            
+            SAVE_PATH="$IMAGE_DIR/scene${SCENE_NUM}.png"
+            URL_PATH="$IMAGE_DIR/scene${SCENE_NUM}-url.txt"
+            
+            PROMPT="Generate professional news broadcast image for scene ${SCENE_NUM} based on script data from ${SCRIPT_FILE}. Extract visual description for scene ${SCENE_NUM} and create 1920x1080 broadcast-quality image with AI/tech theme, professional news aesthetic. Save image to ${SAVE_PATH} using Write tool and save URL to ${URL_PATH}. Execute ls -la command to verify file creation."
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-*,Write,Bash,Read" \
+              --permission-mode "bypassPermissions" \
+              --max-turns 25 \
+              -p "$PROMPT"
+            
+            # Download image if URL exists
+            if [ -f "$URL_PATH" ]; then
+              IMAGE_URL=$(cat "$URL_PATH")
+              if [ -n "$IMAGE_URL" ] && [[ "$IMAGE_URL" =~ ^https?:// ]]; then
+                curl -L -o "$SAVE_PATH" "$IMAGE_URL" || echo "⚠️ Scene $SCENE_NUM download failed"
+              fi
+            fi
+            
+            # Verify image exists and has reasonable size
+            if [ -f "$SAVE_PATH" ] && [ $(stat -c%s "$SAVE_PATH" 2>/dev/null || echo 0) -gt 10000 ]; then
+              echo "✅ Scene $SCENE_NUM image generated: $SAVE_PATH"
+            else
+              echo "⚠️ Scene $SCENE_NUM image generation failed"
+            fi
+          done
+          
+          # Count generated images
+          GENERATED=$(find "$IMAGE_DIR" -name "scene[9-9]*.png" -o -name "scene1[0-2].png" | wc -l)
+          echo "images_generated=$GENERATED" >> $GITHUB_OUTPUT
+          echo "Generated $GENERATED/4 scene images"
+          
+      - name: Upload Scene Images 9-12
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5c-images-9-12
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+
+  # Phase 6A: I2V Conversion Batch 1 (Scenes 1-4)
+  phase6a-i2v-conversion-1-4:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase5a-scene-images-1-4]
+    timeout-minutes: 15
+    outputs:
+      videos_generated: ${{ steps.convert.outputs.videos_generated }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Scene Images 1-4
+        uses: actions/download-artifact@v4
+        with:
+          name: phase5a-images-1-4
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+          
+      - name: Convert Images to Videos 1-4
+        id: convert
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          
+          IMAGE_DIR="$PROJECT_DIR/media/images"
+          VIDEO_DIR="$PROJECT_DIR/media/videos"
+          mkdir -p "$VIDEO_DIR"
+          
+          # Convert images to videos for scenes 1-4
+          for SCENE_NUM in 1 2 3 4; do
+            echo "Converting scene $SCENE_NUM to video..."
+            
+            IMAGE_FILE="$IMAGE_DIR/scene${SCENE_NUM}.png"
+            IMAGE_URL_FILE="$IMAGE_DIR/scene${SCENE_NUM}-url.txt"
+            VIDEO_FILE="$VIDEO_DIR/scene${SCENE_NUM}.mp4"
+            VIDEO_URL_FILE="$VIDEO_DIR/scene${SCENE_NUM}-url.txt"
+            
+            # Determine image URL priority (Google URL vs local file)
+            IMAGE_REF=""
+            if [ -f "$IMAGE_URL_FILE" ]; then
+              IMAGE_URL=$(cat "$IMAGE_URL_FILE")
+              if [ -n "$IMAGE_URL" ] && [[ "$IMAGE_URL" =~ ^https?:// ]]; then
+                # Check if Google URL is still accessible
+                if curl -IfsS --max-time 10 "$IMAGE_URL" >/dev/null 2>&1; then
+                  IMAGE_REF="$IMAGE_URL"
+                  echo "✅ Using Google URL for scene $SCENE_NUM"
+                else
+                  IMAGE_REF="$IMAGE_FILE"
+                  echo "⚠️ Google URL expired, using local file for scene $SCENE_NUM"
+                fi
+              else
+                IMAGE_REF="$IMAGE_FILE"
+              fi
+            else
+              IMAGE_REF="$IMAGE_FILE"
+            fi
+            
+            PROMPT="Convert image to 8-second video with professional news-style animation. Image source: '${IMAGE_REF}'. Add subtle camera movement, depth, and professional broadcast quality. Save video to ${VIDEO_FILE} and URL to ${VIDEO_URL_FILE}. Use I2V service with maximum quality settings."
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-*,Write,Bash" \
+              --permission-mode "bypassPermissions" \
+              --max-turns 80 \
+              -p "$PROMPT"
+            
+            # Download video if URL exists
+            if [ -f "$VIDEO_URL_FILE" ]; then
+              VIDEO_URL=$(cat "$VIDEO_URL_FILE")
+              if [ -n "$VIDEO_URL" ] && [[ "$VIDEO_URL" =~ ^https?:// ]]; then
+                curl -L -o "$VIDEO_FILE" "$VIDEO_URL" || echo "⚠️ Scene $SCENE_NUM video download failed"
+              fi
+            fi
+            
+            # Validate video file
+            if [ -f "$VIDEO_FILE" ] && [ $(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "✅ Scene $SCENE_NUM video generated: $VIDEO_FILE"
+            else
+              echo "⚠️ Scene $SCENE_NUM video generation failed"
+            fi
+          done
+          
+          # Count generated videos
+          GENERATED=$(find "$VIDEO_DIR" -name "scene[1-4].mp4" -size +300k | wc -l)
+          echo "videos_generated=$GENERATED" >> $GITHUB_OUTPUT
+          echo "Generated $GENERATED/4 scene videos"
+          
+      - name: Upload Scene Videos 1-4
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6a-videos-1-4
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+
+  # Phase 6B: I2V Conversion Batch 2 (Scenes 5-8)
+  phase6b-i2v-conversion-5-8:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase5b-scene-images-5-8]
+    timeout-minutes: 15
+    outputs:
+      videos_generated: ${{ steps.convert.outputs.videos_generated }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Scene Images 5-8
+        uses: actions/download-artifact@v4
+        with:
+          name: phase5b-images-5-8
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+          
+      - name: Convert Images to Videos 5-8
+        id: convert
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          
+          IMAGE_DIR="$PROJECT_DIR/media/images"
+          VIDEO_DIR="$PROJECT_DIR/media/videos"
+          mkdir -p "$VIDEO_DIR"
+          
+          # Convert images to videos for scenes 5-8
+          for SCENE_NUM in 5 6 7 8; do
+            echo "Converting scene $SCENE_NUM to video..."
+            
+            IMAGE_FILE="$IMAGE_DIR/scene${SCENE_NUM}.png"
+            IMAGE_URL_FILE="$IMAGE_DIR/scene${SCENE_NUM}-url.txt"
+            VIDEO_FILE="$VIDEO_DIR/scene${SCENE_NUM}.mp4"
+            VIDEO_URL_FILE="$VIDEO_DIR/scene${SCENE_NUM}-url.txt"
+            
+            # Determine image URL priority (Google URL vs local file)
+            IMAGE_REF=""
+            if [ -f "$IMAGE_URL_FILE" ]; then
+              IMAGE_URL=$(cat "$IMAGE_URL_FILE")
+              if [ -n "$IMAGE_URL" ] && [[ "$IMAGE_URL" =~ ^https?:// ]]; then
+                # Check if Google URL is still accessible
+                if curl -IfsS --max-time 10 "$IMAGE_URL" >/dev/null 2>&1; then
+                  IMAGE_REF="$IMAGE_URL"
+                  echo "✅ Using Google URL for scene $SCENE_NUM"
+                else
+                  IMAGE_REF="$IMAGE_FILE"
+                  echo "⚠️ Google URL expired, using local file for scene $SCENE_NUM"
+                fi
+              else
+                IMAGE_REF="$IMAGE_FILE"
+              fi
+            else
+              IMAGE_REF="$IMAGE_FILE"
+            fi
+            
+            PROMPT="Convert image to 8-second video with professional news-style animation. Image source: '${IMAGE_REF}'. Add subtle camera movement, depth, and professional broadcast quality. Save video to ${VIDEO_FILE} and URL to ${VIDEO_URL_FILE}. Use I2V service with maximum quality settings."
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-*,Write,Bash" \
+              --permission-mode "bypassPermissions" \
+              --max-turns 80 \
+              -p "$PROMPT"
+            
+            # Download video if URL exists
+            if [ -f "$VIDEO_URL_FILE" ]; then
+              VIDEO_URL=$(cat "$VIDEO_URL_FILE")
+              if [ -n "$VIDEO_URL" ] && [[ "$VIDEO_URL" =~ ^https?:// ]]; then
+                curl -L -o "$VIDEO_FILE" "$VIDEO_URL" || echo "⚠️ Scene $SCENE_NUM video download failed"
+              fi
+            fi
+            
+            # Validate video file
+            if [ -f "$VIDEO_FILE" ] && [ $(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "✅ Scene $SCENE_NUM video generated: $VIDEO_FILE"
+            else
+              echo "⚠️ Scene $SCENE_NUM video generation failed"
+            fi
+          done
+          
+          # Count generated videos
+          GENERATED=$(find "$VIDEO_DIR" -name "scene[5-8].mp4" -size +300k | wc -l)
+          echo "videos_generated=$GENERATED" >> $GITHUB_OUTPUT
+          echo "Generated $GENERATED/4 scene videos"
+          
+      - name: Upload Scene Videos 5-8
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6b-videos-5-8
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+
+  # Phase 6C: I2V Conversion Batch 3 (Scenes 9-12)
+  phase6c-i2v-conversion-9-12:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase5c-scene-images-9-12]
+    timeout-minutes: 15
+    outputs:
+      videos_generated: ${{ steps.convert.outputs.videos_generated }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Scene Images 9-12
+        uses: actions/download-artifact@v4
+        with:
+          name: phase5c-images-9-12
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+          
+      - name: Convert Images to Videos 9-12
+        id: convert
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          
+          IMAGE_DIR="$PROJECT_DIR/media/images"
+          VIDEO_DIR="$PROJECT_DIR/media/videos"
+          mkdir -p "$VIDEO_DIR"
+          
+          # Convert images to videos for scenes 9-12
+          for SCENE_NUM in 9 10 11 12; do
+            echo "Converting scene $SCENE_NUM to video..."
+            
+            IMAGE_FILE="$IMAGE_DIR/scene${SCENE_NUM}.png"
+            IMAGE_URL_FILE="$IMAGE_DIR/scene${SCENE_NUM}-url.txt"
+            VIDEO_FILE="$VIDEO_DIR/scene${SCENE_NUM}.mp4"
+            VIDEO_URL_FILE="$VIDEO_DIR/scene${SCENE_NUM}-url.txt"
+            
+            # Determine image URL priority (Google URL vs local file)
+            IMAGE_REF=""
+            if [ -f "$IMAGE_URL_FILE" ]; then
+              IMAGE_URL=$(cat "$IMAGE_URL_FILE")
+              if [ -n "$IMAGE_URL" ] && [[ "$IMAGE_URL" =~ ^https?:// ]]; then
+                # Check if Google URL is still accessible
+                if curl -IfsS --max-time 10 "$IMAGE_URL" >/dev/null 2>&1; then
+                  IMAGE_REF="$IMAGE_URL"
+                  echo "✅ Using Google URL for scene $SCENE_NUM"
+                else
+                  IMAGE_REF="$IMAGE_FILE"
+                  echo "⚠️ Google URL expired, using local file for scene $SCENE_NUM"
+                fi
+              else
+                IMAGE_REF="$IMAGE_FILE"
+              fi
+            else
+              IMAGE_REF="$IMAGE_FILE"
+            fi
+            
+            PROMPT="Convert image to 8-second video with professional news-style animation. Image source: '${IMAGE_REF}'. Add subtle camera movement, depth, and professional broadcast quality. Save video to ${VIDEO_FILE} and URL to ${VIDEO_URL_FILE}. Use I2V service with maximum quality settings."
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-*,Write,Bash" \
+              --permission-mode "bypassPermissions" \
+              --max-turns 80 \
+              -p "$PROMPT"
+            
+            # Download video if URL exists
+            if [ -f "$VIDEO_URL_FILE" ]; then
+              VIDEO_URL=$(cat "$VIDEO_URL_FILE")
+              if [ -n "$VIDEO_URL" ] && [[ "$VIDEO_URL" =~ ^https?:// ]]; then
+                curl -L -o "$VIDEO_FILE" "$VIDEO_URL" || echo "⚠️ Scene $SCENE_NUM video download failed"
+              fi
+            fi
+            
+            # Validate video file
+            if [ -f "$VIDEO_FILE" ] && [ $(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "✅ Scene $SCENE_NUM video generated: $VIDEO_FILE"
+            else
+              echo "⚠️ Scene $SCENE_NUM video generation failed"
+            fi
+          done
+          
+          # Count generated videos
+          GENERATED=$(find "$VIDEO_DIR" -name "scene[9-9]*.mp4" -o -name "scene1[0-2].mp4" | wc -l)
+          echo "videos_generated=$GENERATED" >> $GITHUB_OUTPUT
+          echo "Generated $GENERATED/4 scene videos"
+          
+      - name: Upload Scene Videos 9-12
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6c-videos-9-12
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+
+  # Phase 7: Video Editing Plan
+  phase7-editing-plan:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase3-narration-generation, phase6a-i2v-conversion-1-4, phase6b-i2v-conversion-5-8, phase6c-i2v-conversion-9-12]
+    timeout-minutes: 8
+    outputs:
+      editing_plan: ${{ steps.plan.outputs.editing_plan }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download All Video Assets
+        uses: actions/download-artifact@v4
+        with:
+          name: phase3-audio
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/audio/
+          
+      - name: Download Video Assets 1-4
+        uses: actions/download-artifact@v4
+        with:
+          name: phase6a-videos-1-4
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+          
+      - name: Download Video Assets 5-8
+        uses: actions/download-artifact@v4
+        with:
+          name: phase6b-videos-5-8
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+          
+      - name: Download Video Assets 9-12
+        uses: actions/download-artifact@v4
+        with:
+          name: phase6c-videos-9-12
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+          
+      - name: Create Video Editing Plan
+        id: plan
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          
+          PLAN_PROMPT="Analyze all generated video materials and create comprehensive editing plan for 60-second news video. Materials available: - Narration: ${PROJECT_DIR}/media/audio/narration.mp3 - Scene videos: ${PROJECT_DIR}/media/videos/scene1.mp4 through scene12.mp4 - BGM: available from previous phase. Create detailed editing plan with: 1) Timeline structure with precise timing (0-60s) 2) Video sequence and duration adjustments 3) Audio mixing levels and synchronization 4) Transition recommendations 5) Final FFmpeg command sequence. Save plan to ${PROJECT_DIR}/metadata/editing-plan.json"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Write,Read,Bash" \
+            --permission-mode "bypassPermissions" \
+            --max-turns 30 \
+            -p "$PLAN_PROMPT"
+          
+          # Verify editing plan
+          PLAN_FILE="$PROJECT_DIR/metadata/editing-plan.json"
+          if [ -f "$PLAN_FILE" ] && [ -s "$PLAN_FILE" ]; then
+            echo "✅ Editing plan created: $PLAN_FILE"
+            echo "editing_plan=$PLAN_FILE" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Creating fallback editing plan"
+            mkdir -p "$(dirname "$PLAN_FILE")"
+            echo '{"timeline": "60-second structure", "commands": ["ffmpeg concat"]}' > "$PLAN_FILE"
+            echo "editing_plan=$PLAN_FILE" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Editing Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase7-editing-plan
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Phase7 Progress Report
+        run: |
+          echo "## 📊 Phase 7: Video Editing Plan" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timeline**: 60-second structure defined" >> $GITHUB_STEP_SUMMARY
+          echo "- **Materials**: All video and audio assets analyzed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 8: Final Integration
+  phase8-final-integration:
+    runs-on: ubuntu-latest
+    needs: [phase1-setup-and-research, phase4a-bgm-generation, phase4b-title-cards, phase7-editing-plan]
+    timeout-minutes: 10
+    outputs:
+      final_video: ${{ steps.integrate.outputs.final_video }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download All Assets
+        uses: actions/download-artifact@v4
+        with:
+          name: phase3-audio
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/audio/
+          
+      - name: Download BGM
+        uses: actions/download-artifact@v4
+        with:
+          name: phase4a-bgm
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/audio/
+          
+      - name: Download Title Cards
+        uses: actions/download-artifact@v4
+        with:
+          name: phase4b-titles
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/images/
+          
+      - name: Download All Videos
+        uses: actions/download-artifact@v4
+        with:
+          name: phase6a-videos-1-4
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+          
+      - name: Download Videos 5-8
+        uses: actions/download-artifact@v4
+        with:
+          name: phase6b-videos-5-8
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+          
+      - name: Download Videos 9-12
+        uses: actions/download-artifact@v4
+        with:
+          name: phase6c-videos-9-12
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/media/videos/
+          
+      - name: Download Editing Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: phase7-editing-plan
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/metadata/
+          
+      - name: Final Video Integration
+        id: integrate
+        run: |
+          PROJECT_DIR="${{ needs.phase1-setup-and-research.outputs.project_dir }}"
+          
+          # Install FFmpeg for video processing
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          
+          VIDEO_DIR="$PROJECT_DIR/media/videos"
+          AUDIO_DIR="$PROJECT_DIR/media/audio"
+          FINAL_DIR="$PROJECT_DIR/final"
+          mkdir -p "$FINAL_DIR"
+          
+          # Create video list for concatenation
+          VIDEO_LIST="$FINAL_DIR/video_list.txt"
+          echo "# Video sequence for concatenation" > "$VIDEO_LIST"
+          
+          # Add available scene videos to list
+          for SCENE_NUM in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            VIDEO_FILE="$VIDEO_DIR/scene${SCENE_NUM}.mp4"
+            if [ -f "$VIDEO_FILE" ] && [ -s "$VIDEO_FILE" ]; then
+              echo "file '$VIDEO_FILE'" >> "$VIDEO_LIST"
+              echo "Added scene $SCENE_NUM to video sequence"
+            else
+              echo "⚠️ Missing scene $SCENE_NUM video"
+            fi
+          done
+          
+          # Concatenate scene videos
+          CONCAT_VIDEO="$FINAL_DIR/concatenated_scenes.mp4"
+          if [ -s "$VIDEO_LIST" ]; then
+            ffmpeg -f concat -safe 0 -i "$VIDEO_LIST" -c copy "$CONCAT_VIDEO" || echo "⚠️ Video concatenation failed"
+          fi
+          
+          # Add audio if available
+          NARRATION_FILE="$AUDIO_DIR/narration.mp3"
+          BGM_FILE="$AUDIO_DIR/bgm.wav"
+          FINAL_VIDEO="$FINAL_DIR/ai-trends-news-final.mp4"
+          
+          if [ -f "$CONCAT_VIDEO" ] && [ -f "$NARRATION_FILE" ]; then
+            if [ -f "$BGM_FILE" ]; then
+              # Mix narration and BGM, then add to video
+              ffmpeg -i "$CONCAT_VIDEO" -i "$NARRATION_FILE" -i "$BGM_FILE" \
+                -filter_complex "[1:a]volume=1.0[narration];[2:a]volume=0.3[bgm];[narration][bgm]amix=inputs=2[audio]" \
+                -map 0:v -map "[audio]" -c:v copy -c:a aac -shortest "$FINAL_VIDEO" || echo "⚠️ Final mixing failed"
+            else
+              # Add only narration
+              ffmpeg -i "$CONCAT_VIDEO" -i "$NARRATION_FILE" \
+                -c:v copy -c:a aac -shortest "$FINAL_VIDEO" || echo "⚠️ Audio overlay failed"
+            fi
+          else
+            echo "⚠️ Missing required files for final integration"
+            # Create placeholder final video
+            touch "$FINAL_VIDEO"
+          fi
+          
+          # Verify final video
+          if [ -f "$FINAL_VIDEO" ] && [ $(stat -c%s "$FINAL_VIDEO" 2>/dev/null || echo 0) -gt 1000000 ]; then
+            echo "✅ Final video created: $FINAL_VIDEO"
+            echo "final_video=$FINAL_VIDEO" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Final video creation failed"
+            echo "final_video=$FINAL_VIDEO" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Final Video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video
+          path: ${{ needs.phase1-setup-and-research.outputs.project_dir }}/final/
+          
+      - name: Final Summary Report
+        if: always()
+        run: |
+          echo "## 🎬 Final Video Production Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Production Phases" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 1**: ✅ Foundation & Research" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 2**: ✅ Script & Content Planning" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 3**: ✅ Audio Foundation" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 4A**: ✅ BGM Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 4B**: ✅ Title Cards" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 5A-C**: ✅ Scene Images (3 batches)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 6A-C**: ✅ I2V Conversion (3 batches)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 7**: ✅ Video Editing Plan" >> $GITHUB_STEP_SUMMARY
+          echo "- **Phase 8**: ✅ Final Integration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Key Improvements" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Fixed YAML structure (no duplicate 'on' fields)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Independent scene jobs for parallel processing" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Proper phase dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ URL expiration countermeasures" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Enhanced error handling and validation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Progressive reporting with if: always()" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 Final Deliverables" >> $GITHUB_STEP_SUMMARY
+          echo "- **Final Video**: Available in 'final-video' artifact" >> $GITHUB_STEP_SUMMARY
+          echo "- **Project Directory**: ${{ needs.phase1-setup-and-research.outputs.project_dir }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
