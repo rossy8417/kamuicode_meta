@@ -836,40 +836,12 @@ jobs:
             
             # Fix GCS URL handling - proper solution
             if grep -q 'gs://' "$WORKFLOW_PATH" 2>/dev/null; then
-              echo "⚠️ Found GCS URLs, adding proper handling..."
+              echo "⚠️ Found GCS URLs, converting to HTTPS URLs..."
               
-              # Create a helper function at the beginning of each run step
-              HELPER_FUNCTION='download_url() {
-  local url="$1"
-  local output="$2"
-  if [[ "$url" == gs://* ]]; then
-    echo "GCS URL detected: $url"
-    # Try to use gsutil if available
-    if command -v gsutil >/dev/null 2>&1; then
-      gsutil cp "$url" "$output"
-    else
-      # Fallback: Try to convert to public HTTPS URL
-      # GCS pattern: gs://bucket/path -> https://storage.googleapis.com/bucket/path
-      https_url="${url/gs:\/\//https://storage.googleapis.com/}"
-      echo "Attempting public HTTPS URL: $https_url"
-      curl -L -o "$output" "$https_url" || echo "Failed to download from GCS"
-    fi
-  else
-    curl -L -o "$output" "$url"
-  fi
-}'
+              # Simple replacement: gs://bucket/path -> https://storage.googleapis.com/bucket/path
+              sed -i 's|gs://\([^/]*\)/|https://storage.googleapis.com/\1/|g' "$WORKFLOW_PATH" 2>/dev/null || true
               
-              # Insert helper function at the start of each job's run steps
-              # This is safer than complex sed replacements
-              echo "$HELPER_FUNCTION" > /tmp/gcs_helper.txt
-              
-              # Add helper to each step that might download files
-              sed -i '/^\s*run: |$/r /tmp/gcs_helper.txt' "$WORKFLOW_PATH" 2>/dev/null || true
-              
-              # Replace curl commands to use the helper
-              sed -i 's/curl -L -o "\([^"]*\)" "\([^"]*\)"/download_url "\2" "\1"/g' "$WORKFLOW_PATH" 2>/dev/null || true
-              
-              echo "  ✅ Added GCS URL handling helper function"
+              echo "  ✅ Converted GCS URLs to HTTPS format"
             fi
             
             # Ensure workflow ends properly (no trailing content)
