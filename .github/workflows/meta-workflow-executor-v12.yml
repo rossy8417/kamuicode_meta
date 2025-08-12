@@ -850,6 +850,42 @@ jobs:
               echo "  ✅ Converted GCS URLs to HTTPS format"
             fi
             
+            # Fix common YAML syntax issues with Python
+            echo "⚠️ Fixing common YAML syntax issues..."
+            export WORKFLOW_PATH="$WORKFLOW_PATH"
+            python3 << 'PYTHON_EOF'
+import re
+import sys
+import os
+
+workflow_path = os.environ.get('WORKFLOW_PATH', '')
+
+try:
+    with open(workflow_path, 'r') as f:
+        content = f.read()
+    
+    # Fix max-parallel that incorrectly uses fromJSON
+    content = re.sub(
+        r'max-parallel:\s*\$\{\{\s*fromJSON\(([^)]+)\)\s*\}\}',
+        r'max-parallel: ${{ \1 }}',
+        content
+    )
+    
+    # Fix CALCULATED_SCENES environment variable syntax
+    # Fix quotes in fromJSON calls
+    content = re.sub(
+        r"fromJSON\('(\{[^}]+\})'\)",
+        r"fromJSON('\1')",
+        content
+    )
+    
+    with open(workflow_path, 'w') as f:
+        f.write(content)
+    
+    print("  ✅ Fixed YAML syntax issues")
+except Exception as e:
+    print(f"  ⚠️ Could not fix YAML issues: {e}")
+PYTHON_EOF
             
             # Ensure workflow ends properly (no trailing content)
             # Add a newline at the end if missing
