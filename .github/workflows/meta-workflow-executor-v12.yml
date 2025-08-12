@@ -853,49 +853,16 @@ jobs:
               echo "  ✅ Converted GCS URLs to HTTPS format"
             fi
             
-            # Fix common YAML syntax issues with inline Python
+            # Fix common YAML syntax issues with simple sed commands
             echo "⚠️ Fixing common YAML syntax issues..."
-            python3 -c "
-import re
-import os
-
-workflow_path = '$WORKFLOW_PATH'
-
-try:
-    with open(workflow_path, 'r') as f:
-        content = f.read()
-    
-    # Remove max-parallel entirely to allow unlimited parallelization
-    # GitHub Actions doesn't support variables in max-parallel
-    content = re.sub(
-        r'\\n\\s*max-parallel:.*\\n',
-        '\\n',
-        content
-    )
-    
-    # Fix CALCULATED_SCENES environment variable syntax
-    # Fix quotes in fromJSON calls
-    content = re.sub(
-        r\"fromJSON\\('(\\{[^}]+\\})'\\)\",
-        r\"fromJSON('\\1')\",
-        content
-    )
-    
-    # Fix heredoc issues - escape dollar in command substitutions within heredocs
-    content = re.sub(
-        r'Generated: \\$\\(date\\)',
-        r'Generated: \\\\\\$(date)',
-        content
-    )
-    
-    with open(workflow_path, 'w') as f:
-        f.write(content)
-    
-    print('  ✅ Fixed YAML syntax issues')
-    print('  ✅ Removed max-parallel to allow dynamic parallelization')
-except Exception as e:
-    print(f'  ⚠️ Could not fix YAML issues: {e}')
-"
+            
+            # Remove max-parallel to allow unlimited parallelization
+            sed -i '/^\s*max-parallel:/d' "$WORKFLOW_PATH" 2>/dev/null || true
+            echo "  ✅ Removed max-parallel to allow dynamic parallelization"
+            
+            # Fix heredoc issues - escape $(date) in cat << EOF blocks
+            sed -i 's/Generated: $(date)/Generated: \\$(date)/g' "$WORKFLOW_PATH" 2>/dev/null || true
+            echo "  ✅ Fixed heredoc syntax issues"
             
             # Ensure workflow ends properly (no trailing content)
             # Add a newline at the end if missing
