@@ -720,7 +720,10 @@ jobs:
           
           Important: For video-production domain:
           - Always use workflow_generation_parameters.matrix_scene_list to set matrix.scene
-          - Use workflow_generation_parameters.max_parallel value for max-parallel
+          - IMPORTANT: max-parallel in GitHub Actions only accepts numeric literals (not variables)
+            - Option 1: Remove max-parallel entirely (defaults to unlimited parallel jobs)
+            - Option 2: Set a high fixed value like max-parallel: 256 as upper limit
+            - Recommendation: Remove max-parallel to allow full parallelization based on scene count
           - Use calculated dynamic values, not fixed values (e.g., batch: [1,2,3])
           - Use consistent character for news anchor (fixed seed)
           - Image generation (T2I) → video conversion (I2V) are separate jobs but with tight dependencies
@@ -864,10 +867,11 @@ try:
     with open(workflow_path, 'r') as f:
         content = f.read()
     
-    # Fix max-parallel that incorrectly uses fromJSON
+    # Remove max-parallel entirely to allow unlimited parallelization
+    # GitHub Actions doesn't support variables in max-parallel
     content = re.sub(
-        r'max-parallel:\s*\$\{\{\s*fromJSON\(([^)]+)\)\s*\}\}',
-        r'max-parallel: ${{ \1 }}',
+        r'\n\s*max-parallel:.*\n',
+        '\n',
         content
     )
     
@@ -879,10 +883,20 @@ try:
         content
     )
     
+    # Fix heredoc issues - escape $ in command substitutions within heredocs
+    # Find cat > ... << EOF blocks and fix $(date) and similar
+    content = re.sub(
+        r'(cat\s+>\s+.*<<\s*EOF.*?)(\$\(date\))',
+        r'\1\\$(date)',
+        content,
+        flags=re.MULTILINE | re.DOTALL
+    )
+    
     with open(workflow_path, 'w') as f:
         f.write(content)
     
     print("  ✅ Fixed YAML syntax issues")
+    print("  ✅ Removed max-parallel to allow dynamic parallelization")
 except Exception as e:
     print(f"  ⚠️ Could not fix YAML issues: {e}")
 PYTHON_EOF
