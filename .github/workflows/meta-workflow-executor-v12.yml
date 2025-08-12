@@ -820,10 +820,16 @@ jobs:
             # Make sure it's unquoted (in case Claude Code quoted it)
             sed -i 's/^"on":$/on:/' "$WORKFLOW_PATH"
             
-            # Replace SECRETS_PLACEHOLDER with the actual secrets reference
+            # Replace SECRETS_PLACEHOLDER or actual token values with the proper secrets reference
             if grep -q "SECRETS_PLACEHOLDER" "$WORKFLOW_PATH" 2>/dev/null; then
               echo "⚠️ Replacing SECRETS_PLACEHOLDER with actual secrets reference..."
               sed -i 's/SECRETS_PLACEHOLDER/\${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/' "$WORKFLOW_PATH"
+            fi
+            
+            # CRITICAL: Remove any actual OAUTH_TOKEN values that were directly inserted
+            if grep -q "sk-ant-" "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "🚨 CRITICAL: Found exposed OAUTH_TOKEN value, replacing with secrets reference..."
+              sed -i 's/sk-ant-[^[:space:]]*/\${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/g' "$WORKFLOW_PATH"
             fi
             
             # Remove invalid matrix references in outputs section
@@ -842,6 +848,22 @@ jobs:
               sed -i 's|gs://\([^/]*\)/|https://storage.googleapis.com/\1/|g' "$WORKFLOW_PATH" 2>/dev/null || true
               
               echo "  ✅ Converted GCS URLs to HTTPS format"
+            fi
+            
+            # Fix incorrect fromJSON usage in max-parallel
+            if grep -q 'max-parallel:.*fromJSON' "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Fixing max-parallel syntax..."
+              # max-parallel should use the number directly without fromJSON
+              sed -i 's/max-parallel: \${{ fromJSON(\([^)]*\)) }}/max-parallel: \${{ \1 }}/g' "$WORKFLOW_PATH" 2>/dev/null || true
+              echo "  ✅ Fixed max-parallel syntax"
+            fi
+            
+            # Fix CALCULATED_SCENES environment variable with fromJSON
+            if grep -q "CALCULATED_SCENES:.*fromJSON" "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Fixing CALCULATED_SCENES syntax..."
+              # Fix the quotes issue in fromJSON
+              sed -i "s/fromJSON('{\([^}]*\)}')/fromJSON('{\\1}')/g" "$WORKFLOW_PATH" 2>/dev/null || true
+              echo "  ✅ Fixed CALCULATED_SCENES syntax"
             fi
             
             # Ensure workflow ends properly (no trailing content)
