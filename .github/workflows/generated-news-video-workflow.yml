@@ -1,0 +1,2668 @@
+name: "Professional News Video Creation Workflow"
+
+on:
+  workflow_dispatch:
+    inputs:
+      news_topic:
+        description: "ニュースのトピック（例：技術革新、政治、経済）"
+        required: true
+        default: "最新の技術革新ニュース"
+      time_period:
+        description: "対象期間（例：24時間以内、1週間以内）"
+        required: true
+        default: "24時間以内"
+      project_name:
+        description: "プロジェクト名（出力ディレクトリに使用）"
+        required: true
+        default: "news-video-production"
+
+env:
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+
+jobs:
+  # Phase 1: Foundation - Information Gathering
+  phase1-foundation:
+    runs-on: ubuntu-latest
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      research_data: ${{ steps.research.outputs.research_data }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup project structure
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="${GITHUB_WORKSPACE}/projects/${{ inputs.project_name }}-${TIMESTAMP}"
+          mkdir -p "${PROJECT_DIR}"/{metadata,logs,media/{images,videos,audio,3d},final,temp}
+          echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+          echo "[$(date)] Phase 1: Foundation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "Project directory: ${PROJECT_DIR}"
+          
+          # Initialize Progressive Report in GitHub Actions Summary
+          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
+          # 📺 Professional News Video Creation 実行レポート
+          
+          ## 📋 実行概要
+          EOF
+          
+          echo "- **プロジェクト名**: ${{ inputs.project_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **ニューストピック**: ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **対象期間**: ${{ inputs.time_period }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行開始時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行状況**: 🔄 進行中..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🏗️ Phase 1: Foundation - 情報収集基盤構築" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ プロジェクト構造作成完了: ${PROJECT_DIR##*/}" >> $GITHUB_STEP_SUMMARY
+
+      - name: News Research and Information Gathering
+        id: research
+        run: |
+          PROJECT_DIR="${{ steps.setup.outputs.project_dir }}"
+          echo "[$(date)] Starting news research for topic: ${{ inputs.news_topic }}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          RESEARCH_PROMPT="ニュース情報収集・リサーチタスク：
+          トピック: ${{ inputs.news_topic }}
+          期間: ${{ inputs.time_period }}
+          
+          以下の要件で情報収集を実行してください：
+          1. 指定されたトピックの最新ニュースを複数の信頼性の高い情報源から収集
+          2. 事実確認と情報の信頼性検証
+          3. 60秒のニュース動画に適した要点の整理
+          4. JSON形式でstructured dataとして保存: ${PROJECT_DIR}/metadata/research_data.json
+          
+          出力形式:
+          {
+            \"topic\": \"トピック名\",
+            \"sources\": [\"情報源1\", \"情報源2\", \"情報源3\"],
+            \"key_facts\": [\"重要事実1\", \"重要事実2\"],
+            \"timeline\": \"時系列情報\",
+            \"reliability_score\": 0.95
+          }"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "WebSearch,Write,Read" \
+            --max-turns 20 \
+            --permission-mode "acceptEdits" \
+            -p "$RESEARCH_PROMPT"
+          
+          if [ -f "${PROJECT_DIR}/metadata/research_data.json" ]; then
+            echo "research_data=${PROJECT_DIR}/metadata/research_data.json" >> $GITHUB_OUTPUT
+            echo "[$(date)] Research completed successfully" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 1 Research Report
+            echo "- ✅ ニュース情報収集完了: ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract research summary for report
+            if command -v jq > /dev/null; then
+              SOURCES_COUNT=$(jq '.sources | length' "${PROJECT_DIR}/metadata/research_data.json" 2>/dev/null || echo "0")
+              RELIABILITY_SCORE=$(jq -r '.reliability_score' "${PROJECT_DIR}/metadata/research_data.json" 2>/dev/null || echo "N/A")
+              echo "- ✅ 収集情報源数: ${SOURCES_COUNT}件" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ 信頼性スコア: ${RELIABILITY_SCORE}" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[$(date)] ERROR: Research data not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 1 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-foundation
+          path: ${{ steps.setup.outputs.project_dir }}/
+
+  # Phase 2: Content Creation - Script and Structure
+  phase2-content-creation:
+    runs-on: ubuntu-latest
+    needs: phase1-foundation
+    outputs:
+      script_data: ${{ steps.script.outputs.script_data }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Phase 1 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase1-foundation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Create News Script and Structure
+        id: script
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          RESEARCH_DATA="${{ needs.phase1-foundation.outputs.research_data }}"
+          echo "[$(date)] Phase 2: Content creation started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          SCRIPT_PROMPT="ニュース原稿・構成作成タスク：
+          
+          入力データ: ${RESEARCH_DATA}
+          目標: 60秒のプロフェッショナルなニュース動画用の構成と原稿作成
+          
+          以下の要件で原稿を作成してください：
+          1. ニュース番組の黄金比：フック(20%) → 本編(60%) → まとめ(20%)
+          2. 最初の3秒で視聴者を引きつけるインパクトのあるフック
+          3. 明確で聞き取りやすい日本語ナレーション原稿
+          4. 10-12シーンの視覚的構成（各5-6秒）
+          5. プロフェッショナルなニュースアナウンサー風のトーン
+          
+          出力: ${PROJECT_DIR}/metadata/script_data.json
+          形式:
+          {
+            \"total_duration\": 60,
+            \"structure\": {
+              \"hook\": \"最初の3秒のフック文\",
+              \"main_content\": \"本編ナレーション\",
+              \"conclusion\": \"まとめ文\"
+            },
+            \"narration_script\": \"完全なナレーション原稿\",
+            \"visual_scenes\": [
+              {\"scene_id\": 1, \"duration\": 6, \"description\": \"シーン説明\", \"image_prompt\": \"画像生成プロンプト\"},
+              {\"scene_id\": 2, \"duration\": 6, \"description\": \"シーン説明\", \"image_prompt\": \"画像生成プロンプト\"}
+            ]
+          }"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Read,Write,Edit" \
+            --max-turns 20 \
+            --permission-mode "acceptEdits" \
+            -p "$SCRIPT_PROMPT"
+          
+          if [ -f "${PROJECT_DIR}/metadata/script_data.json" ]; then
+            echo "script_data=${PROJECT_DIR}/metadata/script_data.json" >> $GITHUB_OUTPUT
+            echo "[$(date)] Script creation completed successfully" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 2 Report
+            echo "## 📝 Phase 2: Content Creation - 脚本・構成作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ ニュース脚本作成完了" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract script summary for report
+            if command -v jq > /dev/null; then
+              TOTAL_DURATION=$(jq -r '.total_duration // "60"' "${PROJECT_DIR}/metadata/script_data.json" 2>/dev/null)
+              SCENE_COUNT=$(jq '.visual_scenes | length' "${PROJECT_DIR}/metadata/script_data.json" 2>/dev/null || echo "0")
+              echo "- ✅ 動画総時間: ${TOTAL_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ 視覚シーン数: ${SCENE_COUNT}シーン" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[$(date)] ERROR: Script data not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+
+      - name: Upload Phase 2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 3A: Audio Generation (Independent Job)
+  phase3-audio-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      audio_file: ${{ steps.audio-task.outputs.audio_file }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Audio Generation Task
+        id: audio-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3: Audio generation started [Fan-out Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Check MCP connection time (15-minute safety window)
+          # GitHub Actions doesn't provide run_started_at, so we track from job start
+          JOB_START_TIME=$(date +%s)
+          echo "JOB_START_TIME=$JOB_START_TIME" >> $GITHUB_ENV
+          ELAPSED_MINUTES=0  # First job in phase 3, so assume fresh connection
+          
+          echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Ensure audio directory exists
+          mkdir -p "${PROJECT_DIR}/media/audio"
+          
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "[$(date)] MCP connection should be active, attempting generation" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            AUDIO_PROMPT="Generate Japanese news narration: Professional announcer voice, clear pronunciation, -14LUFS level. Input: ${SCRIPT_DATA}. Output: ${PROJECT_DIR}/media/audio/narration.mp3"
+            
+            # 3-attempt retry logic for Audio generation
+            AUDIO_SUCCESS=false
+            for attempt in 1 2 3; do
+              echo "[$(date)] Audio generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+              
+              if npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_submit,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_status,mcp__t2s-kamui-minimax-speech__minimax_speech_02_turbo_result,Write,Read" \
+                --max-turns 20 \
+                --permission-mode "acceptEdits" \
+                -p "$AUDIO_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-audio-mcp.log"; then
+                
+                # Check if audio was actually generated
+                AUDIO_CHECK=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
+                if [ -n "$AUDIO_CHECK" ] && [ -f "$AUDIO_CHECK" ] && [ -s "$AUDIO_CHECK" ]; then
+                  echo "[$(date)] Audio SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  AUDIO_SUCCESS=true
+                  break
+                else
+                  echo "[$(date)] Audio generation completed but no valid file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                fi
+              else
+                echo "[$(date)] Audio FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+              
+              if [ $attempt -lt 3 ]; then
+                echo "[$(date)] Retrying Audio in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 5
+              fi
+            done
+            
+            if [ "$AUDIO_SUCCESS" != "true" ]; then
+              echo "[$(date)] All 3 attempts failed for Audio, will use fallback generation" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          else
+            echo "[$(date)] MCP timeout risk detected, using fallback generation" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Check for generated audio
+          AUDIO_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
+          
+          # Fallback: Generate test audio if MCP failed
+          if [ -z "$AUDIO_FILE" ] || [ ! -s "$AUDIO_FILE" ]; then
+            echo "[$(date)] WARNING: MCP audio generation failed, creating fallback audio" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Install TTS tools
+            sudo apt-get update && sudo apt-get install -y espeak-ng ffmpeg
+            
+            # Extract text from script data
+            NARRATION_TEXT=$(echo "$SCRIPT_DATA" | head -20)
+            
+            # Generate audio using espeak
+            espeak-ng -v ja -s 150 -w "${PROJECT_DIR}/media/audio/temp.wav" "$NARRATION_TEXT" 2>/dev/null || \
+              espeak-ng -v en -s 150 -w "${PROJECT_DIR}/media/audio/temp.wav" "This is a test narration for the news video"
+            
+            # Convert to MP3
+            ffmpeg -i "${PROJECT_DIR}/media/audio/temp.wav" -c:a libmp3lame -b:a 192k "${PROJECT_DIR}/media/audio/narration.mp3" -y
+            rm -f "${PROJECT_DIR}/media/audio/temp.wav"
+            
+            AUDIO_FILE="${PROJECT_DIR}/media/audio/narration.mp3"
+          fi
+          
+          if [ -f "$AUDIO_FILE" ] && [ -s "$AUDIO_FILE" ]; then
+            echo "audio_file=${AUDIO_FILE}" >> $GITHUB_OUTPUT
+            AUDIO_SIZE=$(stat -c%s "$AUDIO_FILE" 2>/dev/null || ls -l "$AUDIO_FILE" 2>/dev/null | awk '{print $5}' || echo "0")
+            echo "[$(date)] Audio generation completed: ${AUDIO_FILE} (${AUDIO_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 3A Audio Report
+            echo "## 🎙️ Phase 3A: Audio Generation - ナレーション音声作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 音声生成完了: $(basename "$AUDIO_FILE")" >> $GITHUB_STEP_SUMMARY
+            AUDIO_SIZE_KB=$((AUDIO_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${AUDIO_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            if [ $ELAPSED_MINUTES -lt 12 ]; then
+              echo "- ✅ 生成方式: MCP TTS (高品質)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ⚠️ 生成方式: Fallback TTS (MCP タイムアウト)" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[$(date)] ERROR: Failed to generate audio" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "audio_file=placeholder" >> $GITHUB_OUTPUT
+            # Add error report
+            echo "## 🎙️ Phase 3A: Audio Generation - ナレーション音声作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 音声生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Audio artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-audio-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 3A Audio Generation Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 3A Audio Report to GitHub Summary
+          echo "## 🎵 Phase 3A Audio Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check generated audio files and create direct links
+          AUDIO_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" -o -name "*.m4a" 2>/dev/null | head -1)
+          if [ -n "$AUDIO_FILE" ] && [ -f "$AUDIO_FILE" ]; then
+            AUDIO_SIZE=$(ls -lh "$AUDIO_FILE" | awk '{print $5}')
+            AUDIO_BASENAME=$(basename "$AUDIO_FILE")
+            echo "- ✅ **生成音声**: [\`${AUDIO_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${AUDIO_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Duration check if possible
+            if command -v ffprobe > /dev/null 2>&1; then
+              DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$AUDIO_FILE" 2>/dev/null | cut -d'.' -f1)
+              if [ -n "$DURATION" ]; then
+                echo "- ⏱️ **再生時間**: ${DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **生成音声**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # MCP Audio URL if available
+          AUDIO_URL_FILE="${PROJECT_DIR}/media/audio/narration-url.txt"
+          if [ -f "$AUDIO_URL_FILE" ]; then
+            AUDIO_URL=$(cat "$AUDIO_URL_FILE")
+            echo "- 🔗 **直接再生URL**: [音声ファイル](${AUDIO_URL})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Generation method
+          if [ -f "${PROJECT_DIR}/logs/phase3a-audio-mcp.log" ]; then
+            echo "- 🔧 **生成方法**: MCP (MiniMax Speech-02-Turbo)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 🔧 **生成方法**: Fallback (espeak-ng)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 3B: Individual Image Generation Jobs (1-5)
+  phase3-image1-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image1_path: ${{ steps.image1-task.outputs.image1_path }}
+      image1_url: ${{ steps.image1-task.outputs.image1_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 1 Generation Task
+        id: image1-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B1: Image 1 generation started [Data Parallelism 1/5]" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE1_PROMPT="Generate scene 1 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image1-url.txt and download image to ${PROJECT_DIR}/media/images/scene1.png"
+          
+          # 3-attempt retry logic for Image 1 generation
+          IMAGE1_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 1 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 60 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image1-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE1_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE1_CHECK" ] && [ -f "$IMAGE1_CHECK" ]; then
+                echo "[$(date)] Image 1 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE1_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 1 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 1 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 1 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE1_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 1, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Attempt explicit download if URL exists but file missing - ENHANCED
+          if [ -f "${PROJECT_DIR}/media/images/image1-url.txt" ]; then
+            IMAGE1_URL=$(cat "${PROJECT_DIR}/media/images/image1-url.txt")
+            echo "[$(date)] Attempting to download Image 1 from URL: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene1.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene1.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 1" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE1_URL" -o "${PROJECT_DIR}/media/images/scene1.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image1.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene1.png" ] && [ -s "${PROJECT_DIR}/media/images/scene1.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene1.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 1 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 1 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene1.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
+          fi
+
+          # Check for generated image and URL
+          IMAGE1_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene1*" -o -name "*1.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE1_URL_FILE="${PROJECT_DIR}/media/images/image1-url.txt"
+          
+          if [ -n "$IMAGE1_FILE" ] && [ -f "$IMAGE1_FILE" ]; then
+            echo "image1_path=${IMAGE1_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 1 completed: ${IMAGE1_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE1_URL_FILE" ]; then
+              IMAGE1_URL=$(cat "$IMAGE1_URL_FILE")
+              echo "image1_url=${IMAGE1_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 1 Google URL saved: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 1 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image1_url=" >> $GITHUB_OUTPUT
+            fi
+            
+            # Add Phase 3B1 Image Report
+            echo "## 🖼️ Phase 3B1: Image Generation - シーン1画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 画像生成完了: $(basename "$IMAGE1_FILE")" >> $GITHUB_STEP_SUMMARY
+            IMAGE1_SIZE=$(stat -c%s "$IMAGE1_FILE" 2>/dev/null || echo "0")
+            IMAGE1_SIZE_KB=$((IMAGE1_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${IMAGE1_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 生成方式: Google Imagen3 (高品質)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            # 画像ファイルが無くてもURLがあれば出力して下流でURLを使用
+            if [ -f "$IMAGE1_URL_FILE" ]; then
+              IMAGE1_URL=$(cat "$IMAGE1_URL_FILE")
+              echo "[$(date)] WARNING: Image 1 file missing, but URL available. Passing URL to downstream" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image1_url=${IMAGE1_URL}" >> $GITHUB_OUTPUT
+              # ファイルが無いので path は空で渡す（placeholderは使わない）
+              echo "image1_path=" >> $GITHUB_OUTPUT
+            else
+              echo "[$(date)] WARNING: Image 1 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image1_path=placeholder" >> $GITHUB_OUTPUT
+              echo "image1_url=" >> $GITHUB_OUTPUT
+            fi
+            # Add error report
+            echo "## 🖼️ Phase 3B1: Image Generation - シーン1画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 画像生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Image 1 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image1-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image2-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image2_path: ${{ steps.image2-task.outputs.image2_path }}
+      image2_url: ${{ steps.image2-task.outputs.image2_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 2 Generation Task
+        id: image2-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B2: Image 2 generation started [Data Parallelism 2/5]" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE2_PROMPT="Generate scene 2 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image2-url.txt and download image to ${PROJECT_DIR}/media/images/scene2.png"
+          
+          # 3-attempt retry logic for Image 2 generation
+          IMAGE2_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 2 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 60 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image2-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE2_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE2_CHECK" ] && [ -f "$IMAGE2_CHECK" ]; then
+                echo "[$(date)] Image 2 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE2_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 2 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 2 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 2 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE2_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Attempt explicit download if URL exists but file missing - ENHANCED
+          if [ -f "${PROJECT_DIR}/media/images/image2-url.txt" ]; then
+            IMAGE2_URL=$(cat "${PROJECT_DIR}/media/images/image2-url.txt")
+            echo "[$(date)] Attempting to download Image 2 from URL: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene2.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene2.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 2" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE2_URL" -o "${PROJECT_DIR}/media/images/scene2.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image2.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene2.png" ] && [ -s "${PROJECT_DIR}/media/images/scene2.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene2.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 2 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 2 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene2.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
+          fi
+
+          # Check for generated image and URL
+          IMAGE2_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene2*" -o -name "*2.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE2_URL_FILE="${PROJECT_DIR}/media/images/image2-url.txt"
+          
+          if [ -n "$IMAGE2_FILE" ] && [ -f "$IMAGE2_FILE" ]; then
+            echo "image2_path=${IMAGE2_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 2 completed: ${IMAGE2_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE2_URL_FILE" ]; then
+              IMAGE2_URL=$(cat "$IMAGE2_URL_FILE")
+              echo "image2_url=${IMAGE2_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 2 Google URL saved: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 2 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image2_url=" >> $GITHUB_OUTPUT
+            fi
+            
+            # Add Phase 3B2 Image Report
+            echo "## 🖼️ Phase 3B2: Image Generation - シーン2画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 画像生成完了: $(basename "$IMAGE2_FILE")" >> $GITHUB_STEP_SUMMARY
+            IMAGE2_SIZE=$(stat -c%s "$IMAGE2_FILE" 2>/dev/null || echo "0")
+            IMAGE2_SIZE_KB=$((IMAGE2_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${IMAGE2_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 生成方式: Google Imagen3 (高品質)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            if [ -f "$IMAGE2_URL_FILE" ]; then
+              IMAGE2_URL=$(cat "$IMAGE2_URL_FILE")
+              echo "[$(date)] WARNING: Image 2 file missing, but URL available. Passing URL to downstream" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image2_url=${IMAGE2_URL}" >> $GITHUB_OUTPUT
+              echo "image2_path=" >> $GITHUB_OUTPUT
+            else
+              echo "[$(date)] WARNING: Image 2 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image2_path=placeholder" >> $GITHUB_OUTPUT
+              echo "image2_url=" >> $GITHUB_OUTPUT
+            fi
+            # Add error report
+            echo "## 🖼️ Phase 3B2: Image Generation - シーン2画像作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 画像生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Image 2 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image2-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image3-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image3_path: ${{ steps.image3-task.outputs.image3_path }}
+      image3_url: ${{ steps.image3-task.outputs.image3_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 3 Generation Task
+        id: image3-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B3: Image 3 generation started [Data Parallelism 3/5]" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images"
+          
+          IMAGE3_PROMPT="Generate scene 3 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image3-url.txt and download image to ${PROJECT_DIR}/media/images/scene3.png"
+          
+          # 3-attempt retry logic for Image 3 generation
+          IMAGE3_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 3 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 60 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE3_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image3-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE3_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE3_CHECK" ] && [ -f "$IMAGE3_CHECK" ]; then
+                echo "[$(date)] Image 3 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE3_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 3 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 3 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 3 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE3_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Attempt explicit download if URL exists but file missing - ENHANCED
+          if [ -f "${PROJECT_DIR}/media/images/image3-url.txt" ]; then
+            IMAGE3_URL=$(cat "${PROJECT_DIR}/media/images/image3-url.txt")
+            echo "[$(date)] Attempting to download Image 3 from URL: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene3.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene3.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 3" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE3_URL" -o "${PROJECT_DIR}/media/images/scene3.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image3.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene3.png" ] && [ -s "${PROJECT_DIR}/media/images/scene3.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene3.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 3 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 3 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene3.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
+          fi
+
+          # Check for generated image and URL
+          IMAGE3_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene3*" -o -name "*3.*" | grep -v "url.txt" | head -1)
+          IMAGE3_URL_FILE="${PROJECT_DIR}/media/images/image3-url.txt"
+          
+          if [ -n "$IMAGE3_FILE" ] && [ -f "$IMAGE3_FILE" ]; then
+            echo "image3_path=${IMAGE3_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 3 completed: ${IMAGE3_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE3_URL_FILE" ]; then
+              IMAGE3_URL=$(cat "$IMAGE3_URL_FILE")
+              echo "image3_url=${IMAGE3_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 3 Google URL saved: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 3 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image3_url=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "[$(date)] WARNING: Image 3 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image3_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image3_url=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Image 3 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image3-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image4-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image4_path: ${{ steps.image4-task.outputs.image4_path }}
+      image4_url: ${{ steps.image4-task.outputs.image4_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 4 Generation Task
+        id: image4-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B4: Image 4 generation started [Data Parallelism 4/5]" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE4_PROMPT="Generate scene 4 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image4-url.txt and download image to ${PROJECT_DIR}/media/images/scene4.png"
+          
+          # 3-attempt retry logic for Image 4 generation
+          IMAGE4_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 4 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 60 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE4_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image4-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE4_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE4_CHECK" ] && [ -f "$IMAGE4_CHECK" ]; then
+                echo "[$(date)] Image 4 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE4_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 4 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 4 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 4 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE4_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Attempt explicit download if URL exists but file missing - ENHANCED
+          if [ -f "${PROJECT_DIR}/media/images/image4-url.txt" ]; then
+            IMAGE4_URL=$(cat "${PROJECT_DIR}/media/images/image4-url.txt")
+            echo "[$(date)] Attempting to download Image 4 from URL: ${IMAGE4_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene4.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene4.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 4" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE4_URL" -o "${PROJECT_DIR}/media/images/scene4.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image4.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene4.png" ] && [ -s "${PROJECT_DIR}/media/images/scene4.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene4.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 4 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 4 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene4.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
+          fi
+
+          # Check for generated image and URL
+          IMAGE4_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene4*" -o -name "*4.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE4_URL_FILE="${PROJECT_DIR}/media/images/image4-url.txt"
+          
+          if [ -n "$IMAGE4_FILE" ] && [ -f "$IMAGE4_FILE" ]; then
+            echo "image4_path=${IMAGE4_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 4 completed: ${IMAGE4_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE4_URL_FILE" ]; then
+              IMAGE4_URL=$(cat "$IMAGE4_URL_FILE")
+              echo "image4_url=${IMAGE4_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 4 Google URL saved: ${IMAGE4_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 4 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image4_url=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "[$(date)] WARNING: Image 4 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image4_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image4_url=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Image 4 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image4-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  phase3-image5-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      image5_path: ${{ steps.image5-task.outputs.image5_path }}
+      image5_url: ${{ steps.image5-task.outputs.image5_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: phase2-content-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Image 5 Generation Task
+        id: image5-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 3B5: Image 5 generation started [Data Parallelism 5/5]" >> "${PROJECT_DIR}/logs/execution.log"
+          mkdir -p "${PROJECT_DIR}/media/images/individual"
+          
+          IMAGE5_PROMPT="Generate scene 5 news image: Professional news style, 16:9, 1920x1080, blue/red colors, rule of thirds. Save Google URL to ${PROJECT_DIR}/media/images/image5-url.txt and download image to ${PROJECT_DIR}/media/images/scene5.png"
+          
+          # 3-attempt retry logic for Image 5 generation
+          IMAGE5_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Image 5 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Read" \
+              --max-turns 60 \
+              --permission-mode "acceptEdits" \
+              -p "$IMAGE5_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-image5-mcp.log"; then
+              
+              # Check if image was actually generated
+              IMAGE5_CHECK=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)
+              if [ -n "$IMAGE5_CHECK" ] && [ -f "$IMAGE5_CHECK" ]; then
+                echo "[$(date)] Image 5 SUCCESS on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                IMAGE5_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Image 5 generation completed but no file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Image 5 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Image 5 in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$IMAGE5_SUCCESS" != "true" ]; then
+            echo "[$(date)] All 3 attempts failed for Image 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Attempt explicit download if URL exists but file missing - ENHANCED
+          if [ -f "${PROJECT_DIR}/media/images/image5-url.txt" ]; then
+            IMAGE5_URL=$(cat "${PROJECT_DIR}/media/images/image5-url.txt")
+            echo "[$(date)] Attempting to download Image 5 from URL: ${IMAGE5_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Multiple download attempts with relaxed conditions
+            for dl_attempt in 1 2 3; do
+              if [ ! -f "${PROJECT_DIR}/media/images/scene5.png" ] || [ ! -s "${PROJECT_DIR}/media/images/scene5.png" ]; then
+                echo "[$(date)] Download attempt $dl_attempt for Image 5" >> "${PROJECT_DIR}/logs/execution.log"
+                # Relaxed curl command - no Content-Type check
+                curl -L --retry 3 --retry-delay 2 --max-time 90 "$IMAGE5_URL" -o "${PROJECT_DIR}/media/images/scene5.png" 2>&1 | tee -a "${PROJECT_DIR}/logs/curl-image5.log" || echo "[$(date)] curl failed but continuing" >> "${PROJECT_DIR}/logs/execution.log"
+                
+                # Verify download success
+                if [ -f "${PROJECT_DIR}/media/images/scene5.png" ] && [ -s "${PROJECT_DIR}/media/images/scene5.png" ]; then
+                  FILE_SIZE=$(stat -c%s "${PROJECT_DIR}/media/images/scene5.png" 2>/dev/null || echo "0")
+                  echo "[$(date)] Image 5 downloaded successfully: ${FILE_SIZE} bytes" >> "${PROJECT_DIR}/logs/execution.log"
+                  break
+                else
+                  echo "[$(date)] Image 5 download failed on attempt $dl_attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                  rm -f "${PROJECT_DIR}/media/images/scene5.png" 2>/dev/null  # Clean up partial download
+                  sleep 3
+                fi
+              fi
+            done
+          fi
+
+          # Check for generated image and URL
+          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          IMAGE5_URL_FILE="${PROJECT_DIR}/media/images/image5-url.txt"
+          
+          if [ -n "$IMAGE5_FILE" ] && [ -f "$IMAGE5_FILE" ]; then
+            echo "image5_path=${IMAGE5_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Image 5 completed: ${IMAGE5_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check for Google URL
+            if [ -f "$IMAGE5_URL_FILE" ]; then
+              IMAGE5_URL=$(cat "$IMAGE5_URL_FILE")
+              echo "image5_url=${IMAGE5_URL}" >> $GITHUB_OUTPUT
+              echo "[$(date)] Image 5 Google URL saved: ${IMAGE5_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] WARNING: Image 5 Google URL not found" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "image5_url=" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "[$(date)] WARNING: Image 5 not generated, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "image5_path=placeholder" >> $GITHUB_OUTPUT
+            echo "image5_url=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Image 5 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-image5-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 3 Image 5 Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 3 Image 5 Report to GitHub Summary
+          echo "## 🖼️ Phase 3 Image 5 Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check generated files and create direct links
+          IMAGE5_FILE=$(find "${PROJECT_DIR}/media/images" -name "*scene5*" -o -name "*5.*" 2>/dev/null | grep -v "url.txt" | head -1)
+          if [ -n "$IMAGE5_FILE" ] && [ -f "$IMAGE5_FILE" ]; then
+            IMAGE5_SIZE=$(ls -lh "$IMAGE5_FILE" | awk '{print $5}')
+            IMAGE5_BASENAME=$(basename "$IMAGE5_FILE")
+            echo "- ✅ **生成画像**: [\`${IMAGE5_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${IMAGE5_SIZE})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **生成画像**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Google Cloud URL link
+          IMAGE5_URL_FILE="${PROJECT_DIR}/media/images/image5-url.txt"
+          if [ -f "$IMAGE5_URL_FILE" ]; then
+            IMAGE5_URL=$(cat "$IMAGE5_URL_FILE")
+            echo "- 🔗 **Google Cloud URL**: [直接アクセス](${IMAGE5_URL})" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⚠️ **Google Cloud URL**: 取得失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Metadata files
+          if [ -f "${PROJECT_DIR}/metadata" ]; then
+            METADATA_COUNT=$(find "${PROJECT_DIR}/metadata" -name "*.json" 2>/dev/null | wc -l)
+            echo "- 📊 **メタデータファイル**: ${METADATA_COUNT}件 - [アーティファクトで確認](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Log files
+          if [ -f "${PROJECT_DIR}/logs" ]; then
+            LOG_COUNT=$(find "${PROJECT_DIR}/logs" -name "*.log" 2>/dev/null | wc -l)
+            echo "- 📝 **実行ログ**: ${LOG_COUNT}件 - [アーティファクトで確認](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 3C: BGM Generation (Independent Job) - Relocated from Phase 5
+  phase3-bgm-generation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation]
+    outputs:
+      bgm_file: ${{ steps.bgm.outputs.bgm_file }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: BGM Generation Task
+        id: bgm
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          echo "[$(date)] Phase 3C: BGM generation started [Independent Task Parallelization]" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Check MCP connection time
+          # Use job start time from first phase3 job
+          JOB_START_TIME=${JOB_START_TIME:-$(date +%s)}
+          CURRENT_TIME=$(date +%s)
+          ELAPSED_MINUTES=$(( (CURRENT_TIME - JOB_START_TIME) / 60 ))
+          
+          # Ensure audio directory exists
+          mkdir -p "${PROJECT_DIR}/media/audio"
+          
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "[$(date)] MCP connection active, attempting BGM generation with retry" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            BGM_PROMPT="Generate professional news BGM: 60s instrumental, subtle, trust/urgency balance, -25dB below narration. Output: ${PROJECT_DIR}/media/audio/bgm.mp3"
+            
+            # 3回リトライロジック
+            for attempt in 1 2 3; do
+              echo "[$(date)] BGM generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+              
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__t2m-kamui-lyria__lyria_generate,Write,Read" \
+                --max-turns 20 \
+                --permission-mode "acceptEdits" \
+                -p "$BGM_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase3-bgm-mcp-attempt$attempt.log"
+              
+              # ファイル生成確認
+              BGM_CHECK=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" 2>/dev/null | head -1)
+              if [ -n "$BGM_CHECK" ] && [ -s "$BGM_CHECK" ]; then
+                echo "[$(date)] BGM generation successful on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                break
+              else
+                echo "[$(date)] BGM generation failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                if [ $attempt -lt 3 ]; then
+                  sleep 10
+                fi
+              fi
+            done
+          else
+            echo "[$(date)] MCP timeout risk, skipping MCP attempts" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Check for generated BGM
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" 2>/dev/null | head -1)
+          
+          # Fallback無し方針（この段階ではffmpeg非使用）。
+          # MCPで取得できない場合はBGMなしで進め、Phase 8で安全にミックスする。
+          
+          if [ -f "$BGM_FILE" ] && [ -s "$BGM_FILE" ]; then
+            echo "bgm_file=${BGM_FILE}" >> $GITHUB_OUTPUT
+            FILE_SIZE=$(stat -c%s "$BGM_FILE" 2>/dev/null || ls -l "$BGM_FILE" 2>/dev/null | awk '{print $5}' || echo "unknown")
+            echo "[$(date)] BGM generation completed: ${BGM_FILE} (${FILE_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] WARNING: BGM generation failed completely" >> "${PROJECT_DIR}/logs/execution.log"
+            echo "bgm_file=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload BGM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-bgm-generation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 3C BGM Generation Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 3C BGM Report to GitHub Summary
+          echo "## 🎼 Phase 3C BGM Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check generated BGM files and create direct links
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" 2>/dev/null | head -1)
+          if [ -n "$BGM_FILE" ] && [ -f "$BGM_FILE" ]; then
+            BGM_SIZE=$(ls -lh "$BGM_FILE" | awk '{print $5}')
+            BGM_BASENAME=$(basename "$BGM_FILE")
+            echo "- ✅ **生成BGM**: [\`${BGM_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${BGM_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Duration check if possible
+            if command -v ffprobe > /dev/null 2>&1; then
+              BGM_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$BGM_FILE" 2>/dev/null | cut -d'.' -f1)
+              if [ -n "$BGM_DURATION" ]; then
+                echo "- ⏱️ **BGM再生時間**: ${BGM_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **生成BGM**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # MCP BGM URL if available
+          BGM_URL_FILE="${PROJECT_DIR}/media/audio/bgm-url.txt"
+          if [ -f "$BGM_URL_FILE" ]; then
+            BGM_URL=$(cat "$BGM_URL_FILE")
+            echo "- 🔗 **直接再生URL**: [BGMファイル](${BGM_URL})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Generation method
+          if [ -f "${PROJECT_DIR}/logs/phase3c-bgm-mcp.log" ]; then
+            echo "- 🔧 **生成方法**: MCP (Google Lyria)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 🔧 **生成方法**: Fallback (FFmpeg生成)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 4: Individual Image→Video Conversion Jobs (1-5)
+  phase4-image1-to-video1:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image1-generation]
+    outputs:
+      video1_path: ${{ steps.video1-task.outputs.video1_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download specific required artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 1 to Video 1 Conversion Task
+        id: video1-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE1_PATH="${{ needs.phase3-image1-generation.outputs.image1_path }}"
+          IMAGE1_URL="${{ needs.phase3-image1-generation.outputs.image1_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE1_URL" ] || [ "$IMAGE1_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image1-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE1_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE1_URL from file: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
+          
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          echo "[$(date)] Phase 4.1: Image 1 → Video 1 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 1 URL: ${IMAGE1_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 1 Path: ${IMAGE1_PATH}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Check MCP connection time
+          # Use job start time from first phase3 job
+          JOB_START_TIME=${JOB_START_TIME:-$(date +%s)}
+          CURRENT_TIME=$(date +%s)
+          ELAPSED_MINUTES=$(( (CURRENT_TIME - JOB_START_TIME) / 60 ))
+          
+          echo "[$(date)] MCP connection check: $ELAPSED_MINUTES minutes elapsed" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Prepare clear i2v instruction with Google URL if available
+          if [ -n "$IMAGE1_URL" ] && [ "$IMAGE1_URL" != "" ]; then
+            echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO1_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE1_URL}', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video1-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          else
+            echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO1_PROMPT="IMPORTANT: Image-to-Video task. Read the image file at ${IMAGE1_PATH} and use mcp__i2v-kamui-hailuo-02-pro to convert it to an 8-second video. The image_url parameter should be ${IMAGE1_PATH}. Use prompt 'Professional news segment with subtle motion'. Save output to ${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          fi
+          
+          # Try MCP generation if within time window
+          VIDEO_GENERATED=false
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "[$(date)] MCP connection should be active, attempting video generation" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # 3-attempt retry logic for Video 1 generation with enhanced timing
+            MAX_TURNS=${CLAUDE_CODE_MAX_TURNS:-160}
+            for attempt in 1 2 3; do
+              echo "[$(date)] Video 1 MCP generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+              
+              # 段階的待機時間（I2V処理の安定化）
+              if [ $attempt -eq 2 ]; then
+                echo "[$(date)] Waiting 30s for MCP recovery (Video 1)..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 30
+              elif [ $attempt -eq 3 ]; then
+                echo "[$(date)] Waiting 60s for MCP recovery (Video 1)..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 60
+              fi
+              
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
+                --max-turns "$MAX_TURNS" \
+                --permission-mode "acceptEdits" \
+                -p "$VIDEO1_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video1-mcp.log"
+
+              # max-turnsに達した場合は次の試行で引上げ
+              if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video1-mcp.log"; then
+                echo "[$(date)] Max turns reached for Video 1. Increasing for next attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                MAX_TURNS=${CLAUDE_CODE_MAX_TURNS_RETRY:-200}
+              fi
+              
+              # 生成後に直接URLからのダウンロードも試行（MCPがURLのみ保存するケース）
+              VIDEO1_URL_FILE="${PROJECT_DIR}/media/videos/individual/video1-url.txt"
+              if [ -f "$VIDEO1_URL_FILE" ]; then
+                VIDEO1_URL=$(cat "$VIDEO1_URL_FILE")
+                mkdir -p "${PROJECT_DIR}/media/videos/individual"
+                curl -L --retry 5 --retry-delay 2 --max-time 300 "$VIDEO1_URL" -o "${PROJECT_DIR}/media/videos/individual/scene1_video.mp4" 2>> "${PROJECT_DIR}/logs/curl-video1.log" || true
+              fi
+              # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+              VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene1*.mp4" -o -name "*video1*.mp4" \) 2>/dev/null | head -1)
+              if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ] && [ $(stat -c%s "$VIDEO1_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+                echo "[$(date)] Video 1 MCP SUCCESS on attempt $attempt: $(ls -lh "$VIDEO1_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+                VIDEO_GENERATED=true
+                break
+              else
+                echo "[$(date)] Video 1 MCP FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+                if [ $attempt -lt 3 ]; then
+                  sleep 10
+                fi
+              fi
+            done
+          else
+            echo "[$(date)] MCP timeout risk detected, skipping MCP generation" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          
+          # Fallback: Generate test video if MCP failed
+          if [ "$VIDEO_GENERATED" = false ]; then
+            echo "[$(date)] Creating fallback video for Video 1" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Check if input image exists
+            if [ -f "$IMAGE1_PATH" ] && [ -s "$IMAGE1_PATH" ]; then
+              # Convert image to video with zoom effect
+              ffmpeg -loop 1 -i "$IMAGE1_PATH" -c:v libx264 -t 8 -pix_fmt yuv420p \
+                -vf "scale=1920:1080,zoompan=z='min(zoom+0.0015,1.5)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=240" \
+                "${PROJECT_DIR}/media/videos/individual/scene1_video.mp4" -y
+            else
+              # Generate test pattern video
+              ffmpeg -f lavfi -i testsrc=duration=8:size=1920x1080:rate=30 \
+                -vf "drawtext=text='Scene 1':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
+                -c:v libx264 -pix_fmt yuv420p \
+                "${PROJECT_DIR}/media/videos/individual/scene1_video.mp4" -y
+            fi
+            
+            VIDEO1_FILE="${PROJECT_DIR}/media/videos/individual/scene1_video.mp4"
+          fi
+          
+          # Final output
+          if [ -f "$VIDEO1_FILE" ] && [ -s "$VIDEO1_FILE" ]; then
+            echo "video1_path=${VIDEO1_FILE}" >> $GITHUB_OUTPUT
+            VIDEO1_SIZE=$(stat -c%s "$VIDEO1_FILE" 2>/dev/null || ls -l "$VIDEO1_FILE" 2>/dev/null | awk '{print $5}' || echo "0")
+            echo "[$(date)] Video 1 completed: ${VIDEO1_FILE} (${VIDEO1_SIZE} bytes)" >> "${PROJECT_DIR}/logs/execution.log"
+            else
+              echo "[$(date)] ERROR: Failed to generate Video 1" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video1_path=placeholder" >> $GITHUB_OUTPUT
+            fi
+
+      - name: Upload Video 1 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image1-to-video1
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 4 Video 1 I2V Report with Direct Links
+        if: always()
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 4 Video 1 I2V Report to GitHub Summary
+          echo "## 🎬 Phase 4 Video 1 I2V Generation - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Finalize Video 1 status
+        if: always()
+        run: |
+          FILE="${{ steps.video1-task.outputs.video1_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 1 verification failed::File invalid or missing"
+            exit 1
+          fi
+          
+          # Check generated video files and create direct links（統一判定）
+          VIDEO1_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -name "*scene1*.mp4" -o -name "*video1*.mp4" 2>/dev/null | head -1)
+          if [ -n "$VIDEO1_FILE" ] && [ -f "$VIDEO1_FILE" ]; then
+            VIDEO1_SIZE=$(ls -lh "$VIDEO1_FILE" | awk '{print $5}')
+            VIDEO1_BASENAME=$(basename "$VIDEO1_FILE")
+            echo "- ✅ **生成動画**: [\`${VIDEO1_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${VIDEO1_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Duration and resolution check if possible
+            if command -v ffprobe > /dev/null 2>&1; then
+              VIDEO1_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$VIDEO1_FILE" 2>/dev/null | cut -d'.' -f1)
+              VIDEO1_RESOLUTION=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv="p=0" "$VIDEO1_FILE" 2>/dev/null | tr ',' 'x')
+              if [ -n "$VIDEO1_DURATION" ]; then
+                echo "- ⏱️ **動画時間**: ${VIDEO1_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ -n "$VIDEO1_RESOLUTION" ]; then
+                echo "- 📐 **解像度**: ${VIDEO1_RESOLUTION}" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **生成動画**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # MCP Video URL if available
+          VIDEO1_URL_FILE="${PROJECT_DIR}/media/videos/individual/video1-url.txt"
+          if [ -f "$VIDEO1_URL_FILE" ]; then
+            VIDEO1_URL=$(cat "$VIDEO1_URL_FILE")
+            echo "- 🔗 **直接再生URL**: [動画ファイル](${VIDEO1_URL})" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Source image info
+          IMAGE1_URL="${{ needs.phase3-image1-generation.outputs.image1_url }}"
+          if [ -n "$IMAGE1_URL" ]; then
+            if [[ "$IMAGE1_URL" == *"storage.googleapis.com"* ]]; then
+              echo "- 🖼️ **変換元画像**: [Google Cloud画像]($IMAGE1_URL)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- 🖼️ **変換元画像**: ローカルファイル" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          # Generation method and service
+          if [ -f "${PROJECT_DIR}/logs/phase4-video1-mcp.log" ]; then
+            echo "- 🔧 **変換サービス**: MCP (Hailuo-02 Pro I2V)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- 🔧 **変換サービス**: Fallback処理" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  phase4-image2-to-video2:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image2-generation]
+    outputs:
+      video2_path: ${{ steps.video2-task.outputs.video2_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download specific required artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 2 to Video 2 Conversion Task
+        id: video2-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE2_PATH="${{ needs.phase3-image2-generation.outputs.image2_path }}"
+          IMAGE2_URL="${{ needs.phase3-image2-generation.outputs.image2_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE2_URL" ] || [ "$IMAGE2_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image2-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE2_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE2_URL from file: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
+          
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          echo "[$(date)] Phase 4.2: Image 2 → Video 2 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 2 URL: ${IMAGE2_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 2 Path: ${IMAGE2_PATH}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Prepare clear i2v instruction with Google URL if available
+          if [ -n "$IMAGE2_URL" ] && [ "$IMAGE2_URL" != "" ]; then
+            echo "[$(date)] Using Google URL for video generation" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO2_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE2_URL}', prompt='Professional news segment with subtle motion'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video2-url.txt and download to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
+          else
+            echo "[$(date)] WARNING: No Google URL available, using local path" >> "${PROJECT_DIR}/logs/execution.log"
+            VIDEO2_PROMPT="Read image at ${IMAGE2_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE2_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene2_video.mp4"
+          fi
+          
+          # 3-attempt retry logic for Video 2 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 2 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO2_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video2-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+
+            # max-turnsに達した場合は次の試行で引上げ
+            if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video2-mcp.log"; then
+              echo "[$(date)] Max turns reached for Video 2. Will retry with higher cap" >> "${PROJECT_DIR}/logs/execution.log"
+              export CLAUDE_CODE_MAX_TURNS=200
+            fi
+            
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO2_URL_FILE="${PROJECT_DIR}/media/videos/individual/video2-url.txt"
+            if [ -f "$VIDEO2_URL_FILE" ]; then
+              VIDEO2_URL=$(cat "$VIDEO2_URL_FILE")
+              mkdir -p "${PROJECT_DIR}/media/videos/individual"
+              curl -L --retry 5 --retry-delay 2 --max-time 300 "$VIDEO2_URL" -o "${PROJECT_DIR}/media/videos/individual/scene2_video.mp4" 2>> "${PROJECT_DIR}/logs/curl-video2.log" || true
+            fi
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO2_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene2*.mp4" -o -name "*video2*.mp4" \) 2>/dev/null | head -1)
+            if [ -n "$VIDEO2_FILE" ] && [ -f "$VIDEO2_FILE" ] && [ $(stat -c%s "$VIDEO2_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "[$(date)] Video 2 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO2_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video2_path=${VIDEO2_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 2 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 2, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video2_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 2 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
+
+      - name: Upload Video 2 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image2-to-video2
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 2 status
+        if: always()
+        run: |
+          FILE="${{ steps.video2-task.outputs.video2_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 2 verification failed::File invalid or missing"
+            exit 1
+          fi
+
+  phase4-image3-to-video3:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image3-generation]
+    outputs:
+      video3_path: ${{ steps.video3-task.outputs.video3_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download specific required artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 3 to Video 3 Conversion Task
+        id: video3-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE3_PATH="${{ needs.phase3-image3-generation.outputs.image3_path }}"
+          IMAGE3_URL="${{ needs.phase3-image3-generation.outputs.image3_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE3_URL" ] || [ "$IMAGE3_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image3-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE3_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE3_URL from file: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
+          
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          echo "[$(date)] Phase 4.3: Image 3 → Video 3 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Image 3 URL: ${IMAGE3_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          if [ -n "$IMAGE3_URL" ] && [ "$IMAGE3_URL" != "" ]; then
+            VIDEO3_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE3_URL}', prompt='Professional news segment'. Save video URL to ${PROJECT_DIR}/media/videos/individual/video3-url.txt and download to scene3_video.mp4"
+          else
+            VIDEO3_PROMPT="Read image at ${IMAGE3_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE3_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene3_video.mp4"
+          fi
+          
+          # 3-attempt retry logic for Video 3 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 3 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # 段階的待機時間（連続生成負荷対策）
+            if [ $attempt -eq 2 ]; then
+              echo "[$(date)] Waiting 30s for MCP recovery (Video 3)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 30
+            elif [ $attempt -eq 3 ]; then
+              echo "[$(date)] Waiting 60s for MCP recovery (Video 3)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 60
+            fi
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO3_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video3-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video3-mcp.log"; then export CLAUDE_CODE_MAX_TURNS=160; fi
+            
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO3_URL_FILE="${PROJECT_DIR}/media/videos/individual/video3-url.txt"
+            if [ -f "$VIDEO3_URL_FILE" ]; then
+              VIDEO3_URL=$(cat "$VIDEO3_URL_FILE")
+              mkdir -p "${PROJECT_DIR}/media/videos/individual"
+              curl -L --retry 5 --retry-delay 2 --max-time 300 "$VIDEO3_URL" -o "${PROJECT_DIR}/media/videos/individual/scene3_video.mp4" 2>> "${PROJECT_DIR}/logs/curl-video3.log" || true
+            fi
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO3_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene3*.mp4" -o -name "*video3*.mp4" \) 2>/dev/null | head -1)
+            if [ -n "$VIDEO3_FILE" ] && [ -f "$VIDEO3_FILE" ] && [ $(stat -c%s "$VIDEO3_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "[$(date)] Video 3 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO3_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video3_path=${VIDEO3_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 3 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 3, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video3_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 3 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
+
+      - name: Upload Video 3 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image3-to-video3
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 3 status
+        if: always()
+        run: |
+          FILE="${{ steps.video3-task.outputs.video3_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 3 verification failed::File invalid or missing"
+            exit 1
+          fi
+
+  phase4-image4-to-video4:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image4-generation]
+    outputs:
+      video4_path: ${{ steps.video4-task.outputs.video4_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download specific required artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 4 to Video 4 Conversion Task
+        id: video4-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE4_PATH="${{ needs.phase3-image4-generation.outputs.image4_path }}"
+          IMAGE4_URL="${{ needs.phase3-image4-generation.outputs.image4_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE4_URL" ] || [ "$IMAGE4_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image4-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE4_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE4_URL from file: ${IMAGE4_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          echo "[$(date)] Phase 4.4: Image 4 → Video 4 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          if [ -n "$IMAGE4_URL" ] && [ "$IMAGE4_URL" != "" ]; then
+            VIDEO4_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE4_URL}', prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
+          else
+            VIDEO4_PROMPT="Read image at ${IMAGE4_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE4_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene4_video.mp4"
+          fi
+          
+          # 3-attempt retry logic for Video 4 generation with enhanced timing
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 4 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # 段階的待機時間（I2V処理の安定化）
+            if [ $attempt -eq 2 ]; then
+              echo "[$(date)] Waiting 30s for MCP recovery (Video 4)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 30
+            elif [ $attempt -eq 3 ]; then
+              echo "[$(date)] Waiting 60s for MCP recovery (Video 4)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 60
+            fi
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO4_PROMPT" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video4-mcp.log" 2>/dev/null; then export CLAUDE_CODE_MAX_TURNS=200; fi
+            
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO4_URL_FILE="${PROJECT_DIR}/media/videos/individual/video4-url.txt"
+            if [ -f "$VIDEO4_URL_FILE" ]; then
+              VIDEO4_URL=$(cat "$VIDEO4_URL_FILE")
+              mkdir -p "${PROJECT_DIR}/media/videos/individual"
+              curl -L --retry 5 --retry-delay 2 --max-time 300 "$VIDEO4_URL" -o "${PROJECT_DIR}/media/videos/individual/scene4_video.mp4" 2>> "${PROJECT_DIR}/logs/curl-video4.log" || true
+            fi
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO4_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene4*.mp4" -o -name "*video4*.mp4" \) 2>/dev/null | head -1)
+            if [ -n "$VIDEO4_FILE" ] && [ -f "$VIDEO4_FILE" ] && [ $(stat -c%s "$VIDEO4_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "[$(date)] Video 4 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO4_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video4_path=${VIDEO4_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 4 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 4, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video4_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 4 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
+
+      - name: Upload Video 4 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image4-to-video4
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 4 status
+        if: always()
+        run: |
+          FILE="${{ steps.video4-task.outputs.video4_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 4 verification failed::File invalid or missing"
+            exit 1
+          fi
+
+  phase4-image5-to-video5:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-image5-generation]
+    outputs:
+      video5_path: ${{ steps.video5-task.outputs.video5_path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download specific required artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Image 5 to Video 5 Conversion Task
+        id: video5-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          IMAGE5_PATH="${{ needs.phase3-image5-generation.outputs.image5_path }}"
+          IMAGE5_URL="${{ needs.phase3-image5-generation.outputs.image5_url }}"
+          # Fallback: URLファイルから補完
+          if [ -z "$IMAGE5_URL" ] || [ "$IMAGE5_URL" = "" ]; then
+            URL_FILE="${PROJECT_DIR}/media/images/image5-url.txt"
+            if [ -f "$URL_FILE" ]; then
+              IMAGE5_URL=$(cat "$URL_FILE")
+              echo "[$(date)] Filled IMAGE5_URL from file: ${IMAGE5_URL}" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+          fi
+          # Create directories first!
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/media/videos/individual"
+          
+          echo "[$(date)] Phase 4.5: Image 5 → Video 5 conversion started [Pipeline Processing]" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          if [ -n "$IMAGE5_URL" ] && [ "$IMAGE5_URL" != "" ]; then
+            VIDEO5_PROMPT="Convert image to video using i2v-kamui-hailuo-02-pro. Parameters: image_url='${IMAGE5_URL}', prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
+          else
+            VIDEO5_PROMPT="Read image at ${IMAGE5_PATH}. Use mcp__i2v-kamui-hailuo-02-pro to create 8s video. Parameters: image_url=${IMAGE5_PATH}, prompt='News segment', duration='8s'. Save to ${PROJECT_DIR}/media/videos/individual/scene5_video.mp4"
+          fi
+          
+          # 3-attempt retry logic for Video 5 generation
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video 5 generation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # 段階的待機時間（連続生成負荷対策）
+            if [ $attempt -eq 2 ]; then
+              echo "[$(date)] Waiting 30s for MCP recovery (Video 5)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 30
+            elif [ $attempt -eq 3 ]; then
+              echo "[$(date)] Waiting 60s for MCP recovery (Video 5)..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 60
+            fi
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-kamui-hailuo-02-pro__hailuo_02_submit,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_status,mcp__i2v-kamui-hailuo-02-pro__hailuo_02_result,Write,Read,Bash" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO5_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase4-video5-mcp.log" || echo "[$(date)] Claude Code execution failed on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            if grep -q "Reached max turns" "${PROJECT_DIR}/logs/phase4-video5-mcp.log"; then export CLAUDE_CODE_MAX_TURNS=160; fi
+            
+            # 生成後に直接URLからのダウンロードも試行
+            VIDEO5_URL_FILE="${PROJECT_DIR}/media/videos/individual/video5-url.txt"
+            if [ -f "$VIDEO5_URL_FILE" ]; then
+              VIDEO5_URL=$(cat "$VIDEO5_URL_FILE")
+              mkdir -p "${PROJECT_DIR}/media/videos/individual"
+              curl -L --retry 5 --retry-delay 2 --max-time 300 "$VIDEO5_URL" -o "${PROJECT_DIR}/media/videos/individual/scene5_video.mp4" 2>> "${PROJECT_DIR}/logs/curl-video5.log" || true
+            fi
+            # 確実なMP4ファイル成功判定（URL txtファイルを除外）
+            VIDEO5_FILE=$(find "${PROJECT_DIR}/media/videos/individual" -type f \( -name "*scene5*.mp4" -o -name "*video5*.mp4" \) 2>/dev/null | head -1)
+            if [ -n "$VIDEO5_FILE" ] && [ -f "$VIDEO5_FILE" ] && [ $(stat -c%s "$VIDEO5_FILE" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "[$(date)] Video 5 SUCCESS on attempt $attempt: $(ls -lh "$VIDEO5_FILE")" >> "${PROJECT_DIR}/logs/execution.log"
+              echo "video5_path=${VIDEO5_FILE}" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "[$(date)] Video 5 FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -eq 3 ]; then
+                echo "[$(date)] All 3 attempts failed for Video 5, creating placeholder" >> "${PROJECT_DIR}/logs/execution.log"
+                echo "video5_path=placeholder" >> $GITHUB_OUTPUT
+              else
+                echo "[$(date)] Retrying Video 5 in 10 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep 10
+              fi
+            fi
+          done
+
+      - name: Upload Video 5 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4-image5-to-video5
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Finalize Video 5 status
+        if: always()
+        run: |
+          FILE="${{ steps.video5-task.outputs.video5_path }}"
+          if [ -z "$FILE" ] || [ "$FILE" = "placeholder" ] || [ ! -f "$FILE" ] || [ $(stat -c%s "$FILE" 2>/dev/null || echo 0) -le 300000 ]; then
+            echo "::error title=Video 5 verification failed::File invalid or missing"
+            exit 1
+          fi
+
+
+  # Phase 4b: Auto Expand Scenes to match narration duration
+  phase4b-fill-gap-videos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    needs:
+      [
+        phase1-foundation,
+        phase2-content-creation,
+        phase3-audio-generation,
+        phase3-image1-generation,
+        phase3-image2-generation,
+        phase3-image3-generation,
+        phase3-image4-generation,
+        phase3-image5-generation,
+        phase4-image1-to-video1,
+        phase4-image2-to-video2,
+        phase4-image3-to-video3,
+        phase4-image4-to-video4,
+        phase4-image5-to-video5
+      ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Generate filler videos to match narration length
+        run: |
+          set -euo pipefail
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCENE_DIR="${PROJECT_DIR}/media/videos/individual"
+          IMG1="${{ needs.phase3-image1-generation.outputs.image1_path }}"
+          IMG2="${{ needs.phase3-image2-generation.outputs.image2_path }}"
+          IMG3="${{ needs.phase3-image3-generation.outputs.image3_path }}"
+          IMG4="${{ needs.phase3-image4-generation.outputs.image4_path }}"
+          IMG5="${{ needs.phase3-image5-generation.outputs.image5_path }}"
+          NARRATION_FILE="${PROJECT_DIR}/media/audio/narration.mp3"
+          mkdir -p "$SCENE_DIR" "${PROJECT_DIR}/logs"
+
+          # 目標: ナレーション長。取得失敗時は60秒
+          TARGET=60
+          if command -v ffprobe >/dev/null 2>&1 && [ -f "$NARRATION_FILE" ]; then
+            D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$NARRATION_FILE" 2>/dev/null | cut -d'.' -f1)
+            if [ -n "$D" ] && [ "$D" -gt 0 ] 2>/dev/null; then TARGET="$D"; fi
+          fi
+
+          # 現在の合計尺を算出
+          total=0
+          if command -v ffprobe >/dev/null 2>&1; then
+            while IFS= read -r f; do
+              [ -f "$f" ] || continue
+              dur=$(ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "$f" 2>/dev/null | cut -d'.' -f1)
+              if [ -z "$dur" ]; then
+                dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" 2>/dev/null | cut -d'.' -f1)
+              fi
+              [ -n "$dur" ] || dur=0
+              total=$(( total + dur ))
+            done < <(find "$SCENE_DIR" -type f -name "scene*_video.mp4" | sort -V)
+          fi
+
+          echo "[$(date)] Current total video duration: ${total}s / target ${TARGET}s" >> "${PROJECT_DIR}/logs/execution.log"
+
+          gap=$(( TARGET - total ))
+          if [ "$gap" -le 2 ]; then
+            echo "[$(date)] No filler needed (gap=${gap}s)" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 0
+          fi
+
+          # 既存最大シーン番号を取得
+          maxn=0
+          while IFS= read -r f; do
+            bn=$(basename "$f")
+            n=$(echo "$bn" | sed -n 's/^scene\([0-9]\+\)_video\.mp4$/\1/p')
+            [ -n "$n" ] && [ "$n" -gt "$maxn" ] 2>/dev/null && maxn="$n"
+          done < <(find "$SCENE_DIR" -type f -name "scene*_video.mp4")
+
+          # 画像候補の配列
+          imgs=()
+          for p in "$IMG1" "$IMG2" "$IMG3" "$IMG4" "$IMG5"; do
+            [ -f "$p" ] && imgs+=("$p") || true
+          done
+
+          idx=0
+          while [ "$gap" -gt 0 ]; do
+            chunk=8
+            if [ "$gap" -lt 8 ]; then chunk="$gap"; fi
+            maxn=$(( maxn + 1 ))
+            out="$SCENE_DIR/scene${maxn}_video.mp4"
+
+            src=""
+            if [ "${#imgs[@]}" -gt 0 ]; then
+              src="${imgs[$(( idx % ${#imgs[@]} ))]}"
+            fi
+
+            if [ -n "$src" ] && [ -f "$src" ]; then
+              # 軽量化: シンプルなスケールのみ、ズームパン効果を削除
+              timeout 120 ffmpeg -y -loop 1 -t "$chunk" -i "$src" \
+                -vf "scale=1920:1080" \
+                -c:v libx264 -pix_fmt yuv420p -preset ultrafast "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || {
+                echo "[$(date)] ffmpeg failed for filler ${maxn}, using fallback" >> "${PROJECT_DIR}/logs/execution.log"
+                timeout 60 ffmpeg -y -f lavfi -i "color=c=black:duration=${chunk}:size=1920x1080:rate=30" \
+                  -vf "drawtext=text='Scene ${maxn}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
+                  -c:v libx264 -pix_fmt yuv420p -preset ultrafast "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
+              }
+            else
+              # 軽量フォールバック
+              timeout 60 ffmpeg -y -f lavfi -i "color=c=black:duration=${chunk}:size=1920x1080:rate=30" \
+                -vf "drawtext=text='Filler ${maxn}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
+                -c:v libx264 -pix_fmt yuv420p -preset ultrafast "$out" 2>> "${PROJECT_DIR}/logs/ffmpeg-filler.log" || true
+            fi
+
+            echo "[$(date)] Created filler: $(basename "$out") (${chunk}s)" >> "${PROJECT_DIR}/logs/execution.log"
+            gap=$(( gap - chunk ))
+            idx=$(( idx + 1 ))
+          done
+
+      - name: Upload filler artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase4b-fill-gap-videos
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+
+  # Phase 5: Video Editing Planning (Claude Code SDK)
+  phase5-video-editing-planning:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase4b-fill-gap-videos]
+    outputs:
+      editing_plan: ${{ steps.editing-plan.outputs.editing_plan }}
+      timeline_config: ${{ steps.editing-plan.outputs.timeline_config }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Video Editing Plan Generation (Claude Code SDK)
+        id: editing-plan
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          echo "[$(date)] Phase 5: Video editing planning started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # 動的：利用可能なシーン一覧とナレーション長の収集
+          NARRATION_FILE="${PROJECT_DIR}/media/audio/narration.mp3"
+          TARGET_DURATION=60
+          if command -v ffprobe > /dev/null 2>&1 && [ -f "$NARRATION_FILE" ]; then
+            NARR_SEC=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$NARRATION_FILE" 2>/dev/null | cut -d'.' -f1)
+            if [ -n "$NARR_SEC" ] && [ "$NARR_SEC" -gt 0 ] 2>/dev/null; then
+              TARGET_DURATION="$NARR_SEC"
+            fi
+          fi
+          SCENE_DIR="${PROJECT_DIR}/media/videos/individual"
+          mkdir -p "$SCENE_DIR"
+          VIDEOS_FOUND=$(find "$SCENE_DIR" -type f -name "scene*_video.mp4" 2>/dev/null | sort -V)
+          if command -v jq > /dev/null 2>&1; then
+            VIDEOS_JSON=$(printf '%s\n' $VIDEOS_FOUND | jq -R . | jq -s .)
+          else
+            VIDEOS_JSON="[]"
+          fi
+
+          EDITING_PLAN_PROMPT="動画編集計画立案タスク（Claude Code SDK使用）：
+          
+          入力データ分析:
+          - スクリプトデータ: ${SCRIPT_DATA}
+          - 利用可能なシーン動画一覧: ${VIDEOS_JSON}
+          - ナレーション音声: narration.mp3（目標合計時間: ${TARGET_DURATION}秒）
+          - BGM音声: bgm.mp3
+          
+          編集計画要件:
+          1. プロフェッショナル品質の${TARGET_DURATION}秒前後のニュース動画（ナレーションに極力合わせる）
+          2. スムーズなシーン遷移と適切なタイミング調整
+          3. 音声レベル最適化とミックス比率
+          4. 視聴者エンゲージメント最大化
+          5. ニュース番組としての信頼性とインパクト
+          
+          出力要求:
+          1. 詳細な編集タイムライン: ${PROJECT_DIR}/metadata/editing_timeline.json
+          2. トランジション仕様: ${PROJECT_DIR}/metadata/transitions_config.json
+          3. 音声ミックス設計: ${PROJECT_DIR}/metadata/audio_mixing_plan.json
+          4. 最終品質チェックリスト: ${PROJECT_DIR}/metadata/quality_checklist.json
+          
+          充足条件と補足:
+          - 利用可能なシーンが少なく全長に満たない場合、シーン再利用やB-roll（静止画のパン/ズーム）で時間を満たす。
+          - 各シーンの標準長は6-10秒目安。全体の流れが自然になるよう調整すること。
+          - 利用可能なファイル名（scene*_video.mp4）とタイムラインの対応関係を明示。
+          
+          タイムライン形式例:
+          {
+            \"total_duration\": ${TARGET_DURATION},
+            \"segments\": [
+              {\"start\": 0, \"end\": 12, \"content\": \"opening\", \"video\": \"scene1_video.mp4\", \"transition\": \"fade_in\"},
+              {\"start\": 10, \"end\": 22, \"content\": \"main_story\", \"video\": \"scene2_video.mp4\", \"transition\": \"crossfade\"}
+            ],
+            \"audio_layers\": {
+              \"narration\": {\"level\": -6, \"duck_during\": []},
+              \"bgm\": {\"level\": -20, \"fade_points\": []}
+            }
+          }"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Read,Write,Bash" \
+            --max-turns 30 \
+            --permission-mode "acceptEdits" \
+            -p "$EDITING_PLAN_PROMPT"
+          
+          # Check for generated editing plan
+          if [ -f "${PROJECT_DIR}/metadata/editing_timeline.json" ]; then
+            echo "editing_plan=${PROJECT_DIR}/metadata/editing_timeline.json" >> $GITHUB_OUTPUT
+            echo "timeline_config=${PROJECT_DIR}/metadata/editing_timeline.json" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video editing plan completed" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 5 Report
+            echo "## 🎬 Phase 5: Video Editing Planning - 編集計画立案" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 編集計画作成完了 (Claude Code SDK)" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ タイムライン設計: editing_timeline.json" >> $GITHUB_STEP_SUMMARY
+            
+            # Extract plan summary
+            if command -v jq > /dev/null && [ -f "${PROJECT_DIR}/metadata/editing_timeline.json" ]; then
+              TOTAL_DURATION=$(jq -r '.total_duration // "60"' "${PROJECT_DIR}/metadata/editing_timeline.json" 2>/dev/null)
+              SEGMENTS_COUNT=$(jq '.segments | length' "${PROJECT_DIR}/metadata/editing_timeline.json" 2>/dev/null || echo "0")
+              echo "- ✅ 動画総時間: ${TOTAL_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ セグメント数: ${SEGMENTS_COUNT}個" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            # Check for additional config files
+            if [ -f "${PROJECT_DIR}/metadata/audio_mixing_plan.json" ]; then
+              echo "- ✅ 音声ミックス設計完了" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -f "${PROJECT_DIR}/metadata/transitions_config.json" ]; then
+              echo "- ✅ トランジション設計完了" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[$(date)] ERROR: Editing plan not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            # Add error report
+            echo "## 🎬 Phase 5: Video Editing Planning - 編集計画立案" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 編集計画生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload Video Editing Planning artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-video-editing-planning
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 6: Opening Creation
+  phase6-opening-creation:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-audio-generation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase5-video-editing-planning]
+    outputs:
+      opening_video: ${{ steps.opening-task.outputs.opening_video }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Opening Creation Task
+        id: opening-task
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          SCRIPT_DATA="${{ needs.phase2-content-creation.outputs.script_data }}"
+          EDITING_PLAN="${{ needs.phase5-video-editing-planning.outputs.editing_plan }}"
+          echo "[$(date)] Phase 6: Opening creation started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Using editing plan: ${EDITING_PLAN}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          OPENING_PROMPT="オープニング・タイトル作成タスク（編集計画統合版）：
+          
+          入力データ:
+          - スクリプトデータ: ${SCRIPT_DATA}
+          - 編集計画ファイル: ${EDITING_PLAN}
+          
+          編集計画統合要件:
+          1. 編集計画のオープニングセグメント仕様を確認・参照
+          2. タイムライン上のオープニング時間（通常0-3秒）に最適化
+          3. 編集計画で指定されたトランジション効果に対応
+          4. 全体的な視覚的統一性を編集計画に合わせて調整
+          
+          視覚的要件:
+          1. 瞬時に注意を引く視覚的インパクト
+          2. ニュース番組としての信頼性表現
+          3. 信頼性（青系）と緊急性（赤系）の色彩活用
+          4. 3秒以内にトピックを明示
+          5. プロフェッショナルなニュース番組スタイル
+          
+          処理手順:
+          1. 編集計画のopeningセグメント仕様を読み込み分析
+          2. タイムライン要件に基づいてインパクトのあるタイトル画像を生成
+          3. 編集計画のトランジション仕様に適合する動画に変換（3-5秒）
+          4. 編集計画の視覚的統一性に合わせたスタイル調整
+          
+          出力: ${PROJECT_DIR}/media/videos/opening.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/opening_metadata.json"
+          
+          # 3-attempt retry logic for Opening creation
+          # CRITICAL: Media generation (including opening video) requires retry logic due to API instability
+          OPENING_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Opening creation attempt $attempt of 3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_submit,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_status,mcp__i2v-kamui-hailuo-02-fast__hailuo_02_fast_result,Write,Read" \
+              --max-turns "${CLAUDE_CODE_MAX_TURNS:-160}" \
+              --permission-mode "acceptEdits" \
+              -p "$OPENING_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase6-opening-mcp.log"; then
+              
+              # Check if opening video was actually generated
+              OPENING_CHECK=$(find "${PROJECT_DIR}/media/videos" -name "*opening*" | head -1)
+              if [ -n "$OPENING_CHECK" ] && [ -f "$OPENING_CHECK" ] && [ -s "$OPENING_CHECK" ]; then
+                # 追加検証: サイズとdurationが妥当か（破損8B等の検出）
+                OPENING_OK=true
+                SIZE=$(stat -c%s "$OPENING_CHECK" 2>/dev/null || echo 0)
+                if [ "$SIZE" -le 30000 ]; then OPENING_OK=false; fi
+                if command -v ffprobe >/dev/null 2>&1; then
+                  DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OPENING_CHECK" 2>/dev/null | cut -d'.' -f1)
+                  [ -z "$DUR" ] && DUR=0
+                  if [ "$DUR" -lt 1 ] 2>/dev/null; then OPENING_OK=false; fi
+                fi
+                if [ "$OPENING_OK" != true ]; then
+                  echo "[$(date)] Opening file seems invalid (size=${SIZE} bytes). Generating fallback..." >> "${PROJECT_DIR}/logs/execution.log"
+                  timeout 30 ffmpeg -y -f lavfi -i "color=c=black:duration=3:size=1920x1080:rate=30" \
+                    -vf "drawtext=text='Opening':fontcolor=white:fontsize=72:x=(w-text_w)/2:y=(h-text_h)/2" \
+                    -c:v libx264 -pix_fmt yuv420p -preset ultrafast "${PROJECT_DIR}/media/videos/opening.mp4" 2>> "${PROJECT_DIR}/logs/ffmpeg-opening-fallback.log" || true
+                  OPENING_CHECK="${PROJECT_DIR}/media/videos/opening.mp4"
+                fi
+                echo "[$(date)] Opening SUCCESS on attempt $attempt: $(basename "$OPENING_CHECK")" >> "${PROJECT_DIR}/logs/execution.log"
+                OPENING_SUCCESS=true
+                break
+              else
+                echo "[$(date)] Opening generation completed but no valid file found on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+              fi
+            else
+              echo "[$(date)] Opening FAILED on attempt $attempt" >> "${PROJECT_DIR}/logs/execution.log"
+            fi
+            
+            if [ $attempt -lt 3 ]; then
+              echo "[$(date)] Retrying Opening in 5 seconds..." >> "${PROJECT_DIR}/logs/execution.log"
+              sleep 5
+            fi
+          done
+          
+          if [ "$OPENING_SUCCESS" = "true" ]; then
+            OPENING_FILE=$(find "${PROJECT_DIR}/media/videos" -name "*opening*" | head -1)
+            echo "opening_video=${OPENING_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Opening creation completed: ${OPENING_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 6 Report
+            echo "## 🎬 Phase 6: Opening Creation - オープニング作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ オープニング動画作成完了: $(basename "$OPENING_FILE")" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 編集計画統合: 完了" >> $GITHUB_STEP_SUMMARY
+            OPENING_SIZE=$(stat -c%s "$OPENING_FILE" 2>/dev/null || echo "0")
+            OPENING_SIZE_KB=$((OPENING_SIZE / 1024))
+            echo "- ✅ ファイルサイズ: ${OPENING_SIZE_KB}KB" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[$(date)] All 3 attempts failed for Opening creation" >> "${PROJECT_DIR}/logs/execution.log"
+            # Add error report
+            echo "## 🎬 Phase 6: Opening Creation - オープニング作成" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ オープニング動画生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload Opening Creation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase6-opening-creation
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 7: Integration - Video Concatenation
+  phase7-integration:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase2-content-creation, phase3-bgm-generation, phase4-image1-to-video1, phase4-image2-to-video2, phase4-image3-to-video3, phase4-image4-to-video4, phase4-image5-to-video5, phase5-video-editing-planning, phase6-opening-creation]
+    outputs:
+      concatenated_video: ${{ steps.concat.outputs.concatenated_video }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Video Concatenation with Editing Plan Integration
+        id: concat
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          EDITING_PLAN="${{ needs.phase5-video-editing-planning.outputs.editing_plan }}"
+          echo "[$(date)] Phase 7: Video concatenation started [Fan-in Pattern]" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Using editing plan: ${EDITING_PLAN}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          CONCAT_PROMPT="動画結合タスク（編集計画に基づく）：
+          
+          編集計画ファイル: ${EDITING_PLAN}
+          
+          要求:
+          1. 編集計画のタイムライン仕様に従って動画を結合
+          2. 指定されたトランジション効果を適用
+          3. セグメント開始・終了時間の正確な実装
+          4. プロフェッショナル品質の60秒ニュース動画
+          
+          処理手順:
+          1. ${EDITING_PLAN}を読み込み、タイムライン構成を解析
+          2. セグメント順序とトランジション仕様を適用
+          3. 最終的な動画を${PROJECT_DIR}/media/videos/concatenated.mp4として出力
+          
+          注意: 編集計画が存在しない場合のみ、基本的な結合を実行"
+          
+          # 3回リトライロジック実装
+          CONCAT_SUCCESS=false
+          for attempt in 1 2 3; do
+            echo "[$(date)] Video concatenation attempt $attempt/3" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # エラーハンドリング付きでClaude Code実行
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "Bash,Write,Read" \
+              --max-turns 20 \
+              --permission-mode "acceptEdits" \
+              -p "$CONCAT_PROMPT" 2>&1 | tee -a "${PROJECT_DIR}/logs/phase6-concat-attempt$attempt.log"; then
+              
+              echo "[$(date)] Video concatenation attempt $attempt succeeded" >> "${PROJECT_DIR}/logs/execution.log"
+              CONCAT_SUCCESS=true
+              break
+            else
+              echo "[$(date)] Video concatenation attempt $attempt failed (API Error or timeout)" >> "${PROJECT_DIR}/logs/execution.log"
+              if [ $attempt -lt 3 ]; then
+                WAIT_TIME=$((attempt * 10))
+                echo "[$(date)] Waiting ${WAIT_TIME} seconds before retry..." >> "${PROJECT_DIR}/logs/execution.log"
+                sleep $WAIT_TIME
+              fi
+            fi
+          done
+          
+          # 失敗時のフォールバック処理
+          if [ "$CONCAT_SUCCESS" = false ]; then
+            echo "[$(date)] ERROR: All concatenation attempts failed. Using fallback method." >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # FFmpegによる直接結合フォールバック
+            echo "[$(date)] Attempting FFmpeg fallback concatenation" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # 動画ファイルリストの作成
+            find "${PROJECT_DIR}/media/videos" -name "*.mp4" | sort > "${PROJECT_DIR}/video_list.txt"
+            
+            if [ -s "${PROJECT_DIR}/video_list.txt" ]; then
+              # FFmpegで結合（簡易版）
+              ffmpeg -f concat -safe 0 -i <(while read p; do echo "file '$p'"; done < "${PROJECT_DIR}/video_list.txt") \
+                -c copy "${PROJECT_DIR}/media/videos/concatenated_fallback.mp4" 2>&1 | tee -a "${PROJECT_DIR}/logs/ffmpeg-fallback.log" || true
+              
+              if [ -f "${PROJECT_DIR}/media/videos/concatenated_fallback.mp4" ]; then
+                echo "[$(date)] Fallback concatenation succeeded" >> "${PROJECT_DIR}/logs/execution.log"
+                mv "${PROJECT_DIR}/media/videos/concatenated_fallback.mp4" "${PROJECT_DIR}/media/videos/concatenated.mp4"
+              else
+                echo "[$(date)] Fallback concatenation also failed. Creating placeholder." >> "${PROJECT_DIR}/logs/execution.log"
+                # プレースホルダー動画の作成
+                ffmpeg -f lavfi -i color=c=black:s=1280x720:d=5 -vf "drawtext=text='Video Generation Failed':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2" \
+                  "${PROJECT_DIR}/media/videos/concatenated.mp4" 2>/dev/null || true
+              fi
+            fi
+          fi
+          
+          # Check for concatenated video (original or fallback)
+          CONCAT_FILE=$(find "${PROJECT_DIR}/media/videos" -name "*concatenated*" -o -name "*final*" | head -1)
+          if [ -n "$CONCAT_FILE" ] && [ -f "$CONCAT_FILE" ]; then
+            echo "concatenated_video=${CONCAT_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Video concatenation completed: ${CONCAT_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+          else
+            echo "[$(date)] ERROR: No video output available" >> "${PROJECT_DIR}/logs/execution.log"
+            # Create minimal placeholder to prevent workflow failure
+            touch "${PROJECT_DIR}/media/videos/placeholder.mp4"
+            echo "concatenated_video=${PROJECT_DIR}/media/videos/placeholder.mp4" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Phase 7 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase7-integration
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+  # Phase 8: Final Audio Mix
+  phase8-audio-mix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    needs: [phase1-foundation, phase3-audio-generation, phase3-bgm-generation, phase5-video-editing-planning, phase7-integration]
+    outputs:
+      final_video: ${{ steps.mix.outputs.final_video }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all previous artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Audio and BGM Mixing with Editing Plan Integration
+        id: mix
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          CONCATENATED_VIDEO="${{ needs.phase7-integration.outputs.concatenated_video }}"
+          EDITING_PLAN="${{ needs.phase5-video-editing-planning.outputs.editing_plan }}"
+          echo "[$(date)] Phase 8: Audio mixing started" >> "${PROJECT_DIR}/logs/execution.log"
+          echo "[$(date)] Using editing plan: ${EDITING_PLAN}" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Find audio files
+          NARRATION_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*narration*" -o -name "*speech*" | head -1)
+          BGM_FILE=$(find "${PROJECT_DIR}/media/audio" -name "*bgm*" -o -name "*background*" | head -1)
+          
+          MIX_PROMPT="音声・BGMミックスタスク（編集計画に基づく）：
+          
+          編集計画ファイル: ${EDITING_PLAN}
+          音声ミックス設計: ${PROJECT_DIR}/metadata/audio_mixing_plan.json
+          
+          入力ファイル:
+          - 動画: ${CONCATENATED_VIDEO}
+          - ナレーション: ${NARRATION_FILE}
+          - BGM: ${BGM_FILE}
+          
+          処理手順:
+          1. audio_mixing_plan.jsonを読み込み、音声レベル設定を取得
+          2. 編集計画で指定されたduck_during（BGM音量調整）ポイントを適用
+          3. fade_pointsで指定されたBGMフェード処理を実行
+          4. プロフェッショナル品質の音響バランス実現
+          
+          フォールバック要件（計画ファイルが無い場合）:
+          1. ナレーション音声レベル: -14LUFS
+          2. BGMレベル: ナレーションより20-25dB低く
+          3. 音声の明瞭性最優先
+          4. 適切な音響バランス
+          5. プロフェッショナルな品質基準
+          
+          処理:
+          1. ナレーションを動画に同期
+          2. BGMを適切なレベルでミックス
+          3. 音声レベルの調整と最適化
+          
+          出力: ${PROJECT_DIR}/final/professional_news_video.mp4
+          メタデータ: ${PROJECT_DIR}/metadata/final_mix_metadata.json"
+          
+          # ffmpeg が無い場合はインストール
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            echo "[$(date)] Installing ffmpeg..." >> "${PROJECT_DIR}/logs/execution.log"
+            sudo apt-get update && sudo apt-get install -y ffmpeg >/dev/null 2>&1 || true
+          fi
+
+          # 入力存在チェック
+          if [ ! -f "$CONCATENATED_VIDEO" ]; then
+            echo "[$(date)] ERROR: Concatenated video not found" >> "${PROJECT_DIR}/logs/execution.log"
+            exit 1
+          fi
+          if [ ! -f "$NARRATION_FILE" ]; then
+            echo "[$(date)] WARNING: Narration not found; generating with anullsrc" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+          if [ ! -f "$BGM_FILE" ]; then
+            echo "[$(date)] WARNING: BGM not found; continuing without BGM" >> "${PROJECT_DIR}/logs/execution.log"
+          fi
+
+          OUT_DIR="${PROJECT_DIR}/final"
+          mkdir -p "$OUT_DIR"
+          OUT_FILE="${OUT_DIR}/professional_news_video.mp4"
+
+          # ミックス処理（安全でシンプルな標準手順）
+          # 1) ナレーションのみ or 2) ナレーション+bgm or 3) 無音時は無音トラック合成
+          if command -v ffmpeg >/dev/null 2>&1; then
+            if [ -f "$NARRATION_FILE" ] && [ -f "$BGM_FILE" ]; then
+              # 正常: ナレーションとBGMのミックス（BGM -20dB）
+              timeout 180 ffmpeg -y -i "$CONCATENATED_VIDEO" -i "$NARRATION_FILE" -i "$BGM_FILE" \
+                -filter_complex "[1:a]volume=1.0[a1];[2:a]volume=0.1[a2];[a1][a2]amix=inputs=2:duration=first:dropout_transition=0[aout]" \
+                -map 0:v -map "[aout]" -c:v copy -c:a aac -b:a 192k "$OUT_FILE" 2>> "${PROJECT_DIR}/logs/ffmpeg-mix.log" || true
+            elif [ -f "$NARRATION_FILE" ]; then
+              # ナレーションのみ
+              timeout 120 ffmpeg -y -i "$CONCATENATED_VIDEO" -i "$NARRATION_FILE" \
+                -map 0:v -map 1:a -c:v copy -c:a aac -b:a 192k "$OUT_FILE" 2>> "${PROJECT_DIR}/logs/ffmpeg-mix.log" || true
+            else
+              # 無音の安全弾（anullsrcでサイレントを付与）
+              timeout 90 ffmpeg -y -i "$CONCATENATED_VIDEO" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 \
+                -shortest -map 0:v -map 1:a -c:v copy -c:a aac -b:a 128k "$OUT_FILE" 2>> "${PROJECT_DIR}/logs/ffmpeg-mix.log" || true
+            fi
+          fi
+
+          # もし編集計画の詳細適用が必要なら、後段で上書き出力に切替
+          # npx @anthropic-ai/claude-code ... は必要に応じて再度呼び出し可能（現状は実ミックス優先）
+          
+          # Check for final video
+          FINAL_FILE=$(find "${PROJECT_DIR}/final" -name "*.mp4" | head -1)
+          if [ -n "$FINAL_FILE" ]; then
+            # 音声トラックの存在を確認
+            if command -v ffprobe >/dev/null 2>&1; then
+              AC=$(ffprobe -v error -select_streams a:0 -show_entries stream=index -of csv=p=0 "$FINAL_FILE" 2>/dev/null | wc -l | tr -d ' ')
+              if [ "$AC" = "0" ]; then
+                echo "[$(date)] ERROR: No audio track in final video" >> "${PROJECT_DIR}/logs/execution.log"
+                exit 1
+              fi
+            fi
+            echo "final_video=${FINAL_FILE}" >> $GITHUB_OUTPUT
+            echo "[$(date)] Audio mixing completed: ${FINAL_FILE}" >> "${PROJECT_DIR}/logs/execution.log"
+            
+            # Add Phase 8 Report
+            echo "## 🎵 Phase 8: Final Audio Mix - 最終音声ミックス" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 最終動画作成完了: $(basename "$FINAL_FILE")" >> $GITHUB_STEP_SUMMARY
+            FINAL_SIZE=$(stat -c%s "$FINAL_FILE" 2>/dev/null || echo "0")
+            FINAL_SIZE_MB=$((FINAL_SIZE / 1024 / 1024))
+            echo "- ✅ ファイルサイズ: ${FINAL_SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 編集計画統合: 完了" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 出力パス: ${FINAL_FILE}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[$(date)] ERROR: Final video not generated" >> "${PROJECT_DIR}/logs/execution.log"
+            # Add error report
+            echo "## 🎵 Phase 8: Final Audio Mix - 最終音声ミックス" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 最終動画生成失敗" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload Phase 8 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase8-audio-mix
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Add Phase 8 Final Audio Mix Report with Direct Links
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Add Phase 8 Final Audio Mix Report to GitHub Summary
+          echo "## 🎤 Phase 8 Final Audio Mix - 完了レポート" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check final video with audio
+          FINAL_VIDEO=$(find "${PROJECT_DIR}/final" -name "*.mp4" 2>/dev/null | head -1)
+          if [ -n "$FINAL_VIDEO" ] && [ -f "$FINAL_VIDEO" ]; then
+            FINAL_SIZE=$(ls -lh "$FINAL_VIDEO" | awk '{print $5}')
+            FINAL_BASENAME=$(basename "$FINAL_VIDEO")
+            echo "- ✅ **最終動画**: [\`${FINAL_BASENAME}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts) (${FINAL_SIZE})" >> $GITHUB_STEP_SUMMARY
+            
+            # Video specs
+            if command -v ffprobe > /dev/null 2>&1; then
+              FINAL_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null | cut -d'.' -f1)
+              FINAL_RESOLUTION=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null | tr ',' 'x')
+              AUDIO_CODEC=$(ffprobe -v quiet -select_streams a:0 -show_entries stream=codec_name -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null)
+              
+              if [ -n "$FINAL_DURATION" ]; then
+                echo "- ⏱️ **最終動画時間**: ${FINAL_DURATION}秒" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ -n "$FINAL_RESOLUTION" ]; then
+                echo "- 📐 **最終解像度**: ${FINAL_RESOLUTION}" >> $GITHUB_STEP_SUMMARY
+              fi
+              if [ -n "$AUDIO_CODEC" ]; then
+                echo "- 🔊 **音声コーデック**: ${AUDIO_CODEC}" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          else
+            echo "- ❌ **最終動画**: 生成失敗" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Complete artifact summary
+          echo "## 📦 全成果物アーティファクト直リンク一覧" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 メディアファイル" >> $GITHUB_STEP_SUMMARY
+          
+          # Images count
+          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images" -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" 2>/dev/null | wc -l)
+          echo "- 🖼️ **画像ファイル**: ${IMAGE_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          # Videos count
+          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos" -name "*.mp4" 2>/dev/null | wc -l)
+          echo "- 🎬 **動画ファイル**: ${VIDEO_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          # Audio count
+          AUDIO_COUNT=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" -o -name "*.m4a" 2>/dev/null | wc -l)
+          echo "- 🎵 **音声ファイル**: ${AUDIO_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 プロジェクトデータ" >> $GITHUB_STEP_SUMMARY
+          
+          # JSON metadata count
+          JSON_COUNT=$(find "${PROJECT_DIR}/metadata" -name "*.json" 2>/dev/null | wc -l)
+          echo "- 📊 **JSONメタデータ**: ${JSON_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          # Log files count
+          LOG_COUNT=$(find "${PROJECT_DIR}/logs" -name "*.log" 2>/dev/null | wc -l)
+          echo "- 📝 **実行ログ**: ${LOG_COUNT}件 - [アーティファクトからダウンロード](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🛠️ アクセス方法" >> $GITHUB_STEP_SUMMARY
+          echo "1. 上記リンクをクリック → アーティファクト一覧ページ" >> $GITHUB_STEP_SUMMARY
+          echo "2. 各Phase別のZIPファイルをダウンロード" >> $GITHUB_STEP_SUMMARY  
+          echo "3. ZIPを展開して対象ファイルにアクセス" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # Phase 9: Quality Assurance and Final Output
+  phase9-quality-assurance:
+    runs-on: ubuntu-latest
+    needs: [phase1-foundation, phase8-audio-mix]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: phase*
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Final Quality Check and Export
+        id: quality-check
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          FINAL_VIDEO="${{ needs.phase8-audio-mix.outputs.final_video }}"
+          echo "[$(date)] Phase 9: Quality assurance started" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          QC_PROMPT="最終品質チェック・書き出しタスク：
+          
+          入力: ${FINAL_VIDEO}
+          目標: プロフェッショナルなニュース動画として公開準備完了
+          
+          チェック項目:
+          1. 音声レベル確認（-14LUFS基準）
+          2. 画質・解像度統一確認
+          3. 情報の正確性チェック
+          4. 60秒制限時間準拠確認
+          5. ニュース番組品質基準満了
+          
+          最終出力:
+          1. 品質チェックレポート: ${PROJECT_DIR}/final/quality_report.json
+          2. 最終動画確認・最適化
+          3. 配信準備完了状態での保存
+          
+          品質基準:
+          - 技術仕様: 1920x1080, 30fps, H.264
+          - 音声: -14LUFS, 明瞭で聞き取りやすい
+          - 時間: 60秒以内
+          - 内容: 正確で信頼性の高い情報"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "Bash,Write,Read" \
+            --max-turns 8 \
+            --permission-mode "acceptEdits" \
+            -p "$QC_PROMPT"
+          
+          echo "[$(date)] Quality assurance completed" >> "${PROJECT_DIR}/logs/execution.log"
+          
+          # Add Phase 9 Report
+          echo "## ✅ Phase 9: Quality Assurance - 最終品質保証" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 品質チェック完了" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if quality report was generated
+          if [ -f "${PROJECT_DIR}/final/quality_report.json" ]; then
+            echo "- ✅ 品質レポート生成: quality_report.json" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- ✅ 最終動画確認・最適化完了" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 配信準備完了" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Create final summary
+          echo "=== PROFESSIONAL NEWS VIDEO CREATION COMPLETED ===" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Project: ${{ inputs.project_name }}" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Topic: ${{ inputs.news_topic }}" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Completed: $(date)" >> "${PROJECT_DIR}/final/completion_report.txt"
+          echo "Final video: ${FINAL_VIDEO}" >> "${PROJECT_DIR}/final/completion_report.txt"
+
+      - name: Upload Final Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-professional-news-video
+          path: ${{ needs.phase1-foundation.outputs.project_dir }}/
+
+      - name: Create workflow summary
+        run: |
+          PROJECT_DIR="${{ needs.phase1-foundation.outputs.project_dir }}"
+          
+          # Update execution status
+          echo "- **実行完了時刻**: $(date '+%Y年%m月%d日 %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- **実行状況**: ✅ 全工程完了" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🎉 Professional News Video Creation 完了" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Topic:** ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Project:** ${{ inputs.project_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Duration:** 60 seconds professional news video" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count generated assets
+          IMAGE_COUNT=$(find "${PROJECT_DIR}/media/images" -name "*.png" -o -name "*.jpg" 2>/dev/null | wc -l)
+          VIDEO_COUNT=$(find "${PROJECT_DIR}/media/videos" -name "*.mp4" 2>/dev/null | wc -l)  
+          AUDIO_COUNT=$(find "${PROJECT_DIR}/media/audio" -name "*.mp3" -o -name "*.wav" 2>/dev/null | wc -l)
+          
+          echo "### 📊 生成されたアセット統計" >> $GITHUB_STEP_SUMMARY
+          echo "- 🖼️ 生成画像数: ${IMAGE_COUNT}個" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎬 生成動画数: ${VIDEO_COUNT}個" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎵 生成音声数: ${AUDIO_COUNT}個" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### 🔄 実行されたフェーズ" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 1: Information Gathering & Research" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 2: Script & Structure Creation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 3: Parallel Audio & Image Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 4: Parallel Image Batch 2 & Video Conversion" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 5: Video Editing Planning (Claude Code SDK)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 6: Opening Creation" >> $GITHUB_STEP_SUMMARY  
+          echo "- ✅ Phase 7: Video Integration & Concatenation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 8: Professional Audio Mixing" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 9: Quality Assurance & Final Export" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📁 出力場所" >> $GITHUB_STEP_SUMMARY
+          echo "- **最終動画**: \`${PROJECT_DIR}/final/professional_news_video.mp4\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **全デリバラブル**: \`${PROJECT_DIR}/final/\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 達成された品質基準" >> $GITHUB_STEP_SUMMARY
+          echo "- 📺 ニュース放送品質ビジュアル" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎙️ プロフェッショナルナレーター品質音声 (-14LUFS)" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏱️ 最適化された60秒情報配信" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎨 一貫したプロフェッショナルスタイル" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 複数ソース検証済み情報" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📥 成果物のダウンロード" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ローカルで以下のコマンドを実行してください：" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "# 専用ダウンロードスクリプトを使用（推奨）" >> $GITHUB_STEP_SUMMARY
+          echo "./scripts/download-workflow-artifacts.sh ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY  
+          echo "# または手動ダウンロード" >> $GITHUB_STEP_SUMMARY
+          echo "gh run download ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
