@@ -824,33 +824,12 @@ jobs:
               sed -i '/^\s*outputs:/,/^\s*steps:/{/matrix\./d}' "$WORKFLOW_PATH"
             fi
             
-            # Fix GCS URL handling - use Python for complex replacements
-            if grep -q 'curl.*gs://' "$WORKFLOW_PATH" 2>/dev/null || grep -q '\[ -f.*URL_PATH.*\] && curl' "$WORKFLOW_PATH" 2>/dev/null; then
-              echo "⚠️ Found curl operations that may encounter GCS URLs, fixing..."
-              
-              # Use Python for reliable text replacement
-              python3 -c "
-import re
-import sys
-
-with open('$WORKFLOW_PATH', 'r') as f:
-    content = f.read()
-
-# Fix direct curl of GCS URLs
-pattern = r'curl -L -o \"([^\"]*?)\" \"(gs://[^\"]*?)\"'
-replacement = '''# GCS URL detected: \\2
-  if command -v gsutil >/dev/null; then
-    gsutil cp \"\\2\" \"\\1\"
-  else
-    echo \"Skipping GCS URL (gsutil not available): \\2\"
-  fi'''
-content = re.sub(pattern, replacement, content)
-
-with open('$WORKFLOW_PATH', 'w') as f:
-    f.write(content)
-
-print('  ✅ Applied GCS URL fixes')
-" || echo "  ⚠️ Failed to apply GCS fixes, continuing anyway"
+            # Fix GCS URL handling - simplified approach
+            if grep -q 'curl.*gs://' "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Found direct curl of GCS URLs, commenting out..."
+              # Simply comment out lines with curl and gs:// to avoid errors
+              sed -i 's/^\(.*curl.*gs:\/\/.*\)$/# GCS URL not supported by curl: \1/' "$WORKFLOW_PATH" || true
+              echo "  ✅ Commented out GCS URL curl commands"
             fi
             
             # Ensure workflow ends properly (no trailing content)
