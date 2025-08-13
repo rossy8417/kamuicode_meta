@@ -47,11 +47,16 @@ class DomainTemplateLoader:
         for pattern in self.index_data['multi_domain_patterns']:
             keywords = pattern['pattern']
             if all(keyword.lower() in issue_lower for keyword in keywords):
+                priority = pattern.get('priority', 0.8)
                 for domain in pattern['domains']:
-                    if domain not in [d['domain'] for d in detected_domains]:
+                    # 既存のドメインがある場合は信頼度を更新
+                    existing = next((d for d in detected_domains if d['domain'] == domain), None)
+                    if existing:
+                        existing['confidence'] = max(existing['confidence'], priority)
+                    else:
                         detected_domains.append({
                             'domain': domain,
-                            'confidence': 0.8
+                            'confidence': priority
                         })
         
         # 信頼度でソート
