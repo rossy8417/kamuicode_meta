@@ -306,6 +306,13 @@ jobs:
 
 **Root Cause**: Claude Code SDK successfully executes MCP tools but doesn't save files locally without explicit instructions.
 
+#### MANDATORY Pattern for Workflow Start Time
+```bash
+# In setup job - MUST include for MCP time window calculation
+echo "workflow_start=$(date -Iseconds)" >> $GITHUB_OUTPUT
+# Do NOT use github.run_started_at (may be empty)
+```
+
 #### MANDATORY Pattern for T2I Generation
 ```bash
 # Step 1: Define explicit paths

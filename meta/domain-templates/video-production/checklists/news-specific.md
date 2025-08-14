@@ -5,6 +5,13 @@
   - This prevents Google Cloud Storage URL expiration (15 minutes limit)
   - Structure: matrix.scene → each job does: T2I → save → I2V → save
   - NEVER split T2I and I2V into separate job phases
+- **Workflow Start Time**: Setup job MUST record workflow start time
+  - Use: echo "workflow_start=$(date -Iseconds)" >> $GITHUB_OUTPUT
+  - NOT github.run_started_at (may be empty or cause parsing errors)
+- **I2V Error Handling**: Implement graceful fallback for I2V failures
+  - If I2V fails, continue workflow (don't fail entire job)
+  - Log as warning: echo "::warning::I2V failed for scene X, using image only"
+  - Upload available assets even if video generation fails
 - **News Anchor Generation**: Create ONE consistent news anchor/presenter who appears throughout the entire video
   - Use fixed seed value (e.g., seed: 42) for character consistency
   - Generate anchor once, then create multiple lip-sync videos for each scene
