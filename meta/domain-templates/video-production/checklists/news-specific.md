@@ -12,6 +12,11 @@
   - If I2V fails, continue workflow (don't fail entire job)
   - Log as warning: echo "::warning::I2V failed for scene X, using image only"
   - Upload available assets even if video generation fails
+- **T2I Error Recovery**: Add retry logic for image generation failures
+  - Check image file size: must be > 10KB for valid generation
+  - If T2I fails (file < 10KB), retry once with different seed
+  - Add explicit error checking after Claude Code SDK execution
+  - Consider staggering parallel executions to avoid API rate limits
 - **News Anchor Generation**: Create ONE consistent news anchor/presenter who appears throughout the entire video
   - Use fixed seed value (e.g., seed: 42) for character consistency
   - Generate anchor once, then create multiple lip-sync videos for each scene

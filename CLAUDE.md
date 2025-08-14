@@ -339,11 +339,30 @@ IMAGE=$(find "$PROJECT_DIR" -name "*scene${SCENE_NUM}*.png" 2>/dev/null | head -
 [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
 [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" 2>/dev/null | head -1)
 
-# Step 6: File validation
+# Step 6: File validation with retry
 if [ -f "$IMAGE" ] && [ $(stat -c%s "$IMAGE") -gt 10000 ]; then
   echo "✅ Valid image: $IMAGE"
 else
-  echo "❌ Invalid or missing image"
+  echo "⚠️ Invalid image, attempting retry with different seed"
+  
+  # Retry with different seed
+  RETRY_PROMPT="Retry image generation with seed $((RANDOM + 1000)):
+  1. Generate image with MCP tool
+  2. Save to ${SAVE_PATH}
+  3. Verify file size > 10KB"
+  
+  npx @anthropic-ai/claude-code \
+    --allowedTools "mcp__t2i-*,Write,Bash" \
+    --max-turns 40 \
+    -p "$RETRY_PROMPT"
+  
+  # Re-check after retry
+  IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -1 2>/dev/null | head -1)
+  if [ -f "$IMAGE" ] && [ $(stat -c%s "$IMAGE") -gt 10000 ]; then
+    echo "✅ Retry successful: $IMAGE"
+  else
+    echo "❌ Image generation failed after retry"
+  fi
 fi
 ```
 
