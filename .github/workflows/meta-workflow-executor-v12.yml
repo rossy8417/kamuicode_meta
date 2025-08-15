@@ -1601,8 +1601,8 @@ jobs:
               ERROR_COUNT=0
               
               # Check for HEREDOC with GitHub Actions variables (more precise check)
-              # Look for HEREDOC blocks that contain ${{ within them
-              if awk '/cat.*<<.*EOF/,/^EOF$/' "$PREVIOUS_WORKFLOW" | grep -q '\${{'; then
+              # Look for HEREDOC blocks that contain dollar-brace within them
+              if awk '/cat.*<<.*EOF/,/^EOF$/' "$PREVIOUS_WORKFLOW" | grep -qE '\$\{|github\.|needs\.|matrix\.'; then
                 echo "⚠️ HEREDOCとGitHub Actions変数の混在がまだ存在"
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
@@ -1614,7 +1614,7 @@ jobs:
               fi
               
               # Check for hardcoded absolute paths
-              if grep '/home/runner/work/' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{' | grep -q .; then
+              if grep '/home/runner/work/' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v 'github.workspace' | grep -q .; then
                 echo "⚠️ ハードコードされた絶対パスがまだ存在"
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
