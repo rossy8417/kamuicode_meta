@@ -914,15 +914,13 @@ jobs:
   # PHASE 6: VALIDATION & DEPLOYMENT
   # ==========================================
   
-  validate-workflow:
-    name: "🔍 Validate Workflow"
+  validate-and-deploy:
+    name: "✅ Validate & Deploy"
     runs-on: ubuntu-latest
     needs: ['validate-and-detect','generate-professional-workflow']
     outputs:
       validation_passed: ${{ steps.validate.outputs.passed }}
-      validation_report: ${{ steps.validate.outputs.report_path }}
-      error_count: ${{ steps.validate.outputs.error_count }}
-      warning_count: ${{ steps.validate.outputs.warning_count }}
+      workflow_location: ${{ steps.copy.outputs.location }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -1226,24 +1224,12 @@ jobs:
               echo "passed=false" >> $GITHUB_OUTPUT
             fi
             
-            # Add Phase 6 Report with detailed validation results
-            echo "## 🔍 Phase 6: 詳細検証レポート" >> $GITHUB_STEP_SUMMARY
+            # Add Phase 6 Report
+            echo "## ✅ Phase 6: 包括検証 & 配置" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ YAML構文検証: 正常" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ GitHub Actions構造検証: 正常" >> $GITHUB_STEP_SUMMARY
-            echo "- 📊 ドメイン特化検証: 完了" >> $GITHUB_STEP_SUMMARY
-            
-            # Add detailed error/warning counts
-            if [ -f "validation_result.json" ]; then
-              ERROR_COUNT=$(jq -r '.errors | length' validation_result.json 2>/dev/null || echo "0")
-              WARNING_COUNT=$(jq -r '.warnings | length' validation_result.json 2>/dev/null || echo "0")
-              echo "- 🚨 エラー数: $ERROR_COUNT" >> $GITHUB_STEP_SUMMARY
-              echo "- ⚠️ 警告数: $WARNING_COUNT" >> $GITHUB_STEP_SUMMARY
-              
-              # Output counts for next job
-              echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
-              echo "warning_count=$WARNING_COUNT" >> $GITHUB_OUTPUT
-              echo "report_path=validation_result.json" >> $GITHUB_OUTPUT
-            fi
+            echo "- ✅ ドメイン特化包括検証: 完了" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ ワークフロー配置準備完了" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ Invalid GitHub Actions structure"
@@ -1261,59 +1247,55 @@ jobs:
             revalidation_result.json
           if-no-files-found: warn
           
-      - name: Generate Detailed Validation Report
-        id: detailed-report
-        if: always()
+      - name: Copy Workflow to Final Location
+        id: copy
         run: |
-          echo "📊 Generating detailed validation report..."
+          echo "📋 Copying workflow to final location..."
           
+          # Use generated workflow path
           WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
           WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
-          DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
           
-          # Create comprehensive validation report
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "Read,Write" \
-            --permission-mode "acceptEdits" \
-            --max-turns 20 \
-            -p "詳細な検証レポートを作成してください。
-            
-            対象ワークフロー: $WORKFLOW_PATH
-            ドメイン: $DOMAIN
-            
-            検証項目:
-            1. 汎用的な問題:
-               - HEREDOC + GitHub Actions変数の混在
-               - ローカル uses: 参照
-               - ハードコードされたパス
-               - artifactの不適切な使用
-            
-            2. ドメイン特化の問題 ($DOMAIN):
-               - キャスター分離システムの実装
-               - 5秒セグメントリップシンク
-               - 背景に人物が含まれていないか
-            
-            3. 構造的な問題:
-               - ジョブ依存関係の正しさ
-               - matrixの使用方法
-               - パラレル実行の最適性
-            
-            レポートを detailed_validation_report.json に保存:
-            {
-              \"total_errors\": 0,
-              \"total_warnings\": 0,
-              \"critical_issues\": [],
-              \"generic_issues\": [],
-              \"domain_specific_issues\": [],
-              \"structural_issues\": [],
-              \"fix_priority\": [],
-              \"auto_fixable\": [],
-              \"manual_fix_required\": []
-            }"
+          # Use the project directory from previous job
+          PROJECT_DIR="${{ needs.generate-professional-workflow.outputs.project_dir }}"
           
-      - name: Post Validation Summary to Issue
-        if: always()
+          # Create project directory on this runner (it doesn't exist yet)
+          mkdir -p "$PROJECT_DIR"
+          
+          # Copy to final location in project directory
+          FINAL_DIR="${PROJECT_DIR}/final-workflow"
+          mkdir -p "$FINAL_DIR"
+          cp "$WORKFLOW_PATH" "$FINAL_DIR/${WORKFLOW_NAME}.yml"
+          
+          # Create deployment instructions
+          cat > "$FINAL_DIR/DEPLOYMENT_INSTRUCTIONS.md" << EOF
+          # Workflow Deployment Instructions
+          
+          ## Generated Workflow
+          - **Name**: ${WORKFLOW_NAME}
+          - **File**: ${WORKFLOW_NAME}.yml
+          - **Domain**: ${{ needs.validate-and-detect.outputs.primary_domain }}
+          - **Issue**: #${{ needs.validate-and-detect.outputs.issue_number }}
+          
+          ## Manual Deployment Steps
+          1. Review the generated workflow file
+          2. Copy to \`.github/workflows/\` directory if needed
+          3. Ensure all required secrets are configured
+          4. Test with \`workflow_dispatch\` trigger
+          
+          ## Workflow Summary
+          Generated from professional domain templates with:
+          - Domain-specific constraints applied
+          - Optimized task dependencies
+          - Professional quality standards
+          EOF
+          
+          echo "✅ Workflow saved to: $FINAL_DIR/${WORKFLOW_NAME}.yml"
+          echo "📝 Deployment instructions: $FINAL_DIR/DEPLOYMENT_INSTRUCTIONS.md"
+          
+          echo "location=$FINAL_DIR" >> $GITHUB_OUTPUT
+          
+      - name: Update Issue
         run: |
           # Use input parameter for workflow_dispatch, or job output for issue_comment
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
@@ -1323,45 +1305,37 @@ jobs:
           fi
           WORKFLOW_NAME="${{ needs.generate-professional-workflow.outputs.workflow_name }}"
           DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
-          VALIDATION_RESULT="${{ steps.validate.outputs.passed }}"
           
-          if [ "$VALIDATION_RESULT" = "true" ]; then
-            gh issue comment "$ISSUE_NUMBER" --body "## ✅ Workflow Generation & Validation Complete!
-            
-            **Workflow**: \`$WORKFLOW_NAME\`
-            **Domain**: $DOMAIN
-            **Validation**: ✅ PASSED
-            
-            ### 🎯 All checks passed:
-            - YAML syntax valid
-            - GitHub Actions structure correct
-            - Domain-specific requirements met
-            
-            ### 📦 Download:
-            Download the validated workflow from run artifacts.
-            
-            ---
-            *Meta Workflow v12*"
-          else
-            ERROR_COUNT="${{ steps.validate.outputs.error_count }}"
-            WARNING_COUNT="${{ steps.validate.outputs.warning_count }}"
-            
-            gh issue comment "$ISSUE_NUMBER" --body "## ⚠️ Workflow Validation Failed
-            
-            **Workflow**: \`$WORKFLOW_NAME\`
-            **Domain**: $DOMAIN
-            **Validation**: ❌ FAILED
-            
-            ### 💡 Issues Found:
-            - **Errors**: $ERROR_COUNT
-            - **Warnings**: $WARNING_COUNT
-            
-            ### 🔄 Next Action:
-            Triggering automatic regeneration with fixes...
-            
-            ---
-            *Check the regeneration job for updated workflow*"
-          fi
+          # Get project directory from previous job
+          PROJECT_DIR="${{ needs.generate-professional-workflow.outputs.project_dir }}"
+          PROJECT_NAME=$(basename "$PROJECT_DIR")
+          
+          gh issue comment "$ISSUE_NUMBER" --body "## ✅ Professional Workflow Generated!
+          
+          **Workflow Name**: \`$WORKFLOW_NAME\`
+          **Domain**: $DOMAIN
+          **Status**: Successfully generated and validated
+          
+          ### 📋 Summary:
+          - Applied professional domain expertise
+          - Incorporated domain-specific constraints
+          - Optimized task dependencies
+          - Validated GitHub Actions structure
+          
+          ### 📁 Output Location:
+          - **Project Directory**: \`projects/$PROJECT_NAME/\`
+          - **Workflow File**: \`final-workflow/${WORKFLOW_NAME}.yml\`
+          - **Deployment Guide**: \`final-workflow/DEPLOYMENT_INSTRUCTIONS.md\`
+          
+          ### 🚀 Next Steps:
+          1. Download the workflow from artifacts
+          2. Review the generated workflow
+          3. Deploy manually to \`.github/workflows/\` if needed
+          4. Configure required secrets
+          5. Test with \`workflow_dispatch\`
+          
+          ---
+          *Generated by Meta Workflow v12 with Domain Templates*"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -1417,29 +1391,22 @@ jobs:
             -p "検証失敗の原因を詳細分析してください:
             
           参照ファイル:
-          1. artifacts/validation-report/detailed_validation_report.json (詳細検証レポート)
-          2. artifacts/validation-report/validation_result.json (基本検証結果)
-          3. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用失敗パターン)
-          4. meta/domain-templates/$DOMAIN/checklists/ (ドメイン特化チェックリスト)
-          5. docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md (データ永続化パターン)
-          6. docs/YAML_CONSTRUCTION_GUIDELINES.md (YAML構築ガイドライン)
+          1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用失敗パターン)
+          2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化失敗パターン)
+          3. artifacts/ (前回の実行結果)
           
           分析項目:
-          - HEREDOCとGitHub Actions変数の混在問題
-          - ローカルuses:参照の問題
-          - ファイルパスのハードコード問題
-          - アーティファクト共有の問題
-          - ドメイン特有の要件違反（キャスター分離、リップシンク等）
+          - どの検証項目で失敗したか
+          - 失敗の根本原因
+          - 修正すべき具体的なポイント
+          - 再生成時の改善方針
           
           分析結果をartifacts/failure_analysis.jsonに保存してください:
           {
             \"failure_reasons\": [\"原因1\", \"原因2\"],
             \"critical_issues\": [\"重要な問題1\", \"重要な問題2\"],
             \"improvement_strategy\": \"改善戦略の詳細\",
-            \"regeneration_focus\": [\"再生成で特に注意すべき点1\", \"点2\"],
-            \"heredoc_issues\": [\"HEREDOC問題のある行番号\"],
-            \"local_uses_issues\": [\"ローカルuses参照の場所\"],
-            \"domain_specific_issues\": [\"ドメイン特有の問題\"]
+            \"regeneration_focus\": [\"再生成で特に注意すべき点1\", \"点2\"]
           }"
           
           if [ -f "artifacts/failure_analysis.json" ]; then
@@ -1565,7 +1532,7 @@ jobs:
   display-final-report:
     name: "📊 実行完了"
     runs-on: ubuntu-latest
-    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'optimize-task-order', 'generate-professional-workflow', 'validate-workflow', 'regeneration-loop']
+    needs: ['validate-and-detect', 'load-domain-templates', 'professional-task-decomposition', 'optimize-task-order', 'generate-professional-workflow', 'validate-and-deploy', 'regeneration-loop']
     if: always()
     steps:
           
@@ -1575,7 +1542,7 @@ jobs:
           
           # 基本情報
           ISSUE_NUMBER="${{ needs.validate-and-detect.outputs.issue_number }}"
-          VALIDATION_STATUS="${{ needs.validate-workflow.outputs.validation_passed }}"
+          VALIDATION_STATUS="${{ needs.validate-and-deploy.outputs.validation_passed }}"
           
           # 実行完了サマリーを追加
           echo "## 🎉 実行完了" >> $GITHUB_STEP_SUMMARY
