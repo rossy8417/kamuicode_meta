@@ -1366,11 +1366,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ===========================================
-  # PHASE 7: REGENERATION LOOP (IF NEEDED)
+  # PHASE 7: ERROR FIX LOOP (IF NEEDED)
   # ===========================================
   
   regeneration-loop:
-    name: "🔄 修正・再生成ループ"
+    name: "🔧 エラー修正ループ"
     runs-on: ubuntu-latest
     needs: ['validate-workflow', 'validate-and-detect', 'load-domain-templates']
     if: |
@@ -1394,16 +1394,16 @@ jobs:
         with:
           path: artifacts/
           
-      - name: Record Regeneration Attempt
+      - name: Record Fix Attempt
         id: attempt
         run: |
-          echo "🔄 検証失敗による再生成を開始..."
+          echo "🔧 検証失敗によるエラー修正を開始..."
           ATTEMPT_COUNT=1
           echo "regeneration_attempt=$ATTEMPT_COUNT" >> $GITHUB_OUTPUT
           
-          echo "## 🔄 Phase 7: 修正・再生成ループ" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔧 Phase 7: エラー修正ループ" >> $GITHUB_STEP_SUMMARY
           echo "- 🚨 初回生成の検証失敗を検出" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔄 自動再生成を実行中..." >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 ピンポイント修正を実行中..." >> $GITHUB_STEP_SUMMARY
           
       - name: Analyze Validation Failures
         id: analyze
