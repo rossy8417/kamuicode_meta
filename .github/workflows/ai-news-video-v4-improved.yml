@@ -66,12 +66,23 @@ jobs:
           
           echo "✅ Setup complete: ${SCENE_COUNT} scenes for ${DURATION}s video"
           echo "📁 Project directory: ${PROJECT_DIR}"
+          
+          # Create metadata file to ensure artifact has content
+          echo "{" > "${PROJECT_DIR}/metadata/setup.json"
+          echo "  \"workflow_start\": \"$(date -Iseconds)\"," >> "${PROJECT_DIR}/metadata/setup.json"
+          echo "  \"scene_count\": ${SCENE_COUNT}," >> "${PROJECT_DIR}/metadata/setup.json"
+          echo "  \"duration\": ${DURATION}," >> "${PROJECT_DIR}/metadata/setup.json"
+          echo "  \"topic\": \"${{ inputs.topic }}\"" >> "${PROJECT_DIR}/metadata/setup.json"
+          echo "}" >> "${PROJECT_DIR}/metadata/setup.json"
 
       - name: Upload Setup Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: project-setup
-          path: ${{ steps.setup.outputs.project_dir }}
+          path: |
+            ${{ steps.setup.outputs.project_dir }}/metadata/
+            ${{ steps.setup.outputs.project_dir }}/logs/
+          retention-days: 1
 
   phase-1-planning:
     name: "Phase 1: Content Planning & Structure"
