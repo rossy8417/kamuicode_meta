@@ -327,20 +327,131 @@ character_error_recovery_patterns:
       4: "視線・身体向きの調整"
       5: "必要時：シーケンシャル処理への切替"
 
+# News-specific lip-sync processing patterns
+news_lipsync_patterns:
+  # Separated anchor lip-sync workflow
+  separated_anchor_lipsync:
+    description: "Process anchor and background separately for professional news video"
+    stages:
+      1_anchor_preparation:
+        tasks:
+          - generate_single_anchor: "Generate consistent anchor with fixed seed (42)"
+          - extract_anchor_frames: "Extract key frames for lip-sync reference"
+          - prepare_green_screen: "Setup green screen or transparent background"
+      
+      2_audio_segmentation:
+        tasks:
+          - split_narration: |
+              ffmpeg -i narration.mp3 -f segment -segment_time 5 \
+              -reset_timestamps 1 -c copy segment_%03d.mp3
+          - create_segment_list: "Generate segment manifest file"
+          - verify_segments: "Check segment durations and quality"
+      
+      3_lipsync_generation:
+        parallel: true
+        max_parallel: 3
+        tasks:
+          - process_segments: |
+              For each 5-second segment:
+              1. Load anchor image/video
+              2. Apply mcp__v2v-kamui-pixverse-lipsync
+              3. Save as segment_lipsync_%03d.mp4
+              4. Verify lip-sync quality
+      
+      4_anchor_concatenation:
+        tasks:
+          - concat_segments: |
+              ffmpeg -f concat -safe 0 -i segments.txt \
+              -c copy anchor_full_lipsync.mp4
+          - verify_continuity: "Check for smooth transitions between segments"
+          - apply_color_correction: "Ensure consistent color grading"
+      
+      5_background_composition:
+        tasks:
+          - overlay_anchor_on_background: |
+              ffmpeg -i background.mp4 -i anchor_full_lipsync.mp4 \
+              -filter_complex "[1:v]scale=iw/3:ih/3[pip];\
+              [0:v][pip]overlay=W-w-20:H-h-20[out]" \
+              -map "[out]" -map 0:a -c:a copy final_news.mp4
+          - add_lower_thirds: "Overlay news graphics and titles"
+          - final_quality_check: "Verify professional broadcast quality"
+  
+  # Advanced green screen composition
+  chromakey_composition_pattern:
+    description: "Professional chromakey composition for news anchor"
+    implementation:
+      green_screen_removal: |
+        ffmpeg -i background.mp4 -i anchor_green.mp4 -filter_complex \
+        "[1:v]chromakey=green:0.1:0.2[ckout];\
+        [ckout]scale=iw*0.8:ih*0.8[scaled];\
+        [0:v][scaled]overlay=W-w-50:H-h-100[out]" \
+        -map "[out]" -map 0:a final_chromakey.mp4
+      
+      edge_refinement: |
+        # Add edge feathering for natural blend
+        ffmpeg -i input.mp4 -filter_complex \
+        "chromakey=green:0.1:0.2,\
+        despill=type=green:mix=0.5:expand=0.5" \
+        output.mp4
+  
+  # Batch lip-sync optimization
+  batch_lipsync_optimization:
+    description: "Optimize lip-sync processing for multiple segments"
+    strategies:
+      parallel_processing:
+        - "Process up to 3 segments simultaneously"
+        - "Use job matrix for segment parallelization"
+        - "Monitor memory usage to prevent OOM"
+      
+      quality_vs_speed:
+        high_quality:
+          - "Use full resolution anchor video"
+          - "Apply advanced lip-sync model"
+          - "Multiple quality validation passes"
+        
+        fast_processing:
+          - "Use reduced resolution (720p)"
+          - "Simple lip-sync model"
+          - "Single validation pass"
+      
+      fallback_handling:
+        - "If lip-sync fails, use static anchor with mouth closed"
+        - "Apply subtle zoom/pan to maintain visual interest"
+        - "Log warning but continue workflow"
+
 error_recovery_patterns:
-  # エラーリカバリーパターン
+  # Error recovery patterns
   partial_failure_recovery:
-    description: "一部のシーンが失敗した場合"
+    description: "Handle partial scene failures"
     steps:
-      1: "失敗シーンの特定"
-      2: "代替シーン生成"
-      3: "既存シーンとの調整"
-      4: "部分的な再レンダリング"
+      1: "Identify failed scenes"
+      2: "Generate alternative scenes"
+      3: "Adjust with existing scenes"
+      4: "Partial re-rendering"
   
   style_mismatch_recovery:
-    description: "スタイルが統一されていない場合"
+    description: "Fix inconsistent styles"
     steps:
-      1: "基準スタイルの決定"
-      2: "スタイル転送処理"
-      3: "カラーグレーディング統一"
-      4: "最終調整"
+      1: "Determine reference style"
+      2: "Apply style transfer"
+      3: "Unify color grading"
+      4: "Final adjustments"
+  
+  # News-specific error recovery
+  anchor_lipsync_failure_recovery:
+    description: "Recover from anchor lip-sync failures"
+    steps:
+      1: "Detect lip-sync quality issues (offset > 100ms)"
+      2: "Try alternative lip-sync service (creatify vs pixverse)"
+      3: "If both fail, use static anchor with audio"
+      4: "Apply subtle animation (zoom, gentle movement)"
+      5: "Log issue for manual review"
+  
+  background_anchor_mismatch_recovery:
+    description: "Fix composition issues between anchor and background"
+    steps:
+      1: "Detect lighting/color mismatch"
+      2: "Apply automatic color matching"
+      3: "Adjust anchor scale and position"
+      4: "Add subtle shadow/border for separation"
+      5: "Validate final composition quality"
