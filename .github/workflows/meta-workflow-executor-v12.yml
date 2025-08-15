@@ -1372,8 +1372,11 @@ jobs:
   regeneration-loop:
     name: "🔄 修正・再生成ループ"
     runs-on: ubuntu-latest
-    needs: ['validate-and-deploy', 'validate-and-detect', 'load-domain-templates']
-    if: needs.validate-and-deploy.outputs.validation_passed == 'false'
+    needs: ['validate-workflow', 'validate-and-detect', 'load-domain-templates']
+    if: |
+      always() && 
+      needs.validate-workflow.result == 'success' &&
+      needs.validate-workflow.outputs.validation_passed == 'false'
     outputs:
       regeneration_attempt: ${{ steps.attempt.outputs.regeneration_attempt }}
       regeneration_success: ${{ steps.regenerate.outputs.success }}
