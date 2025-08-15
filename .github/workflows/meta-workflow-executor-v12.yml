@@ -1051,6 +1051,14 @@ jobs:
             SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
           fi
           
+          # Check for HEREDOC with GitHub Actions variables (causes YAML parsing errors)
+          if awk '/cat.*<<.*EOF/,/^EOF$/' "$WORKFLOW_PATH" 2>/dev/null | grep -qE '\$\{\{'; then
+            echo "🚨 CRITICAL: HEREDOC with GitHub Actions variables detected! This causes YAML parsing errors"
+            echo "  Lines with issues:"
+            awk '/cat.*<<.*EOF/,/^EOF$/' "$WORKFLOW_PATH" | grep -n '\$\{\{' | head -5
+            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+          fi
+          
           # Check for any exposed tokens or API keys (not using secrets)
           if grep -E '(api[_-]key|token|bearer|secret)\s*:\s*["\047]?[A-Za-z0-9_-]{20,}' "$WORKFLOW_PATH" 2>/dev/null | grep -v 'secrets\.' >/dev/null; then
             echo "🚨 CRITICAL: Exposed API keys or tokens detected!"
@@ -1554,6 +1562,15 @@ jobs:
             # Collect detailed error information before fix
             echo "📋 エラー詳細を収集中..."
             ERROR_DETAILS=""
+            
+            # Check for HEREDOC with GitHub Actions variables (HIGHEST PRIORITY)
+            if awk '/cat.*<<.*EOF/,/^EOF$/' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -qE '\$\{\{'; then
+              HEREDOC_LINES=$(awk '/cat.*<<.*EOF/,/^EOF$/' "$PREVIOUS_WORKFLOW" | grep -n '\$\{\{' | head -5)
+              ERROR_DETAILS="${ERROR_DETAILS}
+            HEREDOC内のGitHub Actions変数（YAML構文エラーの原因）:
+            ${HEREDOC_LINES}"
+              echo "🚨 HEREDOC with GitHub Actions variables detected"
+            fi
             
             # Check for exposed tokens with line numbers
             if grep -n 'sk-ant-' "$PREVIOUS_WORKFLOW" 2>/dev/null; then
