@@ -1041,6 +1041,59 @@ jobs:
           # Use generated workflow path
           WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
           
+          # 🔒 SECURITY VALIDATION FIRST (CRITICAL)
+          echo "🔒 Checking for security issues..."
+          SECURITY_ISSUES=0
+          
+          # Check for exposed OAuth tokens
+          if grep -q 'CLAUDE_CODE_OAUTH_TOKEN:\s*sk-ant-' "$WORKFLOW_PATH" 2>/dev/null; then
+            echo "🚨 CRITICAL: OAuth token exposed! Should use secrets.CLAUDE_CODE_OAUTH_TOKEN"
+            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+          fi
+          
+          # Check for any exposed tokens or API keys (not using secrets)
+          if grep -E '(api[_-]key|token|bearer|secret)\s*:\s*["\047]?[A-Za-z0-9_-]{20,}' "$WORKFLOW_PATH" 2>/dev/null | grep -v '\${{.*secrets\.' >/dev/null; then
+            echo "🚨 CRITICAL: Exposed API keys or tokens detected!"
+            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+          fi
+          
+          # Check for hardcoded passwords
+          if grep -Ei 'password\s*:\s*["\047][^$\{]' "$WORKFLOW_PATH" 2>/dev/null; then
+            echo "🚨 CRITICAL: Hardcoded passwords detected!"
+            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+          fi
+          
+          # If security issues found, fail immediately
+          if [ "$SECURITY_ISSUES" -gt 0 ]; then
+            echo "❌ SECURITY VALIDATION FAILED - $SECURITY_ISSUES critical issues found"
+            echo "passed=false" >> $GITHUB_OUTPUT
+            echo "security_failed=true" >> $GITHUB_OUTPUT
+            echo "error_count=$SECURITY_ISSUES" >> $GITHUB_OUTPUT
+            echo "warning_count=0" >> $GITHUB_OUTPUT
+            
+            # Create security failure report
+            cat > validation_result.json << 'EOF'
+{
+  "overall_result": "FAILED",
+  "security_validation": "FAILED",
+  "critical_security_issues": true,
+  "failed_items": [
+    "Exposed OAuth token - must use ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}",
+    "Hardcoded credentials detected - use GitHub Secrets"
+  ],
+  "details": {
+    "security_validation": {
+      "status": "FAILED",
+      "message": "Critical security vulnerabilities detected. Workflow must not contain exposed tokens or credentials."
+    }
+  }
+}
+EOF
+            exit 0
+          fi
+          
+          echo "✅ Security validation passed"
+          
           # YAML syntax validation
           python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))"
           echo "✅ YAML syntax valid"
@@ -1515,6 +1568,8 @@ jobs:
             修正方針:
             1. エラー箇所のみを修正（機能を削除しない）
             2. 具体的な修正:
+               - 露出したOAuthトークン → \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}に変換
+               - ハードコードされたAPIキー → \${{ secrets.API_KEY_NAME }}に変換
                - HEREDOCとGitHub Actions変数の混在 → echoコマンドに変換
                - ローカル uses: 参照 → インライン実装に変換
                - ハードコードされたパス → \${PROJECT_DIR}を使用
