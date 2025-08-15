@@ -1072,23 +1072,21 @@ jobs:
             echo "warning_count=0" >> $GITHUB_OUTPUT
             
             # Create security failure report
-            cat > validation_result.json << 'EOF'
-{
-  "overall_result": "FAILED",
-  "security_validation": "FAILED",
-  "critical_security_issues": true,
-  "failed_items": [
-    "Exposed OAuth token - must use ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}",
-    "Hardcoded credentials detected - use GitHub Secrets"
-  ],
-  "details": {
-    "security_validation": {
-      "status": "FAILED",
-      "message": "Critical security vulnerabilities detected. Workflow must not contain exposed tokens or credentials."
-    }
-  }
-}
-EOF
+            echo '{' > validation_result.json
+            echo '  "overall_result": "FAILED",' >> validation_result.json
+            echo '  "security_validation": "FAILED",' >> validation_result.json
+            echo '  "critical_security_issues": true,' >> validation_result.json
+            echo '  "failed_items": [' >> validation_result.json
+            echo '    "Exposed OAuth token - must use secrets.CLAUDE_CODE_OAUTH_TOKEN",' >> validation_result.json
+            echo '    "Hardcoded credentials detected - use GitHub Secrets"' >> validation_result.json
+            echo '  ],' >> validation_result.json
+            echo '  "details": {' >> validation_result.json
+            echo '    "security_validation": {' >> validation_result.json
+            echo '      "status": "FAILED",' >> validation_result.json
+            echo '      "message": "Critical security vulnerabilities detected. Workflow must not contain exposed tokens or credentials."' >> validation_result.json
+            echo '    }' >> validation_result.json
+            echo '  }' >> validation_result.json
+            echo '}' >> validation_result.json
             exit 0
           fi
           
