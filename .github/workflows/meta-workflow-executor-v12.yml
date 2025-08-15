@@ -1614,7 +1614,7 @@ jobs:
               fi
               
               # Check for hardcoded absolute paths
-              if grep -q '/home/runner/work/[^$]*' "$PREVIOUS_WORKFLOW" | grep -v '\${{'; then
+              if grep '/home/runner/work/' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{' | grep -q .; then
                 echo "⚠️ ハードコードされた絶対パスがまだ存在"
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
