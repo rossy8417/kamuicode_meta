@@ -1544,8 +1544,8 @@ jobs:
           # Copy original workflow for backup
           cp "$PREVIOUS_WORKFLOW" "$FIX_DIR/original-workflow.yml"
           
-          # Fix loop - up to 3 iterations
-          MAX_FIX_ATTEMPTS=3
+          # Fix loop - up to 5 iterations for thorough fixes
+          MAX_FIX_ATTEMPTS=5
           FIX_SUCCESS=false
           
           for fix_attempt in $(seq 1 $MAX_FIX_ATTEMPTS); do
@@ -1579,7 +1579,8 @@ jobs:
             - 必要な処理は全て残す
             - コメントや説明も保持する
             
-            参照ガイドライン:
+            参照ガイドライン（必ず読んでパターンを適用）:
+            - docs/WORKFLOW_FIX_PATTERNS.md （修正パターン集 - 最優先）
             - docs/YAML_CONSTRUCTION_GUIDELINES.md
             - docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
             
@@ -1596,15 +1597,25 @@ jobs:
             if [ $? -eq 0 ]; then
               echo "✅ YAML構文: 正常"
               
-              # Check for common issues
+              # Check for common issues with more accurate patterns
               ERROR_COUNT=0
-              if grep -q 'cat.*<<.*EOF' "$PREVIOUS_WORKFLOW" && grep -q '\${\\{' "$PREVIOUS_WORKFLOW"; then
+              
+              # Check for HEREDOC with GitHub Actions variables (more precise check)
+              # Look for HEREDOC blocks that contain ${{ within them
+              if awk '/cat.*<<.*EOF/,/^EOF$/' "$PREVIOUS_WORKFLOW" | grep -q '\${{'; then
                 echo "⚠️ HEREDOCとGitHub Actions変数の混在がまだ存在"
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
               
+              # Check for local uses references
               if grep -q 'uses:.*\./' "$PREVIOUS_WORKFLOW"; then
                 echo "⚠️ ローカルuses参照がまだ存在"
+                ERROR_COUNT=$((ERROR_COUNT + 1))
+              fi
+              
+              # Check for hardcoded absolute paths
+              if grep -q '/home/runner/work/[^$]*' "$PREVIOUS_WORKFLOW" | grep -v '\${{'; then
+                echo "⚠️ ハードコードされた絶対パスがまだ存在"
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
               
