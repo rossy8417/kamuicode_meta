@@ -1564,8 +1564,8 @@ jobs:
             fi
             
             # Check for hardcoded paths with line numbers
-            if grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{' | grep -q .; then
-              PATH_LINES=$(grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\${{' | head -3)
+            if grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\$\{\{' | grep -q .; then
+              PATH_LINES=$(grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\$\{\{' | head -3)
               ERROR_DETAILS="${ERROR_DETAILS}
             ハードコードされたパス:
             ${PATH_LINES}"
@@ -1643,10 +1643,10 @@ jobs:
               
               # Check for hardcoded absolute paths (more precise pattern)
               # Look for paths that are not using GitHub Actions variables
-              if grep -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{' | grep -q .; then
+              if grep -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\$\{\{' | grep -q .; then
                 echo "⚠️ ハードコードされた絶対パスがまだ存在"
                 echo "  検出された行:"
-                grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\${{' | head -3
+                grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\$\{\{' | head -3
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
               
@@ -1682,9 +1682,9 @@ jobs:
             fi
             
             # Check for hardcoded paths
-            if grep -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{' | grep -q .; then
+            if grep -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\$\{\{' | grep -q .; then
               echo "❌ 最終検証失敗: ハードコードパスがまだ存在します"
-              grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\${{' | head -3
+              grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\$\{\{' | head -3
               FINAL_VERIFICATION_PASSED=false
             fi
             
