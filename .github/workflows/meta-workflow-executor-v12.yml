@@ -1468,97 +1468,138 @@ jobs:
             fi
           fi
           
-      - name: Regenerate with Improved Strategy
-        id: regenerate
+      - name: Fix Workflow Errors (Pinpoint Fixes)
+        id: fix-workflow
         run: |
-          echo "⚡ 改善戦略に基づく再生成実行..."
+          echo "🔧 エラー箇所のピンポイント修正を実行..."
           DOMAIN="${{ needs.validate-and-detect.outputs.primary_domain }}"
           ISSUE_NUMBER="${{ needs.validate-and-detect.outputs.issue_number }}"
+          PROJECT_DIR="${{ needs.generate-professional-workflow.outputs.project_dir }}"
           
-          # Create regeneration directory
-          REGEN_DIR="projects/issue-$ISSUE_NUMBER-regeneration-$(date +%Y%m%d-%H%M%S)"
-          mkdir -p "$REGEN_DIR/metadata"
-          mkdir -p "$REGEN_DIR/logs"
-          mkdir -p "$REGEN_DIR/generated-workflow"
+          # Get the previously generated workflow path
+          PREVIOUS_WORKFLOW=$(find artifacts/generated-workflow -name "*.yml" -type f | head -1)
           
-          # Enhanced regeneration with failure analysis input (with retries + backoff)
-          set +e
-          CLI_STATUS=1
-          for attempt in {1..3}; do
-            echo "🛠️ Regeneration attempt $attempt/3"
+          if [ -z "$PREVIOUS_WORKFLOW" ]; then
+            echo "❌ 前回生成したワークフローが見つかりません"
+            exit 1
+          fi
+          
+          echo "📝 修正対象ワークフロー: $PREVIOUS_WORKFLOW"
+          
+          # Create fix directory
+          FIX_DIR="projects/issue-$ISSUE_NUMBER-fixes-$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$FIX_DIR/logs"
+          
+          # Copy original workflow for backup
+          cp "$PREVIOUS_WORKFLOW" "$FIX_DIR/original-workflow.yml"
+          
+          # Fix loop - up to 3 iterations
+          MAX_FIX_ATTEMPTS=3
+          FIX_SUCCESS=false
+          
+          for fix_attempt in $(seq 1 $MAX_FIX_ATTEMPTS); do
+            echo "🔄 修正試行 $fix_attempt/$MAX_FIX_ATTEMPTS"
+            
+            # Apply pinpoint fixes
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "Read,Write" \
+              --allowedTools "Read,Write,MultiEdit" \
               --permission-mode "acceptEdits" \
               --max-turns 30 \
-              -p "検証失敗を踏まえた改善版ワークフロー再生成:
+              -p "ワークフローのエラーをピンポイント修正してください:
               
-            参照データ:
-            1. artifacts/failure_analysis.json (失敗分析結果)
-            2. artifacts/professional_task_decomposition.json (タスク分解)
-            3. artifacts/optimized_task_order.json (最適化済み実行順序)
-            4. meta/domain-templates/$DOMAIN/ (ドメイン情報)
+            対象ワークフロー: $PREVIOUS_WORKFLOW
+            エラー情報: artifacts/failure_analysis.json
+            検証レポート: artifacts/validation-report/validation_result.json
             
-            必須修正ガイドライン:
-            1. projects/workflow-execution-logs/meta-workflow-construction-checklist.md (汎用パターン)
-            2. meta/domain-templates/$DOMAIN/checklist-*-specific.md (ドメイン特化)
+            修正方針:
+            1. エラー箇所のみを修正（機能を削除しない）
+            2. 具体的な修正:
+               - HEREDOCとGitHub Actions変数の混在 → echoコマンドに変換
+               - ローカル uses: 参照 → インライン実装に変換
+               - ハードコードされたパス → \${PROJECT_DIR}を使用
+               - matrix参照エラー → 正しい構文に修正
             
-            重要改善ポイント:
-            - 前回の検証失敗項目を全て修正
-            - 直列並列パイプライン構造の確実な実装
-            - URL期限切れ対策の強化
-            - エラーハンドリング・リトライロジックの改善
-            - ファイル検証の強化
-            - プログレッシブレポート実装の改善
+            重要な制約:
+            - 既存の機能やステップを削除しない
+            - ジョブの構造を維持する
+            - 必要な処理は全て残す
+            - コメントや説明も保持する
             
-            改善されたワークフローを$REGEN_DIR/generated-workflow/に保存してください。"
+            参照ガイドライン:
+            - docs/YAML_CONSTRUCTION_GUIDELINES.md
+            - docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
+            
+            修正後は同じファイル($PREVIOUS_WORKFLOW)に上書き保存してください。
+            修正内容のサマリーを $FIX_DIR/logs/fix_attempt_${fix_attempt}.txt に保存してください。"
             CLI_STATUS=$?
             if [ $CLI_STATUS -eq 0 ]; then
               break
             fi
-            echo "⏳ CLI failed (status=$CLI_STATUS). Retrying after backoff..."
-            sleep $((attempt * 5))
-          done
-          set -e
-          
-          if [ -f "$REGEN_DIR/generated-workflow"/*.yml ]; then
-            REGEN_WORKFLOW=$(ls "$REGEN_DIR/generated-workflow"/*.yml | head -1)
-            echo "✅ 再生成完了: $(basename "$REGEN_WORKFLOW")"
             
-            # Quick validation of regenerated workflow
-            if ! python -c "import yaml; yaml.safe_load(open('$REGEN_WORKFLOW'))" >/dev/null 2>&1; then
-              echo "❌ 再生成ワークフローのYAML構文エラー - 自動修復を試行"
-              npx @anthropic-ai/claude-code \
-                --mcp-config ".claude/mcp-kamuicode.json" \
-                --allowedTools "Read,Write" \
-                --permission-mode "acceptEdits" \
-                --max-turns 12 \
-                -p "以下のYAMLファイルの構文エラーを修正し、GitHub Actions仕様に準拠させてください。\n\n対象: $REGEN_WORKFLOW\n要件:\n- トップレベルに name, on, jobs を保持\n- docs/YAML_CONSTRUCTION_GUIDELINES.md を順守\n- 構造と意図を保持\n\n修正後は同じパスに上書き保存してください。"
-            fi
-            
-            if python -c "import yaml; yaml.safe_load(open('$REGEN_WORKFLOW'))" >/dev/null 2>&1; then
-              echo "✅ 再生成ワークフローのYAML構文検証: 正常"
-              echo "success=true" >> $GITHUB_OUTPUT
+            # Re-validate after fix
+            echo "🔍 修正後の再検証..."
+            python3 -c "import yaml; yaml.safe_load(open('$PREVIOUS_WORKFLOW'))" 2>/dev/null
+            if [ $? -eq 0 ]; then
+              echo "✅ YAML構文: 正常"
               
-              echo "- ✅ 改善版ワークフロー再生成完了" >> $GITHUB_STEP_SUMMARY
-              echo "- ✅ YAML構文検証: 正常" >> $GITHUB_STEP_SUMMARY
-              echo "- 📁 保存場所: $REGEN_DIR/generated-workflow/" >> $GITHUB_STEP_SUMMARY
+              # Check for common issues
+              ERROR_COUNT=0
+              if grep -q 'cat.*<<.*EOF' "$PREVIOUS_WORKFLOW" && grep -q '\${{' "$PREVIOUS_WORKFLOW"; then
+                echo "⚠️ HEREDOCとGitHub Actions変数の混在がまだ存在"
+                ERROR_COUNT=$((ERROR_COUNT + 1))
+              fi
+              
+              if grep -q 'uses:.*\./' "$PREVIOUS_WORKFLOW"; then
+                echo "⚠️ ローカルuses参照がまだ存在"
+                ERROR_COUNT=$((ERROR_COUNT + 1))
+              fi
+              
+              if [ $ERROR_COUNT -eq 0 ]; then
+                echo "✅ 修正成功 - 全てのエラーが解決"
+                FIX_SUCCESS=true
+                break
+              else
+                echo "⚠️ まだ $ERROR_COUNT 個のエラーが残っています"
+                if [ $fix_attempt -lt $MAX_FIX_ATTEMPTS ]; then
+                  echo "🔄 次の修正試行を準備..."
+                  sleep 5
+                fi
+              fi
             else
-              echo "❌ 再生成ワークフローのYAML構文エラー"
-              echo "success=false" >> $GITHUB_OUTPUT
+              echo "❌ YAML構文エラーが残っています"
+              if [ $fix_attempt -lt $MAX_FIX_ATTEMPTS ]; then
+                echo "🔄 構文エラーを修正して再試行..."
+              fi
             fi
+          done
+          
+          # Final result
+          if [ "$FIX_SUCCESS" = "true" ]; then
+            echo "✅ ワークフロー修正完了"
+            echo "success=true" >> $GITHUB_OUTPUT
+            
+            # Copy fixed workflow to output location
+            cp "$PREVIOUS_WORKFLOW" "$FIX_DIR/fixed-workflow.yml"
+            
+            echo "- ✅ ピンポイント修正完了" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ 全エラー解決" >> $GITHUB_STEP_SUMMARY
+            echo "- 📁 修正済みワークフロー: $FIX_DIR/fixed-workflow.yml" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ ワークフロー再生成失敗"
+            echo "❌ 修正が完了できませんでした"
             echo "success=false" >> $GITHUB_OUTPUT
-            echo "- ❌ 再生成失敗 - 手動対応が必要" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ 一部のエラーが解決できませんでした" >> $GITHUB_STEP_SUMMARY
+            echo "- 📝 手動での確認が必要です" >> $GITHUB_STEP_SUMMARY
           fi
           
-      - name: Upload Regenerated Workflow
+      - name: Upload Fixed Workflow
         uses: actions/upload-artifact@v4
-        if: steps.regenerate.outputs.success == 'true'
+        if: always()
         with:
-          name: regenerated-workflow
-          path: projects/issue-${{ needs.validate-and-detect.outputs.issue_number }}-regeneration-*
+          name: fixed-workflow
+          path: |
+            projects/issue-${{ needs.validate-and-detect.outputs.issue_number }}-fixes-*/fixed-workflow.yml
+            projects/issue-${{ needs.validate-and-detect.outputs.issue_number }}-fixes-*/logs/
           if-no-files-found: warn
 
   # ===========================================
