@@ -1554,38 +1554,37 @@ jobs:
             # Apply pinpoint fixes
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "Read,Write,MultiEdit" \
+              --allowedTools "Read,Write,Edit,MultiEdit" \
               --permission-mode "acceptEdits" \
-              --max-turns 30 \
+              --max-turns 40 \
               -p "ワークフローのエラーをピンポイント修正してください:
               
             対象ワークフロー: $PREVIOUS_WORKFLOW
             エラー情報: artifacts/failure_analysis.json
             検証レポート: artifacts/validation-report/validation_result.json
             
-            修正方針:
-            1. エラー箇所のみを修正（機能を削除しない）
-            2. 具体的な修正:
-               - 露出したOAuthトークン → \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}に変換
-               - ハードコードされたAPIキー → \${{ secrets.API_KEY_NAME }}に変換
-               - HEREDOCとGitHub Actions変数の混在 → echoコマンドに変換
-               - ローカル uses: 参照 → インライン実装に変換
-               - ハードコードされたパス → \${PROJECT_DIR}を使用
-               - matrix参照エラー → 正しい構文に修正
+            【重要】修正手順（必ずこの順番で実行）:
+            1. Read ツールでファイルを読み込む: $PREVIOUS_WORKFLOW
+            2. 以下のパターンをすべて検索して修正:
+               - sk-ant-で始まるトークン → \${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+               - /home/runner/work/kamuicode_meta/kamuicode_meta/ → \${{ github.workspace }}/
+               - HEREDOCとGitHub Actions変数 → echoコマンドに変換
+               - uses: ./ → インライン実装
+               - outputs:.*matrix\\. → 正しい構文に修正
+            3. MultiEdit または Edit ツールで修正を適用
+            4. Write ツールで修正内容を保存: $PREVIOUS_WORKFLOW（必須）
+            5. Write ツールでサマリー保存: $FIX_DIR/logs/fix_attempt_${fix_attempt}.txt
             
             重要な制約:
             - 既存の機能やステップを削除しない
             - ジョブの構造を維持する
             - 必要な処理は全て残す
-            - コメントや説明も保持する
+            - 必ずWriteツールで明示的に保存する
             
             参照ガイドライン（必ず読んでパターンを適用）:
             - docs/WORKFLOW_FIX_PATTERNS.md （修正パターン集 - 最優先）
             - docs/YAML_CONSTRUCTION_GUIDELINES.md
-            - docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
-            
-            修正後は同じファイル($PREVIOUS_WORKFLOW)に上書き保存してください。
-            修正内容のサマリーを $FIX_DIR/logs/fix_attempt_${fix_attempt}.txt に保存してください。"
+            - docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md"
             CLI_STATUS=$?
             if [ $CLI_STATUS -eq 0 ]; then
               break
@@ -1613,9 +1612,12 @@ jobs:
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
               
-              # Check for hardcoded absolute paths
-              if grep '/home/runner/work/' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v 'github.workspace' | grep -q .; then
+              # Check for hardcoded absolute paths (more precise pattern)
+              # Look for paths that are not using GitHub Actions variables
+              if grep -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{' | grep -q .; then
                 echo "⚠️ ハードコードされた絶対パスがまだ存在"
+                echo "  検出された行:"
+                grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\${{' | head -3
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
               
@@ -1638,17 +1640,47 @@ jobs:
             fi
           done
           
-          # Final result
+          # Final verification and result
           if [ "$FIX_SUCCESS" = "true" ]; then
-            echo "✅ ワークフロー修正完了"
-            echo "success=true" >> $GITHUB_OUTPUT
+            # Double-check that critical errors are actually fixed
+            FINAL_VERIFICATION_PASSED=true
+            echo "🔍 最終検証を実行中..."
             
-            # Copy fixed workflow to output location
-            cp "$PREVIOUS_WORKFLOW" "$FIX_DIR/fixed-workflow.yml"
+            # Check for exposed OAuth tokens
+            if grep -q 'sk-ant-' "$PREVIOUS_WORKFLOW" 2>/dev/null; then
+              echo "❌ 最終検証失敗: OAuthトークンがまだ露出しています"
+              FINAL_VERIFICATION_PASSED=false
+            fi
             
-            echo "- ✅ ピンポイント修正完了" >> $GITHUB_STEP_SUMMARY
-            echo "- ✅ 全エラー解決" >> $GITHUB_STEP_SUMMARY
-            echo "- 📁 修正済みワークフロー: $FIX_DIR/fixed-workflow.yml" >> $GITHUB_STEP_SUMMARY
+            # Check for hardcoded paths
+            if grep -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{' | grep -q .; then
+              echo "❌ 最終検証失敗: ハードコードパスがまだ存在します"
+              grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\${{' | head -3
+              FINAL_VERIFICATION_PASSED=false
+            fi
+            
+            if [ "$FINAL_VERIFICATION_PASSED" = "true" ]; then
+              echo "✅ ワークフロー修正完了"
+              echo "success=true" >> $GITHUB_OUTPUT
+              
+              # Copy fixed workflow to output location
+              cp "$PREVIOUS_WORKFLOW" "$FIX_DIR/fixed-workflow.yml"
+              
+              echo "- ✅ ピンポイント修正完了" >> $GITHUB_STEP_SUMMARY
+              echo "- ✅ 全エラー解決" >> $GITHUB_STEP_SUMMARY
+              echo "- 📁 修正済みワークフロー: $FIX_DIR/fixed-workflow.yml" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ 修正は実行されましたが、検証に失敗しました"
+              echo "success=partial" >> $GITHUB_OUTPUT
+              
+              # Still copy the workflow for analysis
+              cp "$PREVIOUS_WORKFLOW" "$FIX_DIR/fixed-workflow.yml"
+              
+              echo "- ⚠️ 修正試行は実行されました" >> $GITHUB_STEP_SUMMARY
+              echo "- ❌ 最終検証で一部のエラーが残存" >> $GITHUB_STEP_SUMMARY
+              echo "- 📁 部分修正ワークフロー: $FIX_DIR/fixed-workflow.yml" >> $GITHUB_STEP_SUMMARY
+              echo "- 🔍 手動での追加修正が必要です" >> $GITHUB_STEP_SUMMARY
+            fi
           else
             echo "❌ 修正が完了できませんでした"
             echo "success=false" >> $GITHUB_OUTPUT
