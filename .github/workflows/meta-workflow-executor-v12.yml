@@ -1551,7 +1551,27 @@ jobs:
           for fix_attempt in $(seq 1 $MAX_FIX_ATTEMPTS); do
             echo "🔄 修正試行 $fix_attempt/$MAX_FIX_ATTEMPTS"
             
-            # Apply pinpoint fixes
+            # Collect detailed error information before fix
+            echo "📋 エラー詳細を収集中..."
+            ERROR_DETAILS=""
+            
+            # Check for exposed tokens with line numbers
+            if grep -n 'sk-ant-' "$PREVIOUS_WORKFLOW" 2>/dev/null; then
+              TOKEN_LINES=$(grep -n 'sk-ant-' "$PREVIOUS_WORKFLOW" | head -3)
+              ERROR_DETAILS="${ERROR_DETAILS}
+            露出したOAuthトークン:
+            ${TOKEN_LINES}"
+            fi
+            
+            # Check for hardcoded paths with line numbers
+            if grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -v '\${{'; then
+              PATH_LINES=$(grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -v '\${{' | head -3)
+              ERROR_DETAILS="${ERROR_DETAILS}
+            ハードコードされたパス:
+            ${PATH_LINES}"
+            fi
+            
+            # Apply pinpoint fixes with detailed error information
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "Read,Write,Edit,MultiEdit" \
@@ -1560,8 +1580,9 @@ jobs:
               -p "ワークフローのエラーをピンポイント修正してください:
               
             対象ワークフロー: $PREVIOUS_WORKFLOW
-            エラー情報: artifacts/failure_analysis.json
-            検証レポート: artifacts/validation-report/validation_result.json
+            
+            検出されたエラー（行番号付き）:
+            $ERROR_DETAILS
             
             【重要】修正手順（必ずこの順番で実行）:
             1. Read ツールでファイルを読み込む: $PREVIOUS_WORKFLOW
@@ -1586,8 +1607,16 @@ jobs:
             - docs/YAML_CONSTRUCTION_GUIDELINES.md
             - docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md"
             CLI_STATUS=$?
+            
+            # Log Claude Code execution status
+            echo "📝 Claude Code実行ステータス: $CLI_STATUS"
+            
             if [ $CLI_STATUS -eq 0 ]; then
-              break
+              echo "✅ Claude Code実行成功"
+              # Don't break yet - verify fixes first
+            else
+              echo "❌ Claude Code実行失敗"
+              continue
             fi
             
             # Re-validate after fix
