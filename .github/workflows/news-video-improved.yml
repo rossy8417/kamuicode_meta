@@ -867,21 +867,25 @@ jobs:
               ffprobe -v quiet -print_format json -show_format -show_streams "$FINAL_OUTPUT" > "final/video_metadata.json"
               
               # Create summary
-              cat > "final/generation_summary.txt" << EOF
-News Video Generation Summary
-============================
-Title: $VIDEO_TITLE
-Duration: ${DURATION_SEC}s
-Output: $FINAL_OUTPUT
-Generated: \$(date)
-
-Assets Used:
-- Background videos: $(echo "$BACKGROUND_VIDEOS" | wc -l) files
-- Lipsync video: $([ -f "$LIPSYNC_VIDEO" ] && echo "Yes" || echo "No")
-- Narration audio: $([ -f "$NARRATION_AUDIO" ] && echo "Yes" || echo "No")
-
-Final video size: $(stat -c%s "$FINAL_OUTPUT" | numfmt --to=iec-i --suffix=B)
-EOF
+              CURRENT_DATE=$(date)
+              BG_VIDEO_COUNT=$(echo "$BACKGROUND_VIDEOS" | wc -l)
+              LIPSYNC_EXISTS=$([ -f "$LIPSYNC_VIDEO" ] && echo "Yes" || echo "No")
+              NARRATION_EXISTS=$([ -f "$NARRATION_AUDIO" ] && echo "Yes" || echo "No")
+              VIDEO_SIZE=$(stat -c%s "$FINAL_OUTPUT" 2>/dev/null | numfmt --to=iec-i --suffix=B 2>/dev/null || echo "Unknown")
+              
+              echo "News Video Generation Summary" > "final/generation_summary.txt"
+              echo "============================" >> "final/generation_summary.txt"
+              echo "Title: $VIDEO_TITLE" >> "final/generation_summary.txt"
+              echo "Duration: ${DURATION_SEC}s" >> "final/generation_summary.txt"
+              echo "Output: $FINAL_OUTPUT" >> "final/generation_summary.txt"
+              echo "Generated: $CURRENT_DATE" >> "final/generation_summary.txt"
+              echo "" >> "final/generation_summary.txt"
+              echo "Assets Used:" >> "final/generation_summary.txt"
+              echo "- Background videos: $BG_VIDEO_COUNT files" >> "final/generation_summary.txt"
+              echo "- Lipsync video: $LIPSYNC_EXISTS" >> "final/generation_summary.txt"
+              echo "- Narration audio: $NARRATION_EXISTS" >> "final/generation_summary.txt"
+              echo "" >> "final/generation_summary.txt"
+              echo "Final video size: $VIDEO_SIZE" >> "final/generation_summary.txt"
               
               echo "✅ News video generation completed successfully!"
             else
@@ -993,22 +997,22 @@ EOF
             fi
             
             # Save quality report
-            cat > "quality_report.txt" << EOF
-News Video Quality Report
-========================
-Generated: \$(date)
-Final Video: $FINAL_VIDEO
-
-Technical Specifications:
-- Duration: ${DURATION}s (target: ${EXPECTED_DURATION}s)
-- Resolution: $RESOLUTION
-- Frame Rate: $FPS
-- Codec: $CODEC
-- File Size: $(numfmt --to=iec-i --suffix=B $FILE_SIZE)
-
-Quality Score: $QUALITY_SCORE/100
-
-EOF
+            REPORT_DATE=$(date)
+            FILE_SIZE_FORMATTED=$(numfmt --to=iec-i --suffix=B $FILE_SIZE 2>/dev/null || echo "Unknown")
+            
+            echo "News Video Quality Report" > "quality_report.txt"
+            echo "========================" >> "quality_report.txt"
+            echo "Generated: $REPORT_DATE" >> "quality_report.txt"
+            echo "Final Video: $FINAL_VIDEO" >> "quality_report.txt"
+            echo "" >> "quality_report.txt"
+            echo "Technical Specifications:" >> "quality_report.txt"
+            echo "- Duration: ${DURATION}s (target: ${EXPECTED_DURATION}s)" >> "quality_report.txt"
+            echo "- Resolution: $RESOLUTION" >> "quality_report.txt"
+            echo "- Frame Rate: $FPS" >> "quality_report.txt"
+            echo "- Codec: $CODEC" >> "quality_report.txt"
+            echo "- File Size: $FILE_SIZE_FORMATTED" >> "quality_report.txt"
+            echo "" >> "quality_report.txt"
+            echo "Quality Score: $QUALITY_SCORE/100" >> "quality_report.txt"
             
           else
             echo "❌ No final video found for verification"
