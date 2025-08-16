@@ -67,13 +67,13 @@ on:
 env:
   CLAUDE_CODE_CI_MODE: true
   CLAUDE_CODE_AUTO_APPROVE_MCP: true
-  CLAUDE_CODE_OAUTH_TOKEN: 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
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
 jobs:
   setup:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'  # Skip entire workflow on push
     outputs:
       project_dir: ${{ steps.setup-dirs.outputs.project_dir }}
       scene_count: ${{ steps.calculate-scenes.outputs.scene_count }}
