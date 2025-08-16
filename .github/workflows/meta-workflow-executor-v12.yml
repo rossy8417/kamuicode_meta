@@ -682,6 +682,14 @@ jobs:
           - MUST: First job must check event type and skip on push events
           - MUST: All jobs must have timeout-minutes defined
           
+          SYNTAX ERROR PREVENTION (CRITICAL - 2025-08-16):
+          - NEVER use HEREDOC (cat << EOF) - causes YAML parsing errors
+          - ALWAYS use echo commands for line-by-line file generation
+          - NEVER use full-width quotes (") - only half-width quotes (")
+          - NEVER use bash arithmetic in strings: ${VAR - 8} is WRONG
+          - ALWAYS calculate arithmetic outside: RESULT=$((VAR - 8))
+          - NEVER expose credentials - use ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
           Standard Requirements:
           - MUST: Don't use local path references with uses: (inline implementation)
           - MUST: Save all outputs/intermediate products under PROJECT_DIR_PLACEHOLDER
@@ -1052,6 +1060,49 @@ jobs:
           fi
           
           echo "✅ データフロー検証完了"
+          
+      - name: Check for Common Syntax Errors
+        run: |
+          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
+          echo "🔍 Checking for common syntax errors..."
+          
+          ERRORS=0
+          
+          # Check for HEREDOC usage
+          if grep -q '<<.*EOF' "$WORKFLOW_PATH"; then
+            echo "❌ ERROR: HEREDOC detected - use echo commands instead"
+            echo "  Found: $(grep -n '<<.*EOF' "$WORKFLOW_PATH" | head -3)"
+            ERRORS=$((ERRORS + 1))
+          fi
+          
+          # Check for full-width quotes
+          if grep -q '[""'']' "$WORKFLOW_PATH"; then
+            echo "❌ ERROR: Full-width quotes detected"
+            echo "  Found: $(grep -n '[""'']' "$WORKFLOW_PATH" | head -3)"
+            ERRORS=$((ERRORS + 1))
+          fi
+          
+          # Check for incorrect bash arithmetic
+          if grep -E '\$\{[A-Z_]+\s*-\s*[0-9]+\}' "$WORKFLOW_PATH"; then
+            echo "❌ ERROR: Invalid bash arithmetic detected"
+            echo "  Use \$((VAR - N)) instead of \${VAR - N}"
+            echo "  Found: $(grep -En '\$\{[A-Z_]+\s*-\s*[0-9]+\}' "$WORKFLOW_PATH" | head -3)"
+            ERRORS=$((ERRORS + 1))
+          fi
+          
+          # Check for exposed credentials
+          if grep -E 'ghp_|sk-|key-[A-Za-z0-9]{32}' "$WORKFLOW_PATH"; then
+            echo "❌ ERROR: Potential credential exposure detected"
+            echo "  Use GitHub Secrets instead"
+            ERRORS=$((ERRORS + 1))
+          fi
+          
+          if [ $ERRORS -gt 0 ]; then
+            echo "❌ Found $ERRORS syntax errors - these MUST be fixed"
+            exit 1
+          else
+            echo "✅ No common syntax errors detected"
+          fi
           
       - name: Comprehensive Workflow Validation and Auto-Fix
         run: |

@@ -2,6 +2,14 @@
 
 This document provides essential guidelines for YAML construction that Meta Workflow must follow when generating workflows.
 
+## ⚠️ CRITICAL: Recent Error Patterns (2025-08-16)
+
+### Most Common Failures
+1. **HEREDOC in YAML** → Causes "could not find expected ':'" errors
+2. **Full-width quotes (")** → Breaks bash parsing
+3. **Bash arithmetic in strings** → `${VAR - 8}` fails, use `$((VAR - 8))`
+4. **Exposed credentials** → Always use `${{ secrets.* }}`
+
 ## 🚨 Critical Principles
 
 1. **NEVER use HEREDOC**
@@ -96,6 +104,28 @@ run: |
   else
     ISSUE_NUMBER="${{ needs.some-job.outputs.issue_number }}"
   fi
+```
+
+#### Quote Character Types (NEW: 2025-08-16)
+```bash
+# ❌ WRONG - Full-width quotes break bash
+echo "これはテストです"
+VARIABLE="value"
+
+# ✅ CORRECT - Half-width quotes only
+echo "これはテストです"
+VARIABLE="value"
+```
+
+#### Bash Arithmetic Operations (NEW: 2025-08-16)
+```bash
+# ❌ WRONG - Invalid bash substitution
+RESULT="${VAR - 8}"
+MAIN_DURATION="${DURATION_SEC - 8}"
+
+# ✅ CORRECT - Proper arithmetic syntax
+RESULT=$((VAR - 8))
+MAIN_DURATION=$((DURATION_SEC - 8))
 ```
 
 #### Complex Bash Substitutions in YAML (CRITICAL ERROR PATTERN)
