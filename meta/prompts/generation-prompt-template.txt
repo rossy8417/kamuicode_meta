@@ -107,7 +107,8 @@ Standard Execution Structure (Examples):
   6. phase6: Final editing/synthesis
 
 Output destination (MUST):
-- Generate workflow at PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml
+- Use the Write tool to save the generated workflow to: PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml
+- The workflow must be saved as a complete file, not output to stdout
 
 🔄 ERROR RECOVERY REQUIREMENTS (MANDATORY):
 For ANY parallel generation tasks (scenes, images, data), you MUST include:
@@ -141,9 +142,11 @@ recovery-generation:
 ```
 
 CRITICAL REQUIREMENTS:
-- Output ONLY valid GitHub Actions YAML
-- Do NOT include any function calls, tool invocations, or internal commands in the output
+- Generate a valid GitHub Actions YAML workflow file
+- Use the Write tool to save the workflow to the specified path
+- Do NOT output the workflow to stdout, only save it to the file
 - The workflow file must be complete and self-contained
 - Use unquoted on: field (GitHub Actions requires it unquoted)
 - Keep workflow names simple and without special characters
 - ALWAYS include recovery jobs for parallel generation tasks
+- After saving, use Bash tool to run: ls -la PROJECT_DIR_PLACEHOLDER/generated-workflow/
