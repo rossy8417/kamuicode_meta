@@ -67,6 +67,41 @@ composition_rules:
         if total_time > (url_limit - safety_margin):
           adjust_batch_size_based_on_url_limit()
 
+# 🔄 エラーリカバリー制約（必須）
+error_recovery_constraints:
+  mandatory_implementation: true
+  description: "生成失敗したシーンのみを再生成する専用リカバリージョブは必須"
+  
+  scene_generation_recovery:
+    main_job_requirements:
+      - "fail-fast: false  # 一部失敗でも他のシーンは継続"
+      - "continue-on-error: true  # ジョブレベルでの失敗を許容"
+      - "outputs.failed_scenes: 失敗したシーンのリストを出力"
+      - "status_verification: 各シーンの成功/失敗を検証"
+    
+    recovery_job_pattern:
+      name: "scene-recovery"
+      trigger: "needs.scene-generation.outputs.failed_scenes != '[]'"
+      strategy:
+        matrix: "${{ fromJson(needs.scene-generation.outputs.failed_scenes) }}"
+        max-parallel: 3  # リカバリーは同時実行を制限
+      
+      recovery_attempts:
+        attempt_1:
+          description: "代替I2Vモデルで再試行"
+          models: ["vidu-q1", "seedance-v1-lite", "omnihuman"]
+        attempt_2:
+          description: "パラメータを簡略化して再試行"
+          adjustments: ["resolution: 480p", "duration: 3s", "simple_prompt"]
+        attempt_3:
+          description: "最小限の動画生成"
+          fallback: "static_image_with_pan_effect"
+    
+    final_assembly_adjustment:
+      wait_for_recovery: true
+      verify_all_scenes: "リカバリー後に全シーンの存在を確認"
+      partial_success_handling: "利用可能なシーンで最終動画を生成"
+
 # 人間要素特化制約
 human_element_technical_constraints:
   # キャラクター生成技術制約

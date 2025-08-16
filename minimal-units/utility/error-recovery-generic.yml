@@ -1,0 +1,172 @@
+name: Generic Error Recovery Unit
+description: Universal error recovery pattern for any parallel generation task
+category: utility
+subcategory: error-recovery
+provider: system
+estimated_duration_minutes: 5
+parallel_capable: true
+
+input_requirements:
+  - name: failed_items
+    type: array
+    description: List of failed item identifiers
+  - name: item_type
+    type: string
+    description: Type of items being recovered (scene, image, audio, data)
+  - name: project_dir
+    type: string
+    description: Project directory path
+  - name: recovery_strategies
+    type: array
+    description: List of recovery strategies to attempt
+
+output_format:
+  - name: recovered_items
+    type: array
+    description: List of successfully recovered items
+  - name: final_failures
+    type: array
+    description: List of items that couldn't be recovered
+  - name: recovery_report
+    type: object
+    description: Detailed report of recovery attempts
+
+implementation:
+  type: github_actions_pattern
+  
+  main_job_requirements: |
+    # MANDATORY configuration for main generation job
+    strategy:
+      fail-fast: false  # Continue other items even if one fails
+    continue-on-error: true  # Allow job to "succeed" even with failures
+    outputs:
+      failed_items: ${{ steps.collect.outputs.failed_items }}
+      item_status: ${{ steps.verify.outputs.status }}
+  
+  verification_step: |
+    - name: Verify Output
+      id: verify
+      run: |
+        # Check if output was generated successfully
+        if [ OUTPUT_EXISTS_AND_VALID ]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "✅ Item ${{ matrix.item }}: SUCCESS"
+        else
+          echo "status=failed" >> $GITHUB_OUTPUT
+          echo "❌ Item ${{ matrix.item }}: FAILED"
+          echo "${{ matrix.item }}" >> "${PROJECT_DIR}/metadata/failed_items.txt"
+        fi
+  
+  collection_step: |
+    - name: Collect Failed Items
+      id: collect
+      if: always()
+      run: |
+        # Collect all failed items for recovery job
+        if [ -f "${PROJECT_DIR}/metadata/failed_items.txt" ]; then
+          FAILED_JSON=$(cat "${PROJECT_DIR}/metadata/failed_items.txt" | jq -R . | jq -s .)
+          echo "failed_items=${FAILED_JSON}" >> $GITHUB_OUTPUT
+        else
+          echo "failed_items=[]" >> $GITHUB_OUTPUT
+        fi
+  
+  recovery_job_template: |
+    recovery-generation:
+      name: "Failed Items Recovery"
+      needs: [main-generation-job]
+      runs-on: ubuntu-latest
+      if: |
+        always() && 
+        needs.main-generation-job.outputs.failed_items != '[]'
+      strategy:
+        matrix:
+          item: ${{ fromJson(needs.main-generation-job.outputs.failed_items) }}
+        max-parallel: 3  # Limit concurrent recovery attempts
+        fail-fast: false
+      continue-on-error: true
+      outputs:
+        recovered_items: ${{ steps.final.outputs.recovered_items }}
+        final_failures: ${{ steps.final.outputs.final_failures }}
+      
+      steps:
+        - name: Setup Recovery Environment
+          run: |
+            echo "🔄 Recovering failed item: ${{ matrix.item }}"
+            PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+            mkdir -p "${PROJECT_DIR}/recovery"
+        
+        - name: Recovery Attempt 1 - Alternative Method
+          id: recovery1
+          continue-on-error: true
+          run: |
+            # Implement first recovery strategy
+            # This varies based on item_type
+        
+        - name: Recovery Attempt 2 - Simplified Approach
+          if: steps.recovery1.outcome == 'failure'
+          id: recovery2
+          continue-on-error: true
+          run: |
+            # Implement second recovery strategy
+            # Reduced quality/complexity
+        
+        - name: Recovery Attempt 3 - Fallback Method
+          if: steps.recovery2.outcome == 'failure'
+          id: recovery3
+          run: |
+            # Implement final fallback strategy
+            # Most basic approach that should always work
+        
+        - name: Finalize Recovery Results
+          if: always()
+          id: final
+          run: |
+            # Collect and report recovery results
+            echo "Recovery completed for item ${{ matrix.item }}"
+
+recovery_strategies_by_domain:
+  video:
+    - strategy: "alternative_model"
+      description: "Use different I2V/T2V model"
+    - strategy: "reduced_quality"
+      description: "Lower resolution, shorter duration"
+    - strategy: "static_fallback"
+      description: "Static image with effects"
+  
+  image:
+    - strategy: "alternative_model"
+      description: "Use different T2I model"
+    - strategy: "simplified_prompt"
+      description: "Simplify generation prompt"
+    - strategy: "lower_resolution"
+      description: "Generate at lower resolution"
+  
+  audio:
+    - strategy: "alternative_tts"
+      description: "Use different TTS service"
+    - strategy: "different_voice"
+      description: "Try different voice settings"
+    - strategy: "basic_synthesis"
+      description: "Use basic audio synthesis"
+  
+  data:
+    - strategy: "smaller_batch"
+      description: "Process in smaller chunks"
+    - strategy: "alternative_source"
+      description: "Use backup data source"
+    - strategy: "cached_data"
+      description: "Use cached/default data"
+
+implementation_rules:
+  - Always include recovery job for parallel tasks
+  - Maximum 3 recovery attempts per item
+  - Progressive degradation in quality
+  - Track both successes and failures
+  - Provide detailed recovery report
+
+usage_guidelines: |
+  1. Apply this pattern to ANY parallel generation task
+  2. Customize recovery strategies based on domain
+  3. Ensure main job has proper failure tracking
+  4. Recovery job should always be optional (if: always())
+  5. Final assembly must wait for both main and recovery jobs

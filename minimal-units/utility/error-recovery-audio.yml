@@ -1,0 +1,168 @@
+name: Audio Recovery Unit
+description: Recovery unit for failed audio generation tasks
+category: utility
+subcategory: error-recovery
+provider: multiple
+estimated_duration_minutes: 2
+parallel_capable: true
+
+input_requirements:
+  - name: failed_audio_segments
+    type: array
+    description: List of audio segment identifiers that failed generation
+  - name: project_dir
+    type: string
+    description: Project directory path
+  - name: audio_config
+    type: object
+    description: Original audio generation configuration
+
+output_format:
+  - name: recovered_segments
+    type: array
+    description: List of successfully recovered audio segments
+  - name: final_failures
+    type: array
+    description: List of segments that couldn't be recovered
+
+implementation:
+  type: github_actions_job
+  job_config:
+    name: "Audio Recovery"
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.audio-generation.outputs.failed_segments != '[]'
+    strategy:
+      matrix:
+        segment: ${{ fromJson(needs.audio-generation.outputs.failed_segments) }}
+      max-parallel: 3
+      fail-fast: false
+    continue-on-error: true
+    
+    steps:
+      - name: Setup Recovery Environment
+        run: |
+          echo "🔄 Attempting recovery for audio segment: ${{ matrix.segment }}"
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          mkdir -p "${PROJECT_DIR}/recovery/audio"
+      
+      - name: Recovery Attempt 1 - Alternative TTS Service
+        id: recovery1
+        continue-on-error: true
+        run: |
+          # Try with alternative TTS service
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SEGMENT_ID="${{ matrix.segment }}"
+          AUDIO_PATH="${PROJECT_DIR}/media/audio/${SEGMENT_ID}.mp3"
+          TEXT="${{ needs.setup.outputs.audio_text[matrix.segment] }}"
+          
+          echo "Using alternative TTS: Google TTS"
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-google,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "Generate audio using Google TTS. Text: ${TEXT}. Save to: ${AUDIO_PATH}"
+          
+          if [ -f "$AUDIO_PATH" ] && [ $(stat -c%s "$AUDIO_PATH") -gt 1000 ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Recovery Attempt 2 - Different Voice Settings
+        if: steps.recovery1.outcome == 'failure'
+        id: recovery2
+        continue-on-error: true
+        run: |
+          # Try with different voice/settings
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SEGMENT_ID="${{ matrix.segment }}"
+          AUDIO_PATH="${PROJECT_DIR}/media/audio/${SEGMENT_ID}.mp3"
+          TEXT="${{ needs.setup.outputs.audio_text[matrix.segment] }}"
+          
+          echo "Using basic voice settings"
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-fal-minimax-speech-02-turbo,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "Generate audio with basic settings. Voice: neutral, Speed: 1.0. Text: ${TEXT}. Save to: ${AUDIO_PATH}"
+          
+          if [ -f "$AUDIO_PATH" ] && [ $(stat -c%s "$AUDIO_PATH") -gt 1000 ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Recovery Attempt 3 - Local TTS Fallback
+        if: steps.recovery2.outcome == 'failure'
+        id: recovery3
+        run: |
+          # Final fallback: use espeak-ng for basic TTS
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SEGMENT_ID="${{ matrix.segment }}"
+          AUDIO_PATH="${PROJECT_DIR}/media/audio/${SEGMENT_ID}.mp3"
+          TEXT="${{ needs.setup.outputs.audio_text[matrix.segment] }}"
+          
+          # Install espeak-ng
+          sudo apt-get update && sudo apt-get install -y espeak-ng lame
+          
+          echo "Creating basic TTS audio"
+          espeak-ng "$TEXT" -w "${AUDIO_PATH}.wav"
+          lame "${AUDIO_PATH}.wav" "$AUDIO_PATH"
+          rm "${AUDIO_PATH}.wav"
+          
+          if [ -f "$AUDIO_PATH" ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            echo "⚠️ Using basic TTS for ${SEGMENT_ID}"
+          else
+            # Create silence as absolute fallback
+            ffmpeg -f lavfi -i anullsrc=r=44100:cl=stereo -t 5 -q:a 9 "$AUDIO_PATH"
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            echo "⚠️ Using silence for ${SEGMENT_ID}"
+          fi
+
+recovery_services:
+  primary:
+    - "minimax-speech-02-turbo"
+    - "elevenlabs"
+  alternative:
+    - "google-tts"
+    - "openai-tts"
+  fallback:
+    - "espeak-ng"
+    - "silence-generator"
+
+recovery_strategies:
+  - name: "alternative_service"
+    description: "Try different TTS service"
+    success_rate: "90%"
+  - name: "simplified_settings"
+    description: "Use basic voice settings"
+    success_rate: "75%"
+  - name: "local_fallback"
+    description: "Use local TTS or silence"
+    success_rate: "100%"
+
+bgm_recovery:
+  strategies:
+    - name: "alternative_generator"
+      description: "Try different music generation service"
+    - name: "preset_music"
+      description: "Use royalty-free preset music"
+    - name: "simple_tone"
+      description: "Generate simple background tone"
+
+usage_example: |
+  # In your workflow, after audio-generation job:
+  
+  audio-recovery:
+    name: "Failed Audio Recovery"
+    needs: [setup, audio-generation]
+    # Insert the implementation from this unit

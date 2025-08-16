@@ -2,7 +2,7 @@
 
 Comprehensive catalog of minimal units. The meta-workflow system references this catalog to dynamically construct workflows.
 
-**Total Units: 82**
+**Total Units: 86**
 
 ## Categories and Units
 
@@ -74,7 +74,7 @@ Comprehensive catalog of minimal units. The meta-workflow system references this
 - **v2v-creatify**: Video editing with Creatify (minimal-units/postprod/v2v-creatify.yml)
 - **bgm-overlay**: BGM overlay (minimal-units/postprod/bgm-overlay.yml)
 
-### 🛠️ Utility & Integration (7 units)
+### 🛠️ Utility & Integration (11 units)
 - **local-save**: Local file saving (minimal-units/utility/local-save.yml)
 - **fal-upload**: FAL upload (minimal-units/utility/fal-upload.yml)
 - **git-branch-setup**: Git branch setup (minimal-units/git-ops/git-branch-setup.yml)
@@ -82,6 +82,10 @@ Comprehensive catalog of minimal units. The meta-workflow system references this
 - **cleanup-branch**: Branch cleanup (minimal-units/git-ops/cleanup-branch.yml)
 - **pdf-create**: PDF creation (minimal-units/external/pdf-create.yml)
 - **sns-publish**: SNS publishing (minimal-units/external/sns-publish.yml)
+- **error-recovery-generic**: ⭐ Generic error recovery pattern for any parallel task (minimal-units/utility/error-recovery-generic.yml) ⭐NEW
+- **error-recovery-scene**: ⭐ Scene-specific recovery for video workflows (minimal-units/utility/error-recovery-scene.yml) ⭐NEW
+- **error-recovery-image**: ⭐ Image generation recovery unit (minimal-units/utility/error-recovery-image.yml) ⭐NEW
+- **error-recovery-audio**: ⭐ Audio generation recovery unit (minimal-units/utility/error-recovery-audio.yml) ⭐NEW
 
 ### 🌐 External APIs (27 units) [FINAL UPDATE]
 #### YouTube API

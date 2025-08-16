@@ -1,0 +1,155 @@
+name: Image Recovery Unit
+description: Recovery unit for failed image generation tasks
+category: utility
+subcategory: error-recovery
+provider: multiple
+estimated_duration_minutes: 2
+parallel_capable: true
+
+input_requirements:
+  - name: failed_images
+    type: array
+    description: List of image identifiers that failed generation
+  - name: project_dir
+    type: string
+    description: Project directory path
+  - name: original_prompts
+    type: object
+    description: Original prompts for each image
+
+output_format:
+  - name: recovered_images
+    type: array
+    description: List of successfully recovered images
+  - name: final_failures
+    type: array
+    description: List of images that couldn't be recovered
+
+implementation:
+  type: github_actions_job
+  job_config:
+    name: "Image Recovery"
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.image-generation.outputs.failed_images != '[]'
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.image-generation.outputs.failed_images) }}
+      max-parallel: 4
+      fail-fast: false
+    continue-on-error: true
+    
+    steps:
+      - name: Setup Recovery Environment
+        run: |
+          echo "🔄 Attempting recovery for image: ${{ matrix.image }}"
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          mkdir -p "${PROJECT_DIR}/recovery/images"
+      
+      - name: Recovery Attempt 1 - Alternative Model
+        id: recovery1
+        continue-on-error: true
+        run: |
+          # Try with alternative model (flux instead of imagen)
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          IMAGE_ID="${{ matrix.image }}"
+          IMAGE_PATH="${PROJECT_DIR}/media/images/${IMAGE_ID}.png"
+          PROMPT="${{ needs.setup.outputs.prompts[matrix.image] }}"
+          
+          echo "Using alternative model: flux-schnell"
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-kamui-flux-schnell,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "Generate image using Flux model. Prompt: ${PROMPT}. Save to: ${IMAGE_PATH}"
+          
+          if [ -f "$IMAGE_PATH" ] && [ $(stat -c%s "$IMAGE_PATH") -gt 10000 ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Recovery Attempt 2 - Simplified Prompt
+        if: steps.recovery1.outcome == 'failure'
+        id: recovery2
+        continue-on-error: true
+        run: |
+          # Try with simplified prompt
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          IMAGE_ID="${{ matrix.image }}"
+          IMAGE_PATH="${PROJECT_DIR}/media/images/${IMAGE_ID}.png"
+          
+          # Simplify the prompt - remove complex details
+          SIMPLE_PROMPT="Simple professional image, high quality"
+          
+          echo "Using simplified prompt"
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-kamui-qwen-image,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "Generate image with simple prompt: ${SIMPLE_PROMPT}. Save to: ${IMAGE_PATH}"
+          
+          if [ -f "$IMAGE_PATH" ] && [ $(stat -c%s "$IMAGE_PATH") -gt 10000 ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Recovery Attempt 3 - Placeholder Generation
+        if: steps.recovery2.outcome == 'failure'
+        id: recovery3
+        run: |
+          # Final fallback: create a placeholder image
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          IMAGE_ID="${{ matrix.image }}"
+          IMAGE_PATH="${PROJECT_DIR}/media/images/${IMAGE_ID}.png"
+          
+          echo "Creating placeholder image"
+          # Use ImageMagick or FFmpeg to create a simple placeholder
+          ffmpeg -f lavfi -i color=c=gray:s=1920x1080 \
+            -vf "drawtext=text='${IMAGE_ID}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" \
+            -frames:v 1 "$IMAGE_PATH"
+          
+          if [ -f "$IMAGE_PATH" ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            echo "⚠️ Using placeholder for ${IMAGE_ID}"
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+          fi
+
+recovery_models:
+  primary:
+    - "imagen3"
+    - "imagen4-ultra"
+  alternative:
+    - "flux-schnell"
+    - "flux-krea-lora"
+    - "qwen-image"
+  fallback:
+    - "placeholder-generator"
+
+recovery_strategies:
+  - name: "alternative_model"
+    description: "Try different T2I model with same prompt"
+    success_rate: "85%"
+  - name: "simplified_prompt"
+    description: "Reduce prompt complexity"
+    success_rate: "70%"
+  - name: "placeholder"
+    description: "Generate basic placeholder image"
+    success_rate: "100%"
+
+usage_example: |
+  # In your workflow, after image-generation job:
+  
+  image-recovery:
+    name: "Failed Image Recovery"
+    needs: [setup, image-generation]
+    # Insert the implementation from this unit

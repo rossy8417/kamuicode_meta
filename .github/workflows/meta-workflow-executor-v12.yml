@@ -780,12 +780,31 @@ jobs:
           Output destination (MUST):
           - Generate workflow at PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml
           
+          🔄 ERROR RECOVERY REQUIREMENTS (MANDATORY):
+          For ANY parallel generation tasks (scenes, images, data), you MUST include:
+          1. Main generation job with:
+             - strategy.fail-fast: false
+             - continue-on-error: true
+             - outputs.failed_items to track failures
+             - Status verification for each item
+          2. Recovery job that:
+             - Runs after main generation
+             - Only processes failed items
+             - Uses fromJson(needs.main.outputs.failed_items) for matrix
+             - Includes 3 recovery attempts with different strategies
+          3. Final assembly that:
+             - Waits for both main and recovery jobs
+             - Verifies all items are available
+          
+          Refer to docs/GENERIC_ERROR_RECOVERY_PATTERNS.md for implementation details.
+          
           CRITICAL REQUIREMENTS:
           - Output ONLY valid GitHub Actions YAML
           - Do NOT include any function calls, tool invocations, or internal commands in the output
           - The workflow file must be complete and self-contained
           - Use unquoted on: field (GitHub Actions requires it unquoted)
           - Keep workflow names simple and without special characters
+          - ALWAYS include recovery jobs for parallel generation tasks
           EOF
           
           # Replace project directory placeholder with actual path

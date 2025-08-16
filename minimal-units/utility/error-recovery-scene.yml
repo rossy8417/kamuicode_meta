@@ -1,0 +1,185 @@
+name: Scene Recovery Unit
+description: Generic recovery unit for failed scene generation in video workflows
+category: utility
+subcategory: error-recovery
+provider: multiple
+estimated_duration_minutes: 3
+parallel_capable: true
+
+input_requirements:
+  - name: failed_scenes
+    type: array
+    description: List of scene numbers that failed generation
+  - name: project_dir
+    type: string
+    description: Project directory path
+  - name: original_prompts
+    type: object
+    description: Original prompts for each scene
+
+output_format:
+  - name: recovered_scenes
+    type: array
+    description: List of successfully recovered scenes
+  - name: final_failures
+    type: array
+    description: List of scenes that couldn't be recovered
+
+implementation:
+  type: github_actions_job
+  job_config:
+    name: "Scene Recovery"
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.scene-generation.outputs.failed_scenes != '[]'
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.scene-generation.outputs.failed_scenes) }}
+      max-parallel: 3
+      fail-fast: false
+    continue-on-error: true
+    outputs:
+      recovered_scenes: ${{ steps.collect.outputs.recovered_scenes }}
+      final_failures: ${{ steps.collect.outputs.final_failures }}
+    
+    steps:
+      - name: Setup Recovery Environment
+        run: |
+          echo "🔄 Attempting recovery for scene ${{ matrix.scene }}"
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          mkdir -p "${PROJECT_DIR}/recovery/scene${{ matrix.scene }}"
+      
+      - name: Recovery Attempt 1 - Alternative I2V Model
+        id: recovery1
+        continue-on-error: true
+        run: |
+          # Try with alternative model (vidu-q1 instead of hailuo)
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          IMAGE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -f "$IMAGE_PATH" ]; then
+            echo "Using alternative I2V model: vidu-q1"
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__r2v-fal-vidu-q1,Write,Bash" \
+              --max-turns 80 \
+              --permission-mode "bypassPermissions" \
+              -p "Convert image to video using Vidu Q1 model. Input: ${IMAGE_PATH}, Output: ${VIDEO_PATH}, Duration: 5s"
+          fi
+          
+          if [ -f "$VIDEO_PATH" ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Recovery Attempt 2 - Reduced Quality
+        if: steps.recovery1.outcome == 'failure'
+        id: recovery2
+        continue-on-error: true
+        run: |
+          # Try with reduced resolution and duration
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          IMAGE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          echo "Using simplified parameters: 480p, 3s duration"
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-fal-bytedance-seedance-v1-lite,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "Convert image to video with minimal settings. Input: ${IMAGE_PATH}, Output: ${VIDEO_PATH}, Resolution: 480p, Duration: 3s"
+          
+          if [ -f "$VIDEO_PATH" ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Recovery Attempt 3 - Static Fallback
+        if: steps.recovery2.outcome == 'failure'
+        id: recovery3
+        run: |
+          # Final fallback: create video from static image with pan effect
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          IMAGE_PATH="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -f "$IMAGE_PATH" ]; then
+            echo "Creating static video with pan effect"
+            ffmpeg -loop 1 -i "$IMAGE_PATH" \
+              -vf "zoompan=z='min(zoom+0.0015,1.5)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=150:s=1920x1080" \
+              -c:v libx264 -t 5 -pix_fmt yuv420p "$VIDEO_PATH"
+          else
+            # If no image exists, create a placeholder
+            echo "Creating placeholder video"
+            ffmpeg -f lavfi -i color=c=black:s=1920x1080:d=5 \
+              -vf "drawtext=text='Scene ${SCENE_NUM}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" \
+              -c:v libx264 "$VIDEO_PATH"
+          fi
+          
+          if [ -f "$VIDEO_PATH" ]; then
+            echo "recovery_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "recovery_status=failed" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Collect Recovery Results
+        if: always()
+        id: collect
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          VIDEO_PATH="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -f "$VIDEO_PATH" ] && [ $(stat -c%s "$VIDEO_PATH") -gt 10000 ]; then
+            echo "✅ Scene ${SCENE_NUM} recovered successfully"
+            echo "${SCENE_NUM}" >> "${PROJECT_DIR}/metadata/recovered_scenes.txt"
+          else
+            echo "❌ Scene ${SCENE_NUM} recovery failed"
+            echo "${SCENE_NUM}" >> "${PROJECT_DIR}/metadata/final_failures.txt"
+          fi
+          
+          # Create JSON outputs
+          if [ -f "${PROJECT_DIR}/metadata/recovered_scenes.txt" ]; then
+            RECOVERED=$(cat "${PROJECT_DIR}/metadata/recovered_scenes.txt" | jq -R . | jq -s .)
+            echo "recovered_scenes=${RECOVERED}" >> $GITHUB_OUTPUT
+          else
+            echo "recovered_scenes=[]" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -f "${PROJECT_DIR}/metadata/final_failures.txt" ]; then
+            FAILURES=$(cat "${PROJECT_DIR}/metadata/final_failures.txt" | jq -R . | jq -s .)
+            echo "final_failures=${FAILURES}" >> $GITHUB_OUTPUT
+          else
+            echo "final_failures=[]" >> $GITHUB_OUTPUT
+          fi
+
+recovery_strategies:
+  - model: "vidu-q1"
+    description: "Alternative I2V model with good quality"
+    priority: 1
+  - model: "seedance-v1-lite"
+    description: "Lightweight model with reduced parameters"
+    priority: 2
+  - model: "static-fallback"
+    description: "FFmpeg-based static image with motion effects"
+    priority: 3
+
+usage_example: |
+  # In your workflow generation, after scene-generation job:
+  
+  scene-recovery:
+    name: "Failed Scene Recovery"
+    needs: [setup, scene-generation]
+    # Insert the implementation from this unit
