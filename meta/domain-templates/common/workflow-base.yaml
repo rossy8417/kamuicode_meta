@@ -1,0 +1,94 @@
+# Common workflow base structure for all domains
+# This ensures workflows don't fail on startup
+
+base_triggers:
+  workflow_dispatch:
+    description: "Manual trigger with inputs"
+  push:
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'docs/**'
+      - '*.md'
+    branches-ignore:
+      - 'dependabot/**'
+
+required_env_vars:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+
+mandatory_first_job:
+  name: setup-and-validation
+  structure: |
+    setup:
+      name: "Setup and Validation"
+      runs-on: ubuntu-latest
+      timeout-minutes: 5
+      outputs:
+        should_continue: ${{ steps.validate.outputs.should_continue }}
+        is_push_event: ${{ steps.check-event.outputs.is_push }}
+        project_dir: ${{ steps.setup.outputs.project_dir }}
+      steps:
+        - name: Check Event Type
+          id: check-event
+          run: |
+            if [ "${{ github.event_name }}" = "push" ]; then
+              echo "is_push=true" >> $GITHUB_OUTPUT
+              echo "ℹ️ Push event detected - skipping workflow execution"
+            else
+              echo "is_push=false" >> $GITHUB_OUTPUT
+            fi
+        
+        - name: Validate Prerequisites
+          id: validate
+          if: ${{ github.event_name != 'push' }}
+          run: |
+            # Check required secrets
+            if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+              echo "⚠️ WARNING: CLAUDE_CODE_OAUTH_TOKEN not set"
+              echo "should_continue=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "should_continue=true" >> $GITHUB_OUTPUT
+        
+        - name: Setup Project Directory
+          id: setup
+          if: steps.validate.outputs.should_continue == 'true'
+          run: |
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            PROJECT_DIR="projects/${{ github.workflow }}-${TIMESTAMP}"
+            mkdir -p "${PROJECT_DIR}"
+            echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+
+job_defaults:
+  timeout_minutes: 30
+  continue_on_error_for_recovery: true
+  needs_setup: true
+  skip_on_push: |
+    if: |
+      github.event_name != 'push' &&
+      needs.setup.outputs.should_continue == 'true'
+
+input_defaults:
+  # All required inputs should have defaults
+  ensure_defaults: true
+  validation_at_start: true
+
+error_handling:
+  artifact_download:
+    continue_on_error: true
+    if_condition: always()
+  
+  matrix_strategy:
+    fail_fast: false
+    fallback_for_empty: '["default"]'
+  
+  recovery_jobs:
+    if_condition: |
+      always() && 
+      needs.main-job.outputs.failed_items != '[]'
+
+deployment_requirements:
+  validate_before_deploy: true
+  test_with_minimal_inputs: true
+  include_rollback_plan: true

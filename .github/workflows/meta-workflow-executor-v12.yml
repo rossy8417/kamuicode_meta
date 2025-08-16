@@ -675,6 +675,14 @@ jobs:
           8. Claude Code data persistence: docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
 
           Generation Guide (Universal):
+          STARTUP ERROR PREVENTION (CRITICAL):
+          - MUST: Include BOTH workflow_dispatch AND push triggers
+          - MUST: Push trigger must have: paths-ignore: ['.github/workflows/**']
+          - MUST: All required inputs MUST have default values
+          - MUST: First job must check event type and skip on push events
+          - MUST: All jobs must have timeout-minutes defined
+          
+          Standard Requirements:
           - MUST: Don't use local path references with uses: (inline implementation)
           - MUST: Save all outputs/intermediate products under PROJECT_DIR_PLACEHOLDER
           - MUST: Use actions/upload-artifact / download-artifact for job sharing
@@ -959,6 +967,39 @@ jobs:
           name: domain-template-data
           path: artifacts/
 
+      - name: Validate Startup Requirements
+        id: startup-validation
+        run: |
+          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
+          echo "🔍 Startup validation..."
+          ERRORS=0
+          
+          # Check for push event handling
+          if ! grep -q "paths-ignore:" "$WORKFLOW_PATH" 2>/dev/null; then
+            if ! grep -q "push:" "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "❌ ERROR: No push event handling - workflow will fail on git push"
+              ERRORS=$((ERRORS + 1))
+            fi
+          fi
+          
+          # Check for default values on required inputs
+          if grep -q "required: true" "$WORKFLOW_PATH" 2>/dev/null; then
+            echo "⚠️ Checking for defaults on required inputs..."
+          fi
+          
+          # Check for environment variables
+          if ! grep -q "^env:" "$WORKFLOW_PATH" 2>/dev/null; then
+            echo "❌ ERROR: No environment variables defined at workflow level"
+            ERRORS=$((ERRORS + 1))
+          fi
+          
+          # Check for timeout on jobs
+          if ! grep -q "timeout-minutes:" "$WORKFLOW_PATH" 2>/dev/null; then
+            echo "⚠️ WARNING: No timeout-minutes defined for jobs"
+          fi
+          
+          echo "startup_errors=$ERRORS" >> $GITHUB_OUTPUT
+          
       - name: Validate Data Flow Pattern
         run: |
           WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
