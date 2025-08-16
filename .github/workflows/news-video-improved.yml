@@ -239,6 +239,9 @@ jobs:
           DURATION_SEC="${{ needs.setup.outputs.duration_seconds }}"
           SCENE_COUNT="${{ needs.setup.outputs.scene_count }}"
           
+          # Calculate main content duration
+          MAIN_DURATION=$((DURATION_SEC - 8))
+          
           SCRIPT_PROMPT="ニュース番組の台本を作成してください：
           
           1. ${PROJECT_DIR}/metadata/news_data.jsonの情報を分析
@@ -249,7 +252,7 @@ jobs:
           
           台本構成：
           - オープニング（3秒）：視聴者の注意を引く導入
-          - メイン内容（${DURATION_SEC - 8}秒）：核心情報の伝達
+          - メイン内容（${MAIN_DURATION}秒）：核心情報の伝達
           - クロージング（5秒）：まとめと次回予告
           
           出力形式：
