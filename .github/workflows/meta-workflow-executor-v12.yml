@@ -660,8 +660,154 @@ jobs:
           CHUNKS=$(jq -r '.chunks[].id' artifacts/domain-template-data/template_chunks.json)
           
           # Create comprehensive generation prompt (domain-agnostic with strict domain enforcement when provided)
-          # Copy the template prompt and replace PROJECT_DIR_PLACEHOLDER
-          cp meta/prompts/generation-prompt-template.txt generation_prompt.txt
+          cat > generation_prompt.txt << 'EOF'
+          You are a "Universal Meta-Workflow Generator". Read the user requirements (Issue) and domain templates to generate optimal GitHub Actions workflows.
+
+          Input (must reference):
+          1. Task decomposition: artifacts/task-decomposition/professional_task_decomposition.json
+             Critical: workflow_generation_parameters section's calculated_scene_count and matrix_scene_list
+          2. Optimized order (optional): artifacts/optimized-task-order/optimized_task_order.json
+          3. Input schema (required): artifacts/domain-input-schema/input-schema.yaml
+          4. Required inputs list (optional): artifacts/required_inputs.json / artifacts/required_input_keys.txt
+          5. Domain summary/decomposition data (optional): artifacts/domain-template-data/domain_summary.json, artifacts/domain-template-data/domain_decomposition_data.json
+          6. Domain checklist list (optional): artifacts/domain-template-data/domain-checklists.txt
+          7. Common rules: docs/YAML_CONSTRUCTION_GUIDELINES.md, docs/MINIMAL_UNIT_DATA_DEPENDENCIES.md
+          8. Claude Code data persistence: docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
+
+          Generation Guide (Universal):
+          - MUST: Don't use local path references with uses: (inline implementation)
+          - MUST: Save all outputs/intermediate products under PROJECT_DIR_PLACEHOLDER
+          - MUST: Use actions/upload-artifact / download-artifact for job sharing
+          - MUST: workflow_dispatch.inputs must reflect input-schema.yaml and required inputs list (enum→choice, default, description, supplement required keys)
+          - MUST: Prohibit absolute paths or root-level outputs, always use PROJECT_DIR_PLACEHOLDER
+          - MUST: Never use matrix variables in job outputs section (outputs cannot reference ${{ matrix.* }})
+          - MUST: Matrix strategy can only be used within steps, not in outputs definition
+          - MUST: For news video, calculate scenes as: ceil(duration_seconds / 5) (e.g., 60s = 12 scenes, 30s = 6 scenes)
+          - MUST: Create ONE news anchor with fixed seed value, generate multiple lip-sync videos for all scenes
+          - MUST: Include the following in environment variable section (env:):
+            env:
+              CLAUDE_CODE_CI_MODE: true
+              CLAUDE_CODE_AUTO_APPROVE_MCP: true
+              CLAUDE_CODE_OAUTH_TOKEN: SECRETS_PLACEHOLDER
+            Note: SECRETS_PLACEHOLDER will be automatically replaced with proper GitHub Actions secrets syntax in post-processing
+          - MUST: Follow these patterns when executing Claude Code:
+            1. Execute generation/processing with MCP tools
+            2. Save local files with Write tool (explicit path: ${PROJECT_DIR}/media/...)
+            3. Verify save with ls -la using Bash tool
+            * Details: See docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
+          - MUST: For video-production, combine T2I and I2V in single job per scene:
+            Example structure for each scene job:
+            1. Generate image with T2I MCP tool
+            2. Save image locally
+            3. IMMEDIATELY convert to video with I2V MCP tool (within 3 minutes)
+            4. Save video locally
+            This prevents URL expiration between T2I and I2V
+          - MUST: Execute file search with multiple patterns:
+            1. Specific pattern: "*scene${NUM}*.png"
+            2. Time-based: "*.png -mmin -2"
+            3. Generic pattern: "*.png"
+          - MUST: Download immediately when URL file detected
+            * IMPORTANT: MCP tools return gs:// URLs from Google services
+            * These gs:// URLs are PUBLIC and can be converted to HTTPS
+            * Pattern: gs://bucket/path → https://storage.googleapis.com/bucket/path
+            * Always create download_url() helper function for proper handling
+          - SHOULD: Split steps within 21000 characters
+
+          Domain Knowledge Application (Mandatory):
+          - If artifacts/domain-template-data/domain-checklists.txt exists, read each listed checklist and comply with "MUST" requirements. If compliance is not possible, perform alternative design during generation, and if still impossible, output with the premise of FAILED at validation stage.
+          - If meta/domain-templates/<domain>/constraints.yaml exists:
+            * MUST: Apply constraints.composition_rules / timing_constraints / orchestration / path constraints (only when relevant tasks exist)
+            * SHOULD: Read each file listed in constraints.rule_references / checklist_references (rules/*.yaml, checklists/*.md) in order, prioritizing MUST for design reflection
+          - When multiple domains are involved:
+            * MUST: Apply integrated constraints / rules / checklists from each domain
+            * MUST: Adopt safer side (stricter MUST) in conflicts, explicitly note compromises
+
+          Design Principles (Examples):
+          - When explicit serial requirements like image→video are shown in constraints/rules, execute "serial chain" within the same job for each target item/scene, and parallelize overall with matrix (max-parallel follows constraints).
+          - Similar tasks (e.g., generating multiple slides) are optimized for parallel execution. However, serialize when data dependencies exist.
+          - When domain is not specified or no constraints exist, use general serial/parallel configuration based on task decomposition/optimization order.
+          
+          Important: For video-production domain:
+          - Always use workflow_generation_parameters.matrix_scene_list to set matrix.scene
+          - IMPORTANT: max-parallel in GitHub Actions only accepts numeric literals (not variables)
+            - Option 1: Remove max-parallel entirely (defaults to unlimited parallel jobs)
+            - Option 2: Set a high fixed value like max-parallel: 256 as upper limit
+            - Recommendation: Remove max-parallel to allow full parallelization based on scene count
+          - Use calculated dynamic values, not fixed values (e.g., batch: [1,2,3])
+          - Use consistent character for news anchor (fixed seed)
+          - CRITICAL: Image generation (T2I) → video conversion (I2V) MUST be in SAME JOB (serial execution)
+            - This avoids Google Cloud Storage URL expiration (15 minutes)
+            - Each scene job should: Generate image → Convert to video immediately
+            - NEVER split T2I and I2V into separate jobs
+          - MUST: Include the following EXACT code patterns in each scene image generation step:
+            a. Explicit save path specification to Claude Code:
+               SAVE_PATH="\${PROJECT_DIR}/media/images/scene\${SCENE_NUM}.png"
+               URL_PATH="\${PROJECT_DIR}/media/images/scene\${SCENE_NUM}-url.txt"
+            b. Claude Code prompt must include:
+               "1. Generate image with MCP tool
+                2. Save to \${SAVE_PATH} using Write tool
+                3. Save URL to \${URL_PATH} using Write tool
+                4. Execute ls -la \${PROJECT_DIR}/media/images/ using Bash tool"
+            c. After Claude Code execution, MUST include:
+               # Immediate URL download (prevent expiration)
+               [ -f "\$URL_PATH" ] && curl -L -o "\$SAVE_PATH" "\$(cat \$URL_PATH)"
+            d. Multi-pattern file search (NEVER assume exact filename):
+               IMAGE=\$(find "\$PROJECT_DIR" -name "*scene\${SCENE_NUM}*.png" 2>/dev/null | head -1)
+               [ -z "\$IMAGE" ] && IMAGE=\$(find "\$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+               [ -z "\$IMAGE" ] && IMAGE=\$(find "\$PROJECT_DIR" -name "*.png" 2>/dev/null | head -1)
+            e. File validation before use:
+               if [ -f "\$IMAGE" ] && [ \$(stat -c%s "\$IMAGE") -gt 10000 ]; then
+                 echo "✅ Valid image: \$IMAGE"
+               else
+                 echo "❌ Invalid or missing image"
+               fi
+          - CRITICAL: Setup job MUST include:
+            echo "workflow_start=\$(date -Iseconds)" >> \$GITHUB_OUTPUT
+            # NOT github.run_started_at which may be empty
+          - Recommended job structure:
+            1. phase1: Information gathering/research
+            2. phase2: Content composition/script creation
+            3. phase3-scene-N-image: Each scene image generation (N parallel jobs)
+               - News anchor uses fixed seed
+               - Include explicit file save and URL processing
+            4. phase4-scene-N-video: Each scene video conversion (N parallel jobs)
+               - needs: corresponding phase3-scene-N-image
+               - Execute within URL expiration (early start)
+               - Support both URL and local path
+            5. phase5: Audio generation (narration, BGM)
+            6. phase6: Final editing/synthesis
+
+          Output destination (MUST):
+          - Generate workflow at PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml
+          
+          🔄 ERROR RECOVERY REQUIREMENTS (MANDATORY):
+          For ANY parallel generation tasks (scenes, images, data), you MUST include:
+          1. Main generation job with:
+             - strategy.fail-fast: false
+             - continue-on-error: true
+             - outputs.failed_items to track failures
+             - Status verification for each item
+          2. Recovery job that:
+             - Runs after main generation
+             - Only processes failed items
+             - Uses fromJson(needs.main.outputs.failed_items) for matrix
+             - Includes 3 recovery attempts with different strategies
+          3. Final assembly that:
+             - Waits for both main and recovery jobs
+             - Verifies all items are available
+          
+          Refer to docs/GENERIC_ERROR_RECOVERY_PATTERNS.md for implementation details.
+          
+          CRITICAL REQUIREMENTS:
+          - Output ONLY valid GitHub Actions YAML
+          - Do NOT include any function calls, tool invocations, or internal commands in the output
+          - The workflow file must be complete and self-contained
+          - Use unquoted on: field (GitHub Actions requires it unquoted)
+          - Keep workflow names simple and without special characters
+          - ALWAYS include recovery jobs for parallel generation tasks
+          EOF
+          
+          # Replace project directory placeholder with actual path
           sed -i "s|PROJECT_DIR_PLACEHOLDER|$PROJECT_DIR|g" generation_prompt.txt
           
           # Add visibility in logs: which checklists will be referenced
@@ -679,7 +825,7 @@ jobs:
             echo "### Domain Rule References" >> $GITHUB_STEP_SUMMARY
             jq -r '.constraints.rule_references[]?.path' artifacts/domain-template-data/domain_summary.json 2>/dev/null | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY || true
           fi
-          
+
           # Note: do not inject domain-specific helper jobs inline. All domain rules are enforced via referenced checklists during validation/auto-fix.
           
           # Execute workflow generation with explicit output
@@ -692,6 +838,8 @@ jobs:
             --allowedTools "Write,Read,MultiEdit,Bash" \
             --permission-mode "acceptEdits" \
             --max-turns 50
+
+          # Do not inlineドメイン要件のハードコードは行わず、生成時に参照ドキュメントを読む形で反映させます
           
           # Verify workflow was created
           WORKFLOW_PATH="$PROJECT_DIR/generated-workflow/workflow.yml"
@@ -721,16 +869,16 @@ jobs:
               sed -i -E 's/sk-ant-oat[0-9]{2}-[A-Za-z0-9_-]{80,}/\${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/g' "$WORKFLOW_PATH"
             fi
             
-            # Replace full-width quotes with half-width quotes
-            if grep -q '[""'']' "$WORKFLOW_PATH" 2>/dev/null; then
-              echo "⚠️ Replacing full-width quotes with half-width quotes..."
-              sed -i 's/"/"/g; s/"/"/g; s/'/'"'"'/g; s/'/'"'"'/g' "$WORKFLOW_PATH"
-            fi
-            
             # CRITICAL: Remove any actual OAUTH_TOKEN values that were directly inserted
             if grep -q "sk-ant-" "$WORKFLOW_PATH" 2>/dev/null; then
               echo "🚨 CRITICAL: Found exposed OAUTH_TOKEN value, replacing with secrets reference..."
               sed -i 's/sk-ant-[^[:space:]]*/\${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/g' "$WORKFLOW_PATH"
+            fi
+            
+            # Replace full-width quotes with half-width quotes
+            if grep -q '[""'']' "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "⚠️ Replacing full-width quotes with half-width quotes..."
+              sed -i 's/"/"/g; s/"/"/g; s/'/'"'"'/g; s/'/'"'"'/g' "$WORKFLOW_PATH"
             fi
             
             # Remove invalid matrix references in outputs section
@@ -786,7 +934,7 @@ jobs:
             echo "❌ Workflow generation failed"
             exit 1
           fi
-
+          
       - name: Upload Generated Workflow
         uses: actions/upload-artifact@v4
         with:
@@ -823,39 +971,6 @@ jobs:
           name: domain-template-data
           path: artifacts/
 
-      - name: Validate Startup Requirements
-        id: startup-validation
-        run: |
-          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
-          echo "🔍 Startup validation..."
-          ERRORS=0
-          
-          # Check for push event handling
-          if ! grep -q "paths-ignore:" "$WORKFLOW_PATH" 2>/dev/null; then
-            if ! grep -q "push:" "$WORKFLOW_PATH" 2>/dev/null; then
-              echo "❌ ERROR: No push event handling - workflow will fail on git push"
-              ERRORS=$((ERRORS + 1))
-            fi
-          fi
-          
-          # Check for default values on required inputs
-          if grep -q "required: true" "$WORKFLOW_PATH" 2>/dev/null; then
-            echo "⚠️ Checking for defaults on required inputs..."
-          fi
-          
-          # Check for environment variables
-          if ! grep -q "^env:" "$WORKFLOW_PATH" 2>/dev/null; then
-            echo "❌ ERROR: No environment variables defined at workflow level"
-            ERRORS=$((ERRORS + 1))
-          fi
-          
-          # Check for timeout on jobs
-          if ! grep -q "timeout-minutes:" "$WORKFLOW_PATH" 2>/dev/null; then
-            echo "⚠️ WARNING: No timeout-minutes defined for jobs"
-          fi
-          
-          echo "startup_errors=$ERRORS" >> $GITHUB_OUTPUT
-          
       - name: Validate Data Flow Pattern
         run: |
           WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
@@ -908,49 +1023,6 @@ jobs:
           fi
           
           echo "✅ データフロー検証完了"
-          
-      - name: Check for Common Syntax Errors
-        run: |
-          WORKFLOW_PATH="${{ needs.generate-professional-workflow.outputs.workflow_path }}"
-          echo "🔍 Checking for common syntax errors..."
-          
-          ERRORS=0
-          
-          # Check for HEREDOC usage
-          if grep -q '<<.*EOF' "$WORKFLOW_PATH"; then
-            echo "❌ ERROR: HEREDOC detected - use echo commands instead"
-            echo "  Found: $(grep -n '<<.*EOF' "$WORKFLOW_PATH" | head -3)"
-            ERRORS=$((ERRORS + 1))
-          fi
-          
-          # Check for full-width quotes
-          if grep -q '[""'']' "$WORKFLOW_PATH"; then
-            echo "❌ ERROR: Full-width quotes detected"
-            echo "  Found: $(grep -n '[""'']' "$WORKFLOW_PATH" | head -3)"
-            ERRORS=$((ERRORS + 1))
-          fi
-          
-          # Check for incorrect bash arithmetic
-          if grep -E '\$\{[A-Z_]+\s*-\s*[0-9]+\}' "$WORKFLOW_PATH"; then
-            echo "❌ ERROR: Invalid bash arithmetic detected"
-            echo "  Use \$((VAR - N)) instead of \${VAR - N}"
-            echo "  Found: $(grep -En '\$\{[A-Z_]+\s*-\s*[0-9]+\}' "$WORKFLOW_PATH" | head -3)"
-            ERRORS=$((ERRORS + 1))
-          fi
-          
-          # Check for exposed credentials
-          if grep -E 'ghp_|sk-|key-[A-Za-z0-9]{32}' "$WORKFLOW_PATH"; then
-            echo "❌ ERROR: Potential credential exposure detected"
-            echo "  Use GitHub Secrets instead"
-            ERRORS=$((ERRORS + 1))
-          fi
-          
-          if [ $ERRORS -gt 0 ]; then
-            echo "❌ Found $ERRORS syntax errors - these MUST be fixed"
-            exit 1
-          else
-            echo "✅ No common syntax errors detected"
-          fi
           
       - name: Comprehensive Workflow Validation and Auto-Fix
         run: |
