@@ -58,10 +58,11 @@ Standard Requirements:
   env:
     CLAUDE_CODE_CI_MODE: true
     CLAUDE_CODE_AUTO_APPROVE_MCP: true
-    CLAUDE_CODE_OAUTH_TOKEN: SECRETS_PLACEHOLDER
-  CRITICAL: Use exactly "SECRETS_PLACEHOLDER" - DO NOT use actual token values
-  CRITICAL: DO NOT use sk-ant-oat* tokens directly
-  Note: SECRETS_PLACEHOLDER will be automatically replaced with proper GitHub Actions secrets syntax in post-processing
+    CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CRITICAL: Use exactly "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" - NEVER use actual token values
+  CRITICAL: NEVER output or include any string starting with "sk-ant-oat"
+  CRITICAL: If you see an actual OAuth token, replace it with ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  Note: OAuth tokens must ALWAYS be referenced through GitHub Secrets
 - MUST: Follow these patterns when executing Claude Code:
   1. Execute generation/processing with MCP tools
   2. Save local files with Write tool (explicit path: ${PROJECT_DIR}/media/...)
