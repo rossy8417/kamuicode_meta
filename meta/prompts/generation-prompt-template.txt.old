@@ -19,23 +19,8 @@ STARTUP ERROR PREVENTION (CRITICAL):
 - MUST: First job must check event type and skip on push events
 - MUST: All jobs must have timeout-minutes defined
 
-SYNTAX ERROR PREVENTION (CRITICAL - 2025-08-17):
-- ❌❌❌ ABSOLUTELY NEVER use HEREDOC (cat << EOF) - causes YAML parsing errors
-  HEREDOC Examples to AVOID:
-  ❌ cat > file.json << 'EOF' ... EOF
-  ❌ cat > file.yml << EOF ... EOF
-  ✅ CORRECT Alternative 1: Use echo commands
-    echo '{"key": "value"}' > file.json
-  ✅ CORRECT Alternative 2: Use grouped echo
-    { 
-      echo '{"topic": "'$TOPIC'",'
-      echo ' "category": "'$CATEGORY'"}'
-    } > file.json
-  ✅ CORRECT Alternative 3: Use variable expansion first
-    TOPIC="${{ github.event.inputs.news_topic }}"
-    CATEGORY="${{ github.event.inputs.news_category }}"
-    echo "{\"topic\": \"$TOPIC\", \"category\": \"$CATEGORY\"}" > file.json
-- CRITICAL: When creating fallback JSON/YAML files, NEVER embed ${{ github.* }} inside HEREDOC
+SYNTAX ERROR PREVENTION (CRITICAL - 2025-08-16):
+- NEVER use HEREDOC (cat << EOF) - causes YAML parsing errors
 - ALWAYS use echo commands for line-by-line file generation
 - NEVER use full-width quotes (""'') - only half-width quotes ("')
 - NEVER use bash arithmetic in strings: ${VAR - 8} is WRONG
@@ -66,45 +51,14 @@ Standard Requirements:
   1. Execute generation/processing with MCP tools
   2. Save local files with Write tool (explicit path: ${PROJECT_DIR}/media/...)
   3. Verify save with ls -la using Bash tool
-  4. ALWAYS add error handling with fallback mechanisms
   * Details: See docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
-- MUST: Claude Code SDK Error Handling Pattern:
-  npx @anthropic-ai/claude-code \
-    --mcp-config ".claude/mcp-kamuicode.json" \
-    --allowedTools "mcp__*,Write,Bash" \
-    --max-turns 40 \
-    -p "$PROMPT" || {
-      echo "⚠️ Claude Code SDK failed, using fallback"
-      # Implement fallback logic here
-      # For T2S: use espeak-ng or festival
-      # For T2I: use placeholder or skip
-      # For data: use default values
-    }
-- MUST: MCP Result Saving Pattern (prevent placeholder files):
-  # After MCP tool execution, ALWAYS:
-  1. Check if URL was returned: [ -f "${OUTPUT_PATH}-url.txt" ]
-  2. Download from URL immediately: curl -L -o "$OUTPUT_PATH" "$(cat ${OUTPUT_PATH}-url.txt)"
-  3. Verify file size: [ $(stat -c%s "$OUTPUT_PATH") -gt 1000 ]
-  4. If invalid, retry with different parameters or use fallback
 - MUST: For video-production, combine T2I and I2V in single job per scene:
   Example structure for each scene job:
   1. Generate image with T2I MCP tool
-  2. Save image locally AND save URL
+  2. Save image locally
   3. IMMEDIATELY convert to video with I2V MCP tool (within 3 minutes)
-  4. Save video locally with proper verification:
-     # Save URL from MCP response
-     echo "$VIDEO_URL" > "${PROJECT_DIR}/videos/scene${SCENE_NUM}-url.txt"
-     # Download actual video file
-     curl -L -o "${PROJECT_DIR}/videos/scene${SCENE_NUM}.mp4" "$VIDEO_URL"
-     # Verify it's a real video (not placeholder text)
-     if [ $(stat -c%s "${PROJECT_DIR}/videos/scene${SCENE_NUM}.mp4") -lt 1000 ]; then
-       echo "⚠️ Video file too small, likely placeholder"
-       # Create fallback video from image
-       ffmpeg -loop 1 -i "${PROJECT_DIR}/images/scene${SCENE_NUM}.png" \
-              -c:v libx264 -t 5 -pix_fmt yuv420p \
-              "${PROJECT_DIR}/videos/scene${SCENE_NUM}_fallback.mp4"
-     fi
-  This prevents URL expiration between T2I and I2V AND ensures real files are saved
+  4. Save video locally
+  This prevents URL expiration between T2I and I2V
 - MUST: Execute file search with multiple patterns:
   1. Specific pattern: "*scene${NUM}*.png"
   2. Time-based: "*.png -mmin -2"
@@ -142,19 +96,6 @@ Important: For video-production domain:
   - This avoids Google Cloud Storage URL expiration (15 minutes)
   - Each scene job should: Generate image → Convert to video immediately
   - NEVER split T2I and I2V into separate jobs
-- CRITICAL: Narration generation MUST include fallback:
-  # Primary: Try MCP T2S tool
-  npx @anthropic-ai/claude-code \
-    --mcp-config ".claude/mcp-kamuicode.json" \
-    --allowedTools "mcp__t2s-*,Write,Bash" \
-    --max-turns 40 \
-    -p "Generate narration audio: $NARRATION_TEXT
-         Save to: ${PROJECT_DIR}/audio/narration.wav" || {
-    echo "⚠️ MCP T2S failed, using local TTS"
-    # Fallback: Use espeak-ng
-    sudo apt-get update && sudo apt-get install -y espeak-ng
-    espeak-ng "$NARRATION_TEXT" -w "${PROJECT_DIR}/audio/narration.wav" -s 150
-  }
 
 Standard Execution Structure (Examples):
   Phase structure in workflow:

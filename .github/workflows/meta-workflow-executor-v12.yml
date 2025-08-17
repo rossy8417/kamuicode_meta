@@ -659,8 +659,15 @@ jobs:
           # Load template chunks progressively
           CHUNKS=$(jq -r '.chunks[].id' artifacts/domain-template-data/template_chunks.json)
           
-          # Create comprehensive generation prompt (domain-agnostic with strict domain enforcement when provided)
-          cat > generation_prompt.txt << 'EOF'
+          # Load generation prompt from external template file
+          # This ensures consistency and maintainability
+          if [ -f "meta/prompts/generation-prompt-template.txt" ]; then
+            echo "📋 Loading prompt template from meta/prompts/generation-prompt-template.txt"
+            cp meta/prompts/generation-prompt-template.txt generation_prompt.txt
+          else
+            echo "⚠️ Template file not found, using embedded prompt"
+            # Fallback to embedded prompt (should not happen in normal operation)
+            cat > generation_prompt.txt << 'EOF'
           You are a "Universal Meta-Workflow Generator". Read the user requirements (Issue) and domain templates to generate optimal GitHub Actions workflows.
 
           Input (must reference):
@@ -806,6 +813,7 @@ jobs:
           - Keep workflow names simple and without special characters
           - ALWAYS include recovery jobs for parallel generation tasks
           EOF
+          fi  # End of fallback prompt
           
           # Replace project directory placeholder with actual path
           sed -i "s|PROJECT_DIR_PLACEHOLDER|$PROJECT_DIR|g" generation_prompt.txt
