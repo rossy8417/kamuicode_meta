@@ -9,6 +9,7 @@ This document provides essential guidelines for YAML construction that Meta Work
 2. **Full-width quotes (")** → Breaks bash parsing
 3. **Bash arithmetic in strings** → `${VAR - 8}` fails, use `$((VAR - 8))`
 4. **Exposed credentials** → Always use `${{ secrets.* }}`
+5. **Missing backslash on last line of multi-line command** → Causes "unexpected end of file" error (2025-08-17)
 
 ## 🚨 Critical Principles
 
@@ -146,8 +147,16 @@ run: |
 
 ### 3. ✅ Recommended Patterns
 
-#### Multi-line Command Continuation
+#### Multi-line Command Continuation (CRITICAL - 2025-08-17)
 ```bash
+# ❌❌❌ CRITICAL ERROR - Missing backslash on LAST line
+# This causes "unexpected end of file" error!
+npx @anthropic-ai/claude-code \
+  --mcp-config ".claude/mcp-kamuicode.json" \
+  --allowedTools "WebSearch,Write" \
+  --max-turns 50
+# Comment here breaks the command
+
 # ❌ WRONG - Missing backslash causes YAML parsing error
 npx @anthropic-ai/claude-code \
   --mcp-config ".claude/mcp-kamuicode.json" \
@@ -156,13 +165,22 @@ npx @anthropic-ai/claude-code \
   --permission-mode "acceptEdits"
   # Next line is not part of the command!
 
-# ✅ CORRECT - All continuation lines must end with backslash
+# ✅ CORRECT - All continuation lines INCLUDING LAST LINE must end with backslash if followed by other commands
 npx @anthropic-ai/claude-code \
   --mcp-config ".claude/mcp-kamuicode.json" \
   --allowedTools "WebSearch,Write" \
   --max-turns 10 \
   --permission-mode "acceptEdits" \
   -p "$PROMPT"
+
+# ✅ CORRECT - Last line doesn't need backslash if it's truly the last command
+npx @anthropic-ai/claude-code \
+  --mcp-config ".claude/mcp-kamuicode.json" \
+  --allowedTools "WebSearch,Write" \
+  --max-turns 50
+
+# After this, start a new line for next command
+echo "Command completed"
 
 # ✅ ALTERNATIVE - Single line (for shorter commands)
 npx @anthropic-ai/claude-code --mcp-config ".claude/mcp-kamuicode.json" --allowedTools "WebSearch,Write" -p "$PROMPT"
@@ -277,7 +295,36 @@ job2:
         cat input/file.txt
 ```
 
-### 5. 🔗 Dependency Management
+### 5. 🔒 Security and Token Management (CRITICAL - 2025-08-17)
+
+#### OAuth Token Protection
+```bash
+# ❌ CRITICAL ERROR - Exposing actual tokens
+CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-xxxxx
+
+# ✅ CORRECT - Use placeholder in workflow generation
+CLAUDE_CODE_OAUTH_TOKEN: SECRETS_PLACEHOLDER
+
+# ✅ Post-processing replacement (with global flag /g)
+sed -i 's/SECRETS_PLACEHOLDER/${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/g' workflow.yml
+
+# ✅ Enhanced OAuth token detection and replacement
+if grep -E "sk-ant-oat[0-9]{2}-[A-Za-z0-9_-]{80,}" "$WORKFLOW_PATH"; then
+  echo "🚨 CRITICAL: Found exposed OAuth token, replacing..."
+  sed -i -E 's/sk-ant-oat[0-9]{2}-[A-Za-z0-9_-]{80,}/${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/g' "$WORKFLOW_PATH"
+fi
+```
+
+#### Full-width Character Auto-correction
+```bash
+# ✅ Detect and fix full-width quotes
+if grep -q '[""'']' "$WORKFLOW_PATH"; then
+  echo "⚠️ Found full-width quotes, converting to half-width..."
+  sed -i 's/"/"/g; s/"/"/g; s/'/'"'"'/g; s/'/'"'"'/g' "$WORKFLOW_PATH"
+fi
+```
+
+### 6. 🔗 Dependency Management
 
 #### Clear Dependency Definition
 ```yaml
