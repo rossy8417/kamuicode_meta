@@ -906,6 +906,41 @@ jobs:
               sed -i "s/'/'/g; s/'/'/g" "$WORKFLOW_PATH"
             fi
             
+            # CRITICAL: Detect and fix duplicate step IDs
+            echo "🔍 Checking for duplicate step IDs..."
+            DUPLICATE_IDS=$(grep -n "^\s*id:" "$WORKFLOW_PATH" | awk -F: '{print $3}' | sort | uniq -d)
+            if [ -n "$DUPLICATE_IDS" ]; then
+              echo "🚨 Found duplicate IDs: $DUPLICATE_IDS"
+              
+              # Check if same step has multiple id definitions (common error)
+              awk '/^      - name:/{step_start=NR; id_count=0} 
+                   /^\s*id:/{id_count++; if(id_count>1) print "Line " NR ": Duplicate id in step starting at line " step_start}
+                   /^      - name:|^  [a-z]/{if(id_count>1) id_count=0}' "$WORKFLOW_PATH"
+              
+              # Remove duplicate id lines (keep only the first one in each step)
+              awk '
+                /^      - name:/ {in_step=1; id_found=0}
+                /^\s*id:/ {
+                  if(in_step && !id_found) {id_found=1; print}
+                  else if(in_step && id_found) {next}
+                  else {print}
+                  next
+                }
+                /^      - name:|^  [a-z]/ {if(NR>1) in_step=0}
+                {print}
+              ' "$WORKFLOW_PATH" > "${WORKFLOW_PATH}.tmp" && mv "${WORKFLOW_PATH}.tmp" "$WORKFLOW_PATH"
+              
+              echo "  ✅ Fixed duplicate IDs"
+            fi
+            
+            # CRITICAL: Replace exposed OAuth tokens
+            echo "🔍 Checking for exposed OAuth tokens..."
+            if grep -E "sk-ant-oat[0-9]{2}-[A-Za-z0-9_-]{80,}" "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "🚨 CRITICAL: Found exposed OAuth token, replacing with secrets reference..."
+              sed -i -E 's/sk-ant-oat[0-9]{2}-[A-Za-z0-9_-]{80,}/${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}/g' "$WORKFLOW_PATH"
+              echo "  ✅ Replaced OAuth token with secrets reference"
+            fi
+            
             # Remove invalid matrix references in outputs section
             # GitHub Actions doesn't allow ${{ matrix.* }} in job outputs
             if grep -q 'outputs:.*matrix\.' "$WORKFLOW_PATH" 2>/dev/null; then
@@ -1156,6 +1191,30 @@ jobs:
           fi
           
           echo "✅ Security validation passed"
+          
+          # Check for duplicate step IDs
+          echo "🔍 Checking for duplicate step IDs..."
+          DUPLICATE_ID_CHECK=$(awk '
+            /^      - name:/{step_line=NR; id_count=0} 
+            /^\s*id:/{
+              id_count++
+              if(id_count>1) {
+                print "ERROR: Line " NR ": Multiple IDs in step starting at line " step_line
+                found_error=1
+              }
+            }
+            /^      - name:|^  [a-z]/{if(NR>1) id_count=0}
+            END {exit found_error}
+          ' "$WORKFLOW_PATH" 2>&1)
+          
+          if [ $? -ne 0 ]; then
+            echo "🚨 CRITICAL: Duplicate step IDs detected!"
+            echo "$DUPLICATE_ID_CHECK"
+            echo "error_duplicate_ids=true" >> $GITHUB_OUTPUT
+            SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
+          else
+            echo "✅ No duplicate IDs found"
+          fi
           
           # YAML syntax validation
           python -c "import yaml; yaml.safe_load(open('$WORKFLOW_PATH'))"
@@ -1637,6 +1696,25 @@ jobs:
             ${TOKEN_LINES}"
             fi
             
+            # Check for duplicate step IDs
+            DUPLICATE_ID_CHECK=$(awk '
+              /^      - name:/{step_line=NR; id_count=0; step_name=$0} 
+              /^\s*id:/{
+                id_count++
+                if(id_count>1) {
+                  print "Line " NR ": Duplicate ID in step at line " step_line
+                }
+              }
+              /^      - name:|^  [a-z]/{if(NR>1) id_count=0}
+            ' "$PREVIOUS_WORKFLOW" 2>&1)
+            
+            if [ -n "$DUPLICATE_ID_CHECK" ]; then
+              ERROR_DETAILS="${ERROR_DETAILS}
+            重複したステップID:
+            ${DUPLICATE_ID_CHECK}"
+              echo "🚨 Duplicate step IDs detected, will fix..."
+            fi
+            
             # Check for hardcoded paths with line numbers
             if grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" 2>/dev/null | grep -vF '${' | grep -q .; then
               PATH_LINES=$(grep -n -E '"/home/runner/work/[^"]*"' "$PREVIOUS_WORKFLOW" | grep -vF '${' | head -3)
@@ -1666,6 +1744,7 @@ jobs:
                - HEREDOCとGitHub Actions変数 → echoコマンドに変換
                - uses: ./ → インライン実装
                - outputs:.*matrix\\. → 正しい構文に修正
+               - 同一ステップ内の複数のid: → 最初の1つだけ残して削除
             3. MultiEdit または Edit ツールで修正を適用
             4. Write ツールで修正内容を保存: $PREVIOUS_WORKFLOW（必須）
             5. Write ツールでサマリー保存: $FIX_DIR/logs/fix_attempt_${fix_attempt}.txt
@@ -1712,6 +1791,14 @@ jobs:
               # Check for local uses references
               if grep -q 'uses:.*\./' "$PREVIOUS_WORKFLOW"; then
                 echo "⚠️ ローカルuses参照がまだ存在"
+                ERROR_COUNT=$((ERROR_COUNT + 1))
+              fi
+              
+              # Check for duplicate step IDs
+              if awk '/^      - name:/{step_line=NR; id_count=0} /^\s*id:/{id_count++; if(id_count>1) exit 1} /^      - name:|^  [a-z]/{if(NR>1) id_count=0}' "$PREVIOUS_WORKFLOW" 2>/dev/null; then
+                echo "✅ ステップID: 重複なし"
+              else
+                echo "⚠️ 重複したステップIDがまだ存在"
                 ERROR_COUNT=$((ERROR_COUNT + 1))
               fi
               
