@@ -941,6 +941,37 @@ jobs:
               echo "  ✅ Replaced OAuth token with secrets reference"
             fi
             
+            # CRITICAL: Add error handling to Claude Code SDK calls
+            echo "🔍 Checking for Claude Code SDK calls without error handling..."
+            if grep -q "npx @anthropic-ai/claude-code" "$WORKFLOW_PATH" && ! grep -q "npx @anthropic-ai/claude-code.*||" "$WORKFLOW_PATH"; then
+              echo "⚠️ Found Claude Code SDK calls without error handling, adding fallback..."
+              
+              # Add error handling to narration generation
+              sed -i '/npx @anthropic-ai\/claude-code.*narration/,/^[[:space:]]*$/{
+                /npx @anthropic-ai\/claude-code/!b
+                s/$/  || {/
+                a\            echo "⚠️ Claude Code SDK failed for narration, using fallback TTS"
+                a\            sudo apt-get update && sudo apt-get install -y espeak-ng
+                a\            espeak-ng "$NARRATION_TEXT" -w "${PROJECT_DIR}/audio/narration.wav" -s 150
+                a\          }/
+              }' "$WORKFLOW_PATH" 2>/dev/null || true
+              
+              echo "  ✅ Added fallback mechanisms"
+            fi
+            
+            # CRITICAL: Ensure I2V results are properly saved
+            echo "🔍 Checking for I2V generation without proper file saving..."
+            if grep -q "mcp__i2v" "$WORKFLOW_PATH"; then
+              echo "⚠️ Found I2V generation, ensuring proper file saving pattern..."
+              
+              # Check if proper download pattern exists after I2V
+              if ! grep -A5 "mcp__i2v" "$WORKFLOW_PATH" | grep -q "curl.*-o.*mp4"; then
+                echo "  🔧 Adding video download pattern after I2V generation..."
+                # This is complex to do with sed, mark for manual fix in validation
+                echo "  ⚠️ Manual verification needed: Ensure I2V results are downloaded with curl"
+              fi
+            fi
+            
             # Remove invalid matrix references in outputs section
             # GitHub Actions doesn't allow ${{ matrix.* }} in job outputs
             if grep -q 'outputs:.*matrix\.' "$WORKFLOW_PATH" 2>/dev/null; then
