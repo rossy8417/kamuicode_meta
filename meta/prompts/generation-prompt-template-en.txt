@@ -19,8 +19,23 @@ STARTUP ERROR PREVENTION (CRITICAL):
 - MUST: First job must check event type and skip on push events
 - MUST: All jobs must have timeout-minutes defined
 
-SYNTAX ERROR PREVENTION (CRITICAL - 2025-08-16):
-- NEVER use HEREDOC (cat << EOF) - causes YAML parsing errors
+SYNTAX ERROR PREVENTION (CRITICAL - 2025-08-17):
+- ❌❌❌ ABSOLUTELY NEVER use HEREDOC (cat << EOF) - causes YAML parsing errors
+  HEREDOC Examples to AVOID:
+  ❌ cat > file.json << 'EOF' ... EOF
+  ❌ cat > file.yml << EOF ... EOF
+  ✅ CORRECT Alternative 1: Use echo commands
+    echo '{"key": "value"}' > file.json
+  ✅ CORRECT Alternative 2: Use grouped echo
+    { 
+      echo '{"topic": "'$TOPIC'",'
+      echo ' "category": "'$CATEGORY'"}'
+    } > file.json
+  ✅ CORRECT Alternative 3: Use variable expansion first
+    TOPIC="${{ github.event.inputs.news_topic }}"
+    CATEGORY="${{ github.event.inputs.news_category }}"
+    echo "{\"topic\": \"$TOPIC\", \"category\": \"$CATEGORY\"}" > file.json
+- CRITICAL: When creating fallback JSON/YAML files, NEVER embed ${{ github.* }} inside HEREDOC
 - ALWAYS use echo commands for line-by-line file generation
 - NEVER use full-width quotes (""'') - only half-width quotes ("')
 - NEVER use bash arithmetic in strings: ${VAR - 8} is WRONG

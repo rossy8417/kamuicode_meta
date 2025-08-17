@@ -828,6 +828,13 @@ jobs:
 
           # Note: do not inject domain-specific helper jobs inline. All domain rules are enforced via referenced checklists during validation/auto-fix.
           
+          # Add HEREDOC prevention reminder to prompt
+          echo "" >> generation_prompt.txt
+          echo "❌❌❌ CRITICAL REMINDER: ABSOLUTELY NO HEREDOC ❌❌❌" >> generation_prompt.txt
+          echo "NEVER use: cat > file << EOF ... EOF" >> generation_prompt.txt
+          echo "ALWAYS use: echo commands or grouped echo { } > file" >> generation_prompt.txt
+          echo "ESPECIALLY for fallback JSON creation!" >> generation_prompt.txt
+          
           # Execute workflow generation with explicit output
           echo "📝 Generating workflow with Claude Code SDK..."
           echo "Target: $PROJECT_DIR/generated-workflow/workflow.yml"
@@ -851,6 +858,24 @@ jobs:
               echo "⚠️ Found function call artifacts, cleaning up..."
               # Remove everything from <function_calls> onwards
               sed -i '/<function_calls>/,$d' "$WORKFLOW_PATH"
+            fi
+            
+            # CRITICAL: Detect and report HEREDOC usage (should not happen with enhanced prompts)
+            if grep -q "<<.*EOF\|<<.*'EOF'" "$WORKFLOW_PATH" 2>/dev/null; then
+              echo "🚨 CRITICAL: Found HEREDOC in generated workflow!"
+              echo "This causes YAML parsing errors and must be fixed."
+              
+              # Count HEREDOC occurrences
+              HEREDOC_COUNT=$(grep -c "<<.*EOF\|<<.*'EOF'" "$WORKFLOW_PATH" || true)
+              echo "Found $HEREDOC_COUNT HEREDOC blocks that need fixing"
+              
+              # Log to GitHub Step Summary
+              echo "## 🚨 HEREDOC Detection Alert" >> $GITHUB_STEP_SUMMARY
+              echo "Found $HEREDOC_COUNT HEREDOC blocks in generated workflow." >> $GITHUB_STEP_SUMMARY
+              echo "These will cause YAML parsing errors and have been flagged for manual review." >> $GITHUB_STEP_SUMMARY
+              
+              # Create a marker file for validation to detect
+              echo "$HEREDOC_COUNT" > "$PROJECT_DIR/generated-workflow/heredoc-detected.txt"
             fi
             
             # Note: Do NOT quote the "on" field - GitHub Actions requires it unquoted
