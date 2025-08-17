@@ -832,13 +832,14 @@ jobs:
           echo "📝 Generating workflow with Claude Code SDK..."
           echo "Target: $PROJECT_DIR/generated-workflow/workflow.yml"
           
-          # Execute Claude Code SDK
           npx @anthropic-ai/claude-code \
             -p "$(cat generation_prompt.txt)" \
             --mcp-config ".claude/mcp-kamuicode.json" \
             --allowedTools "Write,Read,MultiEdit,Bash" \
             --permission-mode "acceptEdits" \
-            --max-turns 50 || true
+            --max-turns 50
+
+          # Do not inline domain requirements - they are reflected by referencing documentation during generation
           
           # Verify workflow was created
           WORKFLOW_PATH="$PROJECT_DIR/generated-workflow/workflow.yml"
