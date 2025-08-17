@@ -1210,14 +1210,32 @@ jobs:
             echo "error_count=$SECURITY_ISSUES" >> $GITHUB_OUTPUT
             echo "warning_count=0" >> $GITHUB_OUTPUT
             
-            # Create security failure report
+            # Create security failure report with actual issues
+            FAILED_ITEMS=""
+            if grep -q 'CLAUDE_CODE_OAUTH_TOKEN:\s*sk-ant-' "$WORKFLOW_PATH" 2>/dev/null; then
+              FAILED_ITEMS="${FAILED_ITEMS}\"Exposed OAuth token - must use secrets.CLAUDE_CODE_OAUTH_TOKEN\","
+            fi
+            if awk '/cat.*<<.*EOF/,/^EOF$/' "$WORKFLOW_PATH" 2>/dev/null | grep -qE '\$\{\{'; then
+              FAILED_ITEMS="${FAILED_ITEMS}\"HEREDOC with GitHub Actions variables causes YAML parsing errors\","
+            fi
+            if grep -E '(api[_-]key|token|bearer|secret)\s*:\s*["\047]?[A-Za-z0-9_-]{20,}' "$WORKFLOW_PATH" 2>/dev/null | grep -v 'secrets\.' >/dev/null; then
+              FAILED_ITEMS="${FAILED_ITEMS}\"Exposed API keys or tokens detected - use GitHub Secrets\","
+            fi
+            if grep -Ei 'password\s*:\s*["\047]' "$WORKFLOW_PATH" 2>/dev/null | grep -v 'secrets\.' >/dev/null; then
+              FAILED_ITEMS="${FAILED_ITEMS}\"Hardcoded passwords detected - use GitHub Secrets\","
+            fi
+            if [ "$HAS_DUPLICATE_IDS" = "true" ]; then
+              FAILED_ITEMS="${FAILED_ITEMS}\"Duplicate step IDs detected in workflow\","
+            fi
+            # Remove trailing comma
+            FAILED_ITEMS=$(echo "$FAILED_ITEMS" | sed 's/,$//')
+            
             echo '{' > validation_result.json
             echo '  "overall_result": "FAILED",' >> validation_result.json
             echo '  "security_validation": "FAILED",' >> validation_result.json
             echo '  "critical_security_issues": true,' >> validation_result.json
             echo '  "failed_items": [' >> validation_result.json
-            echo '    "Exposed OAuth token - must use secrets.CLAUDE_CODE_OAUTH_TOKEN",' >> validation_result.json
-            echo '    "Hardcoded credentials detected - use GitHub Secrets"' >> validation_result.json
+            echo "    $FAILED_ITEMS" >> validation_result.json
             echo '  ],' >> validation_result.json
             echo '  "details": {' >> validation_result.json
             echo '    "security_validation": {' >> validation_result.json
@@ -1231,9 +1249,14 @@ jobs:
           
           echo "✅ Security validation passed"
           
-          # Check for duplicate step IDs
+          # Check for duplicate step IDs (moved here for proper error reporting)
           echo "🔍 Checking for duplicate step IDs..."
-          DUPLICATE_ID_CHECK=$(awk '
+          DUPLICATE_ID_CHECK=""
+          HAS_DUPLICATE_IDS=false
+          
+          # Check if any step has multiple ID definitions
+          if awk '
+            BEGIN {found_error=0}
             /^      - name:/{step_line=NR; id_count=0} 
             /^\s*id:/{
               id_count++
@@ -1244,15 +1267,15 @@ jobs:
             }
             /^      - name:|^  [a-z]/{if(NR>1) id_count=0}
             END {exit found_error}
-          ' "$WORKFLOW_PATH" 2>&1)
-          
-          if [ $? -ne 0 ]; then
+          ' "$WORKFLOW_PATH" > /tmp/dup_check.txt 2>&1; then
+            echo "✅ No duplicate IDs found"
+          else
             echo "🚨 CRITICAL: Duplicate step IDs detected!"
+            DUPLICATE_ID_CHECK=$(cat /tmp/dup_check.txt)
             echo "$DUPLICATE_ID_CHECK"
             echo "error_duplicate_ids=true" >> $GITHUB_OUTPUT
+            HAS_DUPLICATE_IDS=true
             SECURITY_ISSUES=$((SECURITY_ISSUES + 1))
-          else
-            echo "✅ No duplicate IDs found"
           fi
           
           # YAML syntax validation
