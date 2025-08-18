@@ -760,14 +760,21 @@ jobs:
           SCENE_NUM=${{ matrix.scene }}
           STATUS_FILE="${{ needs.setup.outputs.project_dir }}/video-status-scene${SCENE_NUM}.txt"
           
-          # Check if this scene failed
-          if [ "${{ steps.video.outputs.scene_${SCENE_NUM}_video_failed }}" = "true" ] || \
-             [ ! -f "${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}.mp4" ]; then
-            echo "FAILED" > "$STATUS_FILE"
-            echo "Scene $SCENE_NUM video generation FAILED"
+          # Check if this scene failed by looking for the video file
+          VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}.mp4"
+          
+          if [ -f "$VIDEO_FILE" ]; then
+            FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 100000 ]; then
+              echo "SUCCESS" > "$STATUS_FILE"
+              echo "Scene $SCENE_NUM video generation SUCCESS (size: $FILE_SIZE)"
+            else
+              echo "FAILED" > "$STATUS_FILE"
+              echo "Scene $SCENE_NUM video generation FAILED (file too small: $FILE_SIZE)"
+            fi
           else
-            echo "SUCCESS" > "$STATUS_FILE"
-            echo "Scene $SCENE_NUM video generation SUCCESS"
+            echo "FAILED" > "$STATUS_FILE"
+            echo "Scene $SCENE_NUM video generation FAILED (no file found)"
           fi
 
       - name: Upload Video Data
