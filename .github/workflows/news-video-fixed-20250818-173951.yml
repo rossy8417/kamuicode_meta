@@ -195,7 +195,17 @@ jobs:
           # Verify and read summary
           ls -la "${{ needs.setup.outputs.project_dir }}/metadata/"
           if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json" ]; then
-            SUMMARY=$(cat "${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json" | jq -r '.key_points | join("; ")')
+            # Try to extract key_points, but handle different JSON structures
+            SUMMARY=$(cat "${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json" | jq -r '
+              if .key_points then
+                .key_points | if type == "array" then join("; ") else . end
+              elif .summary then
+                .summary
+              elif .content then
+                .content
+              else
+                "AI technology latest developments and analysis"
+              end' 2>/dev/null || echo "Latest ${TOPIC} developments")
             echo "news_summary=${SUMMARY}" >> $GITHUB_OUTPUT
             echo "✅ News collection completed"
           else
@@ -594,12 +604,13 @@ jobs:
     if: |
       always() && 
       needs.check-trigger.outputs.should_run == 'true' &&
+      needs.background-generation.outputs.failed_scenes != '' &&
       needs.background-generation.outputs.failed_scenes != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       matrix:
-        scene: ${{ fromJson(needs.background-generation.outputs.failed_scenes) }}
+        scene: ${{ fromJson(needs.background-generation.outputs.failed_scenes || '[]') }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
