@@ -511,9 +511,11 @@ jobs:
           SCENE_NUM=${{ matrix.scene }}
           SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
           
-          # Skip if scene number exceeds calculated count
+          # Skip if scene number exceeds calculated count  
           if [ $SCENE_NUM -gt $SCENE_COUNT ]; then
             echo "Skipping scene $SCENE_NUM (exceeds count $SCENE_COUNT)"
+            # Mark as skipped, not failed
+            echo "scene_${SCENE_NUM}_skipped=true" >> $GITHUB_OUTPUT
             exit 0
           fi
           
@@ -1102,8 +1104,11 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/metadata/
 
   final-composition:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan]
-    if: needs.check-trigger.outputs.should_run == 'true'
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, collect-video-failures, video-recovery]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.editing-plan.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -1205,7 +1210,10 @@ jobs:
 
   quality-verification:
     needs: [check-trigger, setup, final-composition]
-    if: needs.check-trigger.outputs.should_run == 'true'
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.final-composition.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
