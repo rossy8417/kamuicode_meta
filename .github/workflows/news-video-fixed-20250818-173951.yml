@@ -563,7 +563,10 @@ jobs:
           FAILED_SCENES=""
           for i in {1..12}; do
             if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
-              if [ "${{ steps.background.outputs[format('scene_{0}_failed', i)] }}" = "true" ]; then
+              # Check if the output variable exists by evaluating it in bash
+              VAR_NAME="scene_${i}_failed"
+              VAR_VALUE=$(echo '${{ toJSON(steps.background.outputs) }}' | jq -r ".${VAR_NAME} // \"\"")
+              if [ "$VAR_VALUE" = "true" ]; then
                 if [ -z "$FAILED_SCENES" ]; then
                   FAILED_SCENES="$i"
                 else
@@ -737,7 +740,10 @@ jobs:
           FAILED_VIDEOS=""
           for i in {1..12}; do
             if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
-              if [ "${{ steps.video.outputs[format('scene_{0}_video_failed', i)] }}" = "true" ]; then
+              # Check if the output variable exists by evaluating it in bash
+              VAR_NAME="scene_${i}_video_failed"
+              VAR_VALUE=$(echo '${{ toJSON(steps.video.outputs) }}' | jq -r ".${VAR_NAME} // \"\"")
+              if [ "$VAR_VALUE" = "true" ]; then
                 if [ -z "$FAILED_VIDEOS" ]; then
                   FAILED_VIDEOS="$i"
                 else
