@@ -54,14 +54,19 @@ Standard Requirements:
 - MUST: Matrix strategy can only be used within steps, not in outputs definition
 - MUST: For news video, calculate scenes as: ceil(duration_seconds / 5) (e.g., 60s = 12 scenes, 30s = 6 scenes)
 - MUST: Create ONE news anchor with fixed seed value, generate multiple lip-sync videos for all scenes
-- MUST: Include the following in environment variable section (env:):
-  env:
-    CLAUDE_CODE_CI_MODE: true
-    CLAUDE_CODE_AUTO_APPROVE_MCP: true
-    CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+- CRITICAL MUST: Environment variables for Claude Code SDK (REQUIRED for EVERY step using Claude Code):
+  # IMPORTANT: env: must be at STEP level, not workflow or job level
+  # Each step that calls "npx @anthropic-ai/claude-code" MUST have:
+  - name: Your Step Name
+    env:  # ← STEP-LEVEL env is MANDATORY
+      CLAUDE_CODE_CI_MODE: true
+      CLAUDE_CODE_AUTO_APPROVE_MCP: true
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+    run: |
+      npx @anthropic-ai/claude-code ...
+  
   CRITICAL: Use exactly "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" - NEVER use actual token values
-  CRITICAL: NEVER output or include any string starting with "sk-ant-oat"
-  CRITICAL: If you see an actual OAuth token, replace it with ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  CRITICAL: Without step-level env, MCP tools will NOT work (permission denied)
   Note: OAuth tokens must ALWAYS be referenced through GitHub Secrets
 - MUST: Follow these patterns when executing Claude Code:
   1. Execute generation/processing with MCP tools
