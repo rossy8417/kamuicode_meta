@@ -668,6 +668,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Download Background Data
         uses: actions/download-artifact@v4
         with:
@@ -681,6 +686,7 @@ jobs:
           CLAUDE_CODE_CI_MODE: true
           CLAUDE_CODE_AUTO_APPROVE_MCP: true
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: 16000
         run: |
           SCENE_NUM=${{ matrix.scene }}
           SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
@@ -876,9 +882,100 @@ jobs:
           name: lipsync-data
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/
 
+  video-recovery:
+    needs: [check-trigger, setup, scene-video-generation, background-generation]
+    if: |
+      always() && 
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.scene-video-generation.outputs.failed_videos != '' &&
+      needs.scene-video-generation.outputs.failed_videos != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.scene-video-generation.outputs.failed_videos || '[]') }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download Background Images
+        uses: actions/download-artifact@v4
+        with:
+          name: background-data-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+      - name: Retry Video Generation for Scene ${{ matrix.scene }}
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_MAX_OUTPUT_TOKENS: 16000
+        run: |
+          SCENE_NUM=${{ matrix.scene }}
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Try to find the background image
+          BACKGROUND_IMAGE=$(find "$PROJECT_DIR/media/images/" -name "*scene${SCENE_NUM}*" -o -name "*scene_${SCENE_NUM}*" 2>/dev/null | head -1)
+          
+          if [ -z "$BACKGROUND_IMAGE" ]; then
+            echo "⚠️ No background image found for scene $SCENE_NUM, creating placeholder"
+            # Create a placeholder image
+            convert -size 1920x1080 xc:black \
+              -fill white -gravity center -pointsize 72 \
+              -annotate +0+0 "Scene $SCENE_NUM" \
+              "$PROJECT_DIR/media/images/scene${SCENE_NUM}_placeholder.png"
+            BACKGROUND_IMAGE="$PROJECT_DIR/media/images/scene${SCENE_NUM}_placeholder.png"
+          fi
+          
+          VIDEO_PATH="$PROJECT_DIR/media/videos/scene${SCENE_NUM}_recovered.mp4"
+          
+          # Try I2V with reduced token limit
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-*,Write,Bash" \
+            --max-turns 30 \
+            -p "Convert image to video:
+            Input image: $BACKGROUND_IMAGE
+            Output video: $VIDEO_PATH
+            Duration: 5 seconds
+            Save video file locally with Write tool
+            " || {
+              echo "⚠️ I2V failed again, using FFmpeg fallback"
+              # Create video from image using FFmpeg
+              ffmpeg -loop 1 -i "$BACKGROUND_IMAGE" \
+                -c:v libx264 -t 5 -pix_fmt yuv420p \
+                -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:-1:-1:color=black" \
+                "$VIDEO_PATH" -y
+            }
+          
+          # Verify the recovered video
+          if [ -f "$VIDEO_PATH" ] && [ $(stat -c%s "$VIDEO_PATH") -gt 10000 ]; then
+            echo "✅ Scene $SCENE_NUM video recovered successfully"
+          else
+            echo "❌ Failed to recover scene $SCENE_NUM video"
+            # Last resort: create a black video
+            ffmpeg -f lavfi -i color=c=black:s=1920x1080:d=5 \
+              -c:v libx264 -pix_fmt yuv420p \
+              "$VIDEO_PATH" -y
+          fi
+
+      - name: Upload Recovered Video
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-recovery-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+
   editing-plan:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing]
-    if: needs.check-trigger.outputs.should_run == 'true'
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, video-recovery]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     outputs:

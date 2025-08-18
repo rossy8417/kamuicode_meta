@@ -191,36 +191,65 @@ Output destination (MUST):
 - The workflow must be saved as a complete file, not output to stdout
 
 🔄 ERROR RECOVERY REQUIREMENTS (MANDATORY):
-For ANY parallel generation tasks (scenes, images, data), you MUST include:
+For ANY parallel generation tasks (scenes, images, videos, data), you MUST include:
 1. Main generation job with:
    - continue-on-error: true for each scene
+   - FFmpeg installation for video fallback: sudo apt-get install -y ffmpeg
    - Output failed_items as JSON array
 2. Recovery job that:
    - Runs if: always() && needs.main-job.outputs.failed_items != '' && needs.main-job.outputs.failed_items != '[]'
    - Uses matrix: ${{ fromJson(needs.main-job.outputs.failed_items || '[]') }}
+   - Includes FFmpeg installation for fallback processing
+   - Sets CLAUDE_CODE_MAX_OUTPUT_TOKENS: 16000 to prevent token limit errors
    - Retries failed generations with different parameters
 
-Example pattern:
+Example pattern for video generation:
 ```yaml
-generate-scenes:
+scene-video-generation:
   strategy:
     matrix:
       scene: [1,2,3,4,5,6,7,8,9,10,11,12]
     fail-fast: false
   continue-on-error: true
   outputs:
-    failed_scenes: ${{ steps.collect.outputs.failed }}
+    failed_videos: ${{ steps.collect-video-failures.outputs.failed_videos }}
+  steps:
+    - name: Install FFmpeg
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+    - name: Generate Video
+      env:
+        CLAUDE_CODE_MAX_OUTPUT_TOKENS: 16000
+      run: |
+        # I2V generation with FFmpeg fallback
+        npx @anthropic-ai/claude-code ... || {
+          echo "⚠️ I2V failed, using FFmpeg fallback"
+          ffmpeg -loop 1 -i "$IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p "$VIDEO" -y
+        }
     
-recovery-generation:
-  needs: [generate-scenes]
+video-recovery:
+  needs: [scene-video-generation]
   if: |
     always() && 
-    needs.generate-scenes.outputs.failed_scenes != '' &&
-    needs.generate-scenes.outputs.failed_scenes != '[]'
+    needs.scene-video-generation.outputs.failed_videos != '' &&
+    needs.scene-video-generation.outputs.failed_videos != '[]'
   strategy:
     matrix:
-      scene: ${{ fromJson(needs.generate-scenes.outputs.failed_scenes || '[]') }}
+      scene: ${{ fromJson(needs.scene-video-generation.outputs.failed_videos || '[]') }}
+  steps:
+    - name: Install FFmpeg
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+    - name: Retry Video Generation
+      env:
+        CLAUDE_CODE_MAX_OUTPUT_TOKENS: 16000
 ```
+
+CRITICAL: For video-production workflows, MUST include BOTH:
+- background-recovery (for image generation failures)
+- video-recovery (for I2V conversion failures)
 
 CRITICAL REQUIREMENTS:
 - Generate a valid GitHub Actions YAML workflow file
