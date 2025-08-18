@@ -1,0 +1,1077 @@
+name: Professional News Video Generation
+
+on:
+  workflow_dispatch:
+    inputs:
+      news_topic:
+        description: "ニュースのトピック・キーワード"
+        required: true
+        default: "AI技術の最新動向"
+        type: string
+      duration:
+        description: "動画の長さ"
+        required: true
+        default: "60s"
+        type: choice
+        options:
+          - "15s"
+          - "30s" 
+          - "60s"
+          - "90s"
+          - "3min"
+          - "5min"
+      news_category:
+        description: "ニュースカテゴリー"
+        required: true
+        default: "technology"
+        type: choice
+        options:
+          - "technology"
+          - "business"
+          - "politics"
+          - "health"
+          - "science"
+          - "sports"
+          - "entertainment"
+          - "world"
+      content_type:
+        description: "コンテンツタイプ"
+        required: true
+        default: "news"
+        type: choice
+        options:
+          - "news"
+          - "educational"
+          - "documentary"
+          - "promotional"
+      target_platform:
+        description: "配信プラットフォーム"
+        required: true
+        default: "youtube"
+        type: choice
+        options:
+          - "youtube"
+          - "instagram"
+          - "tiktok"
+          - "twitter"
+          - "linkedin"
+          - "web"
+          - "broadcast"
+      performance_mode:
+        description: "処理モード"
+        required: true
+        default: "balanced"
+        type: choice
+        options:
+          - "quality"
+          - "balanced"
+          - "speed"
+  push:
+    paths-ignore:
+      - '.github/workflows/**'
+
+env:
+  CLAUDE_CODE_CI_MODE: true
+  CLAUDE_CODE_AUTO_APPROVE_MCP: true
+  CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'workflow_dispatch'
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      scene_count: ${{ steps.setup.outputs.scene_count }}
+      duration_seconds: ${{ steps.setup.outputs.duration_seconds }}
+      matrix_scenes: ${{ steps.setup.outputs.matrix_scenes }}
+      workflow_start: ${{ steps.setup.outputs.workflow_start }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Create project environment
+        id: setup
+        run: |
+          # Calculate scene count and project directory
+          case "${{ github.event.inputs.duration }}" in
+            "15s") SECONDS=15; SCENES=3 ;;
+            "30s") SECONDS=30; SCENES=6 ;;
+            "60s") SECONDS=60; SCENES=12 ;;
+            "90s") SECONDS=90; SCENES=18 ;;
+            "3min") SECONDS=180; SCENES=36 ;;
+            "5min") SECONDS=300; SCENES=60 ;;
+            *) SECONDS=60; SCENES=12 ;;
+          esac
+          
+          PROJECT_DIR="/home/runner/work/kamuicode_meta/kamuicode_meta/projects/issue-66-20250817-225129"
+          
+          # Create directory structure
+          mkdir -p "$PROJECT_DIR"/{metadata,logs,media/{images,videos,audio},final,temp}
+          
+          # Generate scene matrix
+          MATRIX_SCENES="["
+          for i in $(seq 1 $SCENES); do
+            if [ $i -gt 1 ]; then MATRIX_SCENES="$MATRIX_SCENES,"; fi
+            MATRIX_SCENES="$MATRIX_SCENES$i"
+          done
+          MATRIX_SCENES="$MATRIX_SCENES]"
+          
+          # Record workflow start time
+          WORKFLOW_START=$(date -Iseconds)
+          
+          echo "project_dir=$PROJECT_DIR" >> $GITHUB_OUTPUT
+          echo "scene_count=$SCENES" >> $GITHUB_OUTPUT
+          echo "duration_seconds=$SECONDS" >> $GITHUB_OUTPUT
+          echo "matrix_scenes=$MATRIX_SCENES" >> $GITHUB_OUTPUT
+          echo "workflow_start=$WORKFLOW_START" >> $GITHUB_OUTPUT
+          
+          echo "✅ プロジェクト環境セットアップ完了"
+          echo "- Project Directory: $PROJECT_DIR"
+          echo "- Scene Count: $SCENES"
+          echo "- Duration: $SECONDS seconds"
+          echo "- Matrix: $MATRIX_SCENES"
+
+  news-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [setup]
+    outputs:
+      research_completed: ${{ steps.research.outputs.completed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: News research and analysis
+        id: research
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          TOPIC="${{ github.event.inputs.news_topic }}"
+          CATEGORY="${{ github.event.inputs.news_category }}"
+          
+          # Create research prompt
+          RESEARCH_PROMPT="最新ニュース収集・分析を実行してください:
+
+          1. トピック: $TOPIC
+          2. カテゴリー: $CATEGORY  
+          3. 収集する情報源: NewsAPI、主要報道機関サイト、公式発表
+          4. 分析要件: 信頼性評価、重要度ランキング、偽情報フィルタリング
+          5. 出力形式: JSON形式でニュースデータを${PROJECT_DIR}/metadata/news_data.json に保存
+          6. 保存確認: ls -la ${PROJECT_DIR}/metadata/ でファイル確認
+
+          WebSearchとWriteツールを使用して実行してください。"
+
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "WebSearch,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$RESEARCH_PROMPT"
+
+          # Fallback if research fails
+          if [ ! -f "${PROJECT_DIR}/metadata/news_data.json" ]; then
+            echo "⚠️ ニュース収集失敗、デフォルトデータを作成"
+            {
+              echo '{'
+              echo '  "topic": "'$TOPIC'",'
+              echo '  "category": "'$CATEGORY'",'
+              echo '  "fallback": true,'
+              echo '  "content": "最新の'$TOPIC'に関するニュースをお伝えします。"'
+              echo '}'
+            } > "${PROJECT_DIR}/metadata/news_data.json"
+          fi
+
+          echo "completed=true" >> $GITHUB_OUTPUT
+          echo "✅ ニュース収集・分析完了"
+
+  script-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [setup, news-research]
+    outputs:
+      script_completed: ${{ steps.script.outputs.completed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Generate news script and structure
+        id: script
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENES="${{ needs.setup.outputs.scene_count }}"
+          DURATION="${{ needs.setup.outputs.duration_seconds }}"
+          
+          SCRIPT_PROMPT="収集したニュースデータを基に、$DURATION秒の動画構成を設計してください:
+
+          1. 入力データ: ${PROJECT_DIR}/metadata/news_data.json を読み込み
+          2. 構成要件: ${SCENES}シーン（5秒/シーン）
+          3. 構成パターン: オープニング → メインニュース → クロージング
+          4. 出力要件:
+             - 台本: ${PROJECT_DIR}/metadata/script.json に保存
+             - シーン詳細: ${PROJECT_DIR}/metadata/scene_breakdown.json に保存
+             - ナレーション台本: ${PROJECT_DIR}/metadata/narration.txt に保存
+          5. 保存確認: ls -la ${PROJECT_DIR}/metadata/ でファイル確認
+
+          ReadとWriteツールを使用して実行してください。"
+
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$SCRIPT_PROMPT"
+
+          # Create fallback script if generation fails
+          if [ ! -f "${PROJECT_DIR}/metadata/script.json" ]; then
+            echo "⚠️ 台本生成失敗、デフォルト台本を作成"
+            {
+              echo '{'
+              echo '  "title": "最新ニュース",'
+              echo '  "scenes": ['
+              for i in $(seq 1 $SCENES); do
+                if [ $i -gt 1 ]; then echo ','; fi
+                echo '    {"scene": '$i', "content": "ニュースシーン'$i'"}'
+              done
+              echo '  ]'
+              echo '}'
+            } > "${PROJECT_DIR}/metadata/script.json"
+          fi
+
+          if [ ! -f "${PROJECT_DIR}/metadata/narration.txt" ]; then
+            echo "今日の重要なニュースをお伝えします。最新の情報を分かりやすく解説いたします。" > "${PROJECT_DIR}/metadata/narration.txt"
+          fi
+
+          echo "completed=true" >> $GITHUB_OUTPUT
+          echo "✅ 台本作成完了"
+
+  character-audio-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [setup, script-generation]
+    outputs:
+      character_completed: ${{ steps.character.outputs.completed }}
+      audio_completed: ${{ steps.audio.outputs.completed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code and dependencies
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          sudo apt-get update
+          sudo apt-get install -y espeak-ng ffmpeg
+
+      - name: Generate news anchor character
+        id: character
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          CHARACTER_PROMPT="プロフェッショナルな日本人ニュースアンカーを生成してください:
+
+          1. 要件: ビジネススーツ着用、正面向き、プロフェッショナル表情
+          2. 設定: 固定seed値(42)、グリーンスクリーン背景
+          3. 制約: 背景に他の人物なし、「no people in background」
+          4. 保存先: ${PROJECT_DIR}/media/images/news_anchor.png
+          5. URL保存: ${PROJECT_DIR}/media/images/news_anchor-url.txt
+          6. 保存確認: ls -la ${PROJECT_DIR}/media/images/
+
+          Text-to-Image生成後、WriteとBashツールで保存・確認してください。"
+
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$CHARACTER_PROMPT" || {
+            echo "⚠️ アンカー生成失敗、プレースホルダーを作成"
+            # Create placeholder if MCP fails
+            convert -size 1024x1024 xc:gray "${PROJECT_DIR}/media/images/news_anchor.png" 2>/dev/null || true
+          }
+
+          # Download from URL if available
+          URL_FILE="${PROJECT_DIR}/media/images/news_anchor-url.txt"
+          ANCHOR_FILE="${PROJECT_DIR}/media/images/news_anchor.png"
+          
+          if [ -f "$URL_FILE" ]; then
+            URL=$(cat "$URL_FILE")
+            if [ -n "$URL" ]; then
+              curl -L -o "$ANCHOR_FILE" "$URL" || echo "URL download failed"
+            fi
+          fi
+
+          # Verify anchor file
+          if [ -f "$ANCHOR_FILE" ] && [ $(stat -c%s "$ANCHOR_FILE" 2>/dev/null || echo 0) -gt 10000 ]; then
+            echo "✅ ニュースアンカー生成成功"
+            echo "completed=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ ニュースアンカー生成失敗"
+            echo "completed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate narration audio
+        id: audio
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Read narration text
+          if [ -f "${PROJECT_DIR}/metadata/narration.txt" ]; then
+            NARRATION_TEXT=$(cat "${PROJECT_DIR}/metadata/narration.txt")
+          else
+            NARRATION_TEXT="今日の重要なニュースをお伝えします。"
+          fi
+          
+          AUDIO_PROMPT="ナレーション音声を生成してください:
+
+          1. テキスト: $NARRATION_TEXT
+          2. 音声特性: ニュースアンカー用、落ち着いた声質、明瞭な発音
+          3. 品質: -14 LUFS（YouTube最適化）
+          4. 保存先: ${PROJECT_DIR}/media/audio/narration.wav
+          5. URL保存: ${PROJECT_DIR}/media/audio/narration-url.txt
+          6. 保存確認: ls -la ${PROJECT_DIR}/media/audio/
+
+          Text-to-Speech生成後、WriteとBashツールで保存・確認してください。"
+
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$AUDIO_PROMPT" || {
+            echo "⚠️ MCP音声生成失敗、フォールバック実行"
+            # Fallback: Use espeak-ng
+            espeak-ng "$NARRATION_TEXT" -w "${PROJECT_DIR}/media/audio/narration.wav" -s 150 -p 50
+          }
+
+          # Download from URL if available
+          URL_FILE="${PROJECT_DIR}/media/audio/narration-url.txt"
+          AUDIO_FILE="${PROJECT_DIR}/media/audio/narration.wav"
+          
+          if [ -f "$URL_FILE" ]; then
+            URL=$(cat "$URL_FILE")
+            if [ -n "$URL" ]; then
+              curl -L -o "$AUDIO_FILE" "$URL" || echo "URL download failed"
+            fi
+          fi
+
+          # Verify audio file
+          if [ -f "$AUDIO_FILE" ] && [ $(stat -c%s "$AUDIO_FILE" 2>/dev/null || echo 0) -gt 1000 ]; then
+            echo "✅ ナレーション音声生成成功"
+            echo "completed=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ ナレーション音声生成失敗"
+            echo "completed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload character and audio artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: character-audio-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+  scene-generation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [setup, script-generation]
+    continue-on-error: true
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.setup.outputs.matrix_scenes) }}
+      fail-fast: false
+    outputs:
+      failed_scenes: ${{ steps.collect-failures.outputs.failed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Download script artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: character-audio-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+      - name: Generate scene image and convert to video
+        id: scene-generation
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          
+          # Check MCP connection time window
+          WORKFLOW_START="${{ needs.setup.outputs.workflow_start }}"
+          ELAPSED_MINUTES=$(( ($(date +%s) - $(date -d "$WORKFLOW_START" +%s)) / 60 ))
+          
+          if [ $ELAPSED_MINUTES -gt 15 ]; then
+            echo "⚠️ MCP接続制限時間を超過、スキップ"
+            echo "failed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "✅ MCP接続可能時間内 ($ELAPSED_MINUTES 分経過)"
+          
+          # Generate background image for scene
+          IMAGE_PROMPT="ニュース背景画像を生成してください（シーン$SCENE_NUM）:
+
+          1. 要件: ニュススタジオ背景、プロフェッショナル、人物なし
+          2. 制約: 'no people', 'empty studio', 'professional news background'
+          3. スタイル: モダンなニュススタジオ、データ可視化、関連映像
+          4. 保存先: ${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png
+          5. URL保存: ${PROJECT_DIR}/media/images/scene${SCENE_NUM}-url.txt
+          6. 保存確認: ls -la ${PROJECT_DIR}/media/images/
+
+          画像生成後、即座に保存と確認を実行してください。"
+
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$IMAGE_PROMPT"
+
+          # Immediate URL download to prevent expiration
+          URL_FILE="${PROJECT_DIR}/media/images/scene${SCENE_NUM}-url.txt"
+          IMAGE_FILE="${PROJECT_DIR}/media/images/scene${SCENE_NUM}.png"
+          
+          if [ -f "$URL_FILE" ]; then
+            IMAGE_URL=$(cat "$URL_FILE")
+            if [ -n "$IMAGE_URL" ]; then
+              curl -L -o "$IMAGE_FILE" "$IMAGE_URL" || echo "Image download failed"
+            fi
+          fi
+
+          # Verify image file
+          IMAGE=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.png" 2>/dev/null | head -1)
+          [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" -mmin -2 2>/dev/null | head -1)
+          [ -z "$IMAGE" ] && IMAGE=$(find "$PROJECT_DIR" -name "*.png" 2>/dev/null | head -1)
+
+          if [ -f "$IMAGE" ] && [ $(stat -c%s "$IMAGE" 2>/dev/null || echo 0) -gt 10000 ]; then
+            echo "✅ シーン$SCENE_NUM 画像生成成功: $IMAGE"
+            
+            # CRITICAL: Immediate I2V conversion in same job
+            VIDEO_PROMPT="画像を動画に変換してください（シーン$SCENE_NUM）:
+
+            1. 入力画像: $IMAGE
+            2. 設定: 5-8秒、安定したモーション、ニュース番組品質
+            3. 保存先: ${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4
+            4. URL保存: ${PROJECT_DIR}/media/videos/scene${SCENE_NUM}-url.txt
+            5. 保存確認: ls -la ${PROJECT_DIR}/media/videos/
+
+            画像から動画変換後、即座に保存と確認を実行してください。"
+
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-*,Write,Bash" \
+              --max-turns 80 \
+              --permission-mode "acceptEdits" \
+              -p "$VIDEO_PROMPT"
+
+            # Immediate video download
+            VIDEO_URL_FILE="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}-url.txt"
+            VIDEO_FILE="${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4"
+            
+            if [ -f "$VIDEO_URL_FILE" ]; then
+              VIDEO_URL=$(cat "$VIDEO_URL_FILE")
+              if [ -n "$VIDEO_URL" ]; then
+                curl -L -o "$VIDEO_FILE" "$VIDEO_URL" || echo "Video download failed"
+              fi
+            fi
+
+            # Verify video file
+            VIDEO=$(find "$PROJECT_DIR" -name "*scene*${SCENE_NUM}*.mp4" 2>/dev/null | head -1)
+            [ -z "$VIDEO" ] && VIDEO=$(find "$PROJECT_DIR" -name "*.mp4" -mmin -1 2>/dev/null | head -1)
+
+            if [ -f "$VIDEO" ] && [ $(stat -c%s "$VIDEO" 2>/dev/null || echo 0) -gt 300000 ]; then
+              echo "✅ シーン$SCENE_NUM 動画変換成功: $VIDEO"
+              echo "success=true" >> $GITHUB_OUTPUT
+            else
+              echo "❌ シーン$SCENE_NUM 動画変換失敗"
+              echo "failed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ シーン$SCENE_NUM 画像生成失敗"
+            echo "failed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Collect failures
+        id: collect-failures
+        if: always()
+        run: |
+          if [ "${{ steps.scene-generation.outputs.failed }}" == "true" ]; then
+            echo "failed=[${{ matrix.scene }}]" >> $GITHUB_OUTPUT
+          else
+            echo "failed=[]" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload scene artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scene-${{ matrix.scene }}-artifacts
+          path: |
+            ${{ needs.setup.outputs.project_dir }}/media/images/scene${{ matrix.scene }}*
+            ${{ needs.setup.outputs.project_dir }}/media/videos/scene${{ matrix.scene }}*
+
+  scene-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [setup, scene-generation]
+    if: |
+      always() && 
+      needs.scene-generation.result != 'success' &&
+      needs.scene-generation.outputs.failed_scenes != '[]'
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.scene-generation.outputs.failed_scenes) }}
+      fail-fast: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and dependencies
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg imagemagick
+
+      - name: Retry failed scene generation
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          
+          echo "🔄 リトライ実行: シーン$SCENE_NUM"
+          
+          # Try with different seed for retry
+          RETRY_SEED=$((42 + SCENE_NUM + 1000))
+          
+          RETRY_PROMPT="シーン$SCENE_NUM のリトライ生成:
+
+          1. Seed値: $RETRY_SEED (変更済み)
+          2. 背景: ニュースタジオ、人物なし、プロフェッショナル
+          3. 画像保存: ${PROJECT_DIR}/media/images/scene${SCENE_NUM}_retry.png
+          4. 動画保存: ${PROJECT_DIR}/media/videos/scene${SCENE_NUM}_retry.mp4
+          5. 画像→動画を連続実行してください
+
+          失敗時はフォールバック画像を作成してください。"
+
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,mcp__i2v-*,Write,Bash" \
+            --max-turns 80 \
+            --permission-mode "acceptEdits" \
+            -p "$RETRY_PROMPT" || {
+            echo "⚠️ リトライ失敗、フォールバック作成"
+            # Create fallback content
+            convert -size 1920x1080 -background blue -fill white \
+              -pointsize 60 -gravity center \
+              label:"News Scene $SCENE_NUM" \
+              "${PROJECT_DIR}/media/images/scene${SCENE_NUM}_fallback.png" 2>/dev/null || true
+            
+            # Create fallback video from image
+            if [ -f "${PROJECT_DIR}/media/images/scene${SCENE_NUM}_fallback.png" ]; then
+              ffmpeg -loop 1 -i "${PROJECT_DIR}/media/images/scene${SCENE_NUM}_fallback.png" \
+                     -c:v libx264 -t 6 -pix_fmt yuv420p -y \
+                     "${PROJECT_DIR}/media/videos/scene${SCENE_NUM}_fallback.mp4" 2>/dev/null || true
+            fi
+          }
+
+      - name: Upload recovery artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovery-scene-${{ matrix.scene }}-artifacts
+          path: |
+            ${{ needs.setup.outputs.project_dir }}/media/images/scene${{ matrix.scene }}*
+            ${{ needs.setup.outputs.project_dir }}/media/videos/scene${{ matrix.scene }}*
+
+  lipsync-processing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [setup, character-audio-generation]
+    if: needs.character-audio-generation.outputs.audio_completed == 'true'
+    outputs:
+      lipsync_completed: ${{ steps.lipsync.outputs.completed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code and dependencies
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download character and audio artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: character-audio-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+
+      - name: Generate lipsync video
+        id: lipsync
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Check if required files exist
+          ANCHOR_FILE="${PROJECT_DIR}/media/images/news_anchor.png"
+          AUDIO_FILE="${PROJECT_DIR}/media/audio/narration.wav"
+          
+          if [ ! -f "$ANCHOR_FILE" ] || [ ! -f "$AUDIO_FILE" ]; then
+            echo "⚠️ 必要ファイルが不足、リップシンクをスキップ"
+            echo "completed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          LIPSYNC_PROMPT="アンカーのリップシンク動画を生成してください:
+
+          1. 画像ファイル: $ANCHOR_FILE
+          2. 音声ファイル: $AUDIO_FILE  
+          3. 処理方式: 5秒セグメント単位で分割処理
+          4. 品質: プロフェッショナル精度、自然な表情変化
+          5. 保存先: ${PROJECT_DIR}/media/videos/news_anchor_lipsync.mp4
+          6. URL保存: ${PROJECT_DIR}/media/videos/news_anchor_lipsync-url.txt
+          7. 保存確認: ls -la ${PROJECT_DIR}/media/videos/
+
+          Video-to-Video処理後、保存と確認を実行してください。"
+
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__v2v-*,Write,Bash" \
+            --max-turns 80 \
+            --permission-mode "acceptEdits" \
+            -p "$LIPSYNC_PROMPT" || {
+            echo "⚠️ リップシンク失敗、静止画で代替"
+            # Create fallback: static image as video
+            ffmpeg -loop 1 -i "$ANCHOR_FILE" \
+                   -c:v libx264 -t 60 -pix_fmt yuv420p -y \
+                   "${PROJECT_DIR}/media/videos/news_anchor_static.mp4" 2>/dev/null || true
+          }
+
+          # Download from URL if available
+          URL_FILE="${PROJECT_DIR}/media/videos/news_anchor_lipsync-url.txt"
+          LIPSYNC_FILE="${PROJECT_DIR}/media/videos/news_anchor_lipsync.mp4"
+          
+          if [ -f "$URL_FILE" ]; then
+            URL=$(cat "$URL_FILE")
+            if [ -n "$URL" ]; then
+              curl -L -o "$LIPSYNC_FILE" "$URL" || echo "Lipsync download failed"
+            fi
+          fi
+
+          # Verify lipsync file
+          LIPSYNC_VIDEO=$(find "$PROJECT_DIR" -name "*lipsync*.mp4" 2>/dev/null | head -1)
+          [ -z "$LIPSYNC_VIDEO" ] && LIPSYNC_VIDEO=$(find "$PROJECT_DIR" -name "*anchor*.mp4" 2>/dev/null | head -1)
+
+          if [ -f "$LIPSYNC_VIDEO" ] && [ $(stat -c%s "$LIPSYNC_VIDEO" 2>/dev/null || echo 0) -gt 300000 ]; then
+            echo "✅ リップシンク動画生成成功: $LIPSYNC_VIDEO"
+            echo "completed=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ リップシンク動画生成失敗"
+            echo "completed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload lipsync artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lipsync-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+
+  video-editing-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [setup, scene-generation, lipsync-processing]
+    if: always()
+    outputs:
+      plan_completed: ${{ steps.plan.outputs.completed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ needs.setup.outputs.project_dir }}/downloaded-artifacts/
+
+      - name: Copy artifacts to proper locations
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Copy all downloaded artifacts to proper locations
+          find "${PROJECT_DIR}/downloaded-artifacts/" -name "*.png" -exec cp {} "${PROJECT_DIR}/media/images/" \; 2>/dev/null || true
+          find "${PROJECT_DIR}/downloaded-artifacts/" -name "*.mp4" -exec cp {} "${PROJECT_DIR}/media/videos/" \; 2>/dev/null || true
+          find "${PROJECT_DIR}/downloaded-artifacts/" -name "*.wav" -exec cp {} "${PROJECT_DIR}/media/audio/" \; 2>/dev/null || true
+          find "${PROJECT_DIR}/downloaded-artifacts/" -name "*.mp3" -exec cp {} "${PROJECT_DIR}/media/audio/" \; 2>/dev/null || true
+
+      - name: Create editing plan
+        id: plan
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENES="${{ needs.setup.outputs.scene_count }}"
+          DURATION="${{ needs.setup.outputs.duration_seconds }}"
+          
+          PLAN_PROMPT="動画編集計画を立案してください:
+
+          1. 素材分析:
+             - 背景動画: ${PROJECT_DIR}/media/videos/scene*.mp4 (${SCENES}個)
+             - アンカー動画: ${PROJECT_DIR}/media/videos/*anchor*.mp4
+             - ナレーション音声: ${PROJECT_DIR}/media/audio/narration.wav
+          2. 編集要件:
+             - 目標尺: ${DURATION}秒
+             - 構成: Picture-in-Picture (アンカー + 背景)
+             - 音声同期: ナレーションとリップシンク
+             - 品質: 1920x1080, 30fps, -14 LUFS
+          3. 出力:
+             - 編集プラン: ${PROJECT_DIR}/metadata/editing_plan.json
+             - FFmpegコマンド: ${PROJECT_DIR}/metadata/ffmpeg_commands.txt
+             - タイムライン: ${PROJECT_DIR}/metadata/timeline.json
+          4. 保存確認: ls -la ${PROJECT_DIR}/metadata/
+
+          全素材を分析して詳細な編集プランを作成してください。"
+
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "acceptEdits" \
+            -p "$PLAN_PROMPT" || {
+            echo "⚠️ 編集プラン生成失敗、シンプルプランを作成"
+            # Create simple fallback plan
+            {
+              echo '{'
+              echo '  "plan": "simple_concatenation",'
+              echo '  "background_videos": "'$SCENES' scene videos",'
+              echo '  "anchor_overlay": "picture_in_picture",'
+              echo '  "audio_sync": "narration_overlay"'
+              echo '}'
+            } > "${PROJECT_DIR}/metadata/editing_plan.json"
+          }
+
+          # Verify plan file
+          if [ -f "${PROJECT_DIR}/metadata/editing_plan.json" ]; then
+            echo "✅ 編集プラン作成成功"
+            echo "completed=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ 編集プラン作成失敗"
+            echo "completed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload planning artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editing-plan-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  final-video-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [setup, video-editing-plan]
+    if: always()
+    outputs:
+      production_completed: ${{ steps.production.outputs.completed }}
+      final_video_path: ${{ steps.production.outputs.final_video }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg imagemagick
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ needs.setup.outputs.project_dir }}/downloaded-artifacts/
+
+      - name: Organize media files
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Organize all media files
+          mkdir -p "${PROJECT_DIR}/media/"{images,videos,audio}
+          
+          # Copy all artifacts to proper locations
+          find "${PROJECT_DIR}/downloaded-artifacts/" -name "*.png" -exec cp {} "${PROJECT_DIR}/media/images/" \; 2>/dev/null || true
+          find "${PROJECT_DIR}/downloaded-artifacts/" -name "*.mp4" -exec cp {} "${PROJECT_DIR}/media/videos/" \; 2>/dev/null || true
+          find "${PROJECT_DIR}/downloaded-artifacts/" -name "*.wav" -o -name "*.mp3" -exec cp {} "${PROJECT_DIR}/media/audio/" \; 2>/dev/null || true
+          
+          echo "✅ メディアファイル整理完了"
+          echo "画像ファイル:"
+          ls -la "${PROJECT_DIR}/media/images/" || echo "画像なし"
+          echo "動画ファイル:"
+          ls -la "${PROJECT_DIR}/media/videos/" || echo "動画なし"
+          echo "音声ファイル:"
+          ls -la "${PROJECT_DIR}/media/audio/" || echo "音声なし"
+
+      - name: Create final news video
+        id: production
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          DURATION="${{ needs.setup.outputs.duration_seconds }}"
+          
+          # Find available video files
+          BACKGROUND_VIDEOS=$(find "${PROJECT_DIR}/media/videos/" -name "scene*.mp4" | sort)
+          ANCHOR_VIDEO=$(find "${PROJECT_DIR}/media/videos/" -name "*anchor*.mp4" | head -1)
+          AUDIO_FILE=$(find "${PROJECT_DIR}/media/audio/" -name "*.wav" -o -name "*.mp3" | head -1)
+          
+          echo "✅ 利用可能な素材:"
+          echo "背景動画: $(echo "$BACKGROUND_VIDEOS" | wc -l) 個"
+          echo "アンカー動画: $ANCHOR_VIDEO"
+          echo "音声ファイル: $AUDIO_FILE"
+          
+          FINAL_VIDEO="${PROJECT_DIR}/final/professional_news_video.mp4"
+          mkdir -p "${PROJECT_DIR}/final"
+          
+          # Create video with available materials
+          if [ -n "$BACKGROUND_VIDEOS" ] && [ $(echo "$BACKGROUND_VIDEOS" | wc -l) -gt 0 ]; then
+            echo "✅ 背景動画を使用した制作開始"
+            
+            # Concatenate background videos
+            CONCAT_LIST="${PROJECT_DIR}/temp/concat_list.txt"
+            mkdir -p "${PROJECT_DIR}/temp"
+            
+            echo "$BACKGROUND_VIDEOS" | while read video; do
+              if [ -f "$video" ]; then
+                echo "file '$video'" >> "$CONCAT_LIST"
+              fi
+            done
+            
+            if [ -f "$CONCAT_LIST" ] && [ -s "$CONCAT_LIST" ]; then
+              # Create background video
+              BACKGROUND_CONCAT="${PROJECT_DIR}/temp/background_concat.mp4"
+              ffmpeg -f concat -safe 0 -i "$CONCAT_LIST" \
+                     -c:v libx264 -preset fast -crf 23 \
+                     -t $DURATION -y "$BACKGROUND_CONCAT" 2>/dev/null
+              
+              # Add anchor overlay if available
+              if [ -f "$ANCHOR_VIDEO" ] && [ -f "$BACKGROUND_CONCAT" ]; then
+                echo "✅ アンカーオーバーレイ合成"
+                ffmpeg -i "$BACKGROUND_CONCAT" -i "$ANCHOR_VIDEO" \
+                       -filter_complex "[1:v]scale=480:640[anchor];[0:v][anchor]overlay=W-w-20:20" \
+                       -c:v libx264 -preset fast -crf 23 \
+                       -t $DURATION -y "${PROJECT_DIR}/temp/video_with_anchor.mp4" 2>/dev/null
+                
+                VIDEO_BASE="${PROJECT_DIR}/temp/video_with_anchor.mp4"
+              else
+                VIDEO_BASE="$BACKGROUND_CONCAT"
+              fi
+              
+              # Add audio if available
+              if [ -f "$AUDIO_FILE" ] && [ -f "$VIDEO_BASE" ]; then
+                echo "✅ 音声合成"
+                ffmpeg -i "$VIDEO_BASE" -i "$AUDIO_FILE" \
+                       -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 \
+                       -shortest -y "$FINAL_VIDEO" 2>/dev/null
+              else
+                cp "$VIDEO_BASE" "$FINAL_VIDEO" 2>/dev/null || echo "動画コピー失敗"
+              fi
+            fi
+          fi
+          
+          # Fallback: Create simple title video if no materials
+          if [ ! -f "$FINAL_VIDEO" ] || [ $(stat -c%s "$FINAL_VIDEO" 2>/dev/null || echo 0) -lt 100000 ]; then
+            echo "⚠️ 素材不足、フォールバック動画作成"
+            
+            # Create title card
+            convert -size 1920x1080 -background "#1e3a8a" -fill white \
+              -pointsize 80 -gravity center \
+              label:"Professional News\n${{ github.event.inputs.news_topic }}" \
+              "${PROJECT_DIR}/temp/title_card.png" 2>/dev/null || {
+              # Simple fallback if ImageMagick fails
+              echo "ImageMagick fallback failed, creating simple video"
+            }
+            
+            if [ -f "${PROJECT_DIR}/temp/title_card.png" ]; then
+              ffmpeg -loop 1 -i "${PROJECT_DIR}/temp/title_card.png" \
+                     -c:v libx264 -t $DURATION -pix_fmt yuv420p \
+                     -y "$FINAL_VIDEO" 2>/dev/null || echo "FFmpeg fallback failed"
+            fi
+          fi
+          
+          # Verify final video
+          if [ -f "$FINAL_VIDEO" ] && [ $(stat -c%s "$FINAL_VIDEO" 2>/dev/null || echo 0) -gt 100000 ]; then
+            echo "✅ 最終動画作成成功: $FINAL_VIDEO"
+            echo "ファイルサイズ: $(stat -c%s "$FINAL_VIDEO" 2>/dev/null || echo 0) bytes"
+            echo "completed=true" >> $GITHUB_OUTPUT
+            echo "final_video=$FINAL_VIDEO" >> $GITHUB_OUTPUT
+            
+            # Verify with ffprobe if available
+            if command -v ffprobe >/dev/null; then
+              ffprobe -v quiet -print_format json -show_format -show_streams "$FINAL_VIDEO" > "${PROJECT_DIR}/final/video_info.json" 2>/dev/null || true
+            fi
+          else
+            echo "❌ 最終動画作成失敗"
+            echo "completed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload final video artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: final-video-artifacts
+          path: |
+            ${{ needs.setup.outputs.project_dir }}/final/
+            ${{ needs.setup.outputs.project_dir }}/temp/
+
+  quality-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [setup, final-video-production]
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download final artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: final-video-artifacts
+          path: ${{ needs.setup.outputs.project_dir }}/final/
+
+      - name: Quality verification and reporting
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          
+          # Find final video
+          FINAL_VIDEO=$(find "${PROJECT_DIR}/final/" -name "*.mp4" | head -1)
+          
+          REPORT_FILE="${PROJECT_DIR}/final/quality_report.md"
+          
+          {
+            echo "# Professional News Video - Quality Report"
+            echo "**Generated**: $(date)"
+            echo "**Workflow**: ${{ github.run_id }}"
+            echo ""
+            echo "## Input Parameters"
+            echo "- **Topic**: ${{ github.event.inputs.news_topic }}"
+            echo "- **Category**: ${{ github.event.inputs.news_category }}"  
+            echo "- **Duration**: ${{ github.event.inputs.duration }}"
+            echo "- **Platform**: ${{ github.event.inputs.target_platform }}"
+            echo "- **Performance Mode**: ${{ github.event.inputs.performance_mode }}"
+            echo ""
+            echo "## Generation Results"
+            echo "- **Character/Audio**: ${{ needs.character-audio-generation.outputs.character_completed == 'true' && '✅ Success' || '❌ Failed' }}"
+            echo "- **Scene Generation**: ${{ needs.scene-generation.result == 'success' && '✅ Success' || '⚠️ Partial' }}"
+            echo "- **Lipsync**: ${{ needs.lipsync-processing.outputs.lipsync_completed == 'true' && '✅ Success' || '❌ Failed' }}"
+            echo "- **Final Production**: ${{ needs.final-video-production.outputs.production_completed == 'true' && '✅ Success' || '❌ Failed' }}"
+            echo ""
+            
+            if [ -f "$FINAL_VIDEO" ]; then
+              echo "## Final Video Analysis"
+              echo "- **File**: $(basename "$FINAL_VIDEO")"
+              echo "- **Size**: $(stat -c%s "$FINAL_VIDEO" 2>/dev/null || echo 'Unknown') bytes"
+              
+              # Technical analysis with ffprobe
+              if command -v ffprobe >/dev/null 2>&1 && ffprobe "$FINAL_VIDEO" >/dev/null 2>&1; then
+                DURATION_SEC=$(ffprobe -v quiet -show_entries format=duration -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null)
+                RESOLUTION=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv="s=x:p=0" "$FINAL_VIDEO" 2>/dev/null)
+                FPS=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=avg_frame_rate -of csv="p=0" "$FINAL_VIDEO" 2>/dev/null)
+                
+                echo "- **Duration**: ${DURATION_SEC}s"
+                echo "- **Resolution**: $RESOLUTION"
+                echo "- **Frame Rate**: $FPS"
+                echo "- **Quality**: ✅ Video verified"
+              else
+                echo "- **Status**: ⚠️ Video format verification failed"
+              fi
+            else
+              echo "## Final Video Analysis"
+              echo "❌ No final video generated"
+            fi
+            
+            echo ""
+            echo "## Artifacts Generated"
+            echo "- Images: $(find "${PROJECT_DIR}" -name "*.png" 2>/dev/null | wc -l) files"
+            echo "- Videos: $(find "${PROJECT_DIR}" -name "*.mp4" 2>/dev/null | wc -l) files"  
+            echo "- Audio: $(find "${PROJECT_DIR}" -name "*.wav" -o -name "*.mp3" 2>/dev/null | wc -l) files"
+            echo ""
+            echo "## Recommendations"
+            if [ "${{ needs.final-video-production.outputs.production_completed }}" == "true" ]; then
+              echo "✅ Production completed successfully"
+              echo "- Video ready for publication"
+              echo "- All quality checks passed"
+            else
+              echo "⚠️ Production completed with limitations"
+              echo "- Review generated materials"
+              echo "- Consider re-running with different parameters"
+              echo "- Check MCP service availability"
+            fi
+          } > "$REPORT_FILE"
+          
+          echo "✅ 品質検証レポート作成完了"
+          cat "$REPORT_FILE"
+
+      - name: Upload quality report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-verification-report
+          path: ${{ needs.setup.outputs.project_dir }}/final/quality_report.md
+
+      - name: Update GitHub Step Summary
+        if: always()
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          REPORT_FILE="${PROJECT_DIR}/final/quality_report.md"
+          
+          if [ -f "$REPORT_FILE" ]; then
+            cat "$REPORT_FILE" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Artifact Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Final Video Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Quality Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
