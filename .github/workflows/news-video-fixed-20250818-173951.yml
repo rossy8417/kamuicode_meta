@@ -662,8 +662,6 @@ jobs:
         scene: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
       fail-fast: false
     continue-on-error: true
-    outputs:
-      failed_videos: ${{ steps.collect-video-failures.outputs.failed_videos }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -756,30 +754,20 @@ jobs:
             echo "scene_${SCENE_NUM}_video_failed=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Collect Video Failures
-        id: collect-video-failures
+      - name: Save Video Generation Status
         if: always()
         run: |
-          FAILED_VIDEOS=""
-          for i in {1..12}; do
-            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
-              # Check if the output variable exists by evaluating it in bash
-              VAR_NAME="scene_${i}_video_failed"
-              VAR_VALUE=$(echo '${{ toJSON(steps.video.outputs) }}' | jq -r ".${VAR_NAME} // \"\"")
-              if [ "$VAR_VALUE" = "true" ]; then
-                if [ -z "$FAILED_VIDEOS" ]; then
-                  FAILED_VIDEOS="$i"
-                else
-                  FAILED_VIDEOS="$FAILED_VIDEOS,$i"
-                fi
-              fi
-            fi
-          done
+          SCENE_NUM=${{ matrix.scene }}
+          STATUS_FILE="${{ needs.setup.outputs.project_dir }}/video-status-scene${SCENE_NUM}.txt"
           
-          if [ -n "$FAILED_VIDEOS" ]; then
-            echo "failed_videos=[${FAILED_VIDEOS}]" >> $GITHUB_OUTPUT
+          # Check if this scene failed
+          if [ "${{ steps.video.outputs.scene_${SCENE_NUM}_video_failed }}" = "true" ] || \
+             [ ! -f "${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}.mp4" ]; then
+            echo "FAILED" > "$STATUS_FILE"
+            echo "Scene $SCENE_NUM video generation FAILED"
           else
-            echo "failed_videos=[]" >> $GITHUB_OUTPUT
+            echo "SUCCESS" > "$STATUS_FILE"
+            echo "Scene $SCENE_NUM video generation SUCCESS"
           fi
 
       - name: Upload Video Data
@@ -787,7 +775,9 @@ jobs:
         if: always()
         with:
           name: video-data-scene-${{ matrix.scene }}
-          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+          path: |
+            ${{ needs.setup.outputs.project_dir }}/media/videos/
+            ${{ needs.setup.outputs.project_dir }}/video-status-scene${{ matrix.scene }}.txt
 
   lipsync-processing:
     needs: [check-trigger, setup, anchor-generation, narration-generation]
@@ -882,18 +872,75 @@ jobs:
           name: lipsync-data
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/
 
+  collect-video-failures:
+    needs: [check-trigger, setup, scene-video-generation]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      failed_videos: ${{ steps.collect.outputs.failed_videos }}
+    steps:
+      - name: Download All Video Status Files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: video-data-scene-*
+          path: ${{ needs.setup.outputs.project_dir }}/all-videos/
+
+      - name: Collect Failed Videos
+        id: collect
+        run: |
+          FAILED_VIDEOS=""
+          
+          # Check each scene's status
+          for i in {1..12}; do
+            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+              STATUS_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/video-status-scene${i}.txt"
+              
+              if [ -f "$STATUS_FILE" ]; then
+                STATUS=$(cat "$STATUS_FILE")
+                if [ "$STATUS" = "FAILED" ]; then
+                  if [ -z "$FAILED_VIDEOS" ]; then
+                    FAILED_VIDEOS="$i"
+                  else
+                    FAILED_VIDEOS="$FAILED_VIDEOS,$i"
+                  fi
+                  echo "Scene $i: FAILED"
+                else
+                  echo "Scene $i: SUCCESS"
+                fi
+              else
+                echo "Scene $i: Status file not found, assuming failure"
+                if [ -z "$FAILED_VIDEOS" ]; then
+                  FAILED_VIDEOS="$i"
+                else
+                  FAILED_VIDEOS="$FAILED_VIDEOS,$i"
+                fi
+              fi
+            fi
+          done
+          
+          if [ -n "$FAILED_VIDEOS" ]; then
+            echo "Failed videos: [$FAILED_VIDEOS]"
+            echo "failed_videos=[${FAILED_VIDEOS}]" >> $GITHUB_OUTPUT
+          else
+            echo "No failed videos"
+            echo "failed_videos=[]" >> $GITHUB_OUTPUT
+          fi
+
   video-recovery:
-    needs: [check-trigger, setup, scene-video-generation, background-generation]
+    needs: [check-trigger, setup, collect-video-failures, background-generation]
     if: |
       always() && 
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.scene-video-generation.outputs.failed_videos != '' &&
-      needs.scene-video-generation.outputs.failed_videos != '[]'
+      needs.collect-video-failures.outputs.failed_videos != '' &&
+      needs.collect-video-failures.outputs.failed_videos != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       matrix:
-        scene: ${{ fromJson(needs.scene-video-generation.outputs.failed_videos || '[]') }}
+        scene: ${{ fromJson(needs.collect-video-failures.outputs.failed_videos || '[]') }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -972,7 +1019,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/
 
   editing-plan:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, video-recovery]
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, collect-video-failures, video-recovery]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true'
