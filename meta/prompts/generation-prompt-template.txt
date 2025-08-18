@@ -52,6 +52,16 @@ Standard Requirements:
 - MUST: Prohibit absolute paths or root-level outputs, always use PROJECT_DIR_PLACEHOLDER
 - MUST: Never use matrix variables in job outputs section (outputs cannot reference ${{ matrix.* }})
 - MUST: Matrix strategy can only be used within steps, not in outputs definition
+- MUST: NEVER use format() with bash loop variables in GitHub Actions expressions
+  ❌ WRONG: ${{ steps.background.outputs[format('scene_{0}_failed', i)] }}
+  ✅ CORRECT: Use toJSON and jq to access dynamic output names:
+  VAR_VALUE=$(echo '${{ toJSON(steps.background.outputs) }}' | jq -r ".scene_${i}_failed // \"\"")
+- MUST: When setting GitHub outputs with potentially multi-line content, use heredoc syntax:
+  echo "output_name<<EOF" >> $GITHUB_OUTPUT
+  echo "$CONTENT" >> $GITHUB_OUTPUT
+  echo "EOF" >> $GITHUB_OUTPUT
+- MUST: Always sanitize outputs to single line when possible: 
+  SUMMARY=$(echo "$SUMMARY" | tr '\n' ' ' | tr -s ' ')
 - MUST: For news video, calculate scenes as: ceil(duration_seconds / 5) (e.g., 60s = 12 scenes, 30s = 6 scenes)
 - MUST: Create ONE news anchor with fixed seed value, generate multiple lip-sync videos for all scenes
 - CRITICAL MUST: Environment variables for Claude Code SDK (REQUIRED for EVERY step using Claude Code):
@@ -186,8 +196,8 @@ For ANY parallel generation tasks (scenes, images, data), you MUST include:
    - continue-on-error: true for each scene
    - Output failed_items as JSON array
 2. Recovery job that:
-   - Runs if: always() && needs.main-job.outputs.failed_items != '[]'
-   - Uses matrix: ${{ fromJson(needs.main-job.outputs.failed_items) }}
+   - Runs if: always() && needs.main-job.outputs.failed_items != '' && needs.main-job.outputs.failed_items != '[]'
+   - Uses matrix: ${{ fromJson(needs.main-job.outputs.failed_items || '[]') }}
    - Retries failed generations with different parameters
 
 Example pattern:
@@ -205,10 +215,11 @@ recovery-generation:
   needs: [generate-scenes]
   if: |
     always() && 
+    needs.generate-scenes.outputs.failed_scenes != '' &&
     needs.generate-scenes.outputs.failed_scenes != '[]'
   strategy:
     matrix:
-      scene: ${{ fromJson(needs.generate-scenes.outputs.failed_scenes) }}
+      scene: ${{ fromJson(needs.generate-scenes.outputs.failed_scenes || '[]') }}
 ```
 
 CRITICAL REQUIREMENTS:

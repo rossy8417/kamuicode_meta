@@ -206,10 +206,16 @@ jobs:
               else
                 "AI technology latest developments and analysis"
               end' 2>/dev/null || echo "Latest ${TOPIC} developments")
-            echo "news_summary=${SUMMARY}" >> $GITHUB_OUTPUT
+            # Clean up the summary - remove newlines and ensure single line
+            SUMMARY=$(echo "$SUMMARY" | tr '\n' ' ' | tr -s ' ')
+            echo "news_summary<<EOF" >> $GITHUB_OUTPUT
+            echo "$SUMMARY" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
             echo "✅ News collection completed"
           else
-            echo "news_summary=Latest ${TOPIC} developments and industry impact" >> $GITHUB_OUTPUT
+            echo "news_summary<<EOF" >> $GITHUB_OUTPUT
+            echo "Latest ${TOPIC} developments and industry impact" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
             echo "⚠️ Using fallback summary"
           fi
 
