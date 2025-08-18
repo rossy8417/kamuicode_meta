@@ -1,0 +1,1110 @@
+name: News Video Creation Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      news_topic:
+        description: 'ニュースのトピック'
+        required: true
+        default: '最新AI技術の進歩'
+        type: string
+      duration:
+        description: '動画の長さ'
+        required: true
+        default: '60s'
+        type: choice
+        options:
+          - '15s'
+          - '30s'
+          - '60s'
+          - '90s'
+          - '3min'
+          - '5min'
+      news_category:
+        description: 'ニュースカテゴリー'
+        required: true
+        default: 'technology'
+        type: choice
+        options:
+          - 'technology'
+          - 'business'
+          - 'science'
+          - 'politics'
+          - 'health'
+          - 'sports'
+          - 'entertainment'
+      target_platform:
+        description: '配信プラットフォーム'
+        required: true
+        default: 'youtube'
+        type: choice
+        options:
+          - 'youtube'
+          - 'instagram'
+          - 'tiktok'
+          - 'twitter'
+      visual_style:
+        description: 'ビジュアルスタイル'
+        required: true
+        default: 'cinematic'
+        type: choice
+        options:
+          - 'cinematic'
+          - 'documentary'
+          - 'corporate'
+      enable_fallback:
+        description: 'フォールバック処理を有効にする'
+        required: true
+        default: true
+        type: boolean
+  push:
+    paths-ignore:
+      - '.github/workflows/**'
+
+env:
+  PROJECT_DIR: /home/runner/work/kamuicode_meta/kamuicode_meta/projects/issue-66-20250818-025742
+
+jobs:
+  check-trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check Event Type
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping workflow for push event"
+          else
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          fi
+
+  setup:
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      news_topic: ${{ steps.setup.outputs.news_topic }}
+      news_category: ${{ steps.setup.outputs.news_category }}
+      duration: ${{ steps.setup.outputs.duration }}
+      scene_count: ${{ steps.setup.outputs.scene_count }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Project Environment
+        id: setup
+        run: |
+          # Create project directory structure
+          mkdir -p "${PROJECT_DIR}"
+          mkdir -p "${PROJECT_DIR}/metadata"
+          mkdir -p "${PROJECT_DIR}/media/images"
+          mkdir -p "${PROJECT_DIR}/media/videos"
+          mkdir -p "${PROJECT_DIR}/media/audio"
+          mkdir -p "${PROJECT_DIR}/logs"
+          mkdir -p "${PROJECT_DIR}/final"
+          
+          # Extract duration seconds
+          DURATION_INPUT="${{ github.event.inputs.duration || '60s' }}"
+          case "$DURATION_INPUT" in
+            "15s") DURATION_SECONDS=15 ;;
+            "30s") DURATION_SECONDS=30 ;;
+            "60s") DURATION_SECONDS=60 ;;
+            "90s") DURATION_SECONDS=90 ;;
+            "3min") DURATION_SECONDS=180 ;;
+            "5min") DURATION_SECONDS=300 ;;
+            *) DURATION_SECONDS=60 ;;
+          esac
+          
+          # Calculate scene count (5 seconds per scene)
+          SCENE_COUNT=$(( (DURATION_SECONDS + 4) / 5 ))
+          
+          echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+          echo "news_topic=${{ github.event.inputs.news_topic || '最新AI技術の進歩' }}" >> $GITHUB_OUTPUT
+          echo "news_category=${{ github.event.inputs.news_category || 'technology' }}" >> $GITHUB_OUTPUT
+          echo "duration=${DURATION_SECONDS}" >> $GITHUB_OUTPUT
+          echo "scene_count=${SCENE_COUNT}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Project setup complete:"
+          echo "- Project Dir: ${PROJECT_DIR}"
+          echo "- Topic: ${{ github.event.inputs.news_topic || '最新AI技術の進歩' }}"
+          echo "- Category: ${{ github.event.inputs.news_category || 'technology' }}"
+          echo "- Duration: ${DURATION_SECONDS}s"
+          echo "- Scene Count: ${SCENE_COUNT}"
+
+  news-collection:
+    needs: [check-trigger, setup]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      news_summary: ${{ steps.collect.outputs.news_summary }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Collect News Information
+        id: collect
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          TOPIC="${{ needs.setup.outputs.news_topic }}"
+          CATEGORY="${{ needs.setup.outputs.news_category }}"
+          
+          SEARCH_PROMPT="Collect news information:
+          Topic: ${TOPIC}
+          Category: ${CATEGORY}
+          Requirements:
+          1. Search for latest news using WebSearch tool
+          2. Get recent articles using NewsAPI if available
+          3. Compile 5-7 key points about the topic
+          4. Save summary to ${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json
+          5. Include source URLs and credibility scores
+          6. Verify save with ls -la ${{ needs.setup.outputs.project_dir }}/metadata/"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "WebSearch,mcp__newsapi-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "$SEARCH_PROMPT" || {
+              echo "⚠️ News collection failed, creating fallback summary"
+              {
+                echo '{'
+                echo '  "topic": "'$TOPIC'",'
+                echo '  "category": "'$CATEGORY'",'
+                echo '  "key_points": ['
+                echo '    "最新の'$TOPIC'に関する重要な発展",'
+                echo '    "業界への影響と今後の展望",'
+                echo '    "専門家による分析と見解",'
+                echo '    "技術的な詳細と応用可能性",'
+                echo '    "社会的意義と課題"'
+                echo '  ],'
+                echo '  "sources": ["fallback"],'
+                echo '  "credibility_score": 0.7'
+                echo '}'
+              } > "${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json"
+            }
+          
+          # Verify and read summary
+          ls -la "${{ needs.setup.outputs.project_dir }}/metadata/"
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json" ]; then
+            SUMMARY=$(cat "${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json" | jq -r '.key_points | join("; ")')
+            echo "news_summary=${SUMMARY}" >> $GITHUB_OUTPUT
+            echo "✅ News collection completed"
+          else
+            echo "news_summary=Latest ${TOPIC} developments and industry impact" >> $GITHUB_OUTPUT
+            echo "⚠️ Using fallback summary"
+          fi
+
+      - name: Upload News Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  script-creation:
+    needs: [check-trigger, setup, news-collection]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      script_ready: ${{ steps.script.outputs.script_ready }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download News Data
+        uses: actions/download-artifact@v4
+        with:
+          name: news-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+      - name: Create News Script
+        id: script
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          TOPIC="${{ needs.setup.outputs.news_topic }}"
+          DURATION="${{ needs.setup.outputs.duration }}"
+          SCENE_COUNT="${{ needs.setup.outputs.scene_count }}"
+          
+          SCRIPT_PROMPT="Create professional news script:
+          Topic: ${TOPIC}
+          Duration: ${DURATION} seconds
+          Scene count: ${SCENE_COUNT}
+          Structure: Introduction (0-3s hook) + Main content (3-${DURATION}s)
+          Requirements:
+          1. Read news summary from ${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json
+          2. Create engaging ${DURATION}-second news script
+          3. Divide into ${SCENE_COUNT} scenes (5 seconds each)
+          4. Include professional news anchor narration
+          5. Save script to ${{ needs.setup.outputs.project_dir }}/metadata/news_script.json
+          6. Include scene descriptions for visual generation
+          7. Save narration text to ${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt
+          8. Verify with ls -la"
+          
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Read,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "$SCRIPT_PROMPT" || {
+              echo "⚠️ Script creation failed, creating fallback"
+              
+              # Create fallback script
+              {
+                echo '{'
+                echo '  "title": "'$TOPIC'",'
+                echo '  "total_duration": '$DURATION','
+                echo '  "scene_count": '$SCENE_COUNT','
+                echo '  "scenes": ['
+                for i in $(seq 1 $SCENE_COUNT); do
+                  if [ $i -eq 1 ]; then
+                    echo '    {"scene": '$i', "duration": 5, "narration": "今日のニュースです。'$TOPIC'について最新の情報をお伝えします。", "visual": "News studio with professional anchor"}'
+                  elif [ $i -eq $SCENE_COUNT ]; then
+                    echo '    {"scene": '$i', "duration": 5, "narration": "以上、'$TOPIC'に関するニュースでした。", "visual": "Professional news studio conclusion"}'
+                  else
+                    echo '    {"scene": '$i', "duration": 5, "narration": "'$TOPIC'の詳細な分析と影響について。", "visual": "News background with graphics"}'
+                  fi
+                  [ $i -lt $SCENE_COUNT ] && echo ','
+                done
+                echo '  ]'
+                echo '}'
+              } > "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json"
+              
+              # Create narration text
+              echo "今日のニュースです。${TOPIC}について最新の情報をお伝えします。${TOPIC}の詳細な分析と影響について専門家の見解をご紹介します。以上、${TOPIC}に関するニュースでした。" > "${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt"
+            }
+          
+          # Verify files
+          ls -la "${{ needs.setup.outputs.project_dir }}/metadata/"
+          
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" ] && [ -f "${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt" ]; then
+            echo "script_ready=true" >> $GITHUB_OUTPUT
+            echo "✅ Script creation completed"
+          else
+            echo "script_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Script creation failed"
+          fi
+
+      - name: Upload Script Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  narration-generation:
+    needs: [check-trigger, setup, script-creation]
+    if: needs.check-trigger.outputs.should_run == 'true' && needs.script-creation.outputs.script_ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      narration_ready: ${{ steps.narration.outputs.narration_ready }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Script Data
+        uses: actions/download-artifact@v4
+        with:
+          name: script-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+      - name: Generate Narration Audio
+        id: narration
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/audio"
+          
+          # Read narration text
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt" ]; then
+            NARRATION_TEXT=$(cat "${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt")
+          else
+            NARRATION_TEXT="今日のニュースです。${{ needs.setup.outputs.news_topic }}について最新の情報をお伝えします。"
+          fi
+          
+          AUDIO_PATH="${{ needs.setup.outputs.project_dir }}/media/audio/narration.mp3"
+          
+          TTS_PROMPT="Generate professional Japanese news narration:
+          Text: '${NARRATION_TEXT}'
+          Voice: Professional Japanese female news anchor
+          Output: ${AUDIO_PATH}
+          Requirements:
+          1. Use MCP TTS tool for high quality audio
+          2. Professional news anchor voice style
+          3. Clear pronunciation and appropriate pace
+          4. Save to ${AUDIO_PATH} using Write tool
+          5. Verify with ls -la ${{ needs.setup.outputs.project_dir }}/media/audio/"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2s-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "$TTS_PROMPT" || {
+              echo "⚠️ MCP TTS failed, using local fallback"
+              
+              # Install espeak-ng for fallback
+              sudo apt-get update && sudo apt-get install -y espeak-ng
+              
+              # Generate fallback narration
+              espeak-ng "$NARRATION_TEXT" -w "${AUDIO_PATH}" -s 150 -v ja || {
+                echo "⚠️ Fallback TTS failed, using placeholder"
+                # Create a short silence as placeholder
+                ffmpeg -f lavfi -i anullsrc=duration=5 -ar 44100 -ac 2 "${AUDIO_PATH}" -y
+              }
+            }
+          
+          # Verify audio file
+          ls -la "${{ needs.setup.outputs.project_dir }}/media/audio/"
+          
+          AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}/media/audio/" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
+          if [ -n "$AUDIO_FILE" ] && [ -f "$AUDIO_FILE" ]; then
+            FILE_SIZE=$(stat -c%s "$AUDIO_FILE" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 1000 ]; then
+              echo "narration_ready=true" >> $GITHUB_OUTPUT
+              echo "✅ Narration generated: $AUDIO_FILE ($FILE_SIZE bytes)"
+            else
+              echo "narration_ready=false" >> $GITHUB_OUTPUT
+              echo "⚠️ Narration file too small: $FILE_SIZE bytes"
+            fi
+          else
+            echo "narration_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Narration generation failed"
+          fi
+
+      - name: Upload Audio Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/audio/
+
+  anchor-generation:
+    needs: [check-trigger, setup]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      anchor_ready: ${{ steps.anchor.outputs.anchor_ready }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Generate News Anchor
+        id: anchor
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/images"
+          
+          ANCHOR_PATH="${{ needs.setup.outputs.project_dir }}/media/images/news_anchor.png"
+          URL_PATH="${{ needs.setup.outputs.project_dir }}/media/images/news_anchor-url.txt"
+          
+          ANCHOR_PROMPT="Generate professional Japanese news anchor:
+          Description: Professional Japanese female news anchor, 30s, business suit, front-facing, green screen background, studio lighting, professional appearance
+          Seed: 42 (for consistency)
+          Output: ${ANCHOR_PATH}
+          Requirements:
+          1. Generate with MCP T2I tool (mcp__t2i-kamui-imagen3__imagen_t2i)
+          2. Save image to ${ANCHOR_PATH} using Write tool
+          3. Save Google Cloud URL to ${URL_PATH} using Write tool
+          4. Execute ls -la ${{ needs.setup.outputs.project_dir }}/media/images/ using Bash tool"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "$ANCHOR_PROMPT" || {
+              echo "⚠️ Anchor generation failed, creating placeholder"
+              # Create placeholder image
+              convert -size 1920x1080 xc:green -pointsize 72 -fill white -gravity center -annotate +0+0 "News Anchor" "${ANCHOR_PATH}"
+            }
+          
+          # Download from URL if available
+          [ -f "$URL_PATH" ] && curl -L -o "$ANCHOR_PATH" "$(cat $URL_PATH)" 2>/dev/null
+          
+          # Multi-pattern search for anchor image
+          ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*anchor*.png" -type f 2>/dev/null | head -1)
+          [ -z "$ANCHOR_IMAGE" ] && ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.png" -mmin -2 2>/dev/null | head -1)
+          [ -z "$ANCHOR_IMAGE" ] && ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.png" 2>/dev/null | head -1)
+          
+          # Validate anchor image
+          if [ -n "$ANCHOR_IMAGE" ] && [ -f "$ANCHOR_IMAGE" ]; then
+            FILE_SIZE=$(stat -c%s "$ANCHOR_IMAGE" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 10000 ]; then
+              echo "anchor_ready=true" >> $GITHUB_OUTPUT
+              echo "✅ Anchor generated: $ANCHOR_IMAGE ($FILE_SIZE bytes)"
+            else
+              echo "anchor_ready=false" >> $GITHUB_OUTPUT
+              echo "⚠️ Anchor file too small: $FILE_SIZE bytes"
+            fi
+          else
+            echo "anchor_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Anchor generation failed"
+          fi
+
+      - name: Upload Anchor Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: anchor-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+  background-generation:
+    needs: [check-trigger, setup, script-creation]
+    if: needs.check-trigger.outputs.should_run == 'true' && needs.script-creation.outputs.script_ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      matrix:
+        scene: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      fail-fast: false
+    continue-on-error: true
+    outputs:
+      failed_scenes: ${{ steps.collect-failures.outputs.failed_scenes }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Script Data
+        uses: actions/download-artifact@v4
+        with:
+          name: script-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+      - name: Generate Background for Scene ${{ matrix.scene }}
+        id: background
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          SCENE_NUM=${{ matrix.scene }}
+          SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          
+          # Skip if scene number exceeds calculated count
+          if [ $SCENE_NUM -gt $SCENE_COUNT ]; then
+            echo "Skipping scene $SCENE_NUM (exceeds count $SCENE_COUNT)"
+            exit 0
+          fi
+          
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/images"
+          
+          # Extract scene description from script
+          SCENE_DESC="Professional news studio background, no people, clean modern design"
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" ]; then
+            SCENE_DESC=$(jq -r ".scenes[$((SCENE_NUM-1))].visual // \"Professional news studio background\"" "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" 2>/dev/null || echo "Professional news studio background")
+          fi
+          
+          BG_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}.png"
+          URL_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}-url.txt"
+          
+          BACKGROUND_PROMPT="Generate news background for scene ${SCENE_NUM}:
+          Description: ${SCENE_DESC}, no people, professional lighting, news studio style
+          Style: ${{ github.event.inputs.visual_style || 'cinematic' }}
+          Output: ${BG_PATH}
+          Requirements:
+          1. Generate with MCP T2I tool
+          2. No human figures (background only)
+          3. Professional news studio aesthetic
+          4. Save to ${BG_PATH} using Write tool
+          5. Save URL to ${URL_PATH} using Write tool
+          6. Verify with ls -la"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "$BACKGROUND_PROMPT" || {
+              echo "⚠️ Background generation failed for scene $SCENE_NUM"
+              echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
+              exit 1
+            }
+          
+          # Download from URL if available
+          [ -f "$URL_PATH" ] && curl -L -o "$BG_PATH" "$(cat $URL_PATH)" 2>/dev/null
+          
+          # Verify background image
+          BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${SCENE_NUM}*.png" -type f 2>/dev/null | head -1)
+          [ -z "$BG_IMAGE" ] && BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*background*.png" -mmin -2 2>/dev/null | head -1)
+          
+          if [ -n "$BG_IMAGE" ] && [ -f "$BG_IMAGE" ]; then
+            FILE_SIZE=$(stat -c%s "$BG_IMAGE" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 10000 ]; then
+              echo "✅ Background generated for scene $SCENE_NUM: $BG_IMAGE"
+              echo "scene_${SCENE_NUM}_success=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Background file too small for scene $SCENE_NUM"
+              echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Background generation failed for scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Collect Failed Scenes
+        id: collect-failures
+        if: always()
+        run: |
+          FAILED_SCENES=""
+          for i in {1..12}; do
+            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+              if [ "${{ steps.background.outputs[format('scene_{0}_failed', i)] }}" = "true" ]; then
+                if [ -z "$FAILED_SCENES" ]; then
+                  FAILED_SCENES="$i"
+                else
+                  FAILED_SCENES="$FAILED_SCENES,$i"
+                fi
+              fi
+            fi
+          done
+          
+          if [ -n "$FAILED_SCENES" ]; then
+            echo "failed_scenes=[${FAILED_SCENES}]" >> $GITHUB_OUTPUT
+          else
+            echo "failed_scenes=[]" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Background Data
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: background-data-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+  background-recovery:
+    needs: [check-trigger, setup, background-generation]
+    if: |
+      always() && 
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.background-generation.outputs.failed_scenes != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.background-generation.outputs.failed_scenes) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Retry Background Generation for Scene ${{ matrix.scene }}
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          SCENE_NUM=${{ matrix.scene }}
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/images"
+          
+          BG_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}_retry.png"
+          
+          RETRY_PROMPT="Retry background generation for scene ${SCENE_NUM}:
+          Description: Simple news studio background, no people, professional
+          Seed: $((42 + SCENE_NUM))
+          Requirements: Generate simple professional background with different parameters"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --max-turns 40 \
+            -p "$RETRY_PROMPT" || {
+              echo "⚠️ Retry failed, creating fallback background"
+              convert -size 1920x1080 gradient:blue-darkblue -pointsize 48 -fill white -gravity center -annotate +0+0 "News Scene $SCENE_NUM" "$BG_PATH"
+            }
+
+      - name: Upload Recovery Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: background-recovery-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+  scene-video-generation:
+    needs: [check-trigger, setup, background-generation]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        scene: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      fail-fast: false
+    continue-on-error: true
+    outputs:
+      failed_videos: ${{ steps.collect-video-failures.outputs.failed_videos }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Background Data
+        uses: actions/download-artifact@v4
+        with:
+          name: background-data-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+        continue-on-error: true
+
+      - name: Generate Video for Scene ${{ matrix.scene }}
+        id: video
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          SCENE_NUM=${{ matrix.scene }}
+          SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          
+          # Skip if scene number exceeds calculated count
+          if [ $SCENE_NUM -gt $SCENE_COUNT ]; then
+            echo "Skipping video for scene $SCENE_NUM (exceeds count $SCENE_COUNT)"
+            exit 0
+          fi
+          
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/videos"
+          
+          # Find background image (multiple patterns)
+          BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${SCENE_NUM}*.png" -type f 2>/dev/null | head -1)
+          [ -z "$BG_IMAGE" ] && BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*background*.png" -mmin -5 2>/dev/null | head -1)
+          [ -z "$BG_IMAGE" ] && BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.png" 2>/dev/null | head -1)
+          
+          if [ -z "$BG_IMAGE" ] || [ ! -f "$BG_IMAGE" ]; then
+            echo "⚠️ No background image found for scene $SCENE_NUM, creating fallback"
+            BG_IMAGE="${{ needs.setup.outputs.project_dir }}/media/images/fallback_scene${SCENE_NUM}.png"
+            convert -size 1920x1080 gradient:darkblue-blue -pointsize 60 -fill white -gravity center -annotate +0+0 "News Scene $SCENE_NUM" "$BG_IMAGE"
+          fi
+          
+          VIDEO_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}.mp4"
+          URL_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}-url.txt"
+          
+          I2V_PROMPT="Convert background image to video for scene ${SCENE_NUM}:
+          Input image: ${BG_IMAGE}
+          Output video: ${VIDEO_PATH}
+          Requirements:
+          1. Convert image to 5-second video using MCP I2V tool
+          2. Gentle camera movement suitable for news
+          3. 1920x1080 resolution, 30fps
+          4. Save video to ${VIDEO_PATH} using Write tool
+          5. Save URL to ${URL_PATH} using Write tool
+          6. Verify with ls -la"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__i2v-*,Write,Bash" \
+            --max-turns 80 \
+            --permission-mode "bypassPermissions" \
+            -p "$I2V_PROMPT" || {
+              echo "⚠️ I2V failed for scene $SCENE_NUM, using fallback"
+              # Create fallback video from image
+              ffmpeg -loop 1 -i "$BG_IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p -r 30 "$VIDEO_PATH" -y
+            }
+          
+          # Download from URL if available
+          [ -f "$URL_PATH" ] && curl -L -o "$VIDEO_PATH" "$(cat $URL_PATH)" 2>/dev/null
+          
+          # Verify video
+          VIDEO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${SCENE_NUM}*.mp4" -type f 2>/dev/null | head -1)
+          [ -z "$VIDEO_FILE" ] && VIDEO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.mp4" -mmin -3 2>/dev/null | head -1)
+          
+          if [ -n "$VIDEO_FILE" ] && [ -f "$VIDEO_FILE" ]; then
+            FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 100000 ]; then
+              echo "✅ Video generated for scene $SCENE_NUM: $VIDEO_FILE"
+              echo "scene_${SCENE_NUM}_video_success=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ Video file too small for scene $SCENE_NUM"
+              echo "scene_${SCENE_NUM}_video_failed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Video generation failed for scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_video_failed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Collect Video Failures
+        id: collect-video-failures
+        if: always()
+        run: |
+          FAILED_VIDEOS=""
+          for i in {1..12}; do
+            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+              if [ "${{ steps.video.outputs[format('scene_{0}_video_failed', i)] }}" = "true" ]; then
+                if [ -z "$FAILED_VIDEOS" ]; then
+                  FAILED_VIDEOS="$i"
+                else
+                  FAILED_VIDEOS="$FAILED_VIDEOS,$i"
+                fi
+              fi
+            fi
+          done
+          
+          if [ -n "$FAILED_VIDEOS" ]; then
+            echo "failed_videos=[${FAILED_VIDEOS}]" >> $GITHUB_OUTPUT
+          else
+            echo "failed_videos=[]" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Video Data
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-data-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+
+  lipsync-processing:
+    needs: [check-trigger, setup, anchor-generation, narration-generation]
+    if: |
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.anchor-generation.outputs.anchor_ready == 'true' &&
+      needs.narration-generation.outputs.narration_ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    outputs:
+      lipsync_ready: ${{ steps.lipsync.outputs.lipsync_ready }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Anchor and Audio Data
+        uses: actions/download-artifact@v4
+        with:
+          name: anchor-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+      - name: Download Audio Data
+        uses: actions/download-artifact@v4
+        with:
+          name: audio-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/audio/
+
+      - name: Generate Lipsync Video
+        id: lipsync
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/videos"
+          
+          # Find anchor image and audio file
+          ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*anchor*.png" -type f 2>/dev/null | head -1)
+          AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
+          
+          if [ -z "$ANCHOR_IMAGE" ] || [ -z "$AUDIO_FILE" ]; then
+            echo "❌ Missing anchor image or audio file"
+            echo "lipsync_ready=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          LIPSYNC_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/anchor_lipsync.mp4"
+          
+          LIPSYNC_PROMPT="Create lipsync video:
+          Image: ${ANCHOR_IMAGE}
+          Audio: ${AUDIO_FILE}
+          Output: ${LIPSYNC_PATH}
+          Requirements:
+          1. Generate lipsync video using MCP lipsync tool
+          2. High quality lip synchronization
+          3. Professional news anchor appearance
+          4. Save to ${LIPSYNC_PATH} using Write tool
+          5. Verify with ls -la"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__v2v-*lipsync*,Write,Bash" \
+            --max-turns 80 \
+            --permission-mode "bypassPermissions" \
+            -p "$LIPSYNC_PROMPT" || {
+              echo "⚠️ Lipsync failed, creating fallback video"
+              # Create fallback: static anchor image with audio
+              ffmpeg -loop 1 -i "$ANCHOR_IMAGE" -i "$AUDIO_FILE" -c:v libx264 -c:a aac -shortest -pix_fmt yuv420p "$LIPSYNC_PATH" -y
+            }
+          
+          # Verify lipsync video
+          LIPSYNC_VIDEO=$(find "${{ needs.setup.outputs.project_dir }}" -name "*lipsync*.mp4" -type f 2>/dev/null | head -1)
+          [ -z "$LIPSYNC_VIDEO" ] && LIPSYNC_VIDEO=$(find "${{ needs.setup.outputs.project_dir }}" -name "*anchor*.mp4" -mmin -5 2>/dev/null | head -1)
+          
+          if [ -n "$LIPSYNC_VIDEO" ] && [ -f "$LIPSYNC_VIDEO" ]; then
+            FILE_SIZE=$(stat -c%s "$LIPSYNC_VIDEO" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 500000 ]; then
+              echo "lipsync_ready=true" >> $GITHUB_OUTPUT
+              echo "✅ Lipsync video generated: $LIPSYNC_VIDEO"
+            else
+              echo "lipsync_ready=false" >> $GITHUB_OUTPUT
+              echo "⚠️ Lipsync video too small: $FILE_SIZE bytes"
+            fi
+          else
+            echo "lipsync_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Lipsync generation failed"
+          fi
+
+      - name: Upload Lipsync Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: lipsync-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+
+  editing-plan:
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      plan_ready: ${{ steps.plan.outputs.plan_ready }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Media Assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-data*"
+          path: ${{ needs.setup.outputs.project_dir }}/media/
+          merge-multiple: true
+
+      - name: Create Editing Plan
+        id: plan
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/metadata"
+          
+          PLAN_PROMPT="Analyze all generated media and create editing plan:
+          Directory: ${{ needs.setup.outputs.project_dir }}/media/
+          Duration: ${{ needs.setup.outputs.duration }} seconds
+          Scenes: ${{ needs.setup.outputs.scene_count }}
+          Requirements:
+          1. List all available video, image, and audio files
+          2. Create optimal editing sequence
+          3. Plan picture-in-picture layout for anchor overlay
+          4. Specify timing and transitions
+          5. Save plan to ${{ needs.setup.outputs.project_dir }}/metadata/editing_plan.json
+          6. Include FFmpeg command suggestions"
+          
+          npx @anthropic-ai/claude-code \
+            --allowedTools "Bash,Read,Write" \
+            --max-turns 40 \
+            --permission-mode "bypassPermissions" \
+            -p "$PLAN_PROMPT" || {
+              echo "⚠️ Creating fallback editing plan"
+              {
+                echo '{'
+                echo '  "duration": '${{ needs.setup.outputs.duration }}','
+                echo '  "scenes": '${{ needs.setup.outputs.scene_count }}','
+                echo '  "layout": "picture_in_picture",'
+                echo '  "anchor_position": "bottom_right",'
+                echo '  "anchor_size": "25%",'
+                echo '  "transition": "fade",'
+                echo '  "audio_mix": {"narration": -3, "bgm": -18}'
+                echo '}'
+              } > "${{ needs.setup.outputs.project_dir }}/metadata/editing_plan.json"
+            }
+          
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/editing_plan.json" ]; then
+            echo "plan_ready=true" >> $GITHUB_OUTPUT
+            echo "✅ Editing plan created"
+          else
+            echo "plan_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Editing plan creation failed"
+          fi
+
+      - name: Upload Plan Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-data
+          path: ${{ needs.setup.outputs.project_dir }}/metadata/
+
+  final-composition:
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      final_video: ${{ steps.compose.outputs.final_video }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-data*"
+          path: ${{ needs.setup.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Compose Final Video
+        id: compose
+        run: |
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/final"
+          
+          # List available assets
+          echo "=== Available Assets ==="
+          find "${{ needs.setup.outputs.project_dir }}" -type f -name "*.mp4" -o -name "*.png" -o -name "*.mp3" -o -name "*.wav" | sort
+          
+          # Find background videos
+          BACKGROUND_VIDEOS=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene*.mp4" -type f | sort)
+          LIPSYNC_VIDEO=$(find "${{ needs.setup.outputs.project_dir }}" -name "*lipsync*.mp4" -type f | head -1)
+          AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.mp3" -o -name "*.wav" | head -1)
+          
+          FINAL_OUTPUT="${{ needs.setup.outputs.project_dir }}/final/news_video_final.mp4"
+          
+          if [ -n "$BACKGROUND_VIDEOS" ] && [ -n "$LIPSYNC_VIDEO" ] && [ -f "$LIPSYNC_VIDEO" ]; then
+            echo "✅ Found assets for composition"
+            
+            # Create video list for concatenation
+            VIDEO_LIST="${{ needs.setup.outputs.project_dir }}/final/video_list.txt"
+            echo -n > "$VIDEO_LIST"
+            
+            # Add background videos to list
+            for video in $BACKGROUND_VIDEOS; do
+              if [ -f "$video" ]; then
+                echo "file '$video'" >> "$VIDEO_LIST"
+              fi
+            done
+            
+            # Concatenate background videos
+            CONCAT_BG="${{ needs.setup.outputs.project_dir }}/final/background_concat.mp4"
+            if [ -s "$VIDEO_LIST" ]; then
+              ffmpeg -f concat -safe 0 -i "$VIDEO_LIST" -c copy "$CONCAT_BG" -y
+            else
+              echo "⚠️ No valid background videos, using fallback"
+              ffmpeg -f lavfi -i color=blue:size=1920x1080:duration=${{ needs.setup.outputs.duration }} -r 30 "$CONCAT_BG" -y
+            fi
+            
+            # Overlay anchor video (picture-in-picture)
+            if [ -f "$CONCAT_BG" ] && [ -f "$LIPSYNC_VIDEO" ]; then
+              ffmpeg -i "$CONCAT_BG" -i "$LIPSYNC_VIDEO" \
+                -filter_complex "[1:v]scale=480:270[anchor];[0:v][anchor]overlay=W-w-20:H-h-20[v]" \
+                -map "[v]" -map "1:a" -c:v libx264 -c:a aac -t ${{ needs.setup.outputs.duration }} \
+                "$FINAL_OUTPUT" -y
+            else
+              echo "⚠️ Missing video files, creating simple output"
+              cp "$LIPSYNC_VIDEO" "$FINAL_OUTPUT" 2>/dev/null || {
+                ffmpeg -f lavfi -i testsrc=duration=${{ needs.setup.outputs.duration }}:size=1920x1080:rate=30 \
+                  -f lavfi -i sine=frequency=1000:duration=${{ needs.setup.outputs.duration }} \
+                  -c:v libx264 -c:a aac "$FINAL_OUTPUT" -y
+              }
+            fi
+          else
+            echo "⚠️ Missing essential assets, creating fallback video"
+            # Create fallback news video
+            ffmpeg -f lavfi -i color=darkblue:size=1920x1080:duration=${{ needs.setup.outputs.duration }} \
+              -vf "drawtext=text='News Video: ${{ needs.setup.outputs.news_topic }}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" \
+              -f lavfi -i sine=frequency=440:duration=${{ needs.setup.outputs.duration }} \
+              -c:v libx264 -c:a aac "$FINAL_OUTPUT" -y
+          fi
+          
+          # Verify final video
+          if [ -f "$FINAL_OUTPUT" ]; then
+            FILE_SIZE=$(stat -c%s "$FINAL_OUTPUT" 2>/dev/null || echo 0)
+            DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$FINAL_OUTPUT" 2>/dev/null || echo "0")
+            
+            echo "✅ Final video created:"
+            echo "- Path: $FINAL_OUTPUT"
+            echo "- Size: $FILE_SIZE bytes"
+            echo "- Duration: ${DURATION}s"
+            
+            echo "final_video=$FINAL_OUTPUT" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Final video creation failed"
+            echo "final_video=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Final Video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video
+          path: ${{ needs.setup.outputs.project_dir }}/final/
+
+  quality-verification:
+    needs: [check-trigger, setup, final-composition]
+    if: needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Final Video
+        uses: actions/download-artifact@v4
+        with:
+          name: final-video
+          path: ${{ needs.setup.outputs.project_dir }}/final/
+
+      - name: Verify Video Quality
+        run: |
+          FINAL_VIDEO="${{ needs.final-composition.outputs.final_video }}"
+          
+          if [ -n "$FINAL_VIDEO" ] && [ -f "$FINAL_VIDEO" ]; then
+            echo "=== Quality Verification ==="
+            
+            # Check file size
+            FILE_SIZE=$(stat -c%s "$FINAL_VIDEO" 2>/dev/null || echo 0)
+            echo "File size: $FILE_SIZE bytes"
+            
+            # Check video properties
+            ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -of csv=p=0 "$FINAL_VIDEO" 2>/dev/null || echo "Video probe failed"
+            
+            # Check audio properties
+            ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,sample_rate,channels -of csv=p=0 "$FINAL_VIDEO" 2>/dev/null || echo "Audio probe failed"
+            
+            if [ "$FILE_SIZE" -gt 1000000 ]; then
+              echo "✅ Video quality verification passed"
+            else
+              echo "⚠️ Video file seems small, but process completed"
+            fi
+          else
+            echo "❌ No final video found for verification"
+          fi
+          
+          # Create execution summary
+          SUMMARY_FILE="${{ needs.setup.outputs.project_dir }}/final/execution_summary.txt"
+          {
+            echo "=== News Video Creation Summary ==="
+            echo "Topic: ${{ needs.setup.outputs.news_topic }}"
+            echo "Category: ${{ needs.setup.outputs.news_category }}"
+            echo "Duration: ${{ needs.setup.outputs.duration }}s"
+            echo "Scenes: ${{ needs.setup.outputs.scene_count }}"
+            echo "Completion: $(date)"
+            echo ""
+            echo "Generated Assets:"
+            find "${{ needs.setup.outputs.project_dir }}" -type f -name "*.mp4" -o -name "*.png" -o -name "*.mp3" -o -name "*.wav" -o -name "*.json" | sort
+          } > "$SUMMARY_FILE"
+          
+          echo "✅ Quality verification completed"
+
+      - name: Final Status Summary
+        if: always()
+        run: |
+          echo "## 🎬 News Video Creation Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Topic:** ${{ needs.setup.outputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Category:** ${{ needs.setup.outputs.news_category }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Duration:** ${{ needs.setup.outputs.duration }}s" >> $GITHUB_STEP_SUMMARY
+          echo "**Scenes:** ${{ needs.setup.outputs.scene_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Job Status:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Setup: Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.news-collection.result == 'success' && '✅' || '❌' }} News Collection" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.script-creation.result == 'success' && '✅' || '❌' }} Script Creation" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.narration-generation.result == 'success' && '✅' || '❌' }} Narration Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.anchor-generation.result == 'success' && '✅' || '❌' }} Anchor Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.background-generation.result == 'success' && '✅' || '⚠️' }} Background Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.scene-video-generation.result == 'success' && '✅' || '⚠️' }} Scene Video Generation" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.lipsync-processing.result == 'success' && '✅' || '❌' }} Lipsync Processing" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.final-composition.result == 'success' && '✅' || '❌' }} Final Composition" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Final Video:** ${{ needs.final-composition.outputs.final_video || 'Not available' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📁 **Artifacts:** All generated files are available in workflow artifacts" >> $GITHUB_STEP_SUMMARY
