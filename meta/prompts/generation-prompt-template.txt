@@ -69,17 +69,22 @@ Standard Requirements:
   3. Verify save with ls -la using Bash tool
   4. ALWAYS add error handling with fallback mechanisms
   * Details: See docs/CLAUDE_CODE_DATA_PERSISTENCE_GUIDE.md
-- MUST: Claude Code SDK Error Handling Pattern:
+- CRITICAL MUST: Claude Code SDK Error Handling Pattern (MANDATORY for ALL SDK calls):
+  # Every single npx @anthropic-ai/claude-code call MUST have error handling
+  # NO EXCEPTIONS - This prevents workflow hanging on SDK failures
   npx @anthropic-ai/claude-code \
     --mcp-config ".claude/mcp-kamuicode.json" \
     --allowedTools "mcp__*,Write,Bash" \
     --max-turns 40 \
     -p "$PROMPT" || {
       echo "⚠️ Claude Code SDK failed, using fallback"
-      # Implement fallback logic here
+      # MUST implement specific fallback for each case:
       # For T2S: use espeak-ng or festival
-      # For T2I: use placeholder or skip
+      # For T2I: use placeholder image or skip
+      # For I2V: use ffmpeg to create video from image
+      # For WebSearch: create error summary file
       # For data: use default values
+      # ALWAYS create expected output files to prevent downstream failures
     }
 - MUST: MCP Result Saving Pattern (prevent placeholder files):
   # After MCP tool execution, ALWAYS:

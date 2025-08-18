@@ -111,7 +111,15 @@ jobs:
           npx @anthropic-ai/claude-code \
             -p "$PROMPT" \
             --allowedTools "WebSearch,Write" \
-            --permission-mode "acceptEdits"
+            --permission-mode "acceptEdits" || {
+            echo "⚠️ Claude Code SDK failed, creating fallback results"
+            echo "# Search Results (Fallback)" > "${{ inputs.output_dir }}/search-summary.md"
+            echo "検索実行中にエラーが発生しました。手動での検索が必要です。" >> "${{ inputs.output_dir }}/search-summary.md"
+            echo "Query: ${{ inputs.search_query }}" >> "${{ inputs.output_dir }}/search-summary.md"
+            echo "Time: $(date)" >> "${{ inputs.output_dir }}/search-summary.md"
+            echo "No sources available due to error" > "${{ inputs.output_dir }}/sources.txt"
+            echo '{"status":"error","query":"${{ inputs.search_query }}","timestamp":"'$(date -Iseconds)'"}' > "${{ inputs.output_dir }}/search-metadata.json"
+          }
           
           # 出力の確認
           if [ -f "${{ inputs.output_dir }}/search-summary.md" ]; then
