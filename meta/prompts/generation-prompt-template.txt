@@ -62,6 +62,12 @@ Standard Requirements:
   echo "EOF" >> $GITHUB_OUTPUT
 - MUST: Always sanitize outputs to single line when possible: 
   SUMMARY=$(echo "$SUMMARY" | tr '\n' ' ' | tr -s ' ')
+- MUST: Always create directories before writing files:
+  mkdir -p "$(dirname "$OUTPUT_FILE")"
+- MUST: Handle missing artifacts gracefully in download steps:
+  continue-on-error: true for artifact downloads
+- MUST: Check file existence before operations:
+  [ -f "$FILE" ] && process_file || echo "File not found, using fallback"
 - MUST: For news video, calculate scenes as: ceil(duration_seconds / 5) (e.g., 60s = 12 scenes, 30s = 6 scenes)
 - MUST: Create ONE news anchor with fixed seed value, generate multiple lip-sync videos for all scenes
 - CRITICAL MUST: Environment variables for Claude Code SDK (REQUIRED for EVERY step using Claude Code):
@@ -190,7 +196,7 @@ Output destination (MUST):
 - Use the Write tool to save the generated workflow to: PROJECT_DIR_PLACEHOLDER/generated-workflow/workflow.yml
 - The workflow must be saved as a complete file, not output to stdout
 
-🔄 ERROR RECOVERY REQUIREMENTS (MANDATORY):
+🔄 ERROR RECOVERY REQUIREMENTS (MANDATORY - VERIFIED IN PRODUCTION):
 For ANY parallel generation tasks (scenes, images, videos, data), you MUST include:
 1. Main generation job with:
    - continue-on-error: true for each scene
@@ -247,9 +253,75 @@ video-recovery:
         CLAUDE_CODE_MAX_OUTPUT_TOKENS: 16000
 ```
 
-CRITICAL: For video-production workflows, MUST include BOTH:
+CRITICAL: For video-production workflows, MUST include ALL:
 - background-recovery (for image generation failures)
+- collect-video-failures (to aggregate matrix job results)
 - video-recovery (for I2V conversion failures)
+
+IMPORTANT: Matrix jobs cannot directly output aggregated results. You MUST:
+1. Save status to artifact in each matrix job
+2. Create separate collect-failures job to aggregate results
+3. Recovery job depends on collect-failures, not the matrix job
+
+Status File Pattern (MANDATORY for matrix jobs):
+```yaml
+- name: Save Generation Status
+  if: always()
+  run: |
+    SCENE_NUM=${{ matrix.scene }}
+    # CRITICAL: Create directory first
+    mkdir -p "${{ needs.setup.outputs.project_dir }}"
+    STATUS_FILE="${{ needs.setup.outputs.project_dir }}/status-scene${SCENE_NUM}.txt"
+    
+    # Check success/failure and write status
+    if [ -f "expected_output_file" ]; then
+      echo "SUCCESS" > "$STATUS_FILE"
+    else
+      echo "FAILED" > "$STATUS_FILE"
+    fi
+
+- name: Upload Status with Artifacts
+  uses: actions/upload-artifact@v4
+  if: always()
+  with:
+    name: data-scene-${{ matrix.scene }}
+    path: |
+      ${{ needs.setup.outputs.project_dir }}/media/
+      ${{ needs.setup.outputs.project_dir }}/status-scene${{ matrix.scene }}.txt
+```
+
+Collect Failures Pattern (MANDATORY after matrix jobs):
+```yaml
+collect-failures:
+  needs: [matrix-generation-job]
+  if: always()
+  outputs:
+    failed_items: ${{ steps.collect.outputs.failed_items }}
+  steps:
+    - name: Download All Status Files
+      uses: actions/download-artifact@v4
+      with:
+        pattern: data-scene-*
+        path: all-data/
+    
+    - name: Collect Failed Items
+      id: collect
+      run: |
+        FAILED_ITEMS=""
+        for i in {1..N}; do
+          STATUS_FILE="all-data/data-scene-${i}/status-scene${i}.txt"
+          if [ -f "$STATUS_FILE" ]; then
+            STATUS=$(cat "$STATUS_FILE")
+            if [ "$STATUS" = "FAILED" ]; then
+              [ -z "$FAILED_ITEMS" ] && FAILED_ITEMS="$i" || FAILED_ITEMS="$FAILED_ITEMS,$i"
+            fi
+          else
+            # No status file means job failed
+            [ -z "$FAILED_ITEMS" ] && FAILED_ITEMS="$i" || FAILED_ITEMS="$FAILED_ITEMS,$i"
+          fi
+        done
+        echo "failed_items=[${FAILED_ITEMS}]" >> $GITHUB_OUTPUT
+```
 
 CRITICAL REQUIREMENTS:
 - Generate a valid GitHub Actions YAML workflow file
