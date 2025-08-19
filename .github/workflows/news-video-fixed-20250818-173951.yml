@@ -1259,15 +1259,7 @@ jobs:
             --arg total "$TOTAL_FAILED" \
             --arg images "$IMAGE_FAILED" \
             --arg videos "$VIDEO_FAILED" \
-            '{
-              total_failed_items: ($total | tonumber),
-              failed_by_type: {
-                IMAGE: ($images | tonumber),
-                VIDEO: ($videos | tonumber)
-              },
-              recovery_attempted: true,
-              analysis_timestamp: (now | todate)
-            }')
+            '{total_failed_items: ($total | tonumber), failed_by_type: {IMAGE: ($images | tonumber), VIDEO: ($videos | tonumber)}, recovery_attempted: true, analysis_timestamp: (now | todate)}' | jq -c)
           
           echo "📋 Recovery summary: $RECOVERY_SUMMARY"
           
