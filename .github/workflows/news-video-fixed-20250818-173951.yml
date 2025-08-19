@@ -798,7 +798,7 @@ jobs:
     needs: [check-trigger, setup, background-generation]
     if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       matrix:
         scene: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
@@ -1132,7 +1132,7 @@ jobs:
             echo "failed_videos=[]" >> $GITHUB_OUTPUT
           fi
           
-          echo "failed_video_items=$FAILED_VIDEO_ITEMS" >> $GITHUB_OUTPUT
+          echo "failed_video_items=$(echo "$FAILED_VIDEO_ITEMS" | jq -c .)" >> $GITHUB_OUTPUT
           echo "📊 Video failure details: $FAILED_VIDEO_ITEMS"
 
   video-recovery:
@@ -1172,6 +1172,10 @@ jobs:
           SCENE_NUM=${{ matrix.scene }}
           PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
           WORKFLOW_START="${{ github.run_started_at }}"
+          
+          # Create necessary directories
+          mkdir -p "$PROJECT_DIR/media/videos"
+          mkdir -p "$PROJECT_DIR/media/images"
           
           echo "🔄 Starting dynamic recovery for scene $SCENE_NUM video"
           
