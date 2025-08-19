@@ -642,18 +642,74 @@ jobs:
           name: background-data-scene-${{ matrix.scene }}
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
-  background-recovery:
+  collect-background-failures:
     needs: [check-trigger, setup, background-generation]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      failed_backgrounds: ${{ steps.collect.outputs.failed_backgrounds }}
+      failed_background_items: ${{ steps.collect.outputs.failed_background_items }}
+    steps:
+      - name: Collect Failed Backgrounds
+        id: collect
+        run: |
+          FAILED_BACKGROUNDS=""
+          FAILED_BACKGROUND_ITEMS="[]"
+          
+          # Check each background generation job result
+          for i in {1..12}; do
+            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+              JOB_STATUS="${{ needs.background-generation.result }}"
+              
+              # Check if this specific scene failed (approximation)
+              if [[ "$JOB_STATUS" == *"failure"* ]] || [[ "${{ toJSON(needs.background-generation) }}" == *"failure"* ]]; then
+                echo "Checking individual background generation results..."
+                
+                # Add failed scene
+                if [ -z "$FAILED_BACKGROUNDS" ]; then
+                  FAILED_BACKGROUNDS="$i"
+                else
+                  FAILED_BACKGROUNDS="$FAILED_BACKGROUNDS,$i"
+                fi
+                
+                # Add to detailed failed items
+                FAILED_BACKGROUND_ITEMS=$(echo "$FAILED_BACKGROUND_ITEMS" | jq \
+                  --arg scene "$i" \
+                  '. + [{"scene": ($scene | tonumber), "type": "IMAGE", "item": "background", "reason": "matrix_job_failure"}]')
+                
+                echo "Scene $i background: FAILED"
+              else
+                echo "Scene $i background: SUCCESS"
+              fi
+            fi
+          done
+          
+          if [ -n "$FAILED_BACKGROUNDS" ]; then
+            echo "Failed backgrounds: [$FAILED_BACKGROUNDS]"
+            echo "failed_backgrounds=[${FAILED_BACKGROUNDS}]" >> $GITHUB_OUTPUT
+          else
+            echo "No failed backgrounds"
+            echo "failed_backgrounds=[]" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "failed_background_items=$FAILED_BACKGROUND_ITEMS" >> $GITHUB_OUTPUT
+          echo "📊 Background failure details: $FAILED_BACKGROUND_ITEMS"
+
+  background-recovery:
+    needs: [check-trigger, setup, collect-background-failures]
     if: |
       always() && 
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.background-generation.outputs.failed_scenes != '' &&
-      needs.background-generation.outputs.failed_scenes != '[]'
+      needs.collect-background-failures.outputs.failed_backgrounds != '' &&
+      needs.collect-background-failures.outputs.failed_backgrounds != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       matrix:
-        scene: ${{ fromJson(needs.background-generation.outputs.failed_scenes || '[]') }}
+        scene: ${{ fromJson(needs.collect-background-failures.outputs.failed_backgrounds || '[]') }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -1219,7 +1275,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/
 
   unified-failure-analysis:
-    needs: [check-trigger, setup, background-generation, scene-video-generation, collect-video-failures, background-recovery, video-recovery]
+    needs: [check-trigger, setup, collect-background-failures, scene-video-generation, collect-video-failures, background-recovery, video-recovery]
     if: always() && needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -1234,7 +1290,7 @@ jobs:
           echo "🔍 Performing unified failure analysis across all item types"
           
           # Collect failed backgrounds (use step-level output)
-          BACKGROUND_FAILURES=$(echo '${{ toJSON(needs.background-generation.outputs) }}' | jq -r '.failed_items // "[]"')
+          BACKGROUND_FAILURES=$(echo '${{ toJSON(needs.collect-background-failures.outputs) }}' | jq -r '.failed_background_items // "[]"')
           echo "📊 Background failures: $BACKGROUND_FAILURES"
           
           # Collect failed videos  
