@@ -458,24 +458,20 @@ jobs:
           # Download from URL if available
           [ -f "$URL_PATH" ] && curl -L -o "$ANCHOR_PATH" "$(cat $URL_PATH)" 2>/dev/null
           
-          # Multi-pattern search for anchor image
-          ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*anchor*.png" -type f 2>/dev/null | head -1)
-          [ -z "$ANCHOR_IMAGE" ] && ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.png" -mmin -2 2>/dev/null | head -1)
-          [ -z "$ANCHOR_IMAGE" ] && ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.png" 2>/dev/null | head -1)
-          
-          # Validate anchor image
-          if [ -n "$ANCHOR_IMAGE" ] && [ -f "$ANCHOR_IMAGE" ]; then
-            FILE_SIZE=$(stat -c%s "$ANCHOR_IMAGE" 2>/dev/null || echo 0)
-            if [ "$FILE_SIZE" -gt 10000 ]; then
+          # Validate anchor generation by checking URL file
+          if [ -f "$URL_PATH" ]; then
+            ANCHOR_URL=$(cat "$URL_PATH")
+            if [ -n "$ANCHOR_URL" ]; then
               echo "anchor_ready=true" >> $GITHUB_OUTPUT
-              echo "✅ Anchor generated: $ANCHOR_IMAGE ($FILE_SIZE bytes)"
+              echo "anchor_url=$ANCHOR_URL" >> $GITHUB_OUTPUT
+              echo "✅ Anchor generated successfully: $ANCHOR_URL"
             else
               echo "anchor_ready=false" >> $GITHUB_OUTPUT
-              echo "⚠️ Anchor file too small: $FILE_SIZE bytes"
+              echo "⚠️ Anchor URL file is empty"
             fi
           else
             echo "anchor_ready=false" >> $GITHUB_OUTPUT
-            echo "❌ Anchor generation failed"
+            echo "❌ Anchor URL file not found"
           fi
 
       - name: Upload Anchor Data
