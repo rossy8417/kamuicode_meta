@@ -1082,26 +1082,39 @@ jobs:
           # Check each scene's status
           for i in {1..12}; do
             if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+              # Check job result first (more reliable for continue-on-error jobs)
+              JOB_RESULT=$(echo '${{ toJSON(needs.scene-video-generation.result) }}' | jq -r '.')
+              
               # Check for enhanced status from outputs
               VIDEO_STATUS=$(echo '${{ toJSON(needs.scene-video-generation.outputs) }}' | jq -r ".scene_${i}_video_status // \"\"")
               VIDEO_REASON=$(echo '${{ toJSON(needs.scene-video-generation.outputs) }}' | jq -r ".scene_${i}_video_failed // \"\"")
               
-              # Fallback to status file method
-              if [ -z "$VIDEO_STATUS" ]; then
-                STATUS_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/video-status-scene${i}.txt"
+              # Fallback to artifact-based verification (more reliable)
+              if [ -z "$VIDEO_STATUS" ] || [ "$VIDEO_STATUS" = "" ]; then
+                # Check if video file actually exists and is valid
+                VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}_video.mp4"
+                ALT_VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}.mp4"
                 
-                if [ -f "$STATUS_FILE" ]; then
-                  STATUS=$(cat "$STATUS_FILE")
-                  if [ "$STATUS" = "FAILED" ]; then
-                    VIDEO_STATUS="FAILED"
-                    VIDEO_REASON="status_file_failed"
+                if [ -f "$VIDEO_FILE" ] || [ -f "$ALT_VIDEO_FILE" ]; then
+                  # Check file size (videos should be > 100KB)
+                  if [ -f "$VIDEO_FILE" ]; then
+                    FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
                   else
+                    FILE_SIZE=$(stat -c%s "$ALT_VIDEO_FILE" 2>/dev/null || echo 0)
+                  fi
+                  
+                  if [ "$FILE_SIZE" -gt 100000 ]; then
                     VIDEO_STATUS="SUCCESS"
+                    echo "Scene $i: Video verified by file size ($FILE_SIZE bytes)"
+                  else
+                    VIDEO_STATUS="FAILED"
+                    VIDEO_REASON="file_too_small"
+                    echo "Scene $i: Video file too small ($FILE_SIZE bytes)"
                   fi
                 else
-                  echo "Scene $i: Status file not found, assuming failure"
+                  echo "Scene $i: No video file found"
                   VIDEO_STATUS="FAILED"
-                  VIDEO_REASON="status_file_missing"
+                  VIDEO_REASON="file_not_found"
                 fi
               fi
               
