@@ -1227,12 +1227,12 @@ jobs:
         run: |
           echo "🔍 Performing unified failure analysis across all item types"
           
-          # Collect failed backgrounds
-          BACKGROUND_FAILURES='${{ needs.background-generation.outputs.failed_items || "[]" }}'
+          # Collect failed backgrounds (use step-level output)
+          BACKGROUND_FAILURES=$(echo '${{ toJSON(needs.background-generation.outputs) }}' | jq -r '.failed_items // "[]"')
           echo "📊 Background failures: $BACKGROUND_FAILURES"
           
-          # Collect failed videos
-          VIDEO_FAILURES='${{ needs.collect-video-failures.outputs.failed_video_items || "[]" }}'
+          # Collect failed videos  
+          VIDEO_FAILURES=$(echo '${{ toJSON(needs.collect-video-failures.outputs) }}' | jq -r '.failed_video_items // "[]"')
           echo "📊 Video failures: $VIDEO_FAILURES"
           
           # Merge all failure types
