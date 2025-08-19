@@ -1092,15 +1092,18 @@ jobs:
               # Fallback to artifact-based verification (more reliable)
               if [ -z "$VIDEO_STATUS" ] || [ "$VIDEO_STATUS" = "" ]; then
                 # Check if video file actually exists and is valid
-                VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}_video.mp4"
-                ALT_VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}.mp4"
+                VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/media/videos/scene${i}.mp4"
+                ALT_VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}_video.mp4"
+                ALT2_VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}.mp4"
                 
-                if [ -f "$VIDEO_FILE" ] || [ -f "$ALT_VIDEO_FILE" ]; then
+                if [ -f "$VIDEO_FILE" ] || [ -f "$ALT_VIDEO_FILE" ] || [ -f "$ALT2_VIDEO_FILE" ]; then
                   # Check file size (videos should be > 100KB)
                   if [ -f "$VIDEO_FILE" ]; then
                     FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
-                  else
+                  elif [ -f "$ALT_VIDEO_FILE" ]; then
                     FILE_SIZE=$(stat -c%s "$ALT_VIDEO_FILE" 2>/dev/null || echo 0)
+                  else
+                    FILE_SIZE=$(stat -c%s "$ALT2_VIDEO_FILE" 2>/dev/null || echo 0)
                   fi
                   
                   if [ "$FILE_SIZE" -gt 100000 ]; then
