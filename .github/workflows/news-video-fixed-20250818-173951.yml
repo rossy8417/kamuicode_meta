@@ -548,26 +548,78 @@ jobs:
           5. Save URL to ${URL_PATH} using Write tool
           6. Verify with ls -la"
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-*,Write,Bash" \
-            --max-turns 40 \
-            --permission-mode "bypassPermissions" \
-            -p "$BACKGROUND_PROMPT" || {
-              echo "⚠️ Background generation failed for scene $SCENE_NUM"
-              echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
-              exit 1
-            }
+          # Retry mechanism for MCP background generation
+          RETRY_COUNT=0
+          MAX_RETRIES=2
+          SUCCESS=false
           
-          # Download from URL if available
-          [ -f "$URL_PATH" ] && curl -L -o "$BG_PATH" "$(cat $URL_PATH)" 2>/dev/null
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "false" ]; do
+            echo "🔄 Background generation attempt $((RETRY_COUNT + 1))/$MAX_RETRIES for scene $SCENE_NUM"
+            
+            if npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__t2i-*,Write,Bash" \
+              --max-turns 40 \
+              --permission-mode "bypassPermissions" \
+              -p "$BACKGROUND_PROMPT"; then
+              
+              echo "✅ Background generation command completed for scene $SCENE_NUM"
+              SUCCESS=true
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              echo "⚠️ Background generation attempt $RETRY_COUNT failed for scene $SCENE_NUM"
+              
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "🔄 Retrying with modified prompt..."
+                BACKGROUND_PROMPT="Generate news background for scene ${SCENE_NUM} (retry):
+                Description: ${SCENE_DESC}, no people, professional lighting, news studio style
+                Style: professional newsroom
+                Output: ${BG_PATH}
+                Requirements:
+                1. Generate with MCP T2I tool (different seed)
+                2. No human figures (background only)
+                3. Professional news studio aesthetic
+                4. Save to ${BG_PATH} using Write tool
+                5. Save URL to ${URL_PATH} using Write tool
+                6. Verify with ls -la
+                Note: This is retry attempt $((RETRY_COUNT + 1))"
+                sleep 5  # Wait before retry
+              fi
+            fi
+          done
           
-          # Verify background image
+          if [ "$SUCCESS" = "false" ]; then
+            echo "❌ All background generation attempts failed for scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
+            # Don't exit 1 here - let continue-on-error handle it
+          fi
+          
+          # Download from URL if available (with error handling)
+          if [ -f "$URL_PATH" ]; then
+            echo "📥 Downloading background image from URL for scene $SCENE_NUM"
+            if curl -L -o "$BG_PATH" "$(cat "$URL_PATH")" 2>/dev/null; then
+              echo "✅ URL download successful"
+            else
+              echo "⚠️ URL download failed, using locally generated file"
+            fi
+          fi
+          
+          # Enhanced image verification with multiple patterns
+          echo "🔍 Verifying background image for scene $SCENE_NUM"
+          BG_IMAGE=""
+          
+          # Try multiple search patterns
           BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${SCENE_NUM}*.png" -type f 2>/dev/null | head -1)
-          [ -z "$BG_IMAGE" ] && BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*background*.png" -mmin -2 2>/dev/null | head -1)
+          if [ -z "$BG_IMAGE" ]; then
+            BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*background*.png" -mmin -2 2>/dev/null | head -1)
+          fi
+          if [ -z "$BG_IMAGE" ]; then
+            BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.png" -mmin -1 2>/dev/null | head -1)
+          fi
           
           # Save original generation metadata for recovery
-          cat > "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json" << EOF
+          echo "📝 Saving recovery metadata for scene $SCENE_NUM"
+          cat > "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json" << 'EOF'
           {
             "scene": ${SCENE_NUM},
             "item_type": "IMAGE",
@@ -579,12 +631,15 @@ jobs:
           }
           EOF
 
+          # Validate found image
+          VALIDATION_SUCCESS=false
           if [ -n "$BG_IMAGE" ] && [ -f "$BG_IMAGE" ]; then
             FILE_SIZE=$(stat -c%s "$BG_IMAGE" 2>/dev/null || echo 0)
             if [ "$FILE_SIZE" -gt 10000 ]; then
-              echo "✅ Background generated for scene $SCENE_NUM: $BG_IMAGE"
+              echo "✅ Background generated for scene $SCENE_NUM: $BG_IMAGE (${FILE_SIZE} bytes)"
               echo "scene_${SCENE_NUM}_background_status=SUCCESS" >> $GITHUB_OUTPUT
               echo "scene_${SCENE_NUM}_background_file=$BG_IMAGE" >> $GITHUB_OUTPUT
+              VALIDATION_SUCCESS=true
             else
               echo "⚠️ Background file too small for scene $SCENE_NUM (${FILE_SIZE} bytes)"
               echo "scene_${SCENE_NUM}_background_status=FAILED" >> $GITHUB_OUTPUT
@@ -592,10 +647,20 @@ jobs:
               echo "scene_${SCENE_NUM}_background_file_size=${FILE_SIZE}" >> $GITHUB_OUTPUT
             fi
           else
-            echo "❌ Background generation failed for scene $SCENE_NUM"
+            echo "❌ Background image not found for scene $SCENE_NUM"
             echo "scene_${SCENE_NUM}_background_status=FAILED" >> $GITHUB_OUTPUT
             echo "scene_${SCENE_NUM}_background_failed=file_not_found" >> $GITHUB_OUTPUT
           fi
+          
+          # Final status report
+          if [ "$VALIDATION_SUCCESS" = "true" ]; then
+            echo "🎯 Scene $SCENE_NUM background generation completed successfully"
+          else
+            echo "⚠️ Scene $SCENE_NUM background generation completed with issues (will be handled by recovery system)"
+          fi
+          
+          # Always exit successfully (let continue-on-error and recovery handle failures)
+          exit 0
 
       - name: Collect Failed Items
         id: collect-failures
