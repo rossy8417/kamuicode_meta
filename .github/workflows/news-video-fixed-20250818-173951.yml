@@ -876,10 +876,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg and bc
+      - name: Install FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg bc
+          sudo apt-get install -y ffmpeg
 
       - name: Download Background Data
         uses: actions/download-artifact@v4
@@ -965,7 +965,7 @@ jobs:
               # Check MP4 structure with ffprobe (moov atom validation)
               if ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
                 DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
-                if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
                   echo "✅ Video validated for scene $SCENE_NUM: $VIDEO_FILE (${FILE_SIZE} bytes, ${DURATION}s)"
                   VALID_VIDEO=true
                 else
@@ -992,7 +992,8 @@ jobs:
                 FAILURE_REASON="corrupted_mp4"
               else
                 DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
-                if (( $(echo "$DURATION < 3.0" | bc -l) )); then
+                # Use python for floating point comparison (safe in bash -e)
+                if ! python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
                   FAILURE_REASON="duration_too_short"
                 fi
               fi
@@ -1058,7 +1059,7 @@ jobs:
             if [ "$FILE_SIZE" -gt 100000 ]; then
               if ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
                 DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
-                if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
                   VALID_VIDEO=true
                 fi
               fi
@@ -1470,10 +1471,10 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/
           merge-multiple: true
 
-      - name: Install FFmpeg and bc
+      - name: Install FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg bc
+          sudo apt-get install -y ffmpeg
 
       - name: Validate All Generated Content
         id: validate
@@ -1498,7 +1499,7 @@ jobs:
               if [ "$FILE_SIZE" -gt 100000 ]; then
                 if ffprobe -v error -show_entries format=duration -of csv=p=0 "$video_file" >/dev/null 2>&1; then
                   DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video_file" 2>/dev/null || echo "0")
-                  if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                  if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
                     echo "✅ Scene $scene_num: Valid (${FILE_SIZE} bytes, ${DURATION}s)"
                     VALID_SCENE_COUNT=$((VALID_SCENE_COUNT + 1))
                     VALID_VIDEO=true
@@ -1534,7 +1535,7 @@ jobs:
             if [ "$FILE_SIZE" -gt 100000 ]; then
               if ffprobe -v error -show_entries format=duration -of csv=p=0 "$lipsync_file" >/dev/null 2>&1; then
                 DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$lipsync_file" 2>/dev/null || echo "0")
-                if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
                   echo "✅ Lipsync: Valid (${FILE_SIZE} bytes, ${DURATION}s)"
                   VALID_LIPSYNC=true
                 else
@@ -1777,10 +1778,10 @@ jobs:
           name: recovered-assets
           path: ${{ needs.setup.outputs.project_dir }}/
 
-      - name: Install FFmpeg and bc
+      - name: Install FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg bc
+          sudo apt-get install -y ffmpeg
 
       - name: Compose Final Video
         id: compose
@@ -1803,10 +1804,10 @@ jobs:
               if [ "$FILE_SIZE" -gt 100000 ]; then
                 if ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" >/dev/null 2>&1; then
                   DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" 2>/dev/null || echo "0")
-                  if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                  if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
                     echo "✅ Valid video: $video (${FILE_SIZE} bytes, ${DURATION}s)"
                     VALID_VIDEOS="$VALID_VIDEOS $video"
-                    TOTAL_DURATION=$(echo "$TOTAL_DURATION + $DURATION" | bc -l)
+                    TOTAL_DURATION=$(python3 -c "print(float('$TOTAL_DURATION') + float('$DURATION'))" 2>/dev/null || echo "$TOTAL_DURATION")
                   else
                     echo "⚠️ Unexpected short video after recovery: $video (${DURATION}s)"
                     # Note: This should not happen after successful recovery
