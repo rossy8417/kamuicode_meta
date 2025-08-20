@@ -1451,8 +1451,11 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/metadata/
 
   dynamic-recovery-check:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing]
-    if: needs.check-trigger.outputs.should_run == 'true'
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, collect-video-failures, unified-failure-analysis]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.unified-failure-analysis.outputs.items_complete == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -1574,6 +1577,7 @@ jobs:
   immediate-recovery:
     needs: [check-trigger, setup, dynamic-recovery-check]
     if: |
+      always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
       needs.dynamic-recovery-check.outputs.recovery_needed == 'true'
     runs-on: ubuntu-latest
