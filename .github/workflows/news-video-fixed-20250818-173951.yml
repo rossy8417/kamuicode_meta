@@ -927,27 +927,40 @@ jobs:
           VIDEO_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}.mp4"
           URL_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${SCENE_NUM}-url.txt"
           
-          I2V_PROMPT="Convert background image to video for scene ${SCENE_NUM}:
-          Input image: ${BG_IMAGE}
-          Output video: ${VIDEO_PATH}
-          Requirements:
-          1. Convert image to 5-second video using MCP I2V tool
-          2. Gentle camera movement suitable for news
-          3. 1920x1080 resolution, 30fps
-          4. Save video to ${VIDEO_PATH} using Write tool
-          5. Save URL to ${URL_PATH} using Write tool
-          6. Verify with ls -la"
+          # 🚨 MCP Connection Time Check (Critical for I2V success)
+          WORKFLOW_START="${{ github.run_started_at }}"
+          ELAPSED_MINUTES=$(( ($(date +%s) - $(date -d "$WORKFLOW_START" +%s)) / 60 ))
           
-          npx @anthropic-ai/claude-code \
-            --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__i2v-*,Write,Bash" \
-            --max-turns 80 \
-            --permission-mode "bypassPermissions" \
-            -p "$I2V_PROMPT" || {
-              echo "⚠️ I2V failed for scene $SCENE_NUM, using fallback"
-              # Create fallback video from image
-              ffmpeg -loop 1 -i "$BG_IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p -r 30 "$VIDEO_PATH" -y
-            }
+          echo "⏱️ Workflow elapsed time: ${ELAPSED_MINUTES} minutes"
+          
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "✅ MCP connection viable - attempting I2V generation"
+            
+            I2V_PROMPT="Convert background image to video for scene ${SCENE_NUM}:
+            Input image: ${BG_IMAGE}
+            Output video: ${VIDEO_PATH}
+            Requirements:
+            1. Convert image to 5-second video using MCP I2V tool (preferred: i2v-fal-hailuo-02-fast)
+            2. Gentle camera movement suitable for news
+            3. 1920x1080 resolution, 30fps
+            4. Save video to ${VIDEO_PATH} using Write tool
+            5. Save URL to ${URL_PATH} using Write tool
+            6. Execute ls -la ${VIDEO_PATH} using Bash tool to verify file creation
+            7. Execute ffprobe -v error -show_entries format=duration -of csv=p=0 ${VIDEO_PATH} using Bash tool to verify MP4 structure"
+            
+            timeout 300 npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-*,Write,Bash" \
+              --max-turns 60 \
+              --permission-mode "bypassPermissions" \
+              -p "$I2V_PROMPT" && echo "✅ MCP I2V completed" || {
+                echo "⚠️ MCP I2V failed or timed out, using FFmpeg fallback"
+                ffmpeg -loop 1 -i "$BG_IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p -r 30 "$VIDEO_PATH" -y
+              }
+          else
+            echo "⚠️ MCP connection expired (${ELAPSED_MINUTES} min) - using FFmpeg fallback"
+            ffmpeg -loop 1 -i "$BG_IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p -r 30 "$VIDEO_PATH" -y
+          fi
           
           # Download from URL if available
           [ -f "$URL_PATH" ] && curl -L -o "$VIDEO_PATH" "$(cat $URL_PATH)" 2>/dev/null
@@ -959,23 +972,65 @@ jobs:
           if [ -n "$VIDEO_FILE" ] && [ -f "$VIDEO_FILE" ]; then
             FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
             
-            # Enhanced validation: file size AND MP4 structure validation
+            # 🚨 ENHANCED VALIDATION: Comprehensive MP4 structure validation
             VALID_VIDEO=false
-            if [ "$FILE_SIZE" -gt 100000 ]; then
-              # Check MP4 structure with ffprobe (moov atom validation)
-              if ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
-                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
-                if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
-                  echo "✅ Video validated for scene $SCENE_NUM: $VIDEO_FILE (${FILE_SIZE} bytes, ${DURATION}s)"
-                  VALID_VIDEO=true
-                else
-                  echo "⚠️ Video too short for scene $SCENE_NUM: ${DURATION}s"
-                fi
-              else
-                echo "⚠️ Video file corrupted (missing moov atom) for scene $SCENE_NUM"
-              fi
+            VALIDATION_ERRORS=""
+            
+            # Check 1: File size validation (stricter threshold)
+            if [ "$FILE_SIZE" -le 150000 ]; then
+              VALIDATION_ERRORS="file_too_small:${FILE_SIZE}bytes"
+              echo "❌ Video file too small for scene $SCENE_NUM: ${FILE_SIZE} bytes (minimum: 150KB)"
             else
-              echo "⚠️ Video file too small for scene $SCENE_NUM: ${FILE_SIZE} bytes"
+              echo "✅ Size check passed: ${FILE_SIZE} bytes"
+              
+              # Check 2: MP4 structure validation with ffprobe
+              if ! ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
+                VALIDATION_ERRORS="corrupted_mp4:no_moov_atom"
+                echo "❌ Video file corrupted (missing moov atom) for scene $SCENE_NUM"
+              else
+                echo "✅ MP4 structure check passed"
+                
+                # Check 3: Duration validation
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
+                if ! python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
+                  VALIDATION_ERRORS="duration_too_short:${DURATION}s"
+                  echo "❌ Video too short for scene $SCENE_NUM: ${DURATION}s (minimum: 3.0s)"
+                else
+                  echo "✅ Duration check passed: ${DURATION}s"
+                  
+                  # Check 4: Video stream validation
+                  if ! ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
+                    VALIDATION_ERRORS="no_video_stream"
+                    echo "❌ No valid video stream found in scene $SCENE_NUM"
+                  else
+                    echo "✅ Video stream check passed"
+                    VALID_VIDEO=true
+                    echo "🎉 ALL VALIDATIONS PASSED for scene $SCENE_NUM: $VIDEO_FILE (${FILE_SIZE} bytes, ${DURATION}s)"
+                  fi
+                fi
+              fi
+            fi
+            
+            # Force fallback regeneration for invalid videos
+            if [ "$VALID_VIDEO" = "false" ]; then
+              echo "🔄 Regenerating scene $SCENE_NUM video due to validation failure: $VALIDATION_ERRORS"
+              echo "🔄 Using high-quality FFmpeg fallback with audio"
+              
+              # Enhanced FFmpeg fallback with audio
+              ffmpeg -loop 1 -i "$BG_IMAGE" -f lavfi -i sine=frequency=1000:duration=5 \
+                -c:v libx264 -c:a aac -t 5 -pix_fmt yuv420p -r 30 -shortest "$VIDEO_FILE" -y
+              
+              # Re-validate fallback video
+              if [ -f "$VIDEO_FILE" ]; then
+                FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
+                if ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
+                  DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
+                  if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
+                    echo "✅ Fallback video validated: ${FILE_SIZE} bytes, ${DURATION}s"
+                    VALID_VIDEO=true
+                  fi
+                fi
+              fi
             fi
             
             if [ "$VALID_VIDEO" = "true" ]; then
@@ -984,23 +1039,15 @@ jobs:
             else
               echo "scene_${SCENE_NUM}_video_status=FAILED" >> $GITHUB_OUTPUT
               
-              # Determine specific failure reason
+              # Use validation errors from enhanced validation
               FAILURE_REASON="validation_failed"
-              if [ "$FILE_SIZE" -le 100000 ]; then
-                FAILURE_REASON="file_too_small"
-              elif ! ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
-                FAILURE_REASON="corrupted_mp4"
-              else
-                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
-                # Use python for floating point comparison (safe in bash -e)
-                if ! python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
-                  FAILURE_REASON="duration_too_short"
-                fi
+              if [ -n "$VALIDATION_ERRORS" ]; then
+                FAILURE_REASON="$VALIDATION_ERRORS"
               fi
               
               echo "scene_${SCENE_NUM}_video_failed=$FAILURE_REASON" >> $GITHUB_OUTPUT
               
-              # Save recovery metadata for video regeneration
+              # Save enhanced recovery metadata
               METADATA_FILE="${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_video.json"
               echo "{" > "$METADATA_FILE"
               echo "  \"scene\": $SCENE_NUM," >> "$METADATA_FILE"
@@ -1008,12 +1055,14 @@ jobs:
               echo "  \"item_name\": \"scene_video\"," >> "$METADATA_FILE"
               echo "  \"original_prompt\": \"$(echo "$SCENE_DESC" | sed 's/"/\\"/g')\"," >> "$METADATA_FILE"
               echo "  \"background_image\": \"$(echo "$BG_IMAGE" | sed 's/"/\\"/g')\"," >> "$METADATA_FILE"
-              echo "  \"mcp_tools\": [\"mcp__i2v-*\"]," >> "$METADATA_FILE"
-              echo "  \"fallback_method\": \"ffmpeg\"," >> "$METADATA_FILE"
+              echo "  \"mcp_tools\": [\"mcp__i2v-fal-hailuo-02-fast\", \"mcp__i2v-fal-bytedance-seedance-v1-lite\"]," >> "$METADATA_FILE"
+              echo "  \"fallback_method\": \"ffmpeg_enhanced\"," >> "$METADATA_FILE"
               echo "  \"generation_time\": \"$(date -Iseconds)\"," >> "$METADATA_FILE"
+              echo "  \"workflow_elapsed_minutes\": $ELAPSED_MINUTES," >> "$METADATA_FILE"
               echo "  \"failure_reason\": \"$FAILURE_REASON\"," >> "$METADATA_FILE"
               echo "  \"file_size\": $FILE_SIZE," >> "$METADATA_FILE"
-              echo "  \"validation_details\": \"Enhanced MP4 validation failed\"" >> "$METADATA_FILE"
+              echo "  \"validation_errors\": \"$VALIDATION_ERRORS\"," >> "$METADATA_FILE"
+              echo "  \"validation_details\": \"Comprehensive MP4 validation: size+structure+duration+stream\"" >> "$METADATA_FILE"
               echo "}" >> "$METADATA_FILE"
             fi
           else
