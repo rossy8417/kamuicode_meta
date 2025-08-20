@@ -1566,10 +1566,10 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/
           merge-multiple: true
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and bc
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg bc
 
       - name: Compose Final Video
         id: compose
@@ -1580,9 +1580,53 @@ jobs:
           echo "=== Available Assets ==="
           find "${{ needs.setup.outputs.project_dir }}" -type f -name "*.mp4" -o -name "*.png" -o -name "*.mp3" -o -name "*.wav" | sort
           
-          # Find background videos
-          BACKGROUND_VIDEOS=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene*.mp4" -type f | sort)
-          LIPSYNC_VIDEO=$(find "${{ needs.setup.outputs.project_dir }}" -name "*lipsync*.mp4" -type f | head -1)
+          # Find and validate background videos (exclude corrupted files)
+          echo "🔍 Validating video files..."
+          VALID_VIDEOS=""
+          for video in $(find "${{ needs.setup.outputs.project_dir }}" -name "*scene*.mp4" -type f | sort); do
+            if [ -f "$video" ]; then
+              # Validate MP4 structure (same logic as scene-video-generation)
+              FILE_SIZE=$(stat -c%s "$video" 2>/dev/null || echo 0)
+              if [ "$FILE_SIZE" -gt 100000 ]; then
+                if ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" >/dev/null 2>&1; then
+                  DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" 2>/dev/null || echo "0")
+                  if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                    echo "✅ Valid video: $video (${FILE_SIZE} bytes, ${DURATION}s)"
+                    VALID_VIDEOS="$VALID_VIDEOS $video"
+                  else
+                    echo "⚠️ Skipping short video: $video (${DURATION}s)"
+                  fi
+                else
+                  echo "⚠️ Skipping corrupted video: $video (missing moov atom)"
+                fi
+              else
+                echo "⚠️ Skipping small video: $video (${FILE_SIZE} bytes)"
+              fi
+            fi
+          done
+          
+          BACKGROUND_VIDEOS="$VALID_VIDEOS"
+          
+          # Validate lipsync video
+          LIPSYNC_CANDIDATES=$(find "${{ needs.setup.outputs.project_dir }}" -name "*lipsync*.mp4" -type f)
+          LIPSYNC_VIDEO=""
+          for video in $LIPSYNC_CANDIDATES; do
+            if [ -f "$video" ]; then
+              FILE_SIZE=$(stat -c%s "$video" 2>/dev/null || echo 0)
+              if [ "$FILE_SIZE" -gt 100000 ]; then
+                if ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" >/dev/null 2>&1; then
+                  echo "✅ Valid lipsync video: $video"
+                  LIPSYNC_VIDEO="$video"
+                  break
+                else
+                  echo "⚠️ Skipping corrupted lipsync video: $video (missing moov atom)"
+                fi
+              else
+                echo "⚠️ Skipping small lipsync video: $video (${FILE_SIZE} bytes)"
+              fi
+            fi
+          done
+          
           AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.mp3" -o -name "*.wav" | head -1)
           
           FINAL_OUTPUT="${{ needs.setup.outputs.project_dir }}/final/news_video_final.mp4"
