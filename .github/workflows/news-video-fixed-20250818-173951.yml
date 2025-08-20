@@ -1196,6 +1196,11 @@ jobs:
           pattern: video-data-scene-*
           path: ${{ needs.setup.outputs.project_dir }}/all-videos/
 
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Collect Failed Videos
         id: collect
         run: |
@@ -1231,27 +1236,23 @@ jobs:
                 fi
               done
               
-              # Enhanced validation for found videos
+              # 🚨 MANDATORY MP4 structure validation (no fallback to size-only)
+              VIDEO_REASON=""
               if [ "$VIDEO_FOUND" = "true" ] && [ "$FILE_SIZE" -gt 100000 ]; then
-                # Additional MP4 structure validation
-                if command -v ffprobe >/dev/null 2>&1; then
-                  if ffprobe -v error -show_entries format=duration -of csv=p=0 "$ACTUAL_VIDEO_FILE" >/dev/null 2>&1; then
-                    DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$ACTUAL_VIDEO_FILE" 2>/dev/null || echo "0")
-                    # Use python for floating point comparison (more reliable than bc)
-                    if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
-                      echo "✅ Scene $i: Video validated (${FILE_SIZE} bytes, ${DURATION}s)"
-                      continue  # Skip to next scene - this one is successful
-                    else
-                      echo "⚠️ Scene $i: Video too short (${DURATION}s)"
-                      VIDEO_REASON="duration_too_short"
-                    fi
+                # CRITICAL: Always validate MP4 structure - no exceptions
+                if ffprobe -v error -show_entries format=duration -of csv=p=0 "$ACTUAL_VIDEO_FILE" >/dev/null 2>&1; then
+                  DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$ACTUAL_VIDEO_FILE" 2>/dev/null || echo "0")
+                  # Use python for floating point comparison (more reliable than bc)
+                  if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
+                    echo "✅ Scene $i: Video validated (${FILE_SIZE} bytes, ${DURATION}s)"
+                    continue  # Skip to next scene - this one is successful
                   else
-                    echo "⚠️ Scene $i: Video corrupted (no moov atom)"
-                    VIDEO_REASON="corrupted_mp4"
+                    echo "⚠️ Scene $i: Video too short (${DURATION}s)"
+                    VIDEO_REASON="duration_too_short"
                   fi
                 else
-                  echo "✅ Scene $i: Video validated by size only (${FILE_SIZE} bytes)"
-                  continue  # Skip to next scene - this one is successful
+                  echo "⚠️ Scene $i: Video corrupted (no moov atom)"
+                  VIDEO_REASON="corrupted_mp4"
                 fi
               elif [ "$VIDEO_FOUND" = "true" ]; then
                 echo "⚠️ Scene $i: Video file too small (${FILE_SIZE} bytes)"
@@ -1896,11 +1897,11 @@ jobs:
             fi
           else
             echo "⚠️ Missing essential assets, creating fallback video"
-            # Create fallback news video
+            # Create fallback news video (fixed FFmpeg syntax)
             ffmpeg -f lavfi -i color=darkblue:size=1920x1080:duration=${{ needs.setup.outputs.duration }} \
-              -vf "drawtext=text='News Video: ${{ needs.setup.outputs.news_topic }}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2" \
               -f lavfi -i sine=frequency=440:duration=${{ needs.setup.outputs.duration }} \
-              -c:v libx264 -c:a aac "$FINAL_OUTPUT" -y
+              -filter_complex "[0:v]drawtext=text='News Video\: ${{ needs.setup.outputs.news_topic }}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2[v]" \
+              -map "[v]" -map "1:a" -c:v libx264 -c:a aac "$FINAL_OUTPUT" -y
           fi
           
           # Verify final video
