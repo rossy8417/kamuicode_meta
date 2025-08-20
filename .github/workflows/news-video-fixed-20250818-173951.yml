@@ -907,6 +907,12 @@ jobs:
           
           mkdir -p "${{ needs.setup.outputs.project_dir }}/media/videos"
           
+          # Extract scene description from script for recovery metadata
+          SCENE_DESC="Professional news studio background, no people, clean modern design"
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" ]; then
+            SCENE_DESC=$(jq -r ".scenes[$((SCENE_NUM-1))].visual // \"Professional news studio background\"" "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" 2>/dev/null || echo "Professional news studio background")
+          fi
+          
           # Find background image (multiple patterns)
           BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${SCENE_NUM}*.png" -type f 2>/dev/null | head -1)
           [ -z "$BG_IMAGE" ] && BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*background*.png" -mmin -5 2>/dev/null | head -1)
@@ -994,21 +1000,20 @@ jobs:
               echo "scene_${SCENE_NUM}_video_failed=$FAILURE_REASON" >> $GITHUB_OUTPUT
               
               # Save recovery metadata for video regeneration
-              cat > "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_video.json" << EOF
-          {
-            "scene": ${SCENE_NUM},
-            "item_type": "VIDEO",
-            "item_name": "scene_video",
-            "original_prompt": "${SCENE_DESC}",
-            "background_image": "${BG_IMAGE}",
-            "mcp_tools": ["mcp__i2v-*"],
-            "fallback_method": "ffmpeg",
-            "generation_time": "$(date -Iseconds)",
-            "failure_reason": "$FAILURE_REASON",
-            "file_size": $FILE_SIZE,
-            "validation_details": "Enhanced MP4 validation failed"
-          }
-          EOF
+              METADATA_FILE="${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_video.json"
+              echo "{" > "$METADATA_FILE"
+              echo "  \"scene\": $SCENE_NUM," >> "$METADATA_FILE"
+              echo "  \"item_type\": \"VIDEO\"," >> "$METADATA_FILE"
+              echo "  \"item_name\": \"scene_video\"," >> "$METADATA_FILE"
+              echo "  \"original_prompt\": \"$(echo "$SCENE_DESC" | sed 's/"/\\"/g')\"," >> "$METADATA_FILE"
+              echo "  \"background_image\": \"$(echo "$BG_IMAGE" | sed 's/"/\\"/g')\"," >> "$METADATA_FILE"
+              echo "  \"mcp_tools\": [\"mcp__i2v-*\"]," >> "$METADATA_FILE"
+              echo "  \"fallback_method\": \"ffmpeg\"," >> "$METADATA_FILE"
+              echo "  \"generation_time\": \"$(date -Iseconds)\"," >> "$METADATA_FILE"
+              echo "  \"failure_reason\": \"$FAILURE_REASON\"," >> "$METADATA_FILE"
+              echo "  \"file_size\": $FILE_SIZE," >> "$METADATA_FILE"
+              echo "  \"validation_details\": \"Enhanced MP4 validation failed\"" >> "$METADATA_FILE"
+              echo "}" >> "$METADATA_FILE"
             fi
           else
             echo "❌ Video generation failed for scene $SCENE_NUM"
@@ -1016,20 +1021,23 @@ jobs:
             echo "scene_${SCENE_NUM}_video_failed=file_not_found" >> $GITHUB_OUTPUT
             
             # Save recovery metadata for video regeneration
-            cat > "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_video.json" << EOF
-          {
-            "scene": ${SCENE_NUM},
-            "item_type": "VIDEO", 
-            "item_name": "scene_video",
-            "original_prompt": "${SCENE_DESC}",
-            "background_image": "${BG_IMAGE}",
-            "mcp_tools": ["mcp__i2v-*"],
-            "fallback_method": "ffmpeg",
-            "generation_time": "$(date -Iseconds)",
-            "failure_reason": "file_not_found"
-          }
-          EOF
+            METADATA_FILE="${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_video.json"
+            echo "{" > "$METADATA_FILE"
+            echo "  \"scene\": $SCENE_NUM," >> "$METADATA_FILE"
+            echo "  \"item_type\": \"VIDEO\"," >> "$METADATA_FILE"
+            echo "  \"item_name\": \"scene_video\"," >> "$METADATA_FILE"
+            echo "  \"original_prompt\": \"$(echo "$SCENE_DESC" | sed 's/"/\\"/g')\"," >> "$METADATA_FILE"
+            echo "  \"background_image\": \"$(echo "$BG_IMAGE" | sed 's/"/\\"/g')\"," >> "$METADATA_FILE"
+            echo "  \"mcp_tools\": [\"mcp__i2v-*\"]," >> "$METADATA_FILE"
+            echo "  \"fallback_method\": \"ffmpeg\"," >> "$METADATA_FILE"
+            echo "  \"generation_time\": \"$(date -Iseconds)\"," >> "$METADATA_FILE"
+            echo "  \"failure_reason\": \"file_not_found\"" >> "$METADATA_FILE"
+            echo "}" >> "$METADATA_FILE"
           fi
+          
+          # Always exit successfully (let continue-on-error and status checks handle failures)
+          echo "🎯 Scene $SCENE_NUM video generation step completed"
+          exit 0
 
       - name: Save Video Generation Status
         if: always()
@@ -1193,64 +1201,77 @@ jobs:
           FAILED_VIDEOS=""
           FAILED_VIDEO_ITEMS="[]"
           
-          # Check each scene's status
+          echo "🔍 Analyzing video generation results for ${{ needs.setup.outputs.scene_count }} scenes"
+          
+          # Check each scene's status using artifact-based verification (most reliable)
           for i in {1..12}; do
             if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
-              # Check job result first (more reliable for continue-on-error jobs)
-              JOB_RESULT=$(echo '${{ toJSON(needs.scene-video-generation.result) }}' | jq -r '.')
+              echo "🔍 Checking scene $i video status..."
               
-              # Check for enhanced status from outputs
-              VIDEO_STATUS=$(echo '${{ toJSON(needs.scene-video-generation.outputs) }}' | jq -r ".scene_${i}_video_status // \"\"")
-              VIDEO_REASON=$(echo '${{ toJSON(needs.scene-video-generation.outputs) }}' | jq -r ".scene_${i}_video_failed // \"\"")
+              # Look for video files in artifact directories
+              VIDEO_FOUND=false
+              FILE_SIZE=0
+              ACTUAL_VIDEO_FILE=""
               
-              # Fallback to artifact-based verification (more reliable)
-              if [ -z "$VIDEO_STATUS" ] || [ "$VIDEO_STATUS" = "" ]; then
-                # Check if video file actually exists and is valid
-                VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/media/videos/scene${i}.mp4"
-                ALT_VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}_video.mp4"
-                ALT2_VIDEO_FILE="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}.mp4"
-                
-                if [ -f "$VIDEO_FILE" ] || [ -f "$ALT_VIDEO_FILE" ] || [ -f "$ALT2_VIDEO_FILE" ]; then
-                  # Check file size (videos should be > 100KB)
-                  if [ -f "$VIDEO_FILE" ]; then
-                    FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
-                  elif [ -f "$ALT_VIDEO_FILE" ]; then
-                    FILE_SIZE=$(stat -c%s "$ALT_VIDEO_FILE" 2>/dev/null || echo 0)
+              # Multiple potential locations for video files
+              POSSIBLE_PATHS=(
+                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/media/videos/scene${i}.mp4"
+                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}.mp4"
+                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}_video.mp4"
+              )
+              
+              for path in "${POSSIBLE_PATHS[@]}"; do
+                if [ -f "$path" ]; then
+                  ACTUAL_VIDEO_FILE="$path"
+                  FILE_SIZE=$(stat -c%s "$path" 2>/dev/null || echo 0)
+                  VIDEO_FOUND=true
+                  echo "📁 Found video: $path (${FILE_SIZE} bytes)"
+                  break
+                fi
+              done
+              
+              # Enhanced validation for found videos
+              if [ "$VIDEO_FOUND" = "true" ] && [ "$FILE_SIZE" -gt 100000 ]; then
+                # Additional MP4 structure validation
+                if command -v ffprobe >/dev/null 2>&1; then
+                  if ffprobe -v error -show_entries format=duration -of csv=p=0 "$ACTUAL_VIDEO_FILE" >/dev/null 2>&1; then
+                    DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$ACTUAL_VIDEO_FILE" 2>/dev/null || echo "0")
+                    # Use python for floating point comparison (more reliable than bc)
+                    if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
+                      echo "✅ Scene $i: Video validated (${FILE_SIZE} bytes, ${DURATION}s)"
+                      continue  # Skip to next scene - this one is successful
+                    else
+                      echo "⚠️ Scene $i: Video too short (${DURATION}s)"
+                      VIDEO_REASON="duration_too_short"
+                    fi
                   else
-                    FILE_SIZE=$(stat -c%s "$ALT2_VIDEO_FILE" 2>/dev/null || echo 0)
-                  fi
-                  
-                  if [ "$FILE_SIZE" -gt 100000 ]; then
-                    VIDEO_STATUS="SUCCESS"
-                    echo "Scene $i: Video verified by file size ($FILE_SIZE bytes)"
-                  else
-                    VIDEO_STATUS="FAILED"
-                    VIDEO_REASON="file_too_small"
-                    echo "Scene $i: Video file too small ($FILE_SIZE bytes)"
+                    echo "⚠️ Scene $i: Video corrupted (no moov atom)"
+                    VIDEO_REASON="corrupted_mp4"
                   fi
                 else
-                  echo "Scene $i: No video file found"
-                  VIDEO_STATUS="FAILED"
-                  VIDEO_REASON="file_not_found"
+                  echo "✅ Scene $i: Video validated by size only (${FILE_SIZE} bytes)"
+                  continue  # Skip to next scene - this one is successful
                 fi
-              fi
-              
-              # Process failure
-              if [ "$VIDEO_STATUS" = "FAILED" ]; then
-                if [ -z "$FAILED_VIDEOS" ]; then
-                  FAILED_VIDEOS="$i"
-                else
-                  FAILED_VIDEOS="$FAILED_VIDEOS,$i"
-                fi
-                
-                # Add to detailed failed items
-                FAILED_VIDEO_ITEMS=$(echo "$FAILED_VIDEO_ITEMS" | jq --arg scene "$i" --arg reason "$VIDEO_REASON" \
-                  '. + [{"scene": ($scene | tonumber), "type": "VIDEO", "item": "scene_video", "reason": $reason}]')
-                
-                echo "Scene $i video: FAILED ($VIDEO_REASON)"
+              elif [ "$VIDEO_FOUND" = "true" ]; then
+                echo "⚠️ Scene $i: Video file too small (${FILE_SIZE} bytes)"
+                VIDEO_REASON="file_too_small"
               else
-                echo "Scene $i video: SUCCESS"
+                echo "❌ Scene $i: No video file found"
+                VIDEO_REASON="file_not_found"
               fi
+              
+              # Add failed scene to list
+              if [ -z "$FAILED_VIDEOS" ]; then
+                FAILED_VIDEOS="$i"
+              else
+                FAILED_VIDEOS="$FAILED_VIDEOS,$i"
+              fi
+              
+              # Add to detailed failed items
+              FAILED_VIDEO_ITEMS=$(echo "$FAILED_VIDEO_ITEMS" | jq --arg scene "$i" --arg reason "$VIDEO_REASON" \
+                '. + [{"scene": ($scene | tonumber), "type": "VIDEO", "item": "scene_video", "reason": $reason}]')
+              
+              echo "❌ Scene $i video: FAILED ($VIDEO_REASON)"
             fi
           done
           
