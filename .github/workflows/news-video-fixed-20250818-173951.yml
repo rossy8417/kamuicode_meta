@@ -1281,12 +1281,18 @@ jobs:
         run: |
           echo "🔍 Performing unified failure analysis across all item types"
           
-          # Collect failed backgrounds (use step-level output)
-          BACKGROUND_FAILURES=$(echo '${{ toJSON(needs.collect-background-failures.outputs) }}' | jq -r '.failed_background_items // "[]"')
+          # Collect failed backgrounds (ensure proper JSON format)
+          BACKGROUND_FAILURES='${{ needs.collect-background-failures.outputs.failed_background_items || "[]" }}'
+          if [ "$BACKGROUND_FAILURES" = "" ] || [ "$BACKGROUND_FAILURES" = "null" ]; then
+            BACKGROUND_FAILURES="[]"
+          fi
           echo "📊 Background failures: $BACKGROUND_FAILURES"
           
-          # Collect failed videos  
-          VIDEO_FAILURES=$(echo '${{ toJSON(needs.collect-video-failures.outputs) }}' | jq -r '.failed_video_items // "[]"')
+          # Collect failed videos (ensure proper JSON format)
+          VIDEO_FAILURES='${{ needs.collect-video-failures.outputs.failed_video_items || "[]" }}'
+          if [ "$VIDEO_FAILURES" = "" ] || [ "$VIDEO_FAILURES" = "null" ]; then
+            VIDEO_FAILURES="[]"
+          fi
           echo "📊 Video failures: $VIDEO_FAILURES"
           
           # Merge all failure types
@@ -1320,9 +1326,15 @@ jobs:
             echo "⚠️ $TOTAL_FAILED items still have issues after recovery"
           fi
           
-          # Set outputs
-          echo "all_failed_items=$ALL_FAILED_ITEMS" >> $GITHUB_OUTPUT
-          echo "recovery_summary=$RECOVERY_SUMMARY" >> $GITHUB_OUTPUT
+          # Set outputs with proper JSON handling
+          echo "all_failed_items<<EOF" >> $GITHUB_OUTPUT
+          echo "$ALL_FAILED_ITEMS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "recovery_summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$RECOVERY_SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
           echo "items_complete=$ITEMS_COMPLETE" >> $GITHUB_OUTPUT
           
           # GitHub Step Summary
