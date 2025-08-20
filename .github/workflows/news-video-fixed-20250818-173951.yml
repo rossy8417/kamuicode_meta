@@ -808,10 +808,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and bc
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg bc
 
       - name: Download Background Data
         uses: actions/download-artifact@v4
@@ -884,14 +884,46 @@ jobs:
           
           if [ -n "$VIDEO_FILE" ] && [ -f "$VIDEO_FILE" ]; then
             FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
+            
+            # Enhanced validation: file size AND MP4 structure validation
+            VALID_VIDEO=false
             if [ "$FILE_SIZE" -gt 100000 ]; then
-              echo "✅ Video generated for scene $SCENE_NUM: $VIDEO_FILE"
+              # Check MP4 structure with ffprobe (moov atom validation)
+              if ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
+                if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                  echo "✅ Video validated for scene $SCENE_NUM: $VIDEO_FILE (${FILE_SIZE} bytes, ${DURATION}s)"
+                  VALID_VIDEO=true
+                else
+                  echo "⚠️ Video too short for scene $SCENE_NUM: ${DURATION}s"
+                fi
+              else
+                echo "⚠️ Video file corrupted (missing moov atom) for scene $SCENE_NUM"
+              fi
+            else
+              echo "⚠️ Video file too small for scene $SCENE_NUM: ${FILE_SIZE} bytes"
+            fi
+            
+            if [ "$VALID_VIDEO" = "true" ]; then
               echo "scene_${SCENE_NUM}_video_status=SUCCESS" >> $GITHUB_OUTPUT
               echo "scene_${SCENE_NUM}_video_success=true" >> $GITHUB_OUTPUT
             else
-              echo "⚠️ Video file too small for scene $SCENE_NUM"
               echo "scene_${SCENE_NUM}_video_status=FAILED" >> $GITHUB_OUTPUT
-              echo "scene_${SCENE_NUM}_video_failed=file_too_small" >> $GITHUB_OUTPUT
+              
+              # Determine specific failure reason
+              FAILURE_REASON="validation_failed"
+              if [ "$FILE_SIZE" -le 100000 ]; then
+                FAILURE_REASON="file_too_small"
+              elif ! ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
+                FAILURE_REASON="corrupted_mp4"
+              else
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
+                if (( $(echo "$DURATION < 3.0" | bc -l) )); then
+                  FAILURE_REASON="duration_too_short"
+                fi
+              fi
+              
+              echo "scene_${SCENE_NUM}_video_failed=$FAILURE_REASON" >> $GITHUB_OUTPUT
               
               # Save recovery metadata for video regeneration
               cat > "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_video.json" << EOF
@@ -904,7 +936,9 @@ jobs:
             "mcp_tools": ["mcp__i2v-*"],
             "fallback_method": "ffmpeg",
             "generation_time": "$(date -Iseconds)",
-            "failure_reason": "file_too_small"
+            "failure_reason": "$FAILURE_REASON",
+            "file_size": $FILE_SIZE,
+            "validation_details": "Enhanced MP4 validation failed"
           }
           EOF
             fi
@@ -942,12 +976,24 @@ jobs:
           
           if [ -f "$VIDEO_FILE" ]; then
             FILE_SIZE=$(stat -c%s "$VIDEO_FILE" 2>/dev/null || echo 0)
+            
+            # Enhanced validation matching the main validation
+            VALID_VIDEO=false
             if [ "$FILE_SIZE" -gt 100000 ]; then
+              if ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" >/dev/null 2>&1; then
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_FILE" 2>/dev/null || echo "0")
+                if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                  VALID_VIDEO=true
+                fi
+              fi
+            fi
+            
+            if [ "$VALID_VIDEO" = "true" ]; then
               echo "SUCCESS" > "$STATUS_FILE"
-              echo "Scene $SCENE_NUM video generation SUCCESS (size: $FILE_SIZE)"
+              echo "Scene $SCENE_NUM video generation SUCCESS (size: $FILE_SIZE, duration: ${DURATION}s)"
             else
               echo "FAILED" > "$STATUS_FILE"
-              echo "Scene $SCENE_NUM video generation FAILED (file too small: $FILE_SIZE)"
+              echo "Scene $SCENE_NUM video generation FAILED (validation failed: size=$FILE_SIZE)"
             fi
           else
             echo "FAILED" > "$STATUS_FILE"
@@ -1218,15 +1264,69 @@ jobs:
             BACKGROUND_IMAGE=$(find "$PROJECT_DIR/media/images/" -name "*scene${SCENE_NUM}*" -o -name "*scene_${SCENE_NUM}*" 2>/dev/null | head -1)
           fi
           
-          if [ -z "$BACKGROUND_IMAGE" ] || [ ! -f "$BACKGROUND_IMAGE" ]; then
-            echo "⚠️ No background image found for scene $SCENE_NUM, creating placeholder"
-            # Install ImageMagick if needed
+          # Validate background image quality (must be > 10KB for valid image)
+          BACKGROUND_VALID=false
+          if [ -n "$BACKGROUND_IMAGE" ] && [ -f "$BACKGROUND_IMAGE" ]; then
+            BG_SIZE=$(stat -c%s "$BACKGROUND_IMAGE" 2>/dev/null || echo 0)
+            if [ "$BG_SIZE" -gt 10000 ]; then
+              echo "✅ Valid background image found: $BACKGROUND_IMAGE (${BG_SIZE} bytes)"
+              BACKGROUND_VALID=true
+            else
+              echo "⚠️ Background image too small: $BACKGROUND_IMAGE (${BG_SIZE} bytes), regenerating..."
+            fi
+          else
+            echo "⚠️ No background image found for scene $SCENE_NUM"
+          fi
+          
+          # Regenerate background image if invalid or missing
+          if [ "$BACKGROUND_VALID" = "false" ]; then
+            echo "🔄 Regenerating background image for scene $SCENE_NUM..."
+            
+            # Install ImageMagick if needed  
             sudo apt-get update && sudo apt-get install -y imagemagick
-            convert -size 1920x1080 xc:black \
-              -fill white -gravity center -pointsize 72 \
-              -annotate +0+0 "Scene $SCENE_NUM" \
-              "$PROJECT_DIR/media/images/scene${SCENE_NUM}_placeholder.png"
-            BACKGROUND_IMAGE="$PROJECT_DIR/media/images/scene${SCENE_NUM}_placeholder.png"
+            
+            BG_PATH="$PROJECT_DIR/media/images/background_scene${SCENE_NUM}_recovered.png"
+            URL_PATH_BG="$PROJECT_DIR/media/images/background_scene${SCENE_NUM}_recovered-url.txt"
+            
+            # Try MCP background generation first if time allows
+            ELAPSED_MINUTES=$(( ($(date +%s) - $(date -d "$WORKFLOW_START" +%s)) / 60 ))
+            if [ $ELAPSED_MINUTES -lt 10 ]; then
+              echo "🎨 Attempting MCP background regeneration..."
+              
+              BG_PROMPT="Generate professional news studio background for scene ${SCENE_NUM}:
+              1. Professional modern news studio setting
+              2. Clean background with subtle news graphics
+              3. No people, just background environment
+              4. 1920x1080 resolution, 16:9 aspect ratio
+              5. Save image to ${BG_PATH} using Write tool
+              6. Save URL to ${URL_PATH_BG} using Write tool
+              7. Verify with ls -la command"
+              
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__t2i-*,Write,Bash" \
+                --max-turns 40 \
+                --permission-mode "bypassPermissions" \
+                -p "$BG_PROMPT" || {
+                  echo "⚠️ MCP background generation failed, using ImageMagick fallback"
+                }
+              
+              # Download from URL if available
+              [ -f "$URL_PATH_BG" ] && curl -L -o "$BG_PATH" "$(cat $URL_PATH_BG)" 2>/dev/null
+            fi
+            
+            # Fallback to ImageMagick if MCP failed or not available
+            if [ ! -f "$BG_PATH" ] || [ $(stat -c%s "$BG_PATH" 2>/dev/null || echo 0) -lt 10000 ]; then
+              echo "🎨 Creating ImageMagick fallback background..."
+              convert -size 1920x1080 gradient:darkblue-lightblue \
+                -blur 0x3 \
+                -fill white -gravity center -pointsize 48 \
+                -annotate +0+0 "News Studio - Scene $SCENE_NUM" \
+                "$BG_PATH"
+            fi
+            
+            BACKGROUND_IMAGE="$BG_PATH"
+            echo "✅ Background image regenerated: $BACKGROUND_IMAGE"
           fi
           
           VIDEO_PATH="$PROJECT_DIR/media/videos/scene${SCENE_NUM}_recovered.mp4"
