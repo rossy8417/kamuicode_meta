@@ -1544,17 +1544,16 @@ jobs:
           name: plan-data
           path: ${{ needs.setup.outputs.project_dir }}/metadata/
 
-  final-composition:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, unified-failure-analysis]
-    if: |
-      always() &&
-      needs.check-trigger.outputs.should_run == 'true' &&
-      needs.editing-plan.result == 'success' &&
-      needs.unified-failure-analysis.outputs.items_complete == 'true'
+  dynamic-recovery-check:
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing]
+    if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     outputs:
-      final_video: ${{ steps.compose.outputs.final_video }}
+      recovery_needed: ${{ steps.validate.outputs.recovery_needed }}
+      corrupted_scenes: ${{ steps.validate.outputs.corrupted_scenes }}
+      corrupted_lipsync: ${{ steps.validate.outputs.corrupted_lipsync }}
+      valid_scene_count: ${{ steps.validate.outputs.valid_scene_count }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -1571,6 +1570,309 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg bc
 
+      - name: Validate All Generated Content
+        id: validate
+        run: |
+          echo "🔍 動的コンテンツ検証を開始..."
+          
+          CORRUPTED_SCENES=""
+          CORRUPTED_LIPSYNC=""
+          VALID_SCENE_COUNT=0
+          RECOVERY_NEEDED=false
+          
+          # シーン動画の検証
+          echo "📹 シーン動画の検証中..."
+          for scene_num in {1..12}; do
+            video_file=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${scene_num}*.mp4" -type f | head -1)
+            
+            if [ -f "$video_file" ]; then
+              FILE_SIZE=$(stat -c%s "$video_file" 2>/dev/null || echo 0)
+              
+              # MP4構造検証（scene-video-generationと同じロジック）
+              VALID_VIDEO=false
+              if [ "$FILE_SIZE" -gt 100000 ]; then
+                if ffprobe -v error -show_entries format=duration -of csv=p=0 "$video_file" >/dev/null 2>&1; then
+                  DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video_file" 2>/dev/null || echo "0")
+                  if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                    echo "✅ Scene $scene_num: Valid (${FILE_SIZE} bytes, ${DURATION}s)"
+                    VALID_SCENE_COUNT=$((VALID_SCENE_COUNT + 1))
+                    VALID_VIDEO=true
+                  else
+                    echo "⚠️ Scene $scene_num: Too short (${DURATION}s)"
+                  fi
+                else
+                  echo "⚠️ Scene $scene_num: Corrupted (missing moov atom)"
+                fi
+              else
+                echo "⚠️ Scene $scene_num: Too small (${FILE_SIZE} bytes)"
+              fi
+              
+              if [ "$VALID_VIDEO" = "false" ]; then
+                CORRUPTED_SCENES="$CORRUPTED_SCENES $scene_num"
+                RECOVERY_NEEDED=true
+              fi
+            else
+              echo "❌ Scene $scene_num: File not found"
+              CORRUPTED_SCENES="$CORRUPTED_SCENES $scene_num"
+              RECOVERY_NEEDED=true
+            fi
+          done
+          
+          # リップシンク動画の検証
+          echo "🎤 リップシンク動画の検証中..."
+          lipsync_file=$(find "${{ needs.setup.outputs.project_dir }}" -name "*lipsync*.mp4" -type f | head -1)
+          
+          if [ -f "$lipsync_file" ]; then
+            FILE_SIZE=$(stat -c%s "$lipsync_file" 2>/dev/null || echo 0)
+            
+            VALID_LIPSYNC=false
+            if [ "$FILE_SIZE" -gt 100000 ]; then
+              if ffprobe -v error -show_entries format=duration -of csv=p=0 "$lipsync_file" >/dev/null 2>&1; then
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$lipsync_file" 2>/dev/null || echo "0")
+                if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
+                  echo "✅ Lipsync: Valid (${FILE_SIZE} bytes, ${DURATION}s)"
+                  VALID_LIPSYNC=true
+                else
+                  echo "⚠️ Lipsync: Too short (${DURATION}s)"
+                fi
+              else
+                echo "⚠️ Lipsync: Corrupted (missing moov atom)"
+              fi
+            else
+              echo "⚠️ Lipsync: Too small (${FILE_SIZE} bytes)"
+            fi
+            
+            if [ "$VALID_LIPSYNC" = "false" ]; then
+              CORRUPTED_LIPSYNC="anchor_lipsync"
+              RECOVERY_NEEDED=true
+            fi
+          else
+            echo "❌ Lipsync: File not found"
+            CORRUPTED_LIPSYNC="anchor_lipsync"
+            RECOVERY_NEEDED=true
+          fi
+          
+          # 結果の出力
+          echo "📊 検証結果サマリー:"
+          echo "- 有効なシーン動画: $VALID_SCENE_COUNT/12"
+          echo "- 破損シーン: $CORRUPTED_SCENES"
+          echo "- 破損リップシンク: $CORRUPTED_LIPSYNC"
+          echo "- リカバリー必要: $RECOVERY_NEEDED"
+          
+          # GitHub Outputsに設定
+          echo "recovery_needed=$RECOVERY_NEEDED" >> $GITHUB_OUTPUT
+          echo "corrupted_scenes=${CORRUPTED_SCENES# }" >> $GITHUB_OUTPUT  # 先頭スペース除去
+          echo "corrupted_lipsync=$CORRUPTED_LIPSYNC" >> $GITHUB_OUTPUT
+          echo "valid_scene_count=$VALID_SCENE_COUNT" >> $GITHUB_OUTPUT
+
+  immediate-recovery:
+    needs: [check-trigger, setup, dynamic-recovery-check]
+    if: |
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.dynamic-recovery-check.outputs.recovery_needed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      recovery_completed: ${{ steps.recover.outputs.recovery_completed }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-data*"
+          path: ${{ needs.setup.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Install FFmpeg and ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg imagemagick
+
+      - name: Execute Dynamic Recovery
+        id: recover
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          echo "🔧 動的リカバリーを開始..."
+          
+          CORRUPTED_SCENES="${{ needs.dynamic-recovery-check.outputs.corrupted_scenes }}"
+          CORRUPTED_LIPSYNC="${{ needs.dynamic-recovery-check.outputs.corrupted_lipsync }}"
+          RECOVERY_SUCCESS=true
+          
+          # シーン動画のリカバリー
+          if [ -n "$CORRUPTED_SCENES" ]; then
+            echo "📹 破損シーン動画のリカバリー: $CORRUPTED_SCENES"
+            
+            for scene_num in $CORRUPTED_SCENES; do
+              echo "🔧 Scene $scene_num をリカバリー中..."
+              
+              # 背景画像を取得
+              BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${scene_num}*.png" -type f | head -1)
+              if [ -z "$BG_IMAGE" ] || [ ! -f "$BG_IMAGE" ]; then
+                BG_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*background*.png" | head -1)
+              fi
+              
+              if [ -f "$BG_IMAGE" ]; then
+                VIDEO_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${scene_num}.mp4"
+                URL_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${scene_num}-url.txt"
+                
+                I2V_PROMPT="Scene ${scene_num} 緊急リカバリー:
+                背景画像: ${BG_IMAGE}
+                出力動画: ${VIDEO_PATH}
+                要件:
+                1. MCP I2V ツールで5秒動画を生成
+                2. ${VIDEO_PATH}に保存
+                3. URLを${URL_PATH}に保存
+                4. 検証: ファイルサイズ>100KB、再生時間>=3秒、moov atom存在"
+                
+                npx @anthropic-ai/claude-code \
+                  --mcp-config ".claude/mcp-kamuicode.json" \
+                  --allowedTools "mcp__i2v-*,Write,Bash" \
+                  --max-turns 80 \
+                  --permission-mode "bypassPermissions" \
+                  -p "$I2V_PROMPT" || {
+                    echo "⚠️ MCP リカバリー失敗、FFmpeg フォールバック"
+                    ffmpeg -loop 1 -i "$BG_IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p -r 30 "$VIDEO_PATH" -y
+                  }
+                
+                # URLからダウンロード試行
+                [ -f "$URL_PATH" ] && curl -L -o "$VIDEO_PATH" "$(cat $URL_PATH)" 2>/dev/null
+                
+                # リカバリー結果の検証
+                if [ -f "$VIDEO_PATH" ]; then
+                  FILE_SIZE=$(stat -c%s "$VIDEO_PATH" 2>/dev/null || echo 0)
+                  if [ "$FILE_SIZE" -gt 100000 ]; then
+                    if ffprobe -v error -show_entries format=duration -of csv=p=0 "$VIDEO_PATH" >/dev/null 2>&1; then
+                      echo "✅ Scene $scene_num リカバリー成功"
+                    else
+                      echo "❌ Scene $scene_num リカバリー失敗（破損）"
+                      RECOVERY_SUCCESS=false
+                    fi
+                  else
+                    echo "❌ Scene $scene_num リカバリー失敗（サイズ不足）"
+                    RECOVERY_SUCCESS=false
+                  fi
+                else
+                  echo "❌ Scene $scene_num リカバリー失敗（ファイル未生成）"
+                  RECOVERY_SUCCESS=false
+                fi
+              else
+                echo "❌ Scene $scene_num: 背景画像が見つかりません"
+                RECOVERY_SUCCESS=false
+              fi
+            done
+          fi
+          
+          # リップシンク動画のリカバリー
+          if [ -n "$CORRUPTED_LIPSYNC" ]; then
+            echo "🎤 リップシンク動画のリカバリー"
+            
+            ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*anchor*.png" -o -name "*news_anchor*.png" | head -1)
+            AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.mp3" -o -name "*.wav" | head -1)
+            
+            if [ -f "$ANCHOR_IMAGE" ] && [ -f "$AUDIO_FILE" ]; then
+              LIPSYNC_PATH="${{ needs.setup.outputs.project_dir }}/anchor_lipsync.mp4"
+              
+              LIPSYNC_PROMPT="リップシンク緊急リカバリー:
+              アンカー画像: ${ANCHOR_IMAGE}
+              音声ファイル: ${AUDIO_FILE}
+              出力動画: ${LIPSYNC_PATH}
+              要件:
+              1. MCP リップシンクツールで音声同期動画生成
+              2. ${LIPSYNC_PATH}に保存
+              3. 検証: 音声と口の動きが同期"
+              
+              npx @anthropic-ai/claude-code \
+                --mcp-config ".claude/mcp-kamuicode.json" \
+                --allowedTools "mcp__v2v-*,Write,Bash" \
+                --max-turns 60 \
+                --permission-mode "bypassPermissions" \
+                -p "$LIPSYNC_PROMPT" || {
+                  echo "⚠️ リップシンク失敗、静止画フォールバック"
+                  ffmpeg -loop 1 -i "$ANCHOR_IMAGE" -i "$AUDIO_FILE" -c:v libx264 -c:a aac -shortest "$LIPSYNC_PATH" -y
+                }
+              
+              # リカバリー結果の検証
+              if [ -f "$LIPSYNC_PATH" ]; then
+                FILE_SIZE=$(stat -c%s "$LIPSYNC_PATH" 2>/dev/null || echo 0)
+                if [ "$FILE_SIZE" -gt 100000 ]; then
+                  if ffprobe -v error -show_entries format=duration -of csv=p=0 "$LIPSYNC_PATH" >/dev/null 2>&1; then
+                    echo "✅ リップシンク リカバリー成功"
+                  else
+                    echo "❌ リップシンク リカバリー失敗（破損）"
+                    RECOVERY_SUCCESS=false
+                  fi
+                else
+                  echo "❌ リップシンク リカバリー失敗（サイズ不足）"
+                  RECOVERY_SUCCESS=false
+                fi
+              else
+                echo "❌ リップシンク リカバリー失敗（ファイル未生成）"
+                RECOVERY_SUCCESS=false
+              fi
+            else
+              echo "❌ リップシンク: 必要なファイルが見つかりません"
+              RECOVERY_SUCCESS=false
+            fi
+          fi
+          
+          echo "recovery_completed=$RECOVERY_SUCCESS" >> $GITHUB_OUTPUT
+          
+          if [ "$RECOVERY_SUCCESS" = "true" ]; then
+            echo "🎉 全てのリカバリーが成功しました"
+          else
+            echo "⚠️ 一部のリカバリーが失敗しました"
+          fi
+
+      - name: Upload Recovered Assets
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: recovered-assets
+          path: |
+            ${{ needs.setup.outputs.project_dir }}/media/videos/
+            ${{ needs.setup.outputs.project_dir }}/anchor_lipsync.mp4
+
+  final-composition:
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, dynamic-recovery-check, immediate-recovery]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.editing-plan.result == 'success' &&
+      (needs.dynamic-recovery-check.outputs.recovery_needed == 'false' || 
+       (needs.dynamic-recovery-check.outputs.recovery_needed == 'true' && needs.immediate-recovery.outputs.recovery_completed == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      final_video: ${{ steps.compose.outputs.final_video }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-data*"
+          path: ${{ needs.setup.outputs.project_dir }}/
+          merge-multiple: true
+
+      - name: Download Recovered Assets (if available)
+        uses: actions/download-artifact@v4
+        if: needs.dynamic-recovery-check.outputs.recovery_needed == 'true'
+        continue-on-error: true
+        with:
+          name: recovered-assets
+          path: ${{ needs.setup.outputs.project_dir }}/
+
+      - name: Install FFmpeg and bc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg bc
+
       - name: Compose Final Video
         id: compose
         run: |
@@ -1580,12 +1882,14 @@ jobs:
           echo "=== Available Assets ==="
           find "${{ needs.setup.outputs.project_dir }}" -type f -name "*.mp4" -o -name "*.png" -o -name "*.mp3" -o -name "*.wav" | sort
           
-          # Find and validate background videos (exclude corrupted files)
-          echo "🔍 Validating video files..."
+          # Find and validate background videos (post-recovery validation)
+          echo "🔍 Post-recovery video validation..."
           VALID_VIDEOS=""
+          TOTAL_DURATION=0
+          
           for video in $(find "${{ needs.setup.outputs.project_dir }}" -name "*scene*.mp4" -type f | sort); do
             if [ -f "$video" ]; then
-              # Validate MP4 structure (same logic as scene-video-generation)
+              # Quick validation (files should be valid after recovery)
               FILE_SIZE=$(stat -c%s "$video" 2>/dev/null || echo 0)
               if [ "$FILE_SIZE" -gt 100000 ]; then
                 if ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" >/dev/null 2>&1; then
@@ -1593,17 +1897,24 @@ jobs:
                   if (( $(echo "$DURATION >= 3.0" | bc -l) )); then
                     echo "✅ Valid video: $video (${FILE_SIZE} bytes, ${DURATION}s)"
                     VALID_VIDEOS="$VALID_VIDEOS $video"
+                    TOTAL_DURATION=$(echo "$TOTAL_DURATION + $DURATION" | bc -l)
                   else
-                    echo "⚠️ Skipping short video: $video (${DURATION}s)"
+                    echo "⚠️ Unexpected short video after recovery: $video (${DURATION}s)"
+                    # Note: This should not happen after successful recovery
                   fi
                 else
-                  echo "⚠️ Skipping corrupted video: $video (missing moov atom)"
+                  echo "⚠️ Unexpected corrupted video after recovery: $video"
+                  # Note: This should not happen after successful recovery
                 fi
               else
-                echo "⚠️ Skipping small video: $video (${FILE_SIZE} bytes)"
+                echo "⚠️ Unexpected small video after recovery: $video (${FILE_SIZE} bytes)"
               fi
             fi
           done
+          
+          echo "📊 Post-recovery summary:"
+          echo "- Valid videos found: $(echo $VALID_VIDEOS | wc -w)"
+          echo "- Total duration: ${TOTAL_DURATION}s"
           
           BACKGROUND_VIDEOS="$VALID_VIDEOS"
           
