@@ -1671,7 +1671,7 @@ jobs:
       needs.check-trigger.outputs.should_run == 'true' &&
       needs.dynamic-recovery-check.outputs.recovery_needed == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     outputs:
       recovery_completed: ${{ steps.recover.outputs.recovery_completed }}
     steps:
@@ -1724,18 +1724,20 @@ jobs:
                 背景画像: ${BG_IMAGE}
                 出力動画: ${VIDEO_PATH}
                 要件:
-                1. MCP I2V ツールで5秒動画を生成
+                1. MCP I2V ツールで5秒動画を生成 (高速サービス優先: veo3-fast または seedance-v1-lite)
                 2. ${VIDEO_PATH}に保存
                 3. URLを${URL_PATH}に保存
-                4. 検証: ファイルサイズ>100KB、再生時間>=3秒、moov atom存在"
+                4. 検証: ファイルサイズ>100KB、再生時間>=3秒、moov atom存在
+                5. 10分以内で完了しない場合はフォールバックへ"
                 
-                npx @anthropic-ai/claude-code \
+                # MCP処理に時間制限を設定
+                timeout 600 npx @anthropic-ai/claude-code \
                   --mcp-config ".claude/mcp-kamuicode.json" \
-                  --allowedTools "mcp__i2v-*,Write,Bash" \
-                  --max-turns 80 \
+                  --allowedTools "mcp__i2v-kamui-veo3-fast,mcp__i2v-kamui-seedance-v1-lite,Write,Bash" \
+                  --max-turns 60 \
                   --permission-mode "bypassPermissions" \
                   -p "$I2V_PROMPT" || {
-                    echo "⚠️ MCP リカバリー失敗、FFmpeg フォールバック"
+                    echo "⚠️ MCP リカバリー失敗/タイムアウト、FFmpeg フォールバック"
                     ffmpeg -loop 1 -i "$BG_IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p -r 30 "$VIDEO_PATH" -y
                   }
                 
@@ -1782,17 +1784,19 @@ jobs:
               音声ファイル: ${AUDIO_FILE}
               出力動画: ${LIPSYNC_PATH}
               要件:
-              1. MCP リップシンクツールで音声同期動画生成
+              1. MCP リップシンクツールで音声同期動画生成 (高速サービス: pixverse-lipsync 優先)
               2. ${LIPSYNC_PATH}に保存
-              3. 検証: 音声と口の動きが同期"
+              3. 検証: 音声と口の動きが同期
+              4. 8分以内で完了しない場合はフォールバックへ"
               
-              npx @anthropic-ai/claude-code \
+              # リップシンク処理に時間制限を設定
+              timeout 480 npx @anthropic-ai/claude-code \
                 --mcp-config ".claude/mcp-kamuicode.json" \
-                --allowedTools "mcp__v2v-*,Write,Bash" \
-                --max-turns 60 \
+                --allowedTools "mcp__v2v-kamui-pixverse-lipsync,mcp__v2v-kamui-creatify-lipsync,Write,Bash" \
+                --max-turns 40 \
                 --permission-mode "bypassPermissions" \
                 -p "$LIPSYNC_PROMPT" || {
-                  echo "⚠️ リップシンク失敗、静止画フォールバック"
+                  echo "⚠️ リップシンク失敗/タイムアウト、静止画フォールバック"
                   ffmpeg -loop 1 -i "$ANCHOR_IMAGE" -i "$AUDIO_FILE" -c:v libx264 -c:a aac -shortest "$LIPSYNC_PATH" -y
                 }
               
