@@ -1752,13 +1752,14 @@ jobs:
             ${{ needs.setup.outputs.project_dir }}/anchor_lipsync.mp4
 
   final-composition:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, dynamic-recovery-check, immediate-recovery]
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, dynamic-recovery-check, immediate-recovery, unified-failure-analysis]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.editing-plan.result == 'success' &&
-      (needs.dynamic-recovery-check.outputs.recovery_needed == 'false' || 
-       (needs.dynamic-recovery-check.outputs.recovery_needed == 'true' && needs.immediate-recovery.outputs.recovery_completed == 'true'))
+      (
+        (needs.unified-failure-analysis.outputs.items_complete == 'true' && needs.editing-plan.result == 'success') ||
+        (needs.unified-failure-analysis.outputs.items_complete == 'false' && needs.immediate-recovery.outputs.recovery_completed == 'true')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
