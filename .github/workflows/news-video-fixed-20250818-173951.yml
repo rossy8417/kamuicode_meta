@@ -795,8 +795,11 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   scene-video-generation:
-    needs: [check-trigger, setup, background-generation]
-    if: needs.check-trigger.outputs.should_run == 'true'
+    needs: [check-trigger, setup, background-generation, collect-background-failures, background-recovery]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      (needs.background-recovery.result == 'success' || needs.background-recovery.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -1198,7 +1201,7 @@ jobs:
           echo "📊 Video failure details: $FAILED_VIDEO_ITEMS"
 
   video-recovery:
-    needs: [check-trigger, setup, collect-video-failures, background-generation]
+    needs: [check-trigger, setup, collect-video-failures, scene-video-generation]
     if: |
       always() && 
       needs.check-trigger.outputs.should_run == 'true' &&
