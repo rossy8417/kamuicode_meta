@@ -718,20 +718,62 @@ jobs:
       failed_backgrounds: ${{ steps.collect.outputs.failed_backgrounds }}
       failed_background_items: ${{ steps.collect.outputs.failed_background_items }}
     steps:
+      - name: Download All Background Status Files
+        uses: actions/download-artifact@v4
+        with:
+          pattern: background-data-scene-*
+          path: ${{ needs.setup.outputs.project_dir }}/all-backgrounds/
+
       - name: Collect Failed Backgrounds
         id: collect
         run: |
           FAILED_BACKGROUNDS=""
           FAILED_BACKGROUND_ITEMS="[]"
           
-          # Check each background generation job result
+          echo "🔍 Analyzing background generation results for ${{ needs.setup.outputs.scene_count }} scenes"
+          
+          # Check each scene's background using artifact-based verification (most reliable)
           for i in {1..12}; do
             if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
-              JOB_STATUS="${{ needs.background-generation.result }}"
+              echo "🔍 Checking scene $i background status..."
               
-              # Check if this specific scene failed (approximation)
-              if [[ "$JOB_STATUS" == *"failure"* ]] || [[ "${{ toJSON(needs.background-generation) }}" == *"failure"* ]]; then
-                echo "Checking individual background generation results..."
+              # Look for background image files in artifact directories
+              BACKGROUND_FOUND=false
+              FILE_SIZE=0
+              ACTUAL_BG_FILE=""
+              
+              # Multiple potential locations for background files
+              POSSIBLE_PATHS=(
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/media/images/scene${i}.png"
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/scene${i}.png"
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/scene${i}_background.png"
+              )
+              
+              for path in "${POSSIBLE_PATHS[@]}"; do
+                if [ -f "$path" ]; then
+                  ACTUAL_BG_FILE="$path"
+                  FILE_SIZE=$(stat -c%s "$path" 2>/dev/null || echo 0)
+                  echo "📁 Found background file: $path (${FILE_SIZE} bytes)"
+                  
+                  # Validate image file (minimum 50KB for proper image)
+                  if [ "$FILE_SIZE" -gt 50000 ]; then
+                    # Additional validation: check if it's a valid image
+                    if file "$path" | grep -E "(PNG|JPEG|JPG)" >/dev/null 2>&1; then
+                      BACKGROUND_FOUND=true
+                      echo "✅ Valid background image for scene $i: ${FILE_SIZE} bytes"
+                      break
+                    else
+                      echo "❌ Invalid image format for scene $i"
+                    fi
+                  else
+                    echo "❌ Background file too small for scene $i: ${FILE_SIZE} bytes"
+                  fi
+                fi
+              done
+              
+              # Mark as failed if no valid background found
+              if [ "$BACKGROUND_FOUND" = "false" ]; then
+                echo "❌ Scene $i background: FAILED (no valid image found)"
                 
                 # Add failed scene
                 if [ -z "$FAILED_BACKGROUNDS" ]; then
@@ -743,11 +785,11 @@ jobs:
                 # Add to detailed failed items
                 FAILED_BACKGROUND_ITEMS=$(echo "$FAILED_BACKGROUND_ITEMS" | jq \
                   --arg scene "$i" \
-                  '. + [{"scene": ($scene | tonumber), "type": "IMAGE", "item": "background", "reason": "matrix_job_failure"}]')
-                
-                echo "Scene $i background: FAILED"
+                  --arg size "$FILE_SIZE" \
+                  --arg file "$ACTUAL_BG_FILE" \
+                  '. + [{"scene": ($scene | tonumber), "type": "IMAGE", "item": "background", "reason": "validation_failed", "file_size": ($size | tonumber), "file_path": $file}]')
               else
-                echo "Scene $i background: SUCCESS"
+                echo "✅ Scene $i background: SUCCESS"
               fi
             fi
           done
