@@ -96,6 +96,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+
       - name: Setup Project Environment
         id: setup
         run: |
@@ -669,12 +673,38 @@ jobs:
           FAILED_ITEMS="[]"
           FAILED_BACKGROUNDS=""
           
+          # Check for status files instead of step outputs
+          echo "🔍 Checking background generation artifacts..."
+          ls -la ${{ needs.setup.outputs.project_dir }}/all-backgrounds/ 2>/dev/null || echo "No background artifacts found"
+          
+          # Look for background status files
           for i in {1..12}; do
             if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
-              # Check background status
-              BG_STATUS=$(echo '${{ toJSON(steps.background.outputs) }}' | jq -r ".scene_${i}_background_status // \"\"")
-              if [ "$BG_STATUS" = "FAILED" ]; then
-                BG_REASON=$(echo '${{ toJSON(steps.background.outputs) }}' | jq -r ".scene_${i}_background_failed // \"unknown\"")
+              # Check if background image exists in artifacts
+              BG_FOUND=false
+              BG_REASON="unknown"
+              
+              # Check multiple potential locations
+              POSSIBLE_PATHS=(
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/background_scene${i}.png"
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/scene${i}_background.png"
+              )
+              
+              for path in "${POSSIBLE_PATHS[@]}"; do
+                if [ -f "$path" ]; then
+                  FILE_SIZE=$(stat -c%s "$path" 2>/dev/null || echo 0)
+                  if [ "$FILE_SIZE" -gt 10000 ]; then  # Minimum 10KB for valid image
+                    BG_FOUND=true
+                    echo "✅ Found valid background: scene $i ($FILE_SIZE bytes)"
+                    break
+                  else
+                    BG_REASON="file_too_small"
+                  fi
+                fi
+              done
+              
+              if [ "$BG_FOUND" = "false" ]; then
+                echo "❌ Missing background: scene $i"
                 
                 # Add to failed backgrounds list
                 if [ -z "$FAILED_BACKGROUNDS" ]; then
@@ -683,7 +713,7 @@ jobs:
                   FAILED_BACKGROUNDS="$FAILED_BACKGROUNDS,$i"
                 fi
                 
-                # Add to detailed failed items
+                # Add to detailed failed items using simple string construction
                 FAILED_ITEMS=$(echo "$FAILED_ITEMS" | jq --arg scene "$i" --arg reason "$BG_REASON" \
                   '. + [{"scene": ($scene | tonumber), "type": "IMAGE", "item": "background", "reason": $reason}]')
               fi
@@ -919,10 +949,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg jq
 
       - name: Download Background Data
         uses: actions/download-artifact@v4
@@ -1355,10 +1385,10 @@ jobs:
           pattern: video-data-scene-*
           path: ${{ needs.setup.outputs.project_dir }}/all-videos/
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg jq
 
       - name: Collect Failed Videos
         id: collect
@@ -1444,7 +1474,10 @@ jobs:
             echo "failed_videos=[]" >> $GITHUB_OUTPUT
           fi
           
-          echo "failed_video_items=$(echo "$FAILED_VIDEO_ITEMS" | jq -c .)" >> $GITHUB_OUTPUT
+          # Store failed video items safely (avoid jq dependency)
+          echo "failed_video_items<<EOF" >> $GITHUB_OUTPUT
+          echo "$FAILED_VIDEO_ITEMS" >> $GITHUB_OUTPUT  
+          echo "EOF" >> $GITHUB_OUTPUT
           echo "📊 Video failure details: $FAILED_VIDEO_ITEMS"
 
 
@@ -1634,10 +1667,10 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/
           merge-multiple: true
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg jq
 
       - name: Validate All Generated Content
         id: validate
@@ -1971,10 +2004,10 @@ jobs:
           name: recovered-assets
           path: ${{ needs.setup.outputs.project_dir }}/
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg jq
 
       - name: Compose Final Video
         id: compose
