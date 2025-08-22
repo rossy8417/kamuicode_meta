@@ -623,17 +623,15 @@ jobs:
           
           # Save original generation metadata for recovery
           echo "📝 Saving recovery metadata for scene $SCENE_NUM"
-          cat > "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json" << 'EOF'
-          {
-            "scene": ${SCENE_NUM},
-            "item_type": "IMAGE",
-            "item_name": "background",
-            "original_prompt": "${SCENE_DESC}",
-            "mcp_tools": ["mcp__t2i-*"],
-            "fallback_method": "imagemagick",
-            "execution_time": "$(date -Iseconds)"
-          }
-          EOF
+          echo "{" > "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "  \"scene\": ${SCENE_NUM}," >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "  \"item_type\": \"IMAGE\"," >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "  \"item_name\": \"background\"," >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "  \"original_prompt\": \"${SCENE_DESC}\"," >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "  \"mcp_tools\": [\"mcp__t2i-*\"]," >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "  \"fallback_method\": \"imagemagick\"," >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "  \"execution_time\": \"$(date -Iseconds)\"" >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
+          echo "}" >> "${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
 
           # Validate found image
           VALIDATION_SUCCESS=false
