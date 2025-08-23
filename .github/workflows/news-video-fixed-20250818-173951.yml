@@ -543,14 +543,16 @@ jobs:
           BACKGROUND_PROMPT="Generate news background for scene ${SCENE_NUM}:
           Description: ${SCENE_DESC}, no people, professional lighting, news studio style
           Style: ${{ github.event.inputs.visual_style || 'cinematic' }}
-          Output: ${BG_PATH}
+          
           Requirements:
-          1. Generate with MCP T2I tool
+          1. Generate image using mcp__t2i-kamui-imagen3__imagen_t2i tool
           2. No human figures (background only)
           3. Professional news studio aesthetic
-          4. Save to ${BG_PATH} using Write tool
-          5. Save URL to ${URL_PATH} using Write tool
-          6. Verify with ls -la"
+          4. Extract the URL from MCP response (Google Imagen3 URL or fal.ai URL)
+          5. Save ONLY the URL to ${URL_PATH} using Write tool
+          6. Display the URL for verification
+          
+          DO NOT try to save image files directly - only save the URL!"
           
           # Retry mechanism for MCP background generation
           RETRY_COUNT=0
@@ -578,34 +580,41 @@ jobs:
                 BACKGROUND_PROMPT="Generate news background for scene ${SCENE_NUM} (retry):
                 Description: ${SCENE_DESC}, no people, professional lighting, news studio style
                 Style: professional newsroom
-                Output: ${BG_PATH}
+                
                 Requirements:
-                1. Generate with MCP T2I tool (different seed)
+                1. Generate image using mcp__t2i-kamui-imagen3__imagen_t2i tool (different seed)
                 2. No human figures (background only)
                 3. Professional news studio aesthetic
-                4. Save to ${BG_PATH} using Write tool
-                5. Save URL to ${URL_PATH} using Write tool
-                6. Verify with ls -la
+                4. Extract the URL from MCP response (Google Imagen3 URL or fal.ai URL)
+                5. Save ONLY the URL to ${URL_PATH} using Write tool
+                6. Display the URL for verification
+                
+                DO NOT try to save image files directly - only save the URL!
                 Note: This is retry attempt $((RETRY_COUNT + 1))"
                 sleep 5  # Wait before retry
               fi
             fi
           done
           
-          if [ "$SUCCESS" = "false" ]; then
+          # Check if URL was generated successfully
+          if [ "$SUCCESS" = "true" ] && [ -f "$URL_PATH" ]; then
+            echo "✅ URL generation successful for scene $SCENE_NUM"
+            echo "📥 Downloading background image from URL..."
+            
+            if curl -L -o "$BG_PATH" "$(cat "$URL_PATH")" 2>/dev/null; then
+              echo "✅ URL download successful"
+              echo "scene_${SCENE_NUM}_url=$(cat "$URL_PATH")" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ URL download failed"
+              echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
+            fi
+          elif [ "$SUCCESS" = "false" ]; then
             echo "❌ All background generation attempts failed for scene $SCENE_NUM"
             echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
             # Don't exit 1 here - let continue-on-error handle it
-          fi
-          
-          # Download from URL if available (with error handling)
-          if [ -f "$URL_PATH" ]; then
-            echo "📥 Downloading background image from URL for scene $SCENE_NUM"
-            if curl -L -o "$BG_PATH" "$(cat "$URL_PATH")" 2>/dev/null; then
-              echo "✅ URL download successful"
-            else
-              echo "⚠️ URL download failed, using locally generated file"
-            fi
+          else
+            echo "⚠️ URL file not found for scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
           fi
           
           # Enhanced image verification with multiple patterns
@@ -668,6 +677,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
+          
+      - name: Download All Background Artifacts
+        uses: actions/download-artifact@v4
+        if: always()
+        with:
+          pattern: background-data-scene-*
+          path: ${{ needs.setup.outputs.project_dir }}/all-backgrounds/
+          merge-multiple: false
           
       - name: Collect Failed Items
         id: collect-failures
@@ -886,7 +903,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y jq
+          sudo apt-get update && sudo apt-get install -y jq imagemagick
 
       - name: Dynamic Background Recovery for Scene ${{ matrix.scene }}
         env:
