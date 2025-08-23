@@ -737,7 +737,11 @@ jobs:
           fi
           
           echo "failed_backgrounds=[${FAILED_BACKGROUNDS}]" >> $GITHUB_OUTPUT
-          echo "failed_items=$FAILED_ITEMS" >> $GITHUB_OUTPUT
+          
+          # Use heredoc for complex JSON output to avoid formatting issues
+          echo "failed_items<<EOF" >> $GITHUB_OUTPUT
+          echo "$FAILED_ITEMS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           # Legacy compatibility
           if [ -n "$FAILED_BACKGROUNDS" ]; then
