@@ -495,7 +495,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   background-generation:
-    needs: [check-trigger, setup, script-creation]
+    needs: [check-trigger, setup, script-creation, narration-generation]
     if: needs.check-trigger.outputs.should_run == 'true' && needs.script-creation.outputs.script_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -905,17 +905,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Download Original Metadata
+      - name: Download Script Data
         uses: actions/download-artifact@v4
         with:
-          name: background-data-scene-${{ matrix.scene }}
+          name: script-data
           path: ${{ needs.setup.outputs.project_dir }}/
 
       - name: Install Dependencies
         run: |
           sudo apt-get update && sudo apt-get install -y jq imagemagick
 
-      - name: Dynamic Background Recovery for Scene ${{ matrix.scene }}
+      - name: Recovery Background Generation for Scene ${{ matrix.scene }}
         env:
           CLAUDE_CODE_CI_MODE: true
           CLAUDE_CODE_AUTO_APPROVE_MCP: true
@@ -924,48 +924,91 @@ jobs:
           SCENE_NUM=${{ matrix.scene }}
           mkdir -p "${{ needs.setup.outputs.project_dir }}/media/images"
           
-          # Load original metadata
-          METADATA_FILE="${{ needs.setup.outputs.project_dir }}/recovery_metadata_scene${SCENE_NUM}_background.json"
-          if [ -f "$METADATA_FILE" ]; then
-            ORIGINAL_PROMPT=$(jq -r '.original_prompt' "$METADATA_FILE")
-            echo "📋 Loaded original prompt: $ORIGINAL_PROMPT"
-          else
-            ORIGINAL_PROMPT="Professional news studio background, no people, clean modern design"
-            echo "⚠️ No metadata found, using default prompt"
+          # Extract scene description from script (same as original)
+          SCENE_DESC="Professional news studio background, no people, clean modern design"
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" ]; then
+            SCENE_DESC=$(jq -r ".scenes[$((SCENE_NUM-1))].visual // \"Professional news studio background\"" "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" 2>/dev/null || echo "Professional news studio background")
           fi
           
-          BG_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}_recovery.png"
+          BG_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}.png"
+          URL_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}-url.txt"
           
-          # Check MCP availability
-          WORKFLOW_START="${{ github.run_started_at }}"
-          ELAPSED_MINUTES=$(( ($(date +%s) - $(date -d "$WORKFLOW_START" +%s)) / 60 ))
+          BACKGROUND_PROMPT="Generate news background for scene ${SCENE_NUM} (RECOVERY):
+          Description: ${SCENE_DESC}, no people, professional lighting, news studio style
+          Style: cinematic, enhanced recovery version
           
-          if [ $ELAPSED_MINUTES -lt 12 ]; then
-            echo "🔄 MCP available, attempting AI recovery (${ELAPSED_MINUTES}min elapsed)"
+          Requirements:
+          1. Generate image using mcp__t2i-kamui-imagen3__imagen_t2i tool
+          2. No human figures (background only)
+          3. Professional news studio aesthetic
+          4. Extract the URL from MCP response (Google Imagen3 URL or fal.ai URL)
+          5. Save ONLY the URL to ${URL_PATH} using Write tool
+          6. Display the URL for verification
+          
+          DO NOT try to save image files directly - only save the URL!"
+          
+          # Retry mechanism for MCP background recovery (same as original)
+          RETRY_COUNT=0
+          MAX_RETRIES=2
+          SUCCESS=false
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "false" ]; do
+            echo "🔄 Recovery attempt $((RETRY_COUNT + 1))/$MAX_RETRIES for scene $SCENE_NUM"
             
-            RECOVERY_PROMPT="RECOVERY: Background generation for scene ${SCENE_NUM}
-            Original prompt: ${ORIGINAL_PROMPT}
-            Modified approach: Enhanced with different seed and parameters
-            Seed: $((100 + SCENE_NUM + RANDOM % 1000))
-            Requirements:
-            1. Generate high-quality professional news background
-            2. Save to ${BG_PATH} using Write tool
-            3. Ensure file size > 10KB
-            4. Verify with ls -la command"
-            
-            npx @anthropic-ai/claude-code \
+            if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
               --allowedTools "mcp__t2i-kamui-*,Write,Bash" \
               --max-turns 40 \
-              -p "$RECOVERY_PROMPT" || {
-                echo "⚠️ MCP recovery failed, using fallback"
-                convert -size 1920x1080 gradient:blue-darkblue -pointsize 48 -fill white -gravity center \
-                  -annotate +0+0 "News Scene $SCENE_NUM\n(Recovery)" "$BG_PATH"
-              }
+              --permission-mode "bypassPermissions" \
+              -p "$BACKGROUND_PROMPT"; then
+              
+              echo "✅ Background recovery command completed for scene $SCENE_NUM"
+              SUCCESS=true
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              echo "⚠️ Background recovery attempt $RETRY_COUNT failed for scene $SCENE_NUM"
+              
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "🔄 Retrying with modified prompt..."
+                BACKGROUND_PROMPT="Generate news background for scene ${SCENE_NUM} (RECOVERY retry):
+                Description: ${SCENE_DESC}, no people, professional lighting, news studio style
+                Style: professional newsroom
+                
+                Requirements:
+                1. Generate image using mcp__t2i-kamui-imagen3__imagen_t2i tool (different seed)
+                2. No human figures (background only)
+                3. Professional news studio aesthetic
+                4. Extract the URL from MCP response (Google Imagen3 URL or fal.ai URL)
+                5. Save ONLY the URL to ${URL_PATH} using Write tool
+                6. Display the URL for verification
+                
+                DO NOT try to save image files directly - only save the URL!
+                Note: This is recovery retry attempt $((RETRY_COUNT + 1))"
+                sleep 5  # Wait before retry
+              fi
+            fi
+          done
+          
+          # Check if URL was generated successfully (same as original)
+          if [ "$SUCCESS" = "true" ] && [ -f "$URL_PATH" ]; then
+            echo "✅ URL generation successful for recovery scene $SCENE_NUM"
+            echo "📥 Downloading background image from URL..."
+            
+            if curl -L -o "$BG_PATH" "$(cat "$URL_PATH")" 2>/dev/null; then
+              echo "✅ URL download successful"
+            else
+              echo "⚠️ URL download failed, using ImageMagick fallback"
+              convert -size 1920x1080 gradient:navy-lightblue -pointsize 64 -fill white -gravity center \
+                -annotate +0+0 "Recovery Scene $SCENE_NUM\nNews Background" "$BG_PATH"
+            fi
+          elif [ "$SUCCESS" = "false" ]; then
+            echo "❌ All recovery attempts failed for scene $SCENE_NUM, using ImageMagick fallback"
+            convert -size 1920x1080 gradient:blue-darkblue -pointsize 48 -fill white -gravity center \
+              -annotate +0+0 "Recovery Scene $SCENE_NUM\nNews Background" "$BG_PATH"
           else
-            echo "⏰ MCP timeout, using ImageMagick fallback (${ELAPSED_MINUTES}min elapsed)"
-            convert -size 1920x1080 gradient:navy-lightblue -pointsize 64 -fill white -gravity center \
-              -annotate +0+0 "Professional News\nScene $SCENE_NUM" "$BG_PATH"
+            echo "⚠️ URL file not found for recovery scene $SCENE_NUM, using ImageMagick fallback"
+            convert -size 1920x1080 gradient:green-darkgreen -pointsize 48 -fill white -gravity center \
+              -annotate +0+0 "Recovery Scene $SCENE_NUM\nNews Background" "$BG_PATH"
           fi
           
           # Verify recovery result
