@@ -24,12 +24,9 @@ This guide documents how to configure MCP (Model Control Protocol) services for 
 
 ## Available MCP Service Types (50+ Services Total)
 
-### AI Generation Services (35+ Services via Kamui Code)
+### AI Generation Services (39 Services via Kamui Code)
 
-⭐ **NEW**: All AI generation services are now unified under the `kamui-code.ai` domain for improved reliability and performance.
-
-#### Unified Service
-- `kamui-code`: 🚀 Unified MCP Server providing access to all AI models ⭐⭐⭐
+⭐ **NEW**: All AI generation services are now available under the `kamui-code.ai` domain for improved reliability and performance.
 
 #### Text-to-Image (T2I) Services
 Services that generate images from text descriptions:

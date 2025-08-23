@@ -655,20 +655,21 @@ fi
 # - espeak-ng for TTS
 ```
 
-**Key MCP Services** (from `.claude/mcp-kamuicode.json`) - 44+ services total:
+**Key MCP Services** (from `.claude/mcp-kamuicode.json`) - 56+ services total:
 
-#### AI Generation Services (24 services):
-- **T2I**: `t2i-google-imagen3`, `t2i-fal-imagen4-ultra`, `t2i-fal-imagen4-fast`, `t2i-fal-flux-schnell`, `t2i-fal-rundiffusion-photo-flux`
-- **T2V**: `t2v-fal-veo3-fast`, `t2v-fal-wan-v2-2-a14b-t2v`
-- **I2V**: `i2v-fal-hailuo-02-pro`, `i2v-fal-bytedance-seedance-v1-lite`
-- **T2M**: `t2m-google-lyria`
-- **T2S**: `t2s-fal-minimax-speech-02-turbo`
-- **V2A**: `v2a-fal-thinksound`
-- **V2V**: `v2v-fal-luma-ray2-modify`, `v2v-fal-creatify-lipsync`, `v2v-fal-pixverse-lipsync`, `v2v-fal-minimax-voice-design`, `v2v-fal-pixverse-extend`, `v2v-fal-bria-background-removal`, `v2v-fal-topaz-upscale-video`
-- **I2I**: `i2i-fal-flux-kontext-max`, `i2i-fal-flux-kontext-lora`
-- **I2I3D**: `i2i3d-fal-hunyuan3d-v21`
-- **R2V**: `r2v-fal-vidu-q1`
-- **Training**: `train-fal-flux-kontext-trainer`
+#### AI Generation Services (39 services):
+- **T2I**: `t2i-kamui-dreamina-v31`, `t2i-kamui-flux-krea-lora`, `t2i-kamui-flux-schnell`, `t2i-kamui-ideogram-character-base`, `t2i-kamui-imagen3`, `t2i-kamui-imagen4-fast`, `t2i-kamui-imagen4-ultra`, `t2i-kamui-qwen-image`, `t2i-kamui-wan-v2-2-a14b`
+- **I2I**: `i2i-kamui-aura-sr`, `i2i-kamui-flux-kontext-lora`, `i2i-kamui-flux-kontext-max`, `i2i-kamui-flux-krea-lora`, `i2i-kamui-ideogram-character-remix`, `i2i-kamui-qwen-image-edit`
+- **T2V**: `t2v-kamui-veo3-fast`, `t2v-kamui-wan-v2-2-5b-fast`, `t2v-kamui-wan-v2-2-a14b`
+- **I2V**: `i2v-kamui-hailuo-02-fast`, `i2v-kamui-hailuo-02-pro`, `i2v-kamui-omnihuman`, `i2v-kamui-seedance-v1-lite`, `i2v-kamui-veo3-fast`, `i2v-kamui-wan-v2-2-a14b`
+- **V2V**: `v2v-kamui-bria-bg-removal`, `v2v-kamui-creatify-lipsync`, `v2v-kamui-luma-ray2`, `v2v-kamui-minimax-voice`, `v2v-kamui-pixverse-extend`, `v2v-kamui-pixverse-lipsync`, `v2v-kamui-runway-aleph`, `v2v-kamui-topaz-upscale`
+- **R2V**: `r2v-kamui-vidu-q1`
+- **T2S**: `t2s-kamui-minimax-speech-02-turbo`, `t2s-kamui-minimax-speech-25-turbo-preview`
+- **T2M**: `t2m-kamui-lyria`
+- **V2A**: `v2a-kamui-thinksound`
+- **Video Analysis**: `video-analysis-kamui`
+- **Training**: `train-kamui-flux-kontext`
+- **File Upload**: `file-upload-kamui-fal`
 
 #### External API Services (20+ services):
 - **YouTube**: Video upload, info retrieval
