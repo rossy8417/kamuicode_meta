@@ -174,7 +174,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "WebSearch,mcp__newsapi-*,Write,Bash" \
+            --allowedTools "WebSearch,mcp__external-newsapi*,Write,Bash" \
             --max-turns 40 \
             --permission-mode "bypassPermissions" \
             -p "$SEARCH_PROMPT" || {
@@ -369,7 +369,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2s-*,Write,Bash" \
+            --allowedTools "mcp__t2s-kamui-*,Write,Bash" \
             --max-turns 40 \
             --permission-mode "bypassPermissions" \
             -p "$TTS_PROMPT" || {
@@ -450,7 +450,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__t2i-*,Write,Bash" \
+            --allowedTools "mcp__t2i-kamui-*,Write,Bash" \
             --max-turns 40 \
             --permission-mode "bypassPermissions" \
             -p "$ANCHOR_PROMPT" || {
@@ -562,7 +562,7 @@ jobs:
             
             if npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__t2i-*,Write,Bash" \
+              --allowedTools "mcp__t2i-kamui-*,Write,Bash" \
               --max-turns 40 \
               --permission-mode "bypassPermissions" \
               -p "$BACKGROUND_PROMPT"; then
@@ -664,6 +664,11 @@ jobs:
           # Always exit successfully (let continue-on-error and recovery handle failures)
           exit 0
 
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          
       - name: Collect Failed Items
         id: collect-failures
         if: always()
@@ -711,12 +716,25 @@ jobs:
                   FAILED_BACKGROUNDS="$FAILED_BACKGROUNDS,$i"
                 fi
                 
-                # Add to detailed failed items using simple string construction
-                FAILED_ITEMS=$(echo "$FAILED_ITEMS" | jq --arg scene "$i" --arg reason "$BG_REASON" \
-                  '. + [{"scene": ($scene | tonumber), "type": "IMAGE", "item": "background", "reason": $reason}]')
+                # Add to detailed failed items using safe jq construction
+                if command -v jq >/dev/null 2>&1; then
+                  FAILED_ITEMS=$(echo "$FAILED_ITEMS" | jq --arg scene "$i" --arg reason "$BG_REASON" \
+                    '. + [{"scene": ($scene | tonumber), "type": "IMAGE", "item": "background", "reason": $reason}]' 2>/dev/null || echo "[]")
+                else
+                  echo "⚠️ jq not available, using simple format"
+                  FAILED_ITEMS="[{\"scene\":$i,\"type\":\"IMAGE\",\"item\":\"background\",\"reason\":\"$BG_REASON\"}]"
+                fi
               fi
             fi
           done
+          
+          # Validate FAILED_ITEMS JSON before output
+          if echo "$FAILED_ITEMS" | jq . >/dev/null 2>&1; then
+            echo "✅ FAILED_ITEMS JSON is valid"
+          else
+            echo "⚠️ FAILED_ITEMS JSON invalid, using fallback"
+            FAILED_ITEMS="[]"
+          fi
           
           echo "failed_backgrounds=[${FAILED_BACKGROUNDS}]" >> $GITHUB_OUTPUT
           echo "failed_items=$FAILED_ITEMS" >> $GITHUB_OUTPUT
@@ -903,7 +921,7 @@ jobs:
             
             npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__t2i-*,Write,Bash" \
+              --allowedTools "mcp__t2i-kamui-*,Write,Bash" \
               --max-turns 40 \
               -p "$RECOVERY_PROMPT" || {
                 echo "⚠️ MCP recovery failed, using fallback"
@@ -1029,7 +1047,7 @@ jobs:
             
             timeout 300 npx @anthropic-ai/claude-code \
               --mcp-config ".claude/mcp-kamuicode.json" \
-              --allowedTools "mcp__i2v-*,Write,Bash" \
+              --allowedTools "mcp__i2v-kamui-*,Write,Bash" \
               --max-turns 60 \
               --permission-mode "bypassPermissions" \
               -p "$I2V_PROMPT" && echo "✅ MCP I2V completed" || {
@@ -1112,7 +1130,7 @@ jobs:
                 
                 timeout 180 npx @anthropic-ai/claude-code \
                   --mcp-config ".claude/mcp-kamuicode.json" \
-                  --allowedTools "mcp__i2v-*,Write,Bash" \
+                  --allowedTools "mcp__i2v-kamui-*,Write,Bash" \
                   --max-turns 30 \
                   --permission-mode "bypassPermissions" \
                   -p "$RECOVERY_PROMPT" 2>/dev/null && {
@@ -1340,7 +1358,7 @@ jobs:
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__v2v-*lipsync*,Write,Bash" \
+            --allowedTools "mcp__v2v-kamui-*lipsync*,Write,Bash" \
             --max-turns 80 \
             --permission-mode "bypassPermissions" \
             -p "$LIPSYNC_PROMPT" || {
