@@ -127,11 +127,20 @@ jobs:
           # Calculate scene count (5 seconds per scene)
           SCENE_COUNT=$(( (DURATION_SECONDS + 4) / 5 ))
           
+          # Create scene array for matrix
+          SCENE_ARRAY="["
+          for i in $(seq 1 $SCENE_COUNT); do
+            if [ $i -gt 1 ]; then SCENE_ARRAY="${SCENE_ARRAY},"; fi
+            SCENE_ARRAY="${SCENE_ARRAY}${i}"
+          done
+          SCENE_ARRAY="${SCENE_ARRAY}]"
+          
           echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
           echo "news_topic=${{ github.event.inputs.news_topic || '最新AI技術の進歩' }}" >> $GITHUB_OUTPUT
           echo "news_category=${{ github.event.inputs.news_category || 'technology' }}" >> $GITHUB_OUTPUT
           echo "duration=${DURATION_SECONDS}" >> $GITHUB_OUTPUT
           echo "scene_count=${SCENE_COUNT}" >> $GITHUB_OUTPUT
+          echo "scene_array=${SCENE_ARRAY}" >> $GITHUB_OUTPUT
           
           echo "✅ Project setup complete:"
           echo "- Project Dir: ${PROJECT_DIR}"
@@ -139,6 +148,7 @@ jobs:
           echo "- Category: ${{ github.event.inputs.news_category || 'technology' }}"
           echo "- Duration: ${DURATION_SECONDS}s"
           echo "- Scene Count: ${SCENE_COUNT}"
+          echo "- Scene Array: ${SCENE_ARRAY}"
 
   news-collection:
     needs: [check-trigger, setup]
@@ -491,7 +501,7 @@ jobs:
     timeout-minutes: 12
     strategy:
       matrix:
-        scene: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        scene: ${{ fromJson(needs.setup.outputs.scene_array) }}
       fail-fast: false
     continue-on-error: true
     outputs:
@@ -989,7 +999,7 @@ jobs:
     timeout-minutes: 25
     strategy:
       matrix:
-        scene: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        scene: ${{ fromJson(needs.setup.outputs.scene_array) }}
       fail-fast: false
       max-parallel: 8  # GitHub runner制限対策：同時実行数制限
     continue-on-error: false  # 厳格化：失敗を隠蔽しない
