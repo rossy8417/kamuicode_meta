@@ -856,7 +856,10 @@ jobs:
             echo "failed_backgrounds=[]" >> $GITHUB_OUTPUT
           fi
           
-          echo "failed_background_items=$FAILED_BACKGROUND_ITEMS" >> $GITHUB_OUTPUT
+          # Use heredoc for complex JSON output to avoid formatting issues
+          echo "failed_background_items<<EOF" >> $GITHUB_OUTPUT
+          echo "$FAILED_BACKGROUND_ITEMS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           echo "📊 Background failure details: $FAILED_BACKGROUND_ITEMS"
 
   background-recovery:
