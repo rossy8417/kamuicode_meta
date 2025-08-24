@@ -823,13 +823,15 @@ jobs:
               FILE_SIZE=0
               ACTUAL_BG_FILE=""
               
-              # Multiple potential locations for background files
+              # Multiple potential locations for background files based on actual artifact structure
               POSSIBLE_PATHS=(
-                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/media/images/scene${i}.png"
-                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/scene${i}.png"
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/background_scene${i}.png"
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/background_scene${i}.jpg"
                 "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/scene${i}_background.png"
+                "${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}/scene${i}.png"
               )
               
+              # First, try known paths
               for path in "${POSSIBLE_PATHS[@]}"; do
                 if [ -f "$path" ]; then
                   ACTUAL_BG_FILE="$path"
@@ -851,6 +853,30 @@ jobs:
                   fi
                 fi
               done
+              
+              # If not found in known paths, search for any image file in the artifact directory
+              if [ "$BACKGROUND_FOUND" = "false" ]; then
+                ARTIFACT_DIR="${{ needs.setup.outputs.project_dir }}/all-backgrounds/background-data-scene-${i}"
+                if [ -d "$ARTIFACT_DIR" ]; then
+                  echo "🔍 Searching any image files in $ARTIFACT_DIR"
+                  for img_file in "$ARTIFACT_DIR"/*.{png,jpg,jpeg,PNG,JPG,JPEG}; do
+                    if [ -f "$img_file" ]; then
+                      ACTUAL_BG_FILE="$img_file"
+                      FILE_SIZE=$(stat -c%s "$img_file" 2>/dev/null || echo 0)
+                      echo "📁 Found image file: $img_file (${FILE_SIZE} bytes)"
+                      
+                      # Validate image file
+                      if [ "$FILE_SIZE" -gt 50000 ]; then
+                        if file "$img_file" | grep -E "(PNG|JPEG|JPG)" >/dev/null 2>&1; then
+                          BACKGROUND_FOUND=true
+                          echo "✅ Valid background image for scene $i: ${FILE_SIZE} bytes"
+                          break
+                        fi
+                      fi
+                    fi
+                  done
+                fi
+              fi
               
               # Mark as failed if no valid background found
               if [ "$BACKGROUND_FOUND" = "false" ]; then
@@ -1509,22 +1535,60 @@ jobs:
               FILE_SIZE=0
               ACTUAL_VIDEO_FILE=""
               
-              # Multiple potential locations for video files
+              # Multiple potential locations for video files based on actual artifact structure
               POSSIBLE_PATHS=(
-                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/media/videos/scene${i}.mp4"
-                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}.mp4"
+                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/video_scene${i}.mp4"
+                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/video_scene${i}.mov"
                 "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}_video.mp4"
+                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}.mp4"
+                "${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}/scene${i}_final.mp4"
               )
               
+              # First, try known paths
               for path in "${POSSIBLE_PATHS[@]}"; do
                 if [ -f "$path" ]; then
                   ACTUAL_VIDEO_FILE="$path"
                   FILE_SIZE=$(stat -c%s "$path" 2>/dev/null || echo 0)
-                  VIDEO_FOUND=true
-                  echo "📁 Found video: $path (${FILE_SIZE} bytes)"
-                  break
+                  echo "📁 Found video file: $path (${FILE_SIZE} bytes)"
+                  
+                  # Validate video file (minimum 100KB for proper video)
+                  if [ "$FILE_SIZE" -gt 100000 ]; then
+                    # Additional validation: check if it's a valid video
+                    if file "$path" | grep -E "(MP4|QuickTime|Video)" >/dev/null 2>&1; then
+                      VIDEO_FOUND=true
+                      echo "✅ Valid video file for scene $i: ${FILE_SIZE} bytes"
+                      break
+                    else
+                      echo "❌ Invalid video format for scene $i"
+                    fi
+                  else
+                    echo "❌ Video file too small for scene $i: ${FILE_SIZE} bytes"
+                  fi
                 fi
               done
+              
+              # If not found in known paths, search for any video file in the artifact directory
+              if [ "$VIDEO_FOUND" = "false" ]; then
+                ARTIFACT_DIR="${{ needs.setup.outputs.project_dir }}/all-videos/video-data-scene-${i}"
+                if [ -d "$ARTIFACT_DIR" ]; then
+                  echo "🔍 Searching any video files in $ARTIFACT_DIR"
+                  for vid_file in "$ARTIFACT_DIR"/*.{mp4,mov,avi,MP4,MOV,AVI}; do
+                    if [ -f "$vid_file" ]; then
+                      ACTUAL_VIDEO_FILE="$vid_file"
+                      FILE_SIZE=$(stat -c%s "$vid_file" 2>/dev/null || echo 0)
+                      echo "🎥 Found video file: $vid_file (${FILE_SIZE} bytes)"
+                      
+                      if [ "$FILE_SIZE" -gt 100000 ]; then
+                        if file "$vid_file" | grep -E "(MP4|QuickTime|Video)" >/dev/null 2>&1; then
+                          VIDEO_FOUND=true
+                          echo "✅ Found valid video for scene $i: ${FILE_SIZE} bytes"
+                          break
+                        fi
+                      fi
+                    fi
+                  done
+                fi
+              fi
               
               # 🚨 MANDATORY MP4 structure validation (no fallback to size-only)
               VIDEO_REASON=""
