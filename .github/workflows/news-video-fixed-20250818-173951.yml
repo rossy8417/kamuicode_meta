@@ -611,12 +611,55 @@ jobs:
             echo "✅ URL generation successful for scene $SCENE_NUM"
             echo "📥 Downloading background image from URL..."
             
-            if curl -L -o "$BG_PATH" "$(cat "$URL_PATH")" 2>/dev/null; then
-              echo "✅ URL download successful"
-              echo "scene_${SCENE_NUM}_url=$(cat "$URL_PATH")" >> $GITHUB_OUTPUT
+            # Enhanced URL download with validation and multiple fallbacks
+            DOWNLOAD_SUCCESS=false
+            IMAGE_URL=$(cat "$URL_PATH")
+            
+            echo "📥 Attempting to download: $IMAGE_URL"
+            
+            # Try direct download first
+            if curl -L -o "$BG_PATH" "$IMAGE_URL" --connect-timeout 10 --max-time 30 2>/dev/null; then
+              # Validate downloaded file
+              DOWNLOAD_SIZE=$(stat -c%s "$BG_PATH" 2>/dev/null || echo 0)
+              if [ "$DOWNLOAD_SIZE" -gt 50000 ]; then
+                if file "$BG_PATH" | grep -E "(PNG|JPEG|JPG)" >/dev/null 2>&1; then
+                  echo "✅ URL download successful: ${DOWNLOAD_SIZE} bytes"
+                  echo "scene_${SCENE_NUM}_url=$(cat "$URL_PATH")" >> $GITHUB_OUTPUT
+                  DOWNLOAD_SUCCESS=true
+                else
+                  echo "⚠️ Downloaded file is not a valid image: ${DOWNLOAD_SIZE} bytes"
+                fi
+              else
+                echo "⚠️ Downloaded file too small: ${DOWNLOAD_SIZE} bytes (likely placeholder/error)"
+              fi
             else
-              echo "⚠️ URL download failed"
-              echo "scene_${SCENE_NUM}_failed=true" >> $GITHUB_OUTPUT
+              echo "⚠️ URL download failed (network/timeout error)"
+            fi
+            
+            # If download failed, use enhanced ImageMagick fallback
+            if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
+              echo "🔄 Using enhanced ImageMagick fallback for professional background"
+              
+              # Create high-quality news studio background with better design
+              convert -size 1920x1080 \
+                \( -size 1920x1080 gradient:blue-navy \) \
+                \( -size 1920x1080 xc:transparent \
+                   -fill 'rgba(255,255,255,0.1)' \
+                   -draw 'rectangle 100,200 1820,880' \
+                   -blur 2x2 \) \
+                -composite \
+                \( -size 400x200 xc:'#1E90FF' -blur 5x5 \) \
+                -geometry +1400+100 -composite \
+                \( -size 300x150 xc:'#4682B4' -blur 3x3 \) \
+                -geometry +200+150 -composite \
+                -pointsize 48 -fill white -gravity center \
+                -annotate +0-300 "NEWS STUDIO" \
+                -pointsize 24 -fill white \
+                -annotate +0-250 "Scene $SCENE_NUM Background" \
+                "$BG_PATH"
+                
+              echo "✅ Enhanced ImageMagick fallback created"
+              echo "scene_${SCENE_NUM}_fallback=true" >> $GITHUB_OUTPUT
             fi
           elif [ "$SUCCESS" = "false" ]; then
             echo "❌ All background generation attempts failed for scene $SCENE_NUM"
@@ -1020,31 +1063,115 @@ jobs:
             echo "✅ URL generation successful for recovery scene $SCENE_NUM"
             echo "📥 Downloading background image from URL..."
             
-            if curl -L -o "$BG_PATH" "$(cat "$URL_PATH")" 2>/dev/null; then
-              echo "✅ URL download successful"
+            # Enhanced URL download with validation and multiple fallbacks
+            DOWNLOAD_SUCCESS=false
+            IMAGE_URL=$(cat "$URL_PATH")
+            
+            echo "📥 Attempting to download: $IMAGE_URL"
+            
+            # Try direct download first
+            if curl -L -o "$BG_PATH" "$IMAGE_URL" --connect-timeout 10 --max-time 30 2>/dev/null; then
+              # Validate downloaded file
+              DOWNLOAD_SIZE=$(stat -c%s "$BG_PATH" 2>/dev/null || echo 0)
+              if [ "$DOWNLOAD_SIZE" -gt 50000 ]; then
+                if file "$BG_PATH" | grep -E "(PNG|JPEG|JPG)" >/dev/null 2>&1; then
+                  echo "✅ URL download successful: ${DOWNLOAD_SIZE} bytes"
+                  DOWNLOAD_SUCCESS=true
+                else
+                  echo "⚠️ Downloaded file is not a valid image: ${DOWNLOAD_SIZE} bytes"
+                fi
+              else
+                echo "⚠️ Downloaded file too small: ${DOWNLOAD_SIZE} bytes (likely placeholder/error)"
+              fi
             else
-              echo "⚠️ URL download failed, using ImageMagick fallback"
-              convert -size 1920x1080 gradient:navy-lightblue -pointsize 64 -fill white -gravity center \
-                -annotate +0+0 "Recovery Scene $SCENE_NUM\nNews Background" "$BG_PATH"
+              echo "⚠️ URL download failed (network/timeout error)"
+            fi
+            
+            # If download failed, use enhanced ImageMagick fallback
+            if [ "$DOWNLOAD_SUCCESS" = "false" ]; then
+              echo "🔄 Using enhanced ImageMagick fallback for professional background"
+              
+              # Create high-quality news studio background with better design
+              convert -size 1920x1080 \
+                \( -size 1920x1080 gradient:blue-navy \) \
+                \( -size 1920x1080 xc:transparent \
+                   -fill 'rgba(255,255,255,0.1)' \
+                   -draw 'rectangle 100,200 1820,880' \
+                   -blur 2x2 \) \
+                -composite \
+                \( -size 400x200 xc:'#1E90FF' -blur 5x5 \) \
+                -geometry +1400+100 -composite \
+                \( -size 300x150 xc:'#4682B4' -blur 3x3 \) \
+                -geometry +200+150 -composite \
+                -pointsize 48 -fill white -gravity center \
+                -annotate +0-300 "NEWS STUDIO" \
+                -pointsize 24 -fill white \
+                -annotate +0-250 "Scene $SCENE_NUM Background" \
+                "$BG_PATH"
+                
+              echo "✅ Enhanced ImageMagick fallback created"
             fi
           elif [ "$SUCCESS" = "false" ]; then
-            echo "❌ All recovery attempts failed for scene $SCENE_NUM, using ImageMagick fallback"
-            convert -size 1920x1080 gradient:blue-darkblue -pointsize 48 -fill white -gravity center \
-              -annotate +0+0 "Recovery Scene $SCENE_NUM\nNews Background" "$BG_PATH"
+            echo "❌ All recovery attempts failed for scene $SCENE_NUM, using enhanced ImageMagick fallback"
+            # Enhanced fallback for failed recovery attempts
+            convert -size 1920x1080 \
+              \( -size 1920x1080 gradient:darkred-maroon \) \
+              \( -size 1920x1080 xc:transparent \
+                 -fill 'rgba(255,255,255,0.15)' \
+                 -draw 'rectangle 150,250 1770,830' \
+                 -blur 3x3 \) \
+              -composite \
+              -pointsize 42 -fill white -gravity center \
+              -annotate +0-200 "EMERGENCY STUDIO" \
+              -pointsize 28 -fill white \
+              -annotate +0-150 "Recovery Scene $SCENE_NUM" \
+              -pointsize 20 -fill 'rgba(255,255,255,0.8)' \
+              -annotate +0+300 "Technical Difficulties - Please Stand By" \
+              "$BG_PATH"
           else
-            echo "⚠️ URL file not found for recovery scene $SCENE_NUM, using ImageMagick fallback"
-            convert -size 1920x1080 gradient:green-darkgreen -pointsize 48 -fill white -gravity center \
-              -annotate +0+0 "Recovery Scene $SCENE_NUM\nNews Background" "$BG_PATH"
+            echo "⚠️ URL file not found for recovery scene $SCENE_NUM, using enhanced ImageMagick fallback"
+            # Enhanced fallback for missing URL files
+            convert -size 1920x1080 \
+              \( -size 1920x1080 gradient:darkgreen-forestgreen \) \
+              \( -size 1920x1080 xc:transparent \
+                 -fill 'rgba(255,255,255,0.12)' \
+                 -draw 'rectangle 120,220 1800,860' \
+                 -blur 2x2 \) \
+              -composite \
+              -pointsize 44 -fill white -gravity center \
+              -annotate +0-200 "BACKUP STUDIO" \
+              -pointsize 26 -fill white \
+              -annotate +0-150 "Recovery Scene $SCENE_NUM" \
+              -pointsize 18 -fill 'rgba(255,255,255,0.9)' \
+              -annotate +0+320 "Alternative Background System Active" \
+              "$BG_PATH"
           fi
           
-          # Verify recovery result
+          # Enhanced recovery result verification
           if [ -f "$BG_PATH" ]; then
             FILE_SIZE=$(stat -c%s "$BG_PATH" 2>/dev/null || echo 0)
-            if [ "$FILE_SIZE" -gt 10000 ]; then
-              echo "✅ Recovery successful: $BG_PATH ($FILE_SIZE bytes)"
-              echo "recovery_scene_${SCENE_NUM}_status=SUCCESS" >> $GITHUB_OUTPUT
+            
+            # Enhanced validation: size + format + dimensions
+            if [ "$FILE_SIZE" -gt 50000 ]; then
+              # Check if it's a valid image format
+              if file "$BG_PATH" | grep -E "(PNG|JPEG|JPG)" >/dev/null 2>&1; then
+                # Check image dimensions (should be 1920x1080 or close)
+                DIMENSIONS=$(identify -format "%wx%h" "$BG_PATH" 2>/dev/null || echo "unknown")
+                if [[ "$DIMENSIONS" =~ ^[0-9]+x[0-9]+$ ]]; then
+                  echo "✅ Recovery successful: $BG_PATH ($FILE_SIZE bytes, ${DIMENSIONS})"
+                  echo "recovery_scene_${SCENE_NUM}_status=SUCCESS" >> $GITHUB_OUTPUT
+                  echo "recovery_scene_${SCENE_NUM}_file_size=${FILE_SIZE}" >> $GITHUB_OUTPUT
+                  echo "recovery_scene_${SCENE_NUM}_dimensions=${DIMENSIONS}" >> $GITHUB_OUTPUT
+                else
+                  echo "⚠️ Recovery file has invalid dimensions: $DIMENSIONS"
+                  echo "recovery_scene_${SCENE_NUM}_status=PARTIAL" >> $GITHUB_OUTPUT
+                fi
+              else
+                echo "❌ Recovery file is not a valid image format: $FILE_SIZE bytes"
+                echo "recovery_scene_${SCENE_NUM}_status=FAILED" >> $GITHUB_OUTPUT
+              fi
             else
-              echo "❌ Recovery file too small: $FILE_SIZE bytes"
+              echo "❌ Recovery file too small: $FILE_SIZE bytes (minimum 50KB required)"
               echo "recovery_scene_${SCENE_NUM}_status=FAILED" >> $GITHUB_OUTPUT
             fi
           else
