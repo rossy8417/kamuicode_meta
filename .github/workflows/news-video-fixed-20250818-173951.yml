@@ -751,8 +751,8 @@ jobs:
           ls -la ${{ needs.setup.outputs.project_dir }}/all-backgrounds/ 2>/dev/null || echo "No background artifacts found"
           
           # Look for background status files
-          for i in {1..12}; do
-            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+          ACTUAL_SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          for i in $(seq 1 $ACTUAL_SCENE_COUNT); do
               # Check if background image exists in artifacts
               BG_FOUND=false
               BG_REASON="unknown"
@@ -795,7 +795,6 @@ jobs:
                   FAILED_ITEMS="[{\"scene\":$i,\"type\":\"IMAGE\",\"item\":\"background\",\"reason\":\"$BG_REASON\"}]"
                 fi
               fi
-            fi
           done
           
           # Validate FAILED_ITEMS JSON before output
@@ -857,8 +856,8 @@ jobs:
           echo "🔍 Analyzing background generation results for ${{ needs.setup.outputs.scene_count }} scenes"
           
           # Check each scene's background using artifact-based verification (most reliable)
-          for i in {1..12}; do
-            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+          ACTUAL_SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          for i in $(seq 1 $ACTUAL_SCENE_COUNT); do
               echo "🔍 Checking scene $i background status..."
               
               # Look for background image files in artifact directories
@@ -941,7 +940,6 @@ jobs:
               else
                 echo "✅ Scene $i background: SUCCESS"
               fi
-            fi
           done
           
           if [ -n "$FAILED_BACKGROUNDS" ]; then
@@ -1653,8 +1651,8 @@ jobs:
           echo "🔍 Analyzing video generation results for ${{ needs.setup.outputs.scene_count }} scenes"
           
           # Check each scene's status using artifact-based verification (most reliable)
-          for i in {1..12}; do
-            if [ $i -le ${{ needs.setup.outputs.scene_count }} ]; then
+          ACTUAL_SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          for i in $(seq 1 $ACTUAL_SCENE_COUNT); do
               echo "🔍 Checking scene $i video status..."
               
               # Look for video files in artifact directories
