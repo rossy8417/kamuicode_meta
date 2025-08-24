@@ -1978,9 +1978,12 @@ jobs:
           VALID_SCENE_COUNT=0
           RECOVERY_NEEDED=false
           
-          # シーン動画の検証
+          # シーン動画の検証（実際のシーン数に基づく）
           echo "📹 シーン動画の検証中..."
-          for scene_num in {1..12}; do
+          ACTUAL_SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          echo "🔢 実際のシーン数: $ACTUAL_SCENE_COUNT"
+          
+          for scene_num in $(seq 1 $ACTUAL_SCENE_COUNT); do
             video_file=$(find "${{ needs.setup.outputs.project_dir }}" -name "*scene${scene_num}*.mp4" -type f | head -1)
             
             if [ -f "$video_file" ]; then
@@ -2068,7 +2071,8 @@ jobs:
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.dynamic-recovery-check.outputs.recovery_needed == 'true'
+      needs.dynamic-recovery-check.outputs.recovery_needed == 'true' &&
+      needs.dynamic-recovery-check.outputs.valid_scene_count > 0
     runs-on: ubuntu-latest
     timeout-minutes: 35
     outputs:
@@ -2116,6 +2120,9 @@ jobs:
               fi
               
               if [ -f "$BG_IMAGE" ]; then
+                # 必要なディレクトリを作成
+                mkdir -p "${{ needs.setup.outputs.project_dir }}/media/videos"
+                
                 VIDEO_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${scene_num}.mp4"
                 URL_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/scene${scene_num}-url.txt"
                 
