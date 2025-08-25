@@ -496,8 +496,8 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   test-simple-job:
-    needs: [setup]
-    if: always()
+    needs: [check-trigger, setup]
+    if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -508,7 +508,7 @@ jobs:
 
   test-background-generation:
     needs: [check-trigger, setup, script-creation, test-simple-job]
-    if: always()
+    if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
