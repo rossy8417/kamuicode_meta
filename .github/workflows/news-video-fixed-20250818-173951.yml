@@ -496,7 +496,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   background-generation:
-    needs: [check-trigger, setup, script-creation]
+    needs: [check-trigger, setup, news-collection]
     if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -830,8 +830,9 @@ jobs:
   collect-background-failures:
     needs: [check-trigger, setup, background-generation]
     if: |
-      always() &&
-      needs.check-trigger.outputs.should_run == 'true'
+      (success() || failure()) &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.background-generation.result != 'skipped'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
