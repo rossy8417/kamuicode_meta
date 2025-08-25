@@ -1,0 +1,243 @@
+name: Debug Test Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: '動画の長さ'
+        required: true
+        default: '15s'
+        type: choice
+        options:
+          - '15s'
+          - '30s'
+          - '60s'
+      news_topic:
+        description: 'ニュースのトピック'
+        required: true
+        default: 'デバッグテスト'
+        type: string
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      project_dir: ${{ steps.setup.outputs.project_dir }}
+      scene_count: ${{ steps.setup.outputs.scene_count }}
+      scene_array: ${{ steps.setup.outputs.scene_array }}
+    steps:
+      - name: Setup Project
+        id: setup
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          PROJECT_DIR="projects/debug-test-${TIMESTAMP}"
+          mkdir -p "$PROJECT_DIR/"{metadata,media/{images,videos,audio},final}
+          
+          case "${{ inputs.duration }}" in
+            "15s") SCENE_COUNT=3 ;;
+            "30s") SCENE_COUNT=6 ;;
+            "60s") SCENE_COUNT=12 ;;
+            *) SCENE_COUNT=3 ;;
+          esac
+          
+          SCENE_ARRAY="["
+          for i in $(seq 1 $SCENE_COUNT); do
+            if [ $i -gt 1 ]; then SCENE_ARRAY="${SCENE_ARRAY},"; fi
+            SCENE_ARRAY="${SCENE_ARRAY}${i}"
+          done
+          SCENE_ARRAY="${SCENE_ARRAY}]"
+          
+          echo "project_dir=${PROJECT_DIR}" >> $GITHUB_OUTPUT
+          echo "scene_count=${SCENE_COUNT}" >> $GITHUB_OUTPUT
+          echo "scene_array=${SCENE_ARRAY}" >> $GITHUB_OUTPUT
+          
+          echo "✅ Setup complete"
+          echo "- Project: ${PROJECT_DIR}"
+          echo "- Scenes: ${SCENE_COUNT}"
+          echo "- Array: ${SCENE_ARRAY}"
+
+  test-background-generation:
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.setup.outputs.scene_array) }}
+      fail-fast: false
+    steps:
+      - name: Generate Background for Scene ${{ matrix.scene }}
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          
+          echo "🎨 シーン${SCENE_NUM}の背景画像を生成中..."
+          
+          PROMPT="シーン${SCENE_NUM}の背景画像を生成:
+          1. トピック: ${{ inputs.news_topic }} に関連する背景画像
+          2. プロフェッショナルなニュース背景
+          3. ${PROJECT_DIR}/media/images/background_scene${SCENE_NUM}.png に保存
+          4. Write tool で確実に保存"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__t2i-kamui-imagen3__imagen_t2i,Write,Bash" \
+            --max-turns 25 \
+            --permission-mode "acceptEdits" \
+            -p "$PROMPT" || {
+              echo "⚠️ MCP失敗、ImageMagickでフォールバック作成"
+              mkdir -p "${PROJECT_DIR}/media/images"
+              convert -size 1280x720 gradient:blue-lightblue \
+                -pointsize 36 -fill white -gravity center \
+                -annotate +0+0 "${{ inputs.news_topic }} Scene ${SCENE_NUM}" \
+                "${PROJECT_DIR}/media/images/background_scene${SCENE_NUM}.png"
+            }
+          
+          # 確認
+          if [ -f "${PROJECT_DIR}/media/images/background_scene${SCENE_NUM}.png" ]; then
+            echo "✅ シーン${SCENE_NUM}背景画像完成"
+          else
+            echo "❌ シーン${SCENE_NUM}背景画像失敗"
+            exit 1
+          fi
+
+      - name: Upload Background Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: background-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+  test-video-generation:
+    needs: [setup, test-background-generation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.setup.outputs.scene_array) }}
+      fail-fast: false
+    steps:
+      - name: Download Background Images
+        uses: actions/download-artifact@v4
+        with:
+          name: background-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Generate Video for Scene ${{ matrix.scene }}
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_NUM="${{ matrix.scene }}"
+          
+          BG_IMAGE="${PROJECT_DIR}/media/images/background_scene${SCENE_NUM}.png"
+          
+          if [ -f "$BG_IMAGE" ]; then
+            echo "🎬 シーン${SCENE_NUM}の動画を生成中..."
+            
+            PROMPT="シーン${SCENE_NUM}の動画を生成:
+            1. 背景画像: ${BG_IMAGE}
+            2. MCP I2V ツールで5秒動画を生成
+            3. ${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4 に保存
+            4. Write tool で確実に保存"
+            
+            npx @anthropic-ai/claude-code \
+              --mcp-config ".claude/mcp-kamuicode.json" \
+              --allowedTools "mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_submit,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_status,mcp__i2v-kamui-veo3-fast__veo3_fast_i2v_result,Write,Bash" \
+              --max-turns 40 \
+              --permission-mode "acceptEdits" \
+              -p "$PROMPT" || {
+                echo "⚠️ MCP失敗、FFmpegで静止画動画作成"
+                mkdir -p "${PROJECT_DIR}/media/videos"
+                ffmpeg -loop 1 -i "$BG_IMAGE" -c:v libx264 -t 5 -pix_fmt yuv420p -r 30 "${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4" -y
+              }
+            
+            # 確認
+            if [ -f "${PROJECT_DIR}/media/videos/scene${SCENE_NUM}.mp4" ]; then
+              echo "✅ シーン${SCENE_NUM}動画完成"
+            else
+              echo "❌ シーン${SCENE_NUM}動画失敗"
+              exit 1
+            fi
+          else
+            echo "❌ 背景画像が見つかりません: $BG_IMAGE"
+            exit 1
+          fi
+
+      - name: Upload Video
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+
+  test-final-composition:
+    needs: [setup, test-background-generation, test-video-generation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download All Videos
+        uses: actions/download-artifact@v4
+        with:
+          pattern: video-scene-*
+          path: ${{ needs.setup.outputs.project_dir }}/all-videos/
+          merge-multiple: false
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Combine Videos with FFmpeg
+        run: |
+          PROJECT_DIR="${{ needs.setup.outputs.project_dir }}"
+          SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          
+          echo "🎞️ 全シーン動画を結合中..."
+          
+          # 結合リスト作成
+          CONCAT_LIST="${PROJECT_DIR}/concat_list.txt"
+          > "$CONCAT_LIST"
+          
+          for i in $(seq 1 $SCENE_COUNT); do
+            # 動画ファイルを探す
+            VIDEO_FILE=$(find "${PROJECT_DIR}/all-videos" -name "*scene${i}*.mp4" | head -1)
+            if [ -f "$VIDEO_FILE" ]; then
+              echo "file '$(realpath "$VIDEO_FILE")'" >> "$CONCAT_LIST"
+              echo "✅ シーン${i}: $VIDEO_FILE"
+            else
+              echo "❌ シーン${i}: 動画ファイルが見つかりません"
+              exit 1
+            fi
+          done
+          
+          # FFmpeg結合実行
+          ffmpeg -f concat -safe 0 -i "$CONCAT_LIST" -c copy "${PROJECT_DIR}/final/news_video_final.mp4" -y
+          
+          if [ -f "${PROJECT_DIR}/final/news_video_final.mp4" ]; then
+            FILESIZE=$(stat -c%s "${PROJECT_DIR}/final/news_video_final.mp4")
+            echo "✅ 最終動画完成！"
+            echo "- ファイル: ${PROJECT_DIR}/final/news_video_final.mp4"
+            echo "- サイズ: $((FILESIZE / 1024 / 1024))MB"
+            
+            # GitHub Step Summary
+            echo "## 🎬 デバッグテスト完了" >> $GITHUB_STEP_SUMMARY
+            echo "- **トピック**: ${{ inputs.news_topic }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **シーン数**: ${SCENE_COUNT}" >> $GITHUB_STEP_SUMMARY
+            echo "- **最終動画**: \`${PROJECT_DIR}/final/news_video_final.mp4\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **ファイルサイズ**: $((FILESIZE / 1024 / 1024))MB" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ 最終動画の作成に失敗"
+            exit 1
+          fi
+
+      - name: Upload Final Video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-debug-video
+          path: ${{ needs.setup.outputs.project_dir }}/final/
