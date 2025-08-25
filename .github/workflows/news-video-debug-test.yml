@@ -66,6 +66,12 @@ jobs:
         scene: ${{ fromJson(needs.setup.outputs.scene_array) }}
       fail-fast: false
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y imagemagick
+
       - name: Generate Background for Scene ${{ matrix.scene }}
         env:
           CLAUDE_CODE_CI_MODE: true
