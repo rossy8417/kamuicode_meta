@@ -92,6 +92,7 @@ jobs:
       news_category: ${{ steps.setup.outputs.news_category }}
       duration: ${{ steps.setup.outputs.duration }}
       scene_count: ${{ steps.setup.outputs.scene_count }}
+      scene_array: ${{ steps.setup.outputs.scene_array }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -494,9 +495,20 @@ jobs:
           name: anchor-data
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
-  background-generation:
-    needs: [check-trigger, setup, script-creation]
-    if: needs.check-trigger.outputs.should_run == 'true' && (needs.script-creation.result == 'success')
+  test-simple-job:
+    needs: [setup]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Simple Test
+        run: |
+          echo "✅ Simple job executed successfully!"
+          echo "Setup outputs: ${{ needs.setup.outputs.scene_array }}"
+
+  test-background-generation:
+    needs: [check-trigger, setup, script-creation, test-simple-job]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
@@ -827,7 +839,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   collect-background-failures:
-    needs: [check-trigger, setup, background-generation]
+    needs: [check-trigger, setup, test-simple-job, test-background-generation]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true'
@@ -1184,11 +1196,11 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   scene-video-generation:
-    needs: [check-trigger, setup, background-generation, collect-background-failures, background-recovery]
+    needs: [check-trigger, setup, test-background-generation, collect-background-failures, background-recovery]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      (needs.background-recovery.result == 'success' || needs.background-recovery.result == 'skipped')
+      needs.background-recovery.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
