@@ -830,9 +830,8 @@ jobs:
   collect-background-failures:
     needs: [check-trigger, setup, background-generation]
     if: |
-      (success() || failure()) &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.background-generation.result != 'skipped'
+      needs.background-generation.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -1186,11 +1185,10 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   scene-video-generation:
-    needs: [check-trigger, setup, collect-background-failures, background-recovery]
+    needs: [check-trigger, setup, background-generation]
     if: |
-      always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.background-recovery.result == 'success'
+      needs.background-generation.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
