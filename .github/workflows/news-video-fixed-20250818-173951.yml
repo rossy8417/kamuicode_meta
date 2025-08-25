@@ -495,7 +495,7 @@ jobs:
           name: anchor-data
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
-  test-simple-job:
+  simple-check:
     needs: [check-trigger, setup]
     if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
@@ -506,8 +506,8 @@ jobs:
           echo "✅ Simple job executed successfully!"
           echo "Setup outputs: ${{ needs.setup.outputs.scene_array }}"
 
-  test-background-generation:
-    needs: [check-trigger, setup, script-creation, test-simple-job]
+  background-generation:
+    needs: [check-trigger, setup, script-creation, simple-check]
     if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -839,7 +839,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   collect-background-failures:
-    needs: [check-trigger, setup, test-simple-job, test-background-generation]
+    needs: [check-trigger, setup, simple-check, background-generation]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true'
@@ -1196,7 +1196,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   scene-video-generation:
-    needs: [check-trigger, setup, test-background-generation, collect-background-failures, background-recovery]
+    needs: [check-trigger, setup, background-generation, collect-background-failures, background-recovery]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
