@@ -1761,33 +1761,261 @@ jobs:
   # 🔍 PHASE 3: Collect Lipsync Failures
   collect-lipsync-failures:
     needs: [setup, scene-lipsync-generation]
+    if: |
+      always() &&
+      !cancelled()
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     outputs:
       has_failures: ${{ steps.analyze.outputs.has_failures }}
       failed_scenes: ${{ steps.analyze.outputs.failed_scenes }}
       success_count: ${{ steps.analyze.outputs.success_count }}
     steps:
+      - name: Download All Lipsync Segment Artifacts
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: lipsync-segment-scene-*
+          path: ${{ needs.setup.outputs.project_dir }}/all-lipsync/
+
       - name: Analyze Lipsync Results
         id: analyze
         run: |
           echo "🔍 Analyzing lipsync generation results..."
           
-          # For now, assume all scenes succeeded (will be enhanced with real artifact checking)
-          SUCCESS_COUNT=${{ needs.setup.outputs.scene_count }}
+          FAILED_SCENES=""
+          SUCCESS_COUNT=0
+          SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
           
-          echo "has_failures=false" >> $GITHUB_OUTPUT
-          echo "failed_scenes=[]" >> $GITHUB_OUTPUT
+          # Check each scene's lipsync result using artifact-based verification
+          for scene in $(seq 1 $SCENE_COUNT); do
+            echo "🔍 Checking scene $scene lipsync status..."
+            
+            # Look for lipsync files in artifact directories
+            LIPSYNC_FOUND=false
+            FILE_SIZE=0
+            
+            # Multiple potential locations for lipsync files
+            POSSIBLE_PATHS=(
+              "${{ needs.setup.outputs.project_dir }}/all-lipsync/lipsync-segment-scene-${scene}/scene_${scene}_lipsync.mp4"
+              "${{ needs.setup.outputs.project_dir }}/all-lipsync/lipsync-segment-scene-${scene}/lipsync_scene${scene}.mp4"
+            )
+            
+            # Check for lipsync segment files
+            for path in "${POSSIBLE_PATHS[@]}"; do
+              if [ -f "$path" ]; then
+                FILE_SIZE=$(stat -c%s "$path" 2>/dev/null || echo 0)
+                if [ $FILE_SIZE -gt 100000 ]; then  # At least 100KB for valid lipsync
+                  LIPSYNC_FOUND=true
+                  echo "✅ Scene $scene: Valid lipsync found (${FILE_SIZE} bytes)"
+                  SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+                  break
+                else
+                  echo "⚠️ Scene $scene: File too small (${FILE_SIZE} bytes)"
+                fi
+              fi
+            done
+            
+            # If not found in artifacts, mark as failed
+            if [ "$LIPSYNC_FOUND" = "false" ]; then
+              echo "❌ Scene $scene: Lipsync segment missing or invalid"
+              if [ -z "$FAILED_SCENES" ]; then
+                FAILED_SCENES="$scene"
+              else
+                FAILED_SCENES="$FAILED_SCENES,$scene"
+              fi
+            fi
+          done
+          
+          # Format failed scenes as JSON array
+          if [ -n "$FAILED_SCENES" ]; then
+            # Convert comma-separated to JSON array
+            FAILED_ARRAY="[$(echo $FAILED_SCENES | sed 's/,/,/g')]"
+            echo "has_failures=true" >> $GITHUB_OUTPUT
+            echo "failed_scenes=$FAILED_ARRAY" >> $GITHUB_OUTPUT
+          else
+            echo "has_failures=false" >> $GITHUB_OUTPUT
+            echo "failed_scenes=[]" >> $GITHUB_OUTPUT
+          fi
+          
           echo "success_count=${SUCCESS_COUNT}" >> $GITHUB_OUTPUT
-          echo "📊 Lipsync Results: ${SUCCESS_COUNT}/${{ needs.setup.outputs.scene_count }} successful"
+          echo "📊 Lipsync Results: ${SUCCESS_COUNT}/${SCENE_COUNT} successful"
+          [ -n "$FAILED_SCENES" ] && echo "❌ Failed scenes: $FAILED_SCENES"
 
-  # 🔄 PHASE 4: Lipsync Assembly (Combine Segments)  
-  lipsync-assembly:
-    needs: [check-trigger, setup, scene-lipsync-generation, collect-lipsync-failures]
+  # 🚑 PHASE 4: Lipsync Recovery (For Failed Segments)
+  lipsync-recovery:
+    needs: [check-trigger, setup, anchor-generation, audio-segment-generation, collect-lipsync-failures, background-recovery]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
+      needs.collect-lipsync-failures.outputs.has_failures == 'true' &&
+      needs.anchor-generation.outputs.anchor_ready == 'true' &&
+      needs.audio-segment-generation.outputs.segments_ready == 'true' &&
       !cancelled()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # Extra time for recovery
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.collect-lipsync-failures.outputs.failed_scenes || '[]') }}
+      fail-fast: false
+      max-parallel: 2  # Reduce parallelism for recovery
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Anchor Data
+        uses: actions/download-artifact@v4
+        with:
+          name: anchor-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+      - name: Download Audio Segments
+        uses: actions/download-artifact@v4
+        with:
+          name: audio-segments-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/audio/segments/
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Recovery Lipsync for Scene ${{ matrix.scene }}
+        id: recovery
+        env:
+          CLAUDE_CODE_CI_MODE: true
+          CLAUDE_CODE_AUTO_APPROVE_MCP: true
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          SCENE_NUM=${{ matrix.scene }}
+          SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          
+          # Skip if scene exceeds count
+          if [ $SCENE_NUM -gt $SCENE_COUNT ]; then
+            echo "Skipping recovery for scene $SCENE_NUM (exceeds count $SCENE_COUNT)"
+            exit 0
+          fi
+          
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/videos/lipsync"
+          
+          # Find anchor image and scene audio segment
+          ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}/media/images" -name "*anchor*.png" | head -1)
+          AUDIO_SEGMENT=$(find "${{ needs.setup.outputs.project_dir }}/media/audio/segments" -name "scene_${SCENE_NUM}_narration.*" | head -1)
+          
+          if [ -z "$ANCHOR_IMAGE" ]; then
+            echo "❌ Missing anchor image for recovery scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_recovery_status=FAILED" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          if [ -z "$AUDIO_SEGMENT" ]; then
+            echo "❌ Missing audio segment for recovery scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_recovery_status=FAILED" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          LIPSYNC_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/scene_${SCENE_NUM}_lipsync_recovery.mp4"
+          URL_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/scene_${SCENE_NUM}_lipsync_recovery-url.txt"
+          
+          # Get audio duration for this segment
+          AUDIO_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$AUDIO_SEGMENT" 2>/dev/null || echo "15")
+          
+          echo "🚑 Scene ${SCENE_NUM}: Recovery lipsync generation (${AUDIO_DURATION}s audio)"
+          echo "📁 Anchor: $(basename "$ANCHOR_IMAGE")"
+          echo "🎵 Audio: $(basename "$AUDIO_SEGMENT")"
+          
+          # Try multiple recovery attempts with different MCP tools
+          SUCCESS=false
+          
+          # Recovery Attempt 1: Try different lipsync MCP tool
+          echo "🔄 Recovery attempt 1: Alternative MCP lipsync tool"
+          RECOVERY_PROMPT="RECOVERY: Create lipsync video for failed scene ${SCENE_NUM}:
+          Image: ${ANCHOR_IMAGE}
+          Audio: ${AUDIO_SEGMENT}
+          Duration: ${AUDIO_DURATION} seconds
+          Output: ${LIPSYNC_PATH}
+          Requirements:
+          1. Use alternative lipsync tool for recovery
+          2. Ensure high-quality audio-visual sync
+          3. Save video to ${LIPSYNC_PATH} using Write tool
+          4. Save URL to ${URL_PATH} using Write tool
+          5. Verify output with ls command"
+          
+          npx @anthropic-ai/claude-code \
+            --mcp-config ".claude/mcp-kamuicode.json" \
+            --allowedTools "mcp__v2v-kamui-creatify-lipsync,mcp__v2v-kamui-pixverse-lipsync,Write,Bash" \
+            --max-turns 60 \
+            --permission-mode "bypassPermissions" \
+            -p "$RECOVERY_PROMPT" && {
+            # Download from URL if available  
+            [ -f "$URL_PATH" ] && curl -L -o "$LIPSYNC_PATH" "$(cat $URL_PATH)" 2>/dev/null
+            
+            # Check if recovery was successful
+            if [ -f "$LIPSYNC_PATH" ] && [ $(stat -c%s "$LIPSYNC_PATH") -gt 100000 ]; then
+              echo "✅ Recovery attempt 1 successful for scene ${SCENE_NUM}"
+              SUCCESS=true
+            fi
+          }
+          
+          # Recovery Attempt 2: FFmpeg fallback with enhanced static video
+          if [ "$SUCCESS" = "false" ]; then
+            echo "🔄 Recovery attempt 2: Enhanced FFmpeg fallback"
+            
+            # Create enhanced static video with subtle animations
+            ffmpeg -loop 1 -i "$ANCHOR_IMAGE" \
+              -i "$AUDIO_SEGMENT" \
+              -filter_complex "[0:v]scale=1920:1080,zoompan=z='if(lte(zoom,1.0),1.02,max(1.001,zoom-0.0002))':d=1:s=1920x1080[v]" \
+              -map "[v]" -map 1:a \
+              -c:v libx264 -c:a aac \
+              -t "$AUDIO_DURATION" \
+              -pix_fmt yuv420p \
+              -shortest \
+              "$LIPSYNC_PATH" -y && {
+              echo "✅ Recovery attempt 2 (Enhanced FFmpeg) successful for scene ${SCENE_NUM}"
+              SUCCESS=true
+            }
+          fi
+          
+          # Recovery Attempt 3: Simple static fallback
+          if [ "$SUCCESS" = "false" ]; then
+            echo "🔄 Recovery attempt 3: Simple static fallback"
+            
+            ffmpeg -loop 1 -i "$ANCHOR_IMAGE" \
+              -i "$AUDIO_SEGMENT" \
+              -c:v libx264 -c:a aac \
+              -t "$AUDIO_DURATION" \
+              -pix_fmt yuv420p \
+              -shortest \
+              "$LIPSYNC_PATH" -y && {
+              echo "✅ Recovery attempt 3 (Simple static) successful for scene ${SCENE_NUM}"
+              SUCCESS=true
+            }
+          fi
+          
+          # Final validation
+          if [ "$SUCCESS" = "true" ] && [ -f "$LIPSYNC_PATH" ] && [ $(stat -c%s "$LIPSYNC_PATH") -gt 50000 ]; then
+            echo "scene_${SCENE_NUM}_recovery_status=SUCCESS" >> $GITHUB_OUTPUT
+            echo "✅ Scene ${SCENE_NUM} recovery completed successfully"
+          else
+            echo "scene_${SCENE_NUM}_recovery_status=FAILED" >> $GITHUB_OUTPUT
+            echo "❌ Scene ${SCENE_NUM} recovery failed after all attempts"
+          fi
+
+      - name: Upload Recovery Lipsync Data
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lipsync-recovery-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/
+
+  # 🔄 PHASE 5: Lipsync Assembly (Combine Segments)  
+  lipsync-assembly:
+    needs: [check-trigger, setup, scene-lipsync-generation, collect-lipsync-failures, lipsync-recovery]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      !cancelled() &&
+      (needs.lipsync-recovery.result == 'success' || needs.lipsync-recovery.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 8
     outputs:
@@ -1801,6 +2029,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: lipsync-segment-scene-*
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/
+          merge-multiple: true
+
+      - name: Download Lipsync Recovery Segments (if available)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: lipsync-recovery-scene-*
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/
           merge-multiple: true
 
@@ -1821,9 +2057,25 @@ jobs:
           SEGMENT_COUNT=0
           
           for scene in $(seq 1 ${{ needs.setup.outputs.scene_count }}); do
-            SEGMENT_FILE=$(find "${{ needs.setup.outputs.project_dir }}/media/videos/lipsync" -name "*scene_${scene}_lipsync.mp4" | head -1)
-            if [ -f "$SEGMENT_FILE" ]; then
-              echo "✅ Found segment ${scene}: $(basename "$SEGMENT_FILE")"
+            # Try to find lipsync segment (original or recovery)
+            SEGMENT_FILE=""
+            
+            # Priority 1: Original successful segment
+            ORIGINAL_SEGMENT=$(find "${{ needs.setup.outputs.project_dir }}/media/videos/lipsync" -name "*scene_${scene}_lipsync.mp4" | head -1)
+            
+            # Priority 2: Recovery segment
+            RECOVERY_SEGMENT=$(find "${{ needs.setup.outputs.project_dir }}/media/videos/lipsync" -name "*scene_${scene}_lipsync_recovery.mp4" | head -1)
+            
+            # Select best available segment
+            if [ -f "$ORIGINAL_SEGMENT" ]; then
+              SEGMENT_FILE="$ORIGINAL_SEGMENT"
+              echo "✅ Found original segment ${scene}: $(basename "$SEGMENT_FILE")"
+            elif [ -f "$RECOVERY_SEGMENT" ]; then
+              SEGMENT_FILE="$RECOVERY_SEGMENT"
+              echo "✅ Found recovery segment ${scene}: $(basename "$SEGMENT_FILE")"
+            fi
+            
+            if [ -n "$SEGMENT_FILE" ] && [ -f "$SEGMENT_FILE" ]; then
               SEGMENT_FILES="${SEGMENT_FILES}file '${SEGMENT_FILE}'\n"
               SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
             else
