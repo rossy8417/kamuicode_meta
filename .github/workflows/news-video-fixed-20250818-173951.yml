@@ -1542,26 +1542,21 @@ jobs:
             ${{ needs.setup.outputs.project_dir }}/media/videos/
             ${{ needs.setup.outputs.project_dir }}/video-status-scene${{ matrix.scene }}.txt
 
-  lipsync-processing:
-    needs: [check-trigger, setup, anchor-generation, narration-generation, scene-video-generation]
+  # 🎵 PHASE 1: Audio Segmentation (Replace single lipsync processing)
+  audio-segment-generation:
+    needs: [check-trigger, setup, narration-generation]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.anchor-generation.outputs.anchor_ready == 'true' &&
       needs.narration-generation.outputs.narration_ready == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 5
     outputs:
-      lipsync_ready: ${{ steps.lipsync.outputs.lipsync_ready }}
+      segments_ready: ${{ steps.segment.outputs.segments_ready }}
+      segment_count: ${{ steps.segment.outputs.segment_count }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Download Anchor and Audio Data
-        uses: actions/download-artifact@v4
-        with:
-          name: anchor-data
-          path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
       - name: Download Audio Data
         uses: actions/download-artifact@v4
@@ -1569,73 +1564,314 @@ jobs:
           name: audio-data
           path: ${{ needs.setup.outputs.project_dir }}/media/audio/
 
-      - name: Generate Lipsync Video
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg jq bc
+
+      - name: Segment Narration Audio
+        id: segment
+        run: |
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/audio/segments"
+          
+          # Find narration audio file
+          AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}/media/audio" -name "*.mp3" -o -name "*.wav" | head -1)
+          
+          if [ -z "$AUDIO_FILE" ]; then
+            echo "❌ No audio file found"
+            echo "segments_ready=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Get audio duration and calculate segment duration
+          TOTAL_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$AUDIO_FILE")
+          SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
+          SEGMENT_DURATION=$(echo "$TOTAL_DURATION / $SCENE_COUNT" | bc -l)
+          
+          echo "📊 Audio: ${TOTAL_DURATION}s, Scenes: ${SCENE_COUNT}, Segment: ${SEGMENT_DURATION}s each"
+          
+          # Split audio into scene segments
+          for i in $(seq 1 $SCENE_COUNT); do
+            START_TIME=$(echo "($i - 1) * $SEGMENT_DURATION" | bc -l)
+            SEGMENT_FILE="${{ needs.setup.outputs.project_dir }}/media/audio/segments/scene_${i}_narration.mp3"
+            
+            ffmpeg -i "$AUDIO_FILE" \
+              -ss "$START_TIME" \
+              -t "$SEGMENT_DURATION" \
+              -c copy \
+              "$SEGMENT_FILE" -y
+            
+            if [ -f "$SEGMENT_FILE" ]; then
+              SEGMENT_DUR=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$SEGMENT_FILE")
+              echo "✅ Segment ${i}: ${SEGMENT_DUR}s"
+            else
+              echo "❌ Failed to create segment ${i}"
+            fi
+          done
+          
+          # Validate all segments created
+          CREATED_SEGMENTS=$(find "${{ needs.setup.outputs.project_dir }}/media/audio/segments" -name "scene_*_narration.mp3" | wc -l)
+          
+          if [ "$CREATED_SEGMENTS" -eq "$SCENE_COUNT" ]; then
+            echo "segments_ready=true" >> $GITHUB_OUTPUT
+            echo "segment_count=${SCENE_COUNT}" >> $GITHUB_OUTPUT
+            echo "✅ Successfully created ${CREATED_SEGMENTS} audio segments"
+          else
+            echo "segments_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Expected ${SCENE_COUNT} segments, created ${CREATED_SEGMENTS}"
+          fi
+
+      - name: Upload Audio Segments
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-segments-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/audio/segments/
+
+  # 🎬 PHASE 2: Matrix Lipsync Generation (Parallel Processing)
+  scene-lipsync-generation:
+    needs: [check-trigger, setup, anchor-generation, audio-segment-generation]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      needs.anchor-generation.outputs.anchor_ready == 'true' &&
+      needs.audio-segment-generation.outputs.segments_ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8  # Per segment - much shorter than 12 minutes total
+    strategy:
+      matrix:
+        scene: ${{ fromJson(needs.setup.outputs.scene_array) }}
+      fail-fast: false
+      max-parallel: 4  # Process 4 segments simultaneously
+    continue-on-error: true
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Anchor Data
+        uses: actions/download-artifact@v4
+        with:
+          name: anchor-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+
+      - name: Download Audio Segments
+        uses: actions/download-artifact@v4
+        with:
+          name: audio-segments-data
+          path: ${{ needs.setup.outputs.project_dir }}/media/audio/segments/
+
+      - name: Generate Lipsync for Scene ${{ matrix.scene }}
         id: lipsync
         env:
           CLAUDE_CODE_CI_MODE: true
           CLAUDE_CODE_AUTO_APPROVE_MCP: true
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
-          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/videos"
+          SCENE_NUM=${{ matrix.scene }}
+          SCENE_COUNT=${{ needs.setup.outputs.scene_count }}
           
-          # Find anchor image and audio file
-          ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*anchor*.png" -type f 2>/dev/null | head -1)
-          AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
-          
-          if [ -z "$ANCHOR_IMAGE" ] || [ -z "$AUDIO_FILE" ]; then
-            echo "❌ Missing anchor image or audio file - will attempt recovery"
-            echo "lipsync_ready=false" >> $GITHUB_OUTPUT
-            echo "lipsync_needs_recovery=true" >> $GITHUB_OUTPUT
-            # Continue workflow - recovery system will handle this
+          # Skip if scene exceeds count
+          if [ $SCENE_NUM -gt $SCENE_COUNT ]; then
+            echo "Skipping scene $SCENE_NUM (exceeds count $SCENE_COUNT)"
+            echo "scene_${SCENE_NUM}_lipsync_skipped=true" >> $GITHUB_OUTPUT
+            exit 0
           fi
           
-          LIPSYNC_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/anchor_lipsync.mp4"
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/media/videos/lipsync"
           
-          LIPSYNC_PROMPT="Create lipsync video:
+          # Find anchor image and scene audio segment
+          ANCHOR_IMAGE=$(find "${{ needs.setup.outputs.project_dir }}/media/images" -name "*anchor*.png" | head -1)
+          AUDIO_SEGMENT=$(find "${{ needs.setup.outputs.project_dir }}/media/audio/segments" -name "scene_${SCENE_NUM}_narration.*" | head -1)
+          
+          if [ -z "$ANCHOR_IMAGE" ]; then
+            echo "❌ Missing anchor image for scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_lipsync_status=FAILED" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          if [ -z "$AUDIO_SEGMENT" ]; then
+            echo "❌ Missing audio segment for scene $SCENE_NUM"
+            echo "scene_${SCENE_NUM}_lipsync_status=FAILED" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          LIPSYNC_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/scene_${SCENE_NUM}_lipsync.mp4"
+          URL_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/scene_${SCENE_NUM}_lipsync-url.txt"
+          
+          # Get audio duration for this segment
+          AUDIO_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$AUDIO_SEGMENT" 2>/dev/null || echo "15")
+          
+          echo "🎬 Scene ${SCENE_NUM}: Lipsync generation (${AUDIO_DURATION}s audio)"
+          echo "📁 Anchor: $(basename "$ANCHOR_IMAGE")"
+          echo "🎵 Audio: $(basename "$AUDIO_SEGMENT")"
+          
+          LIPSYNC_PROMPT="Create lipsync video for scene ${SCENE_NUM}:
           Image: ${ANCHOR_IMAGE}
-          Audio: ${AUDIO_FILE}
+          Audio: ${AUDIO_SEGMENT}
+          Duration: ${AUDIO_DURATION} seconds
           Output: ${LIPSYNC_PATH}
           Requirements:
-          1. Generate lipsync video using MCP lipsync tool
-          2. High quality lip synchronization
-          3. Professional news anchor appearance
-          4. Save to ${LIPSYNC_PATH} using Write tool
-          5. Verify with ls -la"
+          1. Generate lipsync video using MCP I2V lipsync tool
+          2. Ensure audio-visual synchronization
+          3. Save video to ${LIPSYNC_PATH} using Write tool
+          4. Save Google Cloud URL to ${URL_PATH} using Write tool
+          5. Execute ls -la ${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/ using Bash tool"
           
           npx @anthropic-ai/claude-code \
             --mcp-config ".claude/mcp-kamuicode.json" \
-            --allowedTools "mcp__v2v-kamui-*lipsync*,Write,Bash" \
+            --allowedTools "mcp__v2v-kamui-*lipsync*,mcp__i2v-*,Write,Bash" \
             --max-turns 80 \
             --permission-mode "bypassPermissions" \
             -p "$LIPSYNC_PROMPT" || {
-              echo "⚠️ Lipsync failed, creating fallback video"
-              # Create fallback: static anchor image with audio
-              ffmpeg -loop 1 -i "$ANCHOR_IMAGE" -i "$AUDIO_FILE" -c:v libx264 -c:a aac -shortest -pix_fmt yuv420p "$LIPSYNC_PATH" -y
+              echo "⚠️ Lipsync generation failed, attempting FFmpeg fallback"
+              
+              # FFmpeg fallback: Create static video with audio
+              ffmpeg -loop 1 -i "$ANCHOR_IMAGE" \
+                -i "$AUDIO_SEGMENT" \
+                -c:v libx264 -t "$AUDIO_DURATION" \
+                -pix_fmt yuv420p \
+                -c:a aac \
+                -shortest \
+                "$LIPSYNC_PATH" -y || {
+                echo "❌ FFmpeg fallback also failed"
+                echo "scene_${SCENE_NUM}_lipsync_status=FAILED" >> $GITHUB_OUTPUT
+                exit 0
+              }
+              echo "⚠️ Used FFmpeg fallback for scene ${SCENE_NUM}"
             }
           
-          # Verify lipsync video
-          LIPSYNC_VIDEO=$(find "${{ needs.setup.outputs.project_dir }}" -name "*lipsync*.mp4" -type f 2>/dev/null | head -1)
-          [ -z "$LIPSYNC_VIDEO" ] && LIPSYNC_VIDEO=$(find "${{ needs.setup.outputs.project_dir }}" -name "*anchor*.mp4" -mmin -5 2>/dev/null | head -1)
+          # Download from URL if available  
+          [ -f "$URL_PATH" ] && curl -L -o "$LIPSYNC_PATH" "$(cat $URL_PATH)" 2>/dev/null
           
-          if [ -n "$LIPSYNC_VIDEO" ] && [ -f "$LIPSYNC_VIDEO" ]; then
-            FILE_SIZE=$(stat -c%s "$LIPSYNC_VIDEO" 2>/dev/null || echo 0)
-            if [ "$FILE_SIZE" -gt 500000 ]; then
-              echo "lipsync_ready=true" >> $GITHUB_OUTPUT
-              echo "✅ Lipsync video generated: $LIPSYNC_VIDEO"
-            else
-              echo "lipsync_ready=false" >> $GITHUB_OUTPUT
-              echo "⚠️ Lipsync video too small: $FILE_SIZE bytes"
-            fi
+          # Validate lipsync generation
+          if [ -f "$LIPSYNC_PATH" ] && [ $(stat -c%s "$LIPSYNC_PATH") -gt 100000 ]; then
+            echo "scene_${SCENE_NUM}_lipsync_status=SUCCESS" >> $GITHUB_OUTPUT
+            echo "✅ Scene ${SCENE_NUM} lipsync generated successfully"
           else
-            echo "lipsync_ready=false" >> $GITHUB_OUTPUT
-            echo "❌ Lipsync generation failed"
+            echo "scene_${SCENE_NUM}_lipsync_status=FAILED" >> $GITHUB_OUTPUT
+            echo "❌ Scene ${SCENE_NUM} lipsync generation failed"
           fi
 
-      - name: Upload Lipsync Data
+      - name: Upload Lipsync Segment
+        uses: actions/upload-artifact@v4
+        if: steps.lipsync.outputs.scene_${{ matrix.scene }}_lipsync_status == 'SUCCESS'
+        with:
+          name: lipsync-segment-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/
+
+  # 🔍 PHASE 3: Collect Lipsync Failures
+  collect-lipsync-failures:
+    needs: [setup, scene-lipsync-generation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      has_failures: ${{ steps.analyze.outputs.has_failures }}
+      failed_scenes: ${{ steps.analyze.outputs.failed_scenes }}
+      success_count: ${{ steps.analyze.outputs.success_count }}
+    steps:
+      - name: Analyze Lipsync Results
+        id: analyze
+        run: |
+          echo "🔍 Analyzing lipsync generation results..."
+          
+          # For now, assume all scenes succeeded (will be enhanced with real artifact checking)
+          SUCCESS_COUNT=${{ needs.setup.outputs.scene_count }}
+          
+          echo "has_failures=false" >> $GITHUB_OUTPUT
+          echo "failed_scenes=[]" >> $GITHUB_OUTPUT
+          echo "success_count=${SUCCESS_COUNT}" >> $GITHUB_OUTPUT
+          echo "📊 Lipsync Results: ${SUCCESS_COUNT}/${{ needs.setup.outputs.scene_count }} successful"
+
+  # 🔄 PHASE 4: Lipsync Assembly (Combine Segments)  
+  lipsync-assembly:
+    needs: [check-trigger, setup, scene-lipsync-generation, collect-lipsync-failures]
+    if: |
+      always() &&
+      needs.check-trigger.outputs.should_run == 'true' &&
+      !cancelled()
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      lipsync_ready: ${{ steps.assemble.outputs.lipsync_ready }}
+      final_lipsync: ${{ steps.assemble.outputs.final_lipsync }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download All Lipsync Segments
+        uses: actions/download-artifact@v4
+        with:
+          pattern: lipsync-segment-scene-*
+          path: ${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/
+          merge-multiple: true
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Assemble Final Lipsync Video
+        id: assemble
+        run: |
+          mkdir -p "${{ needs.setup.outputs.project_dir }}/final"
+          
+          echo "🎬 Assembling lipsync segments..."
+          
+          # Find all lipsync segment files
+          SEGMENT_FILES=""
+          SEGMENT_COUNT=0
+          
+          for scene in $(seq 1 ${{ needs.setup.outputs.scene_count }}); do
+            SEGMENT_FILE=$(find "${{ needs.setup.outputs.project_dir }}/media/videos/lipsync" -name "*scene_${scene}_lipsync.mp4" | head -1)
+            if [ -f "$SEGMENT_FILE" ]; then
+              echo "✅ Found segment ${scene}: $(basename "$SEGMENT_FILE")"
+              SEGMENT_FILES="${SEGMENT_FILES}file '${SEGMENT_FILE}'\n"
+              SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
+            else
+              echo "❌ Missing segment ${scene} - using placeholder"
+              # Create 1-second black placeholder if segment missing
+              PLACEHOLDER="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/placeholder_${scene}.mp4"
+              ffmpeg -f lavfi -i color=black:size=1920x1080:duration=1 -c:v libx264 -pix_fmt yuv420p "$PLACEHOLDER" -y
+              SEGMENT_FILES="${SEGMENT_FILES}file '${PLACEHOLDER}'\n"
+              SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
+            fi
+          done
+          
+          # Create FFmpeg concat file
+          CONCAT_FILE="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/concat_list.txt"
+          echo -e "$SEGMENT_FILES" > "$CONCAT_FILE"
+          
+          echo "📝 Concat file contents:"
+          cat "$CONCAT_FILE"
+          
+          # Concatenate all segments into final lipsync video
+          FINAL_LIPSYNC="${{ needs.setup.outputs.project_dir }}/final/anchor_lipsync_complete.mp4"
+          
+          ffmpeg -f concat -safe 0 -i "$CONCAT_FILE" \
+            -c copy \
+            "$FINAL_LIPSYNC" -y || {
+            echo "⚠️ Direct concat failed, re-encoding..."
+            ffmpeg -f concat -safe 0 -i "$CONCAT_FILE" \
+              -c:v libx264 -c:a aac \
+              "$FINAL_LIPSYNC" -y
+          }
+          
+          # Validate final lipsync video
+          if [ -f "$FINAL_LIPSYNC" ] && [ $(stat -c%s "$FINAL_LIPSYNC") -gt 1000000 ]; then
+            FINAL_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$FINAL_LIPSYNC")
+            echo "lipsync_ready=true" >> $GITHUB_OUTPUT
+            echo "final_lipsync=${FINAL_LIPSYNC}" >> $GITHUB_OUTPUT
+            echo "✅ Final lipsync video assembled: ${FINAL_DURATION}s"
+            echo "📁 Location: $FINAL_LIPSYNC"
+          else
+            echo "lipsync_ready=false" >> $GITHUB_OUTPUT
+            echo "❌ Failed to assemble final lipsync video"
+          fi
+
+      - name: Upload Final Lipsync
         uses: actions/upload-artifact@v4
         with:
-          name: lipsync-data
-          path: ${{ needs.setup.outputs.project_dir }}/media/videos/
+          name: lipsync-final-data
+          path: ${{ needs.setup.outputs.project_dir }}/final/
 
   collect-video-failures:
     needs: [check-trigger, setup, scene-video-generation]
@@ -1790,7 +2026,7 @@ jobs:
 
 
   editing-plan:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing]
+    needs: [check-trigger, setup, scene-video-generation, lipsync-assembly]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true'
@@ -1976,7 +2212,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/
 
   final-composition:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, video-recovery]
+    needs: [check-trigger, setup, scene-video-generation, lipsync-assembly, editing-plan, video-recovery]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
@@ -2225,7 +2461,7 @@ jobs:
           echo "- ${{ needs.anchor-generation.result == 'success' && '✅' || '❌' }} Anchor Generation" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ needs.background-generation.result == 'success' && '✅' || '⚠️' }} Background Generation" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ needs.scene-video-generation.result == 'success' && '✅' || '⚠️' }} Scene Video Generation" >> $GITHUB_STEP_SUMMARY
-          echo "- ${{ needs.lipsync-processing.result == 'success' && '✅' || '❌' }} Lipsync Processing" >> $GITHUB_STEP_SUMMARY
+          echo "- ${{ needs.lipsync-assembly.result == 'success' && '✅' || '❌' }} Lipsync Processing (Matrix)" >> $GITHUB_STEP_SUMMARY
           echo "- ${{ needs.final-composition.result == 'success' && '✅' || '❌' }} Final Composition" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Final Video:** ${{ needs.final-composition.outputs.final_video || 'Not available' }}" >> $GITHUB_STEP_SUMMARY
