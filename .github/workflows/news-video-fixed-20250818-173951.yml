@@ -1185,10 +1185,15 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
 
   scene-video-generation:
-    needs: [check-trigger, setup, background-generation]
+    needs: [check-trigger, setup, background-generation, collect-background-failures, background-recovery]
     if: |
+      always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.background-generation.result == 'success'
+      needs.collect-background-failures.result == 'success' &&
+      (
+        needs.background-recovery.result == 'success' || 
+        needs.background-recovery.result == 'skipped'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -1531,11 +1536,17 @@ jobs:
             ${{ needs.setup.outputs.project_dir }}/video-status-scene${{ matrix.scene }}.txt
 
   lipsync-processing:
-    needs: [check-trigger, setup, anchor-generation, narration-generation]
+    needs: [check-trigger, setup, anchor-generation, narration-generation, scene-video-generation, collect-video-failures, immediate-recovery]
     if: |
+      always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
       needs.anchor-generation.outputs.anchor_ready == 'true' &&
-      needs.narration-generation.outputs.narration_ready == 'true'
+      needs.narration-generation.outputs.narration_ready == 'true' &&
+      needs.collect-video-failures.result == 'success' &&
+      (
+        needs.immediate-recovery.result == 'success' || 
+        needs.immediate-recovery.result == 'skipped'
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 12
     outputs:

@@ -24,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 → **`projects/workflow-execution-logs/meta-workflow-construction-checklist.md`** (Universal construction checklist)
 → **`docs/YAML_CONSTRUCTION_GUIDELINES.md`** (YAML structure guidelines)
 → **`docs/successful-workflow-patterns.md`** (Proven success patterns)
+→ **`docs/ROBUST_GENERATION_WORKFLOW_PATTERNS.md`** (🔄 CRITICAL: Generation→Judgment→Recovery pattern for complex generation tasks)
 → **`meta/domain-templates/video-production/checklist-video-specific.md`** (Video generation domain-specific)
 
 ### For system overview & architecture
