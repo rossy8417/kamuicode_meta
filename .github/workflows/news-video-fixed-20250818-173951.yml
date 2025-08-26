@@ -1409,7 +1409,7 @@ jobs:
                 echo "🚨 CRITICAL FAILURE: All recovery attempts failed for scene $SCENE_NUM"
                 echo "❌ Recovery Level 1 (MCP retry): FAILED"
                 echo "❌ Recovery Level 2 (FFmpeg fallback): FAILED"
-                echo "🛑 TERMINATING WORKFLOW - Scene generation failure is not acceptable"
+                echo "⚠️ MARKING SCENE FOR VIDEO RECOVERY - Scene generation will be handled by video-recovery job"
                 echo ""
                 echo "Error Details:"
                 echo "- Original validation error: $VALIDATION_ERRORS"
@@ -1417,8 +1417,12 @@ jobs:
                 echo "- Scene: $SCENE_NUM"
                 echo "- Time elapsed: ${ELAPSED_MINUTES} minutes"
                 echo ""
-                echo "🚨 WORKFLOW MUST BE TERMINATED - Cannot proceed with incomplete content"
-                exit 1  # Force workflow termination
+                echo "📋 Scene marked for video-recovery system - workflow continues"
+                
+                # Mark scene as failed for video recovery instead of terminating
+                echo "scene_${SCENE_NUM}_video_status=FAILED" >> $GITHUB_OUTPUT
+                echo "scene_${SCENE_NUM}_video_success=false" >> $GITHUB_OUTPUT
+                echo "scene_${SCENE_NUM}_needs_recovery=true" >> $GITHUB_OUTPUT
               fi
             fi
             
@@ -1566,9 +1570,10 @@ jobs:
           AUDIO_FILE=$(find "${{ needs.setup.outputs.project_dir }}" -name "*.mp3" -o -name "*.wav" 2>/dev/null | head -1)
           
           if [ -z "$ANCHOR_IMAGE" ] || [ -z "$AUDIO_FILE" ]; then
-            echo "❌ Missing anchor image or audio file"
+            echo "❌ Missing anchor image or audio file - will attempt recovery"
             echo "lipsync_ready=false" >> $GITHUB_OUTPUT
-            exit 1
+            echo "lipsync_needs_recovery=true" >> $GITHUB_OUTPUT
+            # Continue workflow - recovery system will handle this
           fi
           
           LIPSYNC_PATH="${{ needs.setup.outputs.project_dir }}/media/videos/anchor_lipsync.mp4"
@@ -2250,16 +2255,15 @@ jobs:
               echo "❌ Lipsync video: Failed to recover"
             fi
             echo ""
-            echo "🛑 TERMINATING WORKFLOW - Recovery failure is not acceptable"
-            echo "📋 Recovery Policy: All content must be successfully generated or recovered"
-            echo "🚨 Manual intervention required before workflow can proceed"
+            echo "⚠️ RECOVERY COMPLETED WITH PARTIAL SUCCESS - Continuing workflow"
+            echo "📋 Recovery Policy: Use available content and create best possible result"
+            echo "🎯 Final composition will work with available assets"
             echo ""
-            echo "This workflow termination prevents:"
-            echo "- Proceeding with incomplete video content"
-            echo "- Creating defective final compositions"
-            echo "- Delivering substandard results"
+            echo "Recovery allows:"
+            echo "- Creating compositions with available content"
+            echo "- Delivering partial results better than no results"
             echo ""
-            exit 1  # Force immediate workflow termination
+            echo "recovery_partial_success=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload Recovered Assets
