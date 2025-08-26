@@ -1952,7 +1952,8 @@ jobs:
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.unified-failure-analysis.outputs.items_complete == 'false'
+      (needs.unified-failure-analysis.outputs.items_complete == 'false' ||
+       needs.collect-video-failures.outputs.has_failures == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -2068,6 +2069,14 @@ jobs:
           echo "- 破損リップシンク: $CORRUPTED_LIPSYNC"
           echo "- リカバリー必要: $RECOVERY_NEEDED"
           
+          # 🔧 CRITICAL FIX: Only require recovery if scene videos are actually corrupted
+          # Lipsync missing is normal at this stage - it runs in parallel with dynamic-recovery-check
+          if [ "$VALID_SCENE_COUNT" = "12" ] && [ -z "$CORRUPTED_SCENES" ]; then
+            RECOVERY_NEEDED=false
+            echo "✅ All 12 scenes valid - overriding recovery requirement"
+            echo "💡 Lipsync absence doesn't require immediate-recovery (parallel execution)"
+          fi
+          
           # GitHub Outputsに設定
           echo "recovery_needed=$RECOVERY_NEEDED" >> $GITHUB_OUTPUT
           echo "corrupted_scenes=${CORRUPTED_SCENES# }" >> $GITHUB_OUTPUT  # 先頭スペース除去
@@ -2075,11 +2084,13 @@ jobs:
           echo "valid_scene_count=$VALID_SCENE_COUNT" >> $GITHUB_OUTPUT
 
   immediate-recovery:
-    needs: [check-trigger, setup, dynamic-recovery-check]
+    needs: [check-trigger, setup, dynamic-recovery-check, collect-video-failures]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.dynamic-recovery-check.outputs.recovery_needed == 'true'
+      needs.dynamic-recovery-check.outputs.recovery_needed == 'true' &&
+      needs.collect-video-failures.outputs.failed_videos != '[]' &&
+      needs.dynamic-recovery-check.outputs.valid_scene_count != '12'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     outputs:
