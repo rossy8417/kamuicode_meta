@@ -1536,17 +1536,12 @@ jobs:
             ${{ needs.setup.outputs.project_dir }}/video-status-scene${{ matrix.scene }}.txt
 
   lipsync-processing:
-    needs: [check-trigger, setup, anchor-generation, narration-generation, scene-video-generation, collect-video-failures, immediate-recovery]
+    needs: [check-trigger, setup, anchor-generation, narration-generation, scene-video-generation]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
       needs.anchor-generation.outputs.anchor_ready == 'true' &&
-      needs.narration-generation.outputs.narration_ready == 'true' &&
-      needs.collect-video-failures.result == 'success' &&
-      (
-        needs.immediate-recovery.result == 'success' || 
-        needs.immediate-recovery.result == 'skipped'
-      )
+      needs.narration-generation.outputs.narration_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     outputs:
@@ -1954,7 +1949,7 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/metadata/
 
   dynamic-recovery-check:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, collect-video-failures, unified-failure-analysis]
+    needs: [check-trigger, setup, scene-video-generation, collect-video-failures, unified-failure-analysis]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
@@ -2287,14 +2282,14 @@ jobs:
             ${{ needs.setup.outputs.project_dir }}/anchor_lipsync.mp4
 
   final-composition:
-    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, dynamic-recovery-check, immediate-recovery, unified-failure-analysis]
+    needs: [check-trigger, setup, scene-video-generation, lipsync-processing, editing-plan, immediate-recovery]
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
       !cancelled() &&
       (
-        (needs.unified-failure-analysis.outputs.items_complete == 'true' && needs.editing-plan.result == 'success') ||
-        (needs.unified-failure-analysis.outputs.items_complete == 'false' && needs.immediate-recovery.outputs.recovery_completed == 'true' && needs.immediate-recovery.result == 'success')
+        needs.editing-plan.result == 'success' ||
+        (needs.immediate-recovery.result == 'success' && needs.immediate-recovery.outputs.recovery_completed == 'true')
       )
     runs-on: ubuntu-latest
     timeout-minutes: 15
