@@ -1211,10 +1211,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg jq
 
-      - name: Download Background Data
+      - name: Download Original Background Data
         uses: actions/download-artifact@v4
         with:
           name: background-data-scene-${{ matrix.scene }}
+          path: ${{ needs.setup.outputs.project_dir }}/media/images/
+        continue-on-error: true
+
+      - name: Download Recovery Background Data
+        uses: actions/download-artifact@v4
+        with:
+          name: background-recovery-scene-${{ matrix.scene }}
           path: ${{ needs.setup.outputs.project_dir }}/media/images/
         continue-on-error: true
 
