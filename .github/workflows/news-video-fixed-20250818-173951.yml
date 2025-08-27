@@ -2636,32 +2636,59 @@ jobs:
           echo "=== Available Assets ==="
           find "${{ needs.setup.outputs.project_dir }}" -type f -name "*.mp4" -o -name "*.png" -o -name "*.mp3" -o -name "*.wav" | sort
           
-          # Find and validate background videos (post-recovery validation)
+          # Find and validate background videos (post-recovery validation) - ORDERED BY SCENE NUMBER
           echo "🔍 Post-recovery video validation..."
           VALID_VIDEOS=""
           TOTAL_DURATION=0
           
-          for video in $(find "${{ needs.setup.outputs.project_dir }}" -name "*scene*.mp4" -type f | sort); do
-            if [ -f "$video" ]; then
-              # Quick validation (files should be valid after recovery)
-              FILE_SIZE=$(stat -c%s "$video" 2>/dev/null || echo 0)
-              if [ "$FILE_SIZE" -gt 100000 ]; then
-                if ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" >/dev/null 2>&1; then
-                  DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$video" 2>/dev/null || echo "0")
-                  if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
-                    echo "✅ Valid video: $video (${FILE_SIZE} bytes, ${DURATION}s)"
-                    VALID_VIDEOS="$VALID_VIDEOS $video"
+          # Process scenes 1-12 in correct order
+          for scene_num in $(seq 1 ${{ needs.setup.outputs.scene_count }}); do
+            echo "🔍 Looking for scene ${scene_num}..."
+            
+            # Find scene video with multiple search patterns
+            SCENE_VIDEO=""
+            
+            # Pattern 1: media/videos/scene{N}.mp4 (primary)
+            PATTERN1=$(find "${{ needs.setup.outputs.project_dir }}" -name "scene${scene_num}.mp4" -path "*/media/videos/*" | head -1)
+            
+            # Pattern 2: Any scene{N}.mp4 in project directory
+            PATTERN2=$(find "${{ needs.setup.outputs.project_dir }}" -name "scene${scene_num}.mp4" | head -1)
+            
+            # Pattern 3: video-data-scene-{N}/media/videos/scene{N}.mp4
+            PATTERN3=$(find "${{ needs.setup.outputs.project_dir }}" -name "scene${scene_num}.mp4" -path "*/video-data-scene-${scene_num}/*" | head -1)
+            
+            # Select best available pattern
+            if [ -f "$PATTERN1" ]; then
+              SCENE_VIDEO="$PATTERN1"
+              echo "✅ Found primary scene${scene_num}: $SCENE_VIDEO"
+            elif [ -f "$PATTERN2" ]; then
+              SCENE_VIDEO="$PATTERN2"
+              echo "✅ Found secondary scene${scene_num}: $SCENE_VIDEO"
+            elif [ -f "$PATTERN3" ]; then
+              SCENE_VIDEO="$PATTERN3"
+              echo "✅ Found tertiary scene${scene_num}: $SCENE_VIDEO"
+            else
+              echo "❌ No scene${scene_num}.mp4 found"
+            fi
+            
+            # Validate found video
+            if [ -n "$SCENE_VIDEO" ] && [ -f "$SCENE_VIDEO" ]; then
+              FILE_SIZE=$(stat -c%s "$SCENE_VIDEO" 2>/dev/null || echo 0)
+              if [ "$FILE_SIZE" -gt 50000 ]; then  # Lowered threshold to include all generated videos
+                if ffprobe -v error -show_entries format=duration -of csv=p=0 "$SCENE_VIDEO" >/dev/null 2>&1; then
+                  DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$SCENE_VIDEO" 2>/dev/null || echo "0")
+                  if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 2.0 else 1)" 2>/dev/null; then
+                    echo "✅ Valid scene${scene_num}: $SCENE_VIDEO (${FILE_SIZE} bytes, ${DURATION}s)"
+                    VALID_VIDEOS="$VALID_VIDEOS $SCENE_VIDEO"
                     TOTAL_DURATION=$(python3 -c "print(float('$TOTAL_DURATION') + float('$DURATION'))" 2>/dev/null || echo "$TOTAL_DURATION")
                   else
-                    echo "⚠️ Unexpected short video after recovery: $video (${DURATION}s)"
-                    # Note: This should not happen after successful recovery
+                    echo "⚠️ Scene${scene_num} too short: $SCENE_VIDEO (${DURATION}s)"
                   fi
                 else
-                  echo "⚠️ Unexpected corrupted video after recovery: $video"
-                  # Note: This should not happen after successful recovery
+                  echo "⚠️ Scene${scene_num} corrupted: $SCENE_VIDEO"
                 fi
               else
-                echo "⚠️ Unexpected small video after recovery: $video (${FILE_SIZE} bytes)"
+                echo "⚠️ Scene${scene_num} too small: $SCENE_VIDEO (${FILE_SIZE} bytes)"
               fi
             fi
           done
@@ -2669,6 +2696,7 @@ jobs:
           echo "📊 Post-recovery summary:"
           echo "- Valid videos found: $(echo $VALID_VIDEOS | wc -w)"
           echo "- Total duration: ${TOTAL_DURATION}s"
+          echo "- Scene order: $VALID_VIDEOS"
           
           BACKGROUND_VIDEOS="$VALID_VIDEOS"
           
