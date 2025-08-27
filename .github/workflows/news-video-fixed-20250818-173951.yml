@@ -2040,10 +2040,10 @@ jobs:
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/
           merge-multiple: true
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg bc
 
       - name: Assemble Final Lipsync Video
         id: assemble
@@ -2066,25 +2066,59 @@ jobs:
             # Priority 2: Recovery segment
             RECOVERY_SEGMENT=$(find "${{ needs.setup.outputs.project_dir }}/media/videos/lipsync" -name "*scene_${scene}_lipsync_recovery.mp4" | head -1)
             
-            # Select best available segment
+            # Select best available segment with enhanced validation
             if [ -f "$ORIGINAL_SEGMENT" ]; then
-              SEGMENT_FILE="$ORIGINAL_SEGMENT"
-              echo "✅ Found original segment ${scene}: $(basename "$SEGMENT_FILE")"
-            elif [ -f "$RECOVERY_SEGMENT" ]; then
-              SEGMENT_FILE="$RECOVERY_SEGMENT"
-              echo "✅ Found recovery segment ${scene}: $(basename "$SEGMENT_FILE")"
+              # Validate original segment with FFprobe
+              if ffprobe -v error -show_entries format=duration -of csv=p=0 "$ORIGINAL_SEGMENT" >/dev/null 2>&1; then
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$ORIGINAL_SEGMENT" 2>/dev/null | head -1)
+                if [ -n "$DURATION" ] && [ "${DURATION%.*}" -gt 0 ]; then
+                  SEGMENT_FILE="$ORIGINAL_SEGMENT"
+                  echo "✅ Found valid original segment ${scene}: $(basename "$SEGMENT_FILE") (${DURATION}s)"
+                else
+                  echo "⚠️ Original segment ${scene} has invalid duration: $DURATION"
+                fi
+              else
+                echo "⚠️ Original segment ${scene} failed FFprobe validation"
+              fi
             fi
             
+            # If original failed validation, try recovery segment
+            if [ -z "$SEGMENT_FILE" ] && [ -f "$RECOVERY_SEGMENT" ]; then
+              if ffprobe -v error -show_entries format=duration -of csv=p=0 "$RECOVERY_SEGMENT" >/dev/null 2>&1; then
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$RECOVERY_SEGMENT" 2>/dev/null | head -1)
+                if [ -n "$DURATION" ] && [ "${DURATION%.*}" -gt 0 ]; then
+                  SEGMENT_FILE="$RECOVERY_SEGMENT"
+                  echo "✅ Found valid recovery segment ${scene}: $(basename "$SEGMENT_FILE") (${DURATION}s)"
+                else
+                  echo "⚠️ Recovery segment ${scene} has invalid duration: $DURATION"
+                fi
+              else
+                echo "⚠️ Recovery segment ${scene} failed FFprobe validation"
+              fi
+            fi
+            
+            # Add valid segment to concat list or create placeholder
             if [ -n "$SEGMENT_FILE" ] && [ -f "$SEGMENT_FILE" ]; then
               SEGMENT_FILES="${SEGMENT_FILES}file '${SEGMENT_FILE}'\n"
               SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
             else
-              echo "❌ Missing segment ${scene} - using placeholder"
-              # Create 1-second black placeholder if segment missing
+              echo "❌ No valid segment for scene ${scene} - creating placeholder"
+              # Create 15-second placeholder based on expected segment duration
+              EXPECTED_DURATION=$(echo "scale=1; 180 / ${{ needs.setup.outputs.scene_count }}" | bc -l)
               PLACEHOLDER="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/placeholder_${scene}.mp4"
-              ffmpeg -f lavfi -i color=black:size=1920x1080:duration=1 -c:v libx264 -pix_fmt yuv420p "$PLACEHOLDER" -y
-              SEGMENT_FILES="${SEGMENT_FILES}file '${PLACEHOLDER}'\n"
-              SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
+              
+              ffmpeg -f lavfi -i color=black:size=1920x1080:duration=$EXPECTED_DURATION \
+                -f lavfi -i anullsrc=sample_rate=48000:channel_layout=stereo \
+                -c:v libx264 -c:a aac -pix_fmt yuv420p \
+                -shortest "$PLACEHOLDER" -y
+                
+              if [ -f "$PLACEHOLDER" ]; then
+                SEGMENT_FILES="${SEGMENT_FILES}file '${PLACEHOLDER}'\n"
+                SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
+                echo "✅ Created placeholder ${scene}: ${EXPECTED_DURATION}s"
+              else
+                echo "❌ Failed to create placeholder for scene ${scene}"
+              fi
             fi
           done
           
