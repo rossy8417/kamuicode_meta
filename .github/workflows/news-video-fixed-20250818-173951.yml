@@ -2260,7 +2260,7 @@ jobs:
       needs.check-trigger.outputs.should_run == 'true' &&
       !cancelled()
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     outputs:
       failed_videos: ${{ steps.collect.outputs.failed_videos }}
       failed_video_items: ${{ steps.collect.outputs.failed_video_items }}
@@ -2486,13 +2486,16 @@ jobs:
     if: |
       always() && 
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.collect-video-failures.outputs.failed_videos != '' &&
-      needs.collect-video-failures.outputs.failed_videos != '[]'
+      !cancelled() &&
+      (needs.collect-video-failures.result == 'failure' ||
+       (needs.collect-video-failures.result == 'success' &&
+        needs.collect-video-failures.outputs.failed_videos != '' &&
+        needs.collect-video-failures.outputs.failed_videos != '[]'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       matrix:
-        scene: ${{ fromJson(needs.collect-video-failures.outputs.failed_videos || '[]') }}
+        scene: ${{ needs.collect-video-failures.result == 'success' && fromJson(needs.collect-video-failures.outputs.failed_videos || '[1,2,3,4,5,6,7,8,9,10,11,12]') || [1,2,3,4,5,6,7,8,9,10,11,12] }}
       fail-fast: false
       max-parallel: 4
     steps:
@@ -2518,7 +2521,33 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg jq
 
+      - name: Check if Scene ${{ matrix.scene }} Needs Recovery
+        id: check_recovery
+        run: |
+          SCENE_NUM=${{ matrix.scene }}
+          
+          # Check if scene video already exists and is valid
+          SCENE_VIDEO=$(find "${{ needs.setup.outputs.project_dir }}" -name "scene${SCENE_NUM}.mp4" -type f | head -1)
+          
+          if [ -f "$SCENE_VIDEO" ]; then
+            FILE_SIZE=$(stat -c%s "$SCENE_VIDEO" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -gt 50000 ]; then
+              if ffprobe -v error -show_entries format=duration -of csv=p=0 "$SCENE_VIDEO" >/dev/null 2>&1; then
+                DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$SCENE_VIDEO" 2>/dev/null || echo "0")
+                if python3 -c "import sys; sys.exit(0 if float('$DURATION') >= 3.0 else 1)" 2>/dev/null; then
+                  echo "✅ Scene $SCENE_NUM video is valid - no recovery needed"
+                  echo "needs_recovery=false" >> $GITHUB_OUTPUT
+                  exit 0
+                fi
+              fi
+            fi
+          fi
+          
+          echo "⚠️ Scene $SCENE_NUM needs recovery - video missing or invalid"
+          echo "needs_recovery=true" >> $GITHUB_OUTPUT
+
       - name: Recovery Video Generation for Scene ${{ matrix.scene }}
+        if: steps.check_recovery.outputs.needs_recovery == 'true'
         env:
           CLAUDE_CODE_CI_MODE: true
           CLAUDE_CODE_AUTO_APPROVE_MCP: true
@@ -2587,7 +2616,7 @@ jobs:
 
       - name: Upload Recovery Video Data
         uses: actions/upload-artifact@v4
-        if: always()
+        if: steps.check_recovery.outputs.needs_recovery == 'true' && always()
         with:
           name: video-recovery-scene-${{ matrix.scene }}
           path: ${{ needs.setup.outputs.project_dir }}/media/videos/
