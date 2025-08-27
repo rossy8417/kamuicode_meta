@@ -519,10 +519,17 @@ jobs:
         run: |
           mkdir -p "${{ needs.setup.outputs.project_dir }}/media/images"
           
+          # Check MCP connection time window
+          WORKFLOW_START="${{ github.run_started_at }}"
+          ELAPSED_MINUTES=$(( ($(date +%s) - $(date -d "$WORKFLOW_START" +%s)) / 60 ))
+          
           ANCHOR_PATH="${{ needs.setup.outputs.project_dir }}/media/images/news_anchor.png"
           URL_PATH="${{ needs.setup.outputs.project_dir }}/media/images/news_anchor-url.txt"
           
-          ANCHOR_PROMPT="Generate professional Japanese news anchor:
+          if [ $ELAPSED_MINUTES -lt 12 ]; then
+            echo "✅ MCP connection safe (${ELAPSED_MINUTES} minutes elapsed)"
+            
+            ANCHOR_PROMPT="Generate professional Japanese news anchor:
           Description: Professional Japanese female news anchor, 30s, business suit, front-facing, green screen background, studio lighting, professional appearance
           Seed: 42 (for consistency)
           Output: ${ANCHOR_PATH}
@@ -542,15 +549,25 @@ jobs:
               # Create placeholder image
               convert -size 1920x1080 xc:green -pointsize 72 -fill white -gravity center -annotate +0+0 "News Anchor" "${ANCHOR_PATH}"
             }
+            
+            # Download from URL if available
+            [ -f "$URL_PATH" ] && curl -L -o "$ANCHOR_PATH" "$(cat $URL_PATH)" 2>/dev/null
+            
+          else
+            echo "⚠️ MCP connection timeout risk (${ELAPSED_MINUTES} minutes) - using ImageMagick fallback"
+            # Create high-quality placeholder with ImageMagick
+            convert -size 1920x1080 gradient:lightblue-darkblue \
+              -pointsize 48 -fill white -gravity center \
+              -annotate +0-50 "Professional News Anchor" \
+              -pointsize 32 -annotate +0+50 "Generated with ImageMagick" \
+              "${ANCHOR_PATH}"
+          fi
           
-          # Download from URL if available
-          [ -f "$URL_PATH" ] && curl -L -o "$ANCHOR_PATH" "$(cat $URL_PATH)" 2>/dev/null
-          
-          # Validate anchor generation by checking URL file
-          if [ -f "$URL_PATH" ]; then
-            ANCHOR_URL=$(cat "$URL_PATH")
-            if [ -n "$ANCHOR_URL" ]; then
-              echo "anchor_ready=true" >> $GITHUB_OUTPUT
+          # Validate anchor generation
+          if [ -f "$ANCHOR_PATH" ] && [ $(stat -c%s "$ANCHOR_PATH") -gt 10000 ]; then
+            echo "anchor_ready=true" >> $GITHUB_OUTPUT
+            if [ -f "$URL_PATH" ]; then
+              ANCHOR_URL=$(cat "$URL_PATH")
               echo "anchor_url=$ANCHOR_URL" >> $GITHUB_OUTPUT
               echo "✅ Anchor generated successfully: $ANCHOR_URL"
             else
@@ -624,14 +641,15 @@ jobs:
           BG_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}.png"
           URL_PATH="${{ needs.setup.outputs.project_dir }}/media/images/background_scene${SCENE_NUM}-url.txt"
           
-          BACKGROUND_PROMPT="Generate news background for scene ${SCENE_NUM}:
-          Description: ${SCENE_DESC}, no people, professional lighting, news studio style
+          BACKGROUND_PROMPT="Generate specific news background for scene ${SCENE_NUM}:
+          Visual: ${SCENE_DESC}
+          Requirements: No human figures, professional lighting
           Style: ${{ github.event.inputs.visual_style || 'cinematic' }}
           
-          Requirements:
+          Instructions:
           1. Generate image using mcp__t2i-kamui-imagen3__imagen_t2i tool
-          2. No human figures (background only)
-          3. Professional news studio aesthetic
+          2. Maintain specific visual elements from description (logos, graphs, maps, etc.)
+          3. Professional broadcast quality with clear details
           4. Extract the URL from MCP response (Google Imagen3 URL or fal.ai URL)
           5. Save ONLY the URL to ${URL_PATH} using Write tool
           6. Display the URL for verification
@@ -1706,7 +1724,7 @@ jobs:
     if: |
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
-      needs.anchor-generation.outputs.anchor_ready == 'true' &&
+      (needs.anchor-generation.result == 'success' || needs.anchor-generation.result == 'failure') &&
       needs.audio-segment-generation.outputs.segments_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 8  # Per segment - much shorter than 12 minutes total
@@ -2179,6 +2197,9 @@ jobs:
               echo "❌ No valid segment for scene ${scene} - creating 5s placeholder"
               # Create 5-second placeholder to match target scene duration
               PLACEHOLDER="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/placeholder_${scene}.mp4"
+              
+              # Ensure directory exists
+              mkdir -p "$(dirname "$PLACEHOLDER")"
               
               ffmpeg -f lavfi -i color=black:size=1920x1080:duration=5 \
                 -f lavfi -i anullsrc=sample_rate=48000:channel_layout=stereo \
