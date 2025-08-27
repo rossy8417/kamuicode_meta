@@ -268,20 +268,34 @@ jobs:
           DURATION="${{ needs.setup.outputs.duration }}"
           SCENE_COUNT="${{ needs.setup.outputs.scene_count }}"
           
-          SCRIPT_PROMPT="Create professional news script:
+          SCRIPT_PROMPT="Create professional 60-second single-topic news script:
           Topic: ${TOPIC}
-          Duration: ${DURATION} seconds
-          Scene count: ${SCENE_COUNT}
-          Structure: Introduction (0-3s hook) + Main content (3-${DURATION}s)
+          Duration: 60 seconds (STRICT CONSTRAINT)
+          Scene count: 12 scenes
+          
+          CRITICAL TEXT LENGTH CONSTRAINTS:
+          - Each scene: 20-25 characters MAXIMUM (for 5-second narration)
+          - Total script: 240-300 characters
+          - Single news topic deep dive (NOT multiple trends)
+          
+          Structure for single topic coverage:
+          Scene 1-2: News introduction and hook (40-50 chars)
+          Scene 3-5: Background and context (60-75 chars)  
+          Scene 6-8: Main details and specifics (60-75 chars)
+          Scene 9-10: Impact and implications (40-50 chars)
+          Scene 11-12: Future outlook and conclusion (40-50 chars)
+          
           Requirements:
           1. Read news summary from ${{ needs.setup.outputs.project_dir }}/metadata/news_summary.json
-          2. Create engaging ${DURATION}-second news script
-          3. Divide into ${SCENE_COUNT} scenes (5 seconds each)
-          4. Include professional news anchor narration
-          5. Save script to ${{ needs.setup.outputs.project_dir }}/metadata/news_script.json
-          6. Include scene descriptions for visual generation
-          7. Save narration text to ${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt
-          8. Verify with ls -la"
+          2. Focus on SINGLE news item for detailed 60-second coverage
+          3. Each scene narration: 20-25 characters (5 seconds reading time)
+          4. Create comprehensive single-topic analysis
+          5. Professional news anchor style, concise but informative
+          6. Save script to ${{ needs.setup.outputs.project_dir }}/metadata/news_script.json
+          7. Include scene descriptions for visual generation
+          8. Save narration text to ${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt
+          9. Add character count validation for each scene
+          10. Verify with ls -la"
           
           npx @anthropic-ai/claude-code \
             --allowedTools "Read,Write,Bash" \
@@ -318,9 +332,67 @@ jobs:
           # Verify files
           ls -la "${{ needs.setup.outputs.project_dir }}/metadata/"
           
+          # Validate script character count constraints
+          if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" ]; then
+            echo "🔍 Validating script character count constraints..."
+            python3 -c "
+import json
+import sys
+
+try:
+    with open('${{ needs.setup.outputs.project_dir }}/metadata/news_script.json', 'r', encoding='utf-8') as f:
+        script = json.load(f)
+    
+    total_chars = 0
+    violations = []
+    valid_scenes = 0
+    
+    scenes = script.get('scenes', [])
+    if len(scenes) != 12:
+        print(f'⚠️ Scene count mismatch: {len(scenes)} (expected: 12)')
+        sys.exit(1)
+    
+    for i, scene in enumerate(scenes, 1):
+        text = scene.get('narration', '')
+        char_count = len(text)
+        total_chars += char_count
+        
+        if char_count > 25:
+            violations.append(f'Scene {i}: {char_count}文字 (上限25文字超過)')
+        elif char_count < 15:
+            violations.append(f'Scene {i}: {char_count}文字 (最低15文字未満)')
+        else:
+            valid_scenes += 1
+            print(f'✅ Scene {i}: {char_count}文字')
+    
+    print(f'📊 総文字数: {total_chars}文字 (目標: 240-300文字)')
+    print(f'📊 有効シーン: {valid_scenes}/12')
+    
+    if total_chars < 240:
+        print(f'⚠️ 総文字数不足: {total_chars}文字 < 240文字')
+        violations.append('総文字数が240文字未満')
+    elif total_chars > 300:
+        print(f'⚠️ 総文字数超過: {total_chars}文字 > 300文字') 
+        violations.append('総文字数が300文字超過')
+    
+    if violations:
+        print('❌ 文字数制約違反:')
+        for v in violations:
+            print(f'  - {v}')
+        print('スクリプトを再生成してください')
+        sys.exit(1)
+    else:
+        print('✅ 全シーン文字数制約クリア')
+        
+except Exception as e:
+    print(f'❌ 検証エラー: {e}')
+    sys.exit(1)
+"
+          fi
+          
           if [ -f "${{ needs.setup.outputs.project_dir }}/metadata/news_script.json" ] && [ -f "${{ needs.setup.outputs.project_dir }}/metadata/narration_text.txt" ]; then
             echo "script_ready=true" >> $GITHUB_OUTPUT
-            echo "✅ Script creation completed"
+            echo "✅ Script creation and validation completed"
           else
             echo "script_ready=false" >> $GITHUB_OUTPUT
             echo "❌ Script creation failed"
@@ -404,8 +476,56 @@ jobs:
           if [ -n "$AUDIO_FILE" ] && [ -f "$AUDIO_FILE" ]; then
             FILE_SIZE=$(stat -c%s "$AUDIO_FILE" 2>/dev/null || echo 0)
             if [ "$FILE_SIZE" -gt 1000 ]; then
+              # Install FFmpeg for audio processing
+              sudo apt-get update && sudo apt-get install -y ffmpeg bc
+              
+              # Check audio duration and adjust if needed
+              CURRENT_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$AUDIO_FILE" 2>/dev/null || echo "0")
+              TARGET_DURATION=60
+              MIN_DURATION=55
+              MAX_DURATION=65
+              
+              echo "🎵 Current narration duration: ${CURRENT_DURATION}s (target: ${TARGET_DURATION}s)"
+              
+              if (( $(echo "$CURRENT_DURATION > $MAX_DURATION" | bc -l) )); then
+                echo "⚠️ Audio too long (${CURRENT_DURATION}s > ${MAX_DURATION}s) - compressing"
+                SPEED_FACTOR=$(echo "scale=3; $CURRENT_DURATION / $TARGET_DURATION" | bc -l)
+                ADJUSTED_FILE="${AUDIO_FILE%.mp3}_adjusted.mp3"
+                
+                ffmpeg -i "$AUDIO_FILE" -filter:a "atempo=$SPEED_FACTOR" -c:a mp3 "$ADJUSTED_FILE" -y
+                
+                if [ -f "$ADJUSTED_FILE" ]; then
+                  mv "$ADJUSTED_FILE" "$AUDIO_FILE"
+                  NEW_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$AUDIO_FILE" 2>/dev/null || echo "0")
+                  echo "✅ Audio compressed to ${NEW_DURATION}s (speed: ${SPEED_FACTOR}x)"
+                else
+                  echo "⚠️ Audio compression failed, using original"
+                fi
+                
+              elif (( $(echo "$CURRENT_DURATION < $MIN_DURATION" | bc -l) )); then
+                echo "⚠️ Audio too short (${CURRENT_DURATION}s < ${MIN_DURATION}s) - extending"
+                SPEED_FACTOR=$(echo "scale=3; $CURRENT_DURATION / $TARGET_DURATION" | bc -l)
+                ADJUSTED_FILE="${AUDIO_FILE%.mp3}_adjusted.mp3"
+                
+                ffmpeg -i "$AUDIO_FILE" -filter:a "atempo=$SPEED_FACTOR" -c:a mp3 "$ADJUSTED_FILE" -y
+                
+                if [ -f "$ADJUSTED_FILE" ]; then
+                  mv "$ADJUSTED_FILE" "$AUDIO_FILE"
+                  NEW_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$AUDIO_FILE" 2>/dev/null || echo "0")
+                  echo "✅ Audio extended to ${NEW_DURATION}s (speed: ${SPEED_FACTOR}x)"
+                else
+                  echo "⚠️ Audio extension failed, using original"
+                fi
+              else
+                echo "✅ Audio duration within acceptable range: ${CURRENT_DURATION}s"
+              fi
+              
+              # Final verification
+              FINAL_DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$AUDIO_FILE" 2>/dev/null || echo "0")
+              echo "📊 Final narration duration: ${FINAL_DURATION}s"
+              
               echo "narration_ready=true" >> $GITHUB_OUTPUT
-              echo "✅ Narration generated: $AUDIO_FILE ($FILE_SIZE bytes)"
+              echo "✅ Narration generated and adjusted: $AUDIO_FILE ($FILE_SIZE bytes, ${FINAL_DURATION}s)"
             else
               echo "narration_ready=false" >> $GITHUB_OUTPUT
               echo "⚠️ Narration file too small: $FILE_SIZE bytes"
@@ -2015,6 +2135,7 @@ jobs:
       always() &&
       needs.check-trigger.outputs.should_run == 'true' &&
       !cancelled() &&
+      (needs.scene-lipsync-generation.result == 'success' || needs.scene-lipsync-generation.result == 'skipped') &&
       (needs.lipsync-recovery.result == 'success' || needs.lipsync-recovery.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -2102,12 +2223,11 @@ jobs:
               SEGMENT_FILES="${SEGMENT_FILES}file '${SEGMENT_FILE}'\n"
               SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
             else
-              echo "❌ No valid segment for scene ${scene} - creating placeholder"
-              # Create 15-second placeholder based on expected segment duration
-              EXPECTED_DURATION=$(echo "scale=1; 180 / ${{ needs.setup.outputs.scene_count }}" | bc -l)
+              echo "❌ No valid segment for scene ${scene} - creating 5s placeholder"
+              # Create 5-second placeholder to match target scene duration
               PLACEHOLDER="${{ needs.setup.outputs.project_dir }}/media/videos/lipsync/placeholder_${scene}.mp4"
               
-              ffmpeg -f lavfi -i color=black:size=1920x1080:duration=$EXPECTED_DURATION \
+              ffmpeg -f lavfi -i color=black:size=1920x1080:duration=5 \
                 -f lavfi -i anullsrc=sample_rate=48000:channel_layout=stereo \
                 -c:v libx264 -c:a aac -pix_fmt yuv420p \
                 -shortest "$PLACEHOLDER" -y
@@ -2115,7 +2235,7 @@ jobs:
               if [ -f "$PLACEHOLDER" ]; then
                 SEGMENT_FILES="${SEGMENT_FILES}file '${PLACEHOLDER}'\n"
                 SEGMENT_COUNT=$((SEGMENT_COUNT + 1))
-                echo "✅ Created placeholder ${scene}: ${EXPECTED_DURATION}s"
+                echo "✅ Created 5s placeholder for scene ${scene}"
               else
                 echo "❌ Failed to create placeholder for scene ${scene}"
               fi
